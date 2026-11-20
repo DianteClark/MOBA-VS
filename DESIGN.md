@@ -1,5 +1,7 @@
 # MOBA-VS — Design Document
 
+**Live:** https://dianteclark.github.io/MOBA-VS/
+
 > A head-to-head **MOBA manager**. You don't pilot a hero; you *coach* five of them.
 > Every hero is a competent AI. Draft, builds and live **calls** are what decide the game.
 

@@ -27,6 +27,7 @@ export function showMenu(app) {
         ...['Easy', 'Normal', 'Hard'].map((l, i) => h('button', { class: 'btn small' + (app.aiLevel === i ? ' on' : ''), onclick: () => { app.aiLevel = i; showMenu(app); } }, l)),
       ),
     ),
+    h('div', { class: 'credits' }, h('a', { href: 'https://dianteclark.github.io/MOBA-VS/', target: '_blank' }, 'dianteclark.github.io/MOBA-VS'), ' · ', h('a', { href: 'https://github.com/DianteClark/MOBA-VS', target: '_blank' }, 'GitHub')),
     h('div', { class: 'credits' }, 'Art & audio: ', h('a', { href: 'https://pixel-boy.itch.io/ninja-adventure-asset-pack', target: '_blank' }, 'Ninja Adventure'), ' by Pixel-boy & AAA (CC0)'),
   ));
 }

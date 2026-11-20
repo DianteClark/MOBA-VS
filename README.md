@@ -4,7 +4,11 @@ A peer-to-peer **MOBA manager** that runs in the browser. Draft five heroes, cho
 
 Every hero is a capable AI. Your draft, builds and calls decide who wins.
 
-**Play:** enable GitHub Pages (Settings → Pages → Deploy from branch → `main` / root) and open the site.
+## ▶ Play now: **https://dianteclark.github.io/MOBA-VS/**
+
+*(Served by GitHub Pages from `main` / root. If the link 404s, enable it in Settings → Pages → Deploy from branch → `main` / `(root)`.)*
+
+Invite a friend straight into your room: `https://dianteclark.github.io/MOBA-VS/?join=CODE`
 
 * **vs AI**: instant match against an AI coach.
 * **Host / Join**: share the 5-letter room code with a friend. Matches are peer-to-peer (WebRTC) and fully deterministic, so both screens play out the same game.
