@@ -237,6 +237,8 @@ export class Hud {
       case 'safe': return 'Playing safe';
       case 'invade': return 'Invading';
       case 'defend': return 'Defending base';
+      case 'help': { const a = this.g.byId(t.ally); return a ? `Helping ${a.def.name}` : 'Helping'; }
+      case 'shrine': return 'Taking shrine';
       default: return '—';
     }
   }
