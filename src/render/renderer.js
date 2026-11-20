@@ -101,6 +101,7 @@ export class Renderer {
         case 'flash': if (this.visiblePoint(f.x, f.y)) { this.fxSprite('spark', f.x, f.y - 10, 1.4); this.text(f.x, f.y - 40, 'FLASH', '#fff', 9, 0.8); } break;
         case 'ward': if (f.team === this.viewTeam || this.viewTeam < 0) this.fxSprite('spirit', f.x, f.y, 1); break;
         case 'recall': break;
+        case 'emote': if (u && (u.team === this.viewTeam || this.viewTeam < 0)) { this.effects = this.effects.filter((e) => !(e.kind === 'emote' && e.id === u.id)); this.effects.push({ kind: 'emote', id: u.id, e: f.e, born: now, dur: 1.4 }); } break;
       }
     }
     g.fx.length = 0;
@@ -164,7 +165,7 @@ export class Renderer {
     }
     // top effects
     this.drawLines(dt);
-    for (const e of this.effects) if (e.kind === 'sprite') this.drawSpriteFx(e);
+    for (const e of this.effects) if (e.kind === 'sprite') this.drawSpriteFx(e); else if (e.kind === 'emote') this.drawEmote(e);
     this.effects = this.effects.filter((e) => this.time - e.born < e.dur);
     // bars on top
     for (const d of list) this.drawBars(d);
@@ -279,7 +280,10 @@ export class Renderer {
       const dirCol = u.facing;
       const src = flashing ? flashOf('hero_' + u.heroId, img) : img;
       if (u.recallAt) { ctx.strokeStyle = '#7fe0ff'; ctx.lineWidth = 2; const p = 1 - (u.recallAt - g.tick) / (4 * TICK_RATE); ctx.beginPath(); ctx.arc(x, y - 12, 22, -Math.PI / 2, -Math.PI / 2 + p * Math.PI * 2); ctx.stroke(); }
+      const hidden = u.stealthUntil > g.tick || g.world.inBrush(u.x, u.y);
+      if (hidden) ctx.globalAlpha = 0.55;
       this.drawSheetFrame(src, 16, 16, dirCol, row, x, y + 4 - lift, 2.2);
+      ctx.globalAlpha = 1;
       if (u.stunUntil > g.tick) this.drawStars(x, y - 40 - lift);
       if (u.shields.length) { ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y - 14, 20, 0, Math.PI * 2); ctx.stroke(); }
       if (u.burns.length && Math.random() < 0.15) this.fxSprite('flame', x + (Math.random() - 0.5) * 16, y - 10, 0.5);
@@ -418,6 +422,15 @@ export class Renderer {
     ctx.globalAlpha = 1;
   }
 
+  drawEmote(e) {
+    const u = this.game.units.find((q) => q.id === e.id); const img = IMG['emote_' + e.e];
+    if (!u || !u.alive || !img) return;
+    const k = (this.time - e.born) / e.dur, pop = k < 0.15 ? k / 0.15 : 1;
+    this.ctx.globalAlpha = k > 0.8 ? (1 - k) / 0.2 : 1;
+    const sc = 2 * pop;
+    this.ctx.drawImage(img, Math.round(u.x - 7 * sc), Math.round(u.y - 74 - 13 * sc + Math.sin(this.time * 6) * 2), 14 * sc, 13 * sc);
+    this.ctx.globalAlpha = 1;
+  }
   drawSpriteFx(e) {
     const def = FX[e.name]; const img = IMG['fx_' + (def.img || e.name)]; if (!img) return;
     const fw = img.width / def.frames, fh = img.height;

@@ -83,6 +83,7 @@ export function heroMacro(g, h) {
   const now = g.tick, t = h.task;
   if (t.until && now > t.until) h.task = { kind: 'idle' };
   if (t.kind === 'gank' && t.done) h.task = { kind: 'idle' };
+  if (t.kind !== 'ambush') h.ambushSet = 0;
   if (t.kind === 'objective') { const ob = g.objectives[t.obj]; if (t.started && (!ob || !ob.alive)) h.task = { kind: 'idle' }; }
   if (t.kind === 'shrine') { const sh = g.shrines[t.shrine]; if (!sh || sh.owner === h.team) h.task = { kind: 'idle' }; }
   const hpPct = h.hp / h.maxHp;
@@ -226,6 +227,11 @@ export function heroThink(g, h) {
     case 'safe': return doSafe(g, h);
     case 'invade': return doInvade(g, h, task);
     case 'shrine': return doShrine(g, h, task);
+    case 'ambush': {
+      if (dist2(h, task) > 40 * 40) { g.moveToward(h, task); return; }
+      if (!h.ambushSet) { h.ambushSet = task.until; h.stealthUntil = task.until; }
+      h.vx = h.vy = 0; return;
+    }
     case 'help': { const a = g.byId(task.ally); if (!a || !a.alive) { h.task = { kind: 'idle' }; return; } g.moveToward(h, a, true, 90); return; }
     case 'defend': { if (dist2(h, task) > 260 * 260) g.moveToward(h, task); else farmAround(g, h, 420, true); return; }
     default: return doLane(g, h, h.lane || 'mid', false);

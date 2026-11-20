@@ -1,6 +1,7 @@
 // Pre/post-match screens: menu, lobby, how-to, draft, prep, results.
 import { h, mount, face, icon, fmtTime } from './dom.js';
-import { HEROES, HERO_BY_ID, ROLES, ROLE_LABEL, matchupScore } from '../data/heroes.js';
+import { HEROES, HERO_BY_ID, ROLES, ROLE_LABEL, matchupScore, PERSONALITIES } from '../data/heroes.js';
+import { TACTICS, TACTIC_IDS } from '../data/tactics.js';
 import { BUILDS } from '../data/items.js';
 import { DRAFT_ORDER, currentTurn, taken, legal, assignRoles, TURN_SECONDS } from '../sim/draft.js';
 import { TEAM_NAME, DRAGON_INFO, CLANS } from '../sim/constants.js';
@@ -128,6 +129,7 @@ export class DraftView {
     return h('div', { class: 'panel info' },
       h('div', { class: 'row' }, h('div', { class: 'face' }, h('img', { src: face(id) })), h('div', {}, h('h2', {}, x.name), h('div', { class: 't' }, `${x.title} · ${x.roles.map((r) => ROLE_LABEL[r]).join(' / ')} · ${x.curve} game`))),
       h('div', { class: 'tags' }, h('span', { class: 'tag', style: { background: CLANS[x.clan].color, color: '#111' } }, CLANS[x.clan].name), ...x.tags.map((tg) => h('span', { class: 'tag' }, tg)), h('span', { class: 'tag' }, x.dmgType === 'phys' ? 'physical' : 'magic'), h('span', { class: 'tag' }, x.ranged ? 'ranged' : 'melee')),
+      h('div', { class: 'pers', style: { color: PERSONALITIES[x.pers].color } }, `${PERSONALITIES[x.pers].name} — `, h('span', { class: 'muted' }, PERSONALITIES[x.pers].desc)),
       h('div', { class: 'ab' }, h('img', { src: icon('LuckUpgrade') }), h('div', {}, h('b', {}, `Passive: ${x.passive.name}`), h('div', { class: 'd' }, x.passive.desc))),
       ...x.abilities.map((a) => h('div', { class: 'ab' }, h('img', { src: icon(a.icon) }), h('div', {}, h('b', {}, `${a.ult ? 'Ultimate: ' : ''}${a.name}`), h('div', { class: 'd' }, describeAbility(a))))),
       h('div', { class: 'muted', style: { fontSize: '10px', marginTop: '6px' } }, 'Builds: ' + x.builds.map((b) => BUILDS[b].name).join(', ')),
@@ -159,7 +161,7 @@ export function showPrep(app, prep, enemyIds, left, onChange, onReady, ready) {
     const x = HERO_BY_ID[hp.id];
     return h('div', { class: 'panel pcard' },
       h('div', { class: 'head' }, h('div', { class: 'face' }, h('img', { src: face(hp.id) })),
-        h('div', { class: 'col', style: { gap: '3px' } }, h('div', {}, x.name),
+        h('div', { class: 'col', style: { gap: '3px' } }, h('div', {}, x.name, ' ', h('span', { style: { color: PERSONALITIES[x.pers].color, fontSize: '10px' } }, PERSONALITIES[x.pers].name)),
           h('select', { disabled: ready, onchange: (e) => { const r = e.target.value; const other = prep.heroes.find((o) => o.role === r); if (other) other.role = hp.role; hp.role = r; onChange(); } },
             ...ROLES.map((r) => h('option', { value: r, selected: r === hp.role }, ROLE_LABEL[r] + (x.roles.includes(r) ? '' : ' (off-role)')))))),
       h('div', { class: 'bopts' }, ...x.builds.map((b) => h('div', { class: 'bopt' + (hp.build === b ? ' sel' : ''), onclick: () => { if (ready) return; hp.build = b; onChange(); } },
@@ -178,6 +180,12 @@ export function showPrep(app, prep, enemyIds, left, onChange, onReady, ready) {
       const c = {}; for (const p of prep.heroes) { const k = HERO_BY_ID[p.id].clan; c[k] = (c[k] || 0) + 1; }
       return Object.entries(c).map(([k, n]) => { const tier = CLANS[k].tiers.filter((t) => n >= t.n).pop(); return h('div', { class: 'bopt' + (tier ? ' sel' : ''), style: { borderColor: CLANS[k].color } }, h('div', { style: { color: CLANS[k].color } }, `${CLANS[k].name} ×${n}`), h('div', { class: 'bd' }, tier ? tier.text : `${CLANS[k].tiers[0].n} needed: ${CLANS[k].tiers[0].text}`)); });
     })())),
+    h('div', { class: 'panel col' }, h('div', { class: 'row', style: { justifyContent: 'space-between' } }, h('span', {}, 'Tactic deck'), h('span', { class: 'muted', style: { fontSize: '11px' } }, `pick 3 · ${prep.deck.length}/3`)),
+      h('div', { class: 'deck' }, ...TACTIC_IDS.map((id) => {
+        const t = TACTICS[id], on = prep.deck.includes(id);
+        return h('div', { class: 'card' + (on ? ' sel' : ''), onclick: () => { if (ready) return; if (on) prep.deck = prep.deck.filter((d) => d !== id); else if (prep.deck.length < 3) prep.deck = [...prep.deck, id]; else prep.deck = [...prep.deck.slice(1), id]; onChange(); } },
+          h('img', { src: icon(t.icon) }), h('div', { class: 'cn' }, t.name), h('div', { class: 'cd' }, t.desc));
+      }))),
     h('div', { class: 'panel col' }, h('div', {}, 'Team plan'), h('div', { class: 'plans' }, ...Object.entries(PLANS).map(([k, d]) => h('div', { class: 'bopt' + (prep.plan === k ? ' sel' : ''), onclick: () => { if (ready) return; prep.plan = k; onChange(); } }, h('div', {}, k[0].toUpperCase() + k.slice(1)), h('div', { class: 'bd' }, d))))),
     h('div', { class: 'row', style: { justifyContent: 'center' } }, h('button', { class: 'btn big', disabled: ready, onclick: onReady }, ready ? 'Waiting for opponent…' : 'Ready')),
   ));

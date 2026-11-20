@@ -4,7 +4,8 @@ import { dist2, dist, norm, r2 } from './geom.js';
 import { DT, sec, BLUE, RED, NEUTRAL, T, GOLD, XP, xpNeeded, VISION, CMD, DRAGONS, MATCH_SECONDS, RANGE, CLANS, WEATHER } from './constants.js';
 import { World, S as MAP_SIZE, C as CELL, N as GRID_N } from './world.js';
 import { MAP_BY_ID } from '../maps/defs.js';
-import { HERO_BY_ID } from '../data/heroes.js';
+import { HERO_BY_ID, PERSONALITIES } from '../data/heroes.js';
+import { TACTICS, DEFAULT_DECK } from '../data/tactics.js';
 import { BUILDS } from '../data/items.js';
 import { heroThink, heroMacro } from './ai.js';
 import { Coach } from './coach.js';
@@ -66,6 +67,7 @@ export class Game {
       id: t, plan: cfg.teams[t].plan || 'balanced', name: cfg.teams[t].name || (t === 0 ? 'Blue' : 'Red'),
       charges: 1, kills: 0, towers: 0, dragons: [], soul: null, heraldEye: 0, baronUntil: 0, elderUntil: 0,
       focus: null, call: null, heroes: [], goldHistory: [], invadeCamp: null,
+      deck: (cfg.teams[t].deck || DEFAULT_DECK).slice(0, 3).map((id) => ({ id, used: false })), siegeWaves: {}, siegeUntil: 0, fortifyUntil: 0, pactUntil: 0, swapUntil: 0,
     }));
     this.world = new World(MAP_BY_ID[cfg.map] || MAP_BY_ID.sakura);
     this.visGrid = [new Uint8Array(GRID_N * GRID_N), new Uint8Array(GRID_N * GRID_N)];
@@ -123,6 +125,61 @@ export class Game {
     this.over = true; this.winner = w;
     this.emit({ type: 'victory', team: w, timeout: true, towers: [a, b] });
   }
+  playTactic(c) {
+    const team = this.teams[c.team], card = team.deck.find((d) => d.id === c.card && !d.used);
+    if (!card || !TACTICS[c.card]) return false;
+    const now = this.tick, alive = team.heroes.filter((h) => h.alive);
+    const lanes = this.world.laneNames;
+    switch (c.card) {
+      case 'smoke': for (const h of alive) { h.stealthUntil = now + sec(8); this.addBuff(h, { msPct: 0.1 }, 8, 'smoke'); this.fx.push({ kind: 'fx', name: 'smoke', x: h.x, y: h.y, s: 1.6 }); } break;
+      case 'rally': for (const h of alive) { this.addBuff(h, { msPct: 0.15, asPct: 0.15 }, 12, 'rally'); this.fx.push({ kind: 'fx', name: 'boost', x: h.x, y: h.y, s: 1.2, follow: h.id }); } break;
+      case 'wind': for (const h of alive) { this.heal(h, h.maxHp * 0.25, null); h.slows = []; this.fx.push({ kind: 'fx', name: 'spirit', x: h.x, y: h.y, s: 1.4, follow: h.id }); } break;
+      case 'sweep': {
+        this.wards = this.wards.filter((w) => w.team === c.team);
+        for (const e of this.teams[1 - c.team].heroes) if (e.alive) { e.revealUntil = now + sec(4); e.stealthUntil = 0; }
+        break;
+      }
+      case 'fortify': team.fortifyUntil = now + sec(25); break;
+      case 'siege': if (!lanes.includes(c.lane)) return false; team.siegeWaves[c.lane] = 2; team.siegeUntil = now + sec(30); break;
+      case 'pact': {
+        const live = ['dragon', 'herald', 'baron'].map((k) => this.objectives[k]).filter((o) => o && o.alive);
+        if (!live.length) return false;
+        const o = live.sort((a, b) => dist2(a, this.world.fountain[c.team]) - dist2(b, this.world.fountain[c.team]))[0];
+        team.pactUntil = now + sec(20);
+        const pick = alive.slice().sort((a, b) => dist2(a, o) - dist2(b, o)).slice(0, 4);
+        for (const h of pick) this.setCallTask(h, { kind: 'objective', obj: o.kind, until: now + sec(T.objectiveTimeout), call: true });
+        break;
+      }
+      case 'bait': {
+        const b = team.heroes.find((h) => h.id === c.hero && h.alive); if (!b) return false;
+        this.addShield(b, b.maxHp * 0.3, 6); this.fx.push({ kind: 'shield', id: b.id });
+        for (const h of alive) if (h !== b && dist2(h, b) < 1300 * 1300) h.task = { kind: 'help', ally: b.id, until: now + sec(10), call: true };
+        break;
+      }
+      case 'ambush': {
+        if (!lanes.includes(c.lane)) return false;
+        const anchor = this.world.lanePoint(c.lane, c.team === 0 ? 0.42 : 0.58);
+        let spot = null, bd = Infinity;
+        const W = this.world;
+        for (let i = 0; i < W.brush.length; i++) if (W.brush[i]) { const p = { x: (i % 100) * 24 + 12, y: ((i / 100) | 0) * 24 + 12 }; const d = dist2(p, anchor); if (d < bd) { bd = d; spot = p; } }
+        if (!spot || bd > 700 * 700) spot = W.nearestOpen(anchor);
+        const jg = alive.find((h) => h.role === 'jungle');
+        const pick = [jg, ...alive.filter((h) => h !== jg).sort((a, b) => dist2(a, spot) - dist2(b, spot))].filter(Boolean).slice(0, 3);
+        for (const h of pick) this.setCallTask(h, { kind: 'ambush', x: spot.x, y: spot.y, until: now + sec(20), call: true });
+        break;
+      }
+      case 'swap': {
+        team.swapUntil = now + sec(90);
+        for (const h of team.heroes) { if (h.homeLane === 'top') h.lane = 'bot'; else if (h.homeLane === 'bot') h.lane = 'top'; if (h.task.kind === 'lane') h.task = { kind: 'idle' }; }
+        break;
+      }
+      default: return false;
+    }
+    card.used = true;
+    this.emit({ type: 'tactic', team: c.team, card: c.card, lane: c.lane, hero: c.hero });
+    return true;
+  }
+
   updateShrines() {
     if (this.time < T.shrineUnlock) return;
     const step = 5 * DT;
@@ -181,12 +238,40 @@ export class Game {
       level: 1, xp: 0, gold: GOLD.start, radius: 14, cds: [0, 0, 0], castLock: 0, dash: null, every3: 0, passiveCd: 0,
       kills: 0, deaths: 0, assists: 0, cs: 0, dmgHeroes: 0, dmgTaken: 0, healed: 0, goldEarned: GOLD.start, streak: 0,
       respawnAt: 0, recallAt: 0, flashCd: 0, task: { kind: 'idle' }, dmgBy: {}, lowShieldCd: 0, smiteCd: 0, wardCd: sec(50), lastHurtByHero: -999,
-      stats: null, maxHp: 1, hp: 1,
+      stats: null, maxHp: 1, hp: 1, trust: 50, tiltUntil: 0, pendingCall: null, stealthUntil: 0, ambushUntil: 0, revealUntil: 0,
     });
+    h.pers = PERSONALITIES[def.pers] || PERSONALITIES.calm;
+    this.updateMods(h);
     this.recalc(h); h.hp = h.maxHp;
     this.teams[team].heroes.push(h);
     this.buyItems(h);
     return h;
+  }
+
+  // ───────────────────────── personality & trust ─────────────────────────
+  updateMods(h) {
+    const b = h.pers.mods, m = { ...b };
+    if (h.trust >= 70) { m.aggro *= 1.05; m.discipline += 0.1; m.react = Math.max(3, m.react - 1); }
+    else if (h.trust <= 30) { m.discipline -= 0.1; m.react += 2; }
+    if (h.tiltUntil > this.tick) { m.aggro *= 1.2; m.discipline *= 0.85; m.dodge *= 0.85; }
+    h.mods = m;
+    h.trustMult = h.trust >= 70 ? 1.04 : h.trust <= 30 ? 0.97 : 1;
+  }
+  addTrust(h, v, why) {
+    const before = h.trust;
+    h.trust = Math.max(0, Math.min(100, h.trust + (v > 0 ? v * h.pers.trustGain : v)));
+    const tier = (x) => (x >= 70 ? 2 : x <= 30 ? 0 : 1);
+    if (tier(before) !== tier(h.trust)) this.emit({ type: 'trust', hero: h.id, team: h.team, tier: tier(h.trust), why });
+    this.fx.push({ kind: 'emote', id: h.id, e: v > 0 ? 'up' : 'down' });
+    this.updateMods(h);
+  }
+  // Calls reach heroes after a delay that depends on trust and personality.
+  setCallTask(h, task) {
+    if (this._callHeroes) this._callHeroes.push(h.id);
+    const base = h.trust >= 70 ? 0 : h.trust >= 45 ? 6 : h.trust >= 25 ? 20 : 34;
+    const d = Math.round(base * h.pers.delay);
+    if (d <= 0) { h.task = task; this.fx.push({ kind: 'emote', id: h.id, e: 'ok' }); }
+    else { h.pendingCall = { task, at: this.tick + d }; this.fx.push({ kind: 'emote', id: h.id, e: h.trust < 30 ? 'doubt' : 'think' }); }
   }
 
   // ───────────────────────── stats ─────────────────────────
@@ -281,6 +366,7 @@ export class Game {
 
   // ───────────────────────── commands ─────────────────────────
   applyCommand(c) {
+    this._callHeroes = [];
     const team = this.teams[c.team]; if (!team || this.over) return false;
     const cost = CMD.cost[c.type] ?? 1;
     if (team.charges + 1e-9 < cost) return false;
@@ -293,7 +379,7 @@ export class Game {
       case 'gank': {
         const h = heroes.find((x) => x.id === c.hero) || jungler;
         if (!h || !h.alive || !this.world.laneNames.includes(c.lane)) { ok = false; break; }
-        h.task = { kind: 'gank', lane: c.lane, until: until(T.gankTimeout), call: true };
+        this.setCallTask(h, { kind: 'gank', lane: c.lane, until: until(T.gankTimeout), call: true });
         break;
       }
       case 'objective': {
@@ -302,7 +388,7 @@ export class Game {
         const pref = o === 'dragon' ? ['jungle', 'bot', 'support', 'mid', 'top'] : o === 'herald' ? ['jungle', 'top', 'mid', 'support', 'bot'] : ['jungle', 'mid', 'top', 'support', 'bot'];
         const n = o === 'baron' ? 5 : 4;
         const pick = alive.slice().sort((a, b) => (pref.indexOf(a.role) - pref.indexOf(b.role)) || (dist2(a, pit) - dist2(b, pit))).slice(0, n);
-        for (const h of pick) if (!(h.task.kind === 'split' && h.task.call)) h.task = { kind: 'objective', obj: o, until: until(T.objectiveTimeout), call: true };
+        for (const h of pick) if (!(h.task.kind === 'split' && h.task.call)) this.setCallTask(h, { kind: 'objective', obj: o, until: until(T.objectiveTimeout), call: true });
         team.call = { type: 'objective', obj: o, until: until(T.objectiveTimeout) };
         break;
       }
@@ -310,19 +396,19 @@ export class Game {
         const target = this.shrines.filter((x) => x.owner !== c.team).sort((a, b) => (c.shrine === a.id ? -1 : 0) - (c.shrine === b.id ? -1 : 0) || dist2(a, this.world.fountain[c.team]) - dist2(b, this.world.fountain[c.team]))[0];
         if (!target || this.time < T.shrineUnlock) { ok = false; break; }
         const pick = alive.slice().sort((a, b) => (a.role === 'jungle' ? -1 : 0) - (b.role === 'jungle' ? -1 : 0) || dist2(a, target) - dist2(b, target)).slice(0, 2);
-        for (const h of pick) h.task = { kind: 'shrine', shrine: target.id, until: until(25), call: true };
+        for (const h of pick) this.setCallTask(h, { kind: 'shrine', shrine: target.id, until: until(25), call: true });
         break;
       }
       case 'group': {
         if (!this.world.laneNames.includes(c.lane)) { ok = false; break; }
-        for (const h of alive) if (!(h.task.kind === 'split' && h.task.call)) h.task = { kind: 'group', lane: c.lane, until: until(T.groupTimeout), call: true };
+        for (const h of alive) if (!(h.task.kind === 'split' && h.task.call)) this.setCallTask(h, { kind: 'group', lane: c.lane, until: until(T.groupTimeout), call: true });
         team.call = { type: 'group', lane: c.lane, until: until(T.groupTimeout) };
         break;
       }
       case 'split': {
         const h = heroes.find((x) => x.id === c.hero);
         if (!h || !this.world.laneNames.includes(c.lane)) { ok = false; break; }
-        h.task = { kind: 'split', lane: c.lane, until: until(90), call: true };
+        this.setCallTask(h, { kind: 'split', lane: c.lane, until: until(90), call: true });
         break;
       }
       case 'focus': {
@@ -332,18 +418,18 @@ export class Game {
         break;
       }
       case 'safe':
-        for (const h of alive) h.task = { kind: 'safe', until: until(T.safeTimeout), call: true };
+        for (const h of alive) this.setCallTask(h, { kind: 'safe', until: until(T.safeTimeout), call: true });
         team.call = { type: 'safe', until: until(T.safeTimeout) };
         break;
       case 'reset':
-        for (const h of alive) h.task = { kind: 'recall', call: true };
+        for (const h of alive) this.setCallTask(h, { kind: 'recall', call: true });
         break;
       case 'invade': {
         const enemyCamps = this.camps.filter((cp) => cp.side !== c.team && cp.mobs.length > 0);
         if (!jungler || !jungler.alive || !enemyCamps.length) { ok = false; break; }
         const camp = enemyCamps.sort((a, b) => dist2(a, jungler) - dist2(b, jungler))[0];
         const buddy = alive.filter((h) => h.role === 'support' || h.role === 'mid').sort((a, b) => dist2(a, camp) - dist2(b, camp))[0];
-        for (const h of [jungler, buddy]) if (h) h.task = { kind: 'invade', camp: camp.key, until: until(30), call: true };
+        for (const h of [jungler, buddy]) if (h) this.setCallTask(h, { kind: 'invade', camp: camp.key, until: until(30), call: true });
         break;
       }
       case 'herald': {
@@ -358,6 +444,7 @@ export class Game {
         h.build = c.build; this.emit({ type: 'pivot', hero: h.id, team: h.team, build: c.build });
         break;
       }
+      case 'tactic': ok = this.playTactic(c); break;
       case 'cancel':
         for (const h of alive) if (h.task.call) h.task = { kind: 'idle' };
         team.call = null; team.focus = null;
@@ -366,8 +453,9 @@ export class Game {
     }
     if (ok) {
       team.charges -= cost;
-      const entry = { t: this.tick, team: c.team, type: c.type, lane: c.lane, obj: c.obj, hero: c.hero, target: c.target, build: c.build, result: null };
-      if (['gank', 'objective', 'invade', 'group'].includes(c.type)) this.callLog.push(entry);
+      const entry = { t: this.tick, team: c.team, type: c.type, lane: c.lane, obj: c.obj, hero: c.hero, target: c.target, build: c.build, card: c.card, result: null, heroes: this._callHeroes.slice() };
+      if (c.type === 'tactic') { entry.result = 'played'; entry.trusted = true; }
+      if (['gank', 'objective', 'invade', 'group', 'shrine', 'tactic'].includes(c.type)) this.callLog.push(entry);
       this.emit({ type: 'call', team: c.team, call: entry });
     }
     return ok;
@@ -384,7 +472,13 @@ export class Game {
         if (c.type === 'gank' && v && ev.killerTeam === c.team && this.laneOf(v) === c.lane) c.result = 'success';
         else if (c.type === 'gank' && v && v.team === c.team && this.laneOf(v) === c.lane) c.result = 'traded';
       }
-      if (ev.type === 'objective' && c.type === 'objective' && ev.obj === c.obj) c.result = ev.team === c.team ? (ev.steal ? 'success' : 'success') : 'stolen';
+      if (ev.type === 'objective' && c.type === 'objective' && ev.obj === c.obj) c.result = ev.team === c.team ? 'success' : 'stolen';
+      if (ev.type === 'shrine' && c.type === 'shrine' && ev.team === c.team) c.result = 'success';
+      if (c.result && !c.trusted) {
+        c.trusted = true;
+        const delta = c.result === 'success' ? 8 : c.result === 'expired' ? -2 : -6;
+        for (const id of c.heroes || []) { const x = this.byId(id); if (x) this.addTrust(x, delta, c.result); }
+      }
     }
   }
   laneOf(u) { return this.world.closestLane(u); }
@@ -401,6 +495,7 @@ export class Game {
     for (let t = 0; t < 2; t++) { if (this.coaches[t]) this.coaches[t].update(); }
 
     for (const tm of this.teams) {
+      if (tm.swapUntil && now >= tm.swapUntil) { tm.swapUntil = 0; for (const h of tm.heroes) { h.lane = h.homeLane; if (h.task.kind === 'lane') h.task = { kind: 'idle' }; } }
       tm.charges = Math.min(CMD.maxCharges, tm.charges + DT / CMD.regen);
       if (tm.focus && tm.focus.until <= now) tm.focus = null;
       if (tm.call && tm.call.until <= now) tm.call = null;
@@ -456,7 +551,8 @@ export class Game {
       if (this.waveCount % T.siegeEvery === 0) kinds.splice(3, 0, 'siege');
       const enemyInhibDown = this.units.some((u) => u.type === 'inhib' && u.team !== t && u.lane === ln && !u.alive);
       if (enemyInhibDown) kinds.unshift('super');
-      const baron = this.teams[t].heroes.some((h) => h.alive && h.baronUntil > this.tick);
+      let baron = this.teams[t].heroes.some((h) => h.alive && h.baronUntil > this.tick);
+      if (this.teams[t].siegeWaves[ln] > 0) { this.teams[t].siegeWaves[ln]--; baron = true; }
       kinds.forEach((k, i) => this.spawnMinion(t, ln, k, i, minute, baron));
     }
   }
@@ -562,7 +658,10 @@ export class Game {
       const vis = new Set();
       for (const u of this.units) {
         if (!u.alive || u.team === t) continue;
-        if (grid[W.idx(u.x, u.y)] || u.revealUntil > this.tick) vis.add(u.id);
+        if (u.revealUntil > this.tick) { vis.add(u.id); continue; }
+        if (!grid[W.idx(u.x, u.y)]) continue;
+        if (u.stealthUntil > this.tick && !this.grid.query(u.x, u.y, 150).some((e) => e.alive && e.team === t && !e.structure)) continue;
+        vis.add(u.id);
       }
       this.vision[t] = vis;
       const ls = this.lastSeen[t];
@@ -595,6 +694,11 @@ export class Game {
       if (lowHp && ss.execute) amt *= 1 + ss.execute;
       if (tgt.structure && src.def.passive.kind === 'siege') amt *= 1 + src.def.passive.pct;
       if (ss.dmgPct) amt *= 1 + ss.dmgPct;
+      amt *= src.trustMult || 1;
+      if (src.stealthUntil > this.tick || src.ambushUntil > this.tick) { amt *= 1.25; if (src.stealthUntil > this.tick) { src.stealthUntil = 0; src.ambushUntil = this.tick + sec(3); } }
+      const st = this.teams[src.team];
+      if (tgt.structure && st.siegeUntil > this.tick) amt *= 1.25;
+      if ((tgt.type === 'objective') && st.pactUntil > this.tick) amt *= 1.3;
       if (tgt.structure && ss.siegePct) amt *= 1 + ss.siegePct;
       if ((tgt.type === 'mob' || tgt.type === 'objective') && src.role === 'jungle') amt *= 1.6;
       if (tgt.structure && !flags.summon) {
@@ -603,6 +707,7 @@ export class Game {
         if (!cover) amt *= 0.35;
       }
     }
+    if (tgt.structure && tgt.team < 2 && this.teams[tgt.team].fortifyUntil > this.tick) amt *= 0.6;
     if (type !== 'true') {
       const res = type === 'phys' ? (tgt.stats.armor || 0) : (tgt.stats.mr || 0);
       const eff = res * (1 - ((ss && ss.pen) || 0));
@@ -923,6 +1028,8 @@ export class Game {
       }
       return;
     }
+    if (h.pendingCall && now >= h.pendingCall.at) { h.task = h.pendingCall.task; h.task.since = now; h.pendingCall = null; }
+    if (h.tiltUntil && now === h.tiltUntil) this.updateMods(h);
     // passive gold
     if (this.time > 15) this.giveGold(h, (GOLD.passive + (h.role === 'support' ? 1.6 : 0)) * DT);
     // regen
@@ -1214,6 +1321,9 @@ export class Game {
     switch (u.type) {
       case 'hero': {
         u.deaths++; u.streak = 0;
+        if (u.task.call) this.addTrust(u, -8, 'died on call');
+        if (u.pers.tilts) { u.tiltUntil = now + sec(60); this.addTrust(u, -4, 'tilted'); }
+        u.pendingCall = null; u.stealthUntil = 0;
         u.respawnAt = now + sec(Math.min(32, 4 + u.level * 1.7 + Math.max(0, this.time / 60 - 10) * 0.6));
         u.dash = null; u.recallAt = 0; u.burns = []; u.task = { kind: 'idle' };
         const assists = [];
@@ -1223,6 +1333,7 @@ export class Game {
         const victimStreak = u.killStreak || 0; u.killStreak = 0;
         if (killer) {
           killer.kills++; killer.killStreak = (killer.killStreak || 0) + 1;
+          this.addTrust(killer, killer.pers.tilts ? 4 : 2, 'kill');
           this.giveGold(killer, GOLD.kill + Math.min(5, Math.max(0, victimStreak - 1)) * GOLD.shutdownPerStreak);
           this.teams[killer.team].kills++;
         } else if (killerTeam !== NEUTRAL && killerTeam !== u.team) this.teams[killerTeam].kills++;
@@ -1263,7 +1374,7 @@ export class Game {
         if (team < 0) { this.objTimers[u.kind] = now + sec(30); break; }
         const tm = this.teams[team];
         const smite = src && src.smited === now;
-        for (const h of tm.heroes) if (h.alive) { this.giveGold(h, GOLD.objectiveTeam); this.giveXp(h, 120); }
+        for (const h of tm.heroes) if (h.alive) { this.giveGold(h, GOLD.objectiveTeam); this.giveXp(h, 120); this.addTrust(h, 3, 'objective'); }
         if (u.kind === 'dragon') {
           if (u.element === 'elder') { for (const h of tm.heroes) if (h.alive) h.elderUntil = now + sec(T.elderBuff); this.objTimers.dragon = now + sec(T.elderRespawn); }
           else {

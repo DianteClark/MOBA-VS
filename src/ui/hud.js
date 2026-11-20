@@ -1,7 +1,8 @@
 // In-match HUD: scoreboard, team cards, command bar (calls), analyst feed, controls.
 import { h, mount, face, icon, fmtTime, toast } from './dom.js';
 import { BUILDS } from '../data/items.js';
-import { ROLE_LABEL } from '../data/heroes.js';
+import { ROLE_LABEL, PERSONALITIES } from '../data/heroes.js';
+import { TACTICS } from '../data/tactics.js';
 import { CMD, DRAGON_INFO, TEAM_NAME, TICK_RATE, T, OBJ_NAME, WEATHER } from '../sim/constants.js';
 const LANE_NAMES = ['top', 'mid', 'bot'];
 import { TEAM_COL } from '../render/renderer.js';
@@ -44,6 +45,7 @@ export class Hud {
         h('div', { class: 'info2' },
           h('div', { class: 'nm' }, h('span', { style: { color: TEAM_COL[hero.team] } }, hero.def.name), h('span', { class: 'kda' }, '0/0/0')),
           h('div', { class: 'bar' }, h('i', { style: { background: TEAM_COL[hero.team] } })),
+          mine ? h('div', { class: 'trust', title: 'Trust in your calls' }, h('i')) : null,
           h('div', { class: 'st' }, ''),
           h('div', { class: 'its' })),
         h('div', { class: 'hpmini' }, h('i', { style: { background: TEAM_COL[hero.team] } })),
@@ -122,7 +124,14 @@ export class Hud {
     });
     this.cmdBtns = btns;
     const row = h('div', { class: 'cmdrow' }, h('div', { class: 'meter' }, pips, h('span', {}, 'CALLS')), ...btns);
-    mount(this.el.cmd, this.picker ? this.pickerEl() : null, row);
+    const cards = h('div', { class: 'cardrow' }, ...team.deck.map((d) => {
+      const t = TACTICS[d.id];
+      return h('button', { class: 'tcard' + (d.used ? ' used' : '') + (this.picker && this.picker.type === 'tactic' && this.picker.card === d.id ? ' on' : ''), disabled: d.used, title: t.desc,
+        onclick: () => { if (t.target === 'none') this.send({ type: 'tactic', card: d.id }); else { this.picker = { type: 'tactic', card: d.id }; this.renderCmd(); } } },
+        h('img', { src: icon(t.icon) }), h('span', {}, t.name));
+    }));
+    this._deckSig = team.deck.map((d) => d.used ? 1 : 0).join('');
+    mount(this.el.cmd, this.picker ? this.pickerEl() : null, cards, row);
     this.updatePips();
   }
   heroPick(list, onPick, selId, disabled) {
@@ -161,6 +170,11 @@ export class Hud {
         if (!p.hero) return box('Who split-pushes?', this.heroPick(mine, (x) => { p.hero = x; this.renderCmd(); }, null, (x) => !x.alive));
         return box(`${p.hero.def.name} splits which lane?`, laneBtns((l) => this.send({ type: 'split', hero: p.hero.id, lane: l })));
       }
+      case 'tactic': {
+        const t = TACTICS[p.card];
+        if (t.target === 'lane') return box(`${t.name}: which lane?`, laneBtns((l) => this.send({ type: 'tactic', card: p.card, lane: l })));
+        return box(`${t.name}: which hero?`, this.heroPick(mine, (x) => this.send({ type: 'tactic', card: p.card, hero: x.id }), null, (x) => !x.alive));
+      }
       case 'focus': return box('Focus which enemy? (20s)', this.heroPick(enemy, (x) => this.send({ type: 'focus', target: x.id }), null, (x) => !x.alive));
       case 'build': {
         if (!p.hero) return box('Change whose build path?', this.heroPick(mine, (x) => { p.hero = x; this.renderCmd(); }));
@@ -188,6 +202,7 @@ export class Hud {
     // herald button appears/disappears
     if (this.my >= 0) { const has = g.teams[this.my].heraldEye > g.tick; if (has !== this._hasEye) { this._hasEye = has; this.renderCmd(); } }
     if (this.picker && this.picker.type === 'objective' && (g.tick % 20 === 0)) this.renderCmd();
+    if (this.my >= 0 && g.teams[this.my].deck.map((d) => d.used ? 1 : 0).join('') !== this._deckSig) this.renderCmd();
     this.updateScore();
     this.updateRows(this.mineRows, true);
     this.updateRows(this.enemyRows, false);
@@ -237,6 +252,7 @@ export class Hud {
       case 'safe': return 'Playing safe';
       case 'invade': return 'Invading';
       case 'defend': return 'Defending base';
+      case 'ambush': return 'Lying in ambush';
       case 'help': { const a = this.g.byId(t.ally); return a ? `Helping ${a.def.name}` : 'Helping'; }
       case 'shrine': return 'Taking shrine';
       default: return '—';
@@ -257,8 +273,10 @@ export class Hud {
       const pct = x.alive ? (vis ? x.hp / x.maxHp : null) : 0;
       info.children[1].firstChild.style.width = (pct === null ? 0 : pct * 100) + '%';
       row.children[2].firstChild.style.width = (pct === null ? 0 : pct * 100) + '%';
-      info.children[2].textContent = mine || this.my < 0 ? this.taskLabel(x) : (vis ? (x.alive ? 'Visible' : this.taskLabel(x)) : this.missingText(x));
-      const its = info.children[3];
+      info.children[mine ? 3 : 2].textContent = (x.pendingCall ? '… ' : '') + (mine || this.my < 0 ? this.taskLabel(x) : (vis ? (x.alive ? 'Visible' : this.taskLabel(x)) : this.missingText(x)));
+      const itsIdx = mine ? 4 : 3;
+      if (mine) { const tb = info.children[2].firstChild; tb.style.width = x.trust + '%'; tb.style.background = x.trust >= 70 ? 'var(--green)' : x.trust <= 30 ? 'var(--red)' : 'var(--gold)'; info.children[2].title = `${PERSONALITIES[x.def.pers].name} · trust ${Math.round(x.trust)}${x.tiltUntil > g.tick ? ' · TILTED' : ''}`; }
+      const its = info.children[itsIdx];
       if (its.childElementCount !== x.items.length) mount(its, ...x.items.map((it) => h('img', { src: icon(it.icon), title: it.name })));
       if (mine && row.children[3]) {
         const cds = row.children[3].children;
@@ -319,6 +337,8 @@ export class Hud {
         case 'victory': if (e.timeout) this.feed(`Time! Towers standing ${e.towers[0]} - ${e.towers[1]}`, 'n', true); this.banner(this.my < 0 ? `${TEAM_NAME[e.team].toUpperCase()} WINS` : e.team === this.my ? 'VICTORY' : 'DEFEAT', e.team === this.my || this.my < 0 ? TEAM_COL[e.team] : '#ff5a5a', 4000); audio.sfx(e.team === this.my || this.my < 0 ? 'objective' : 'death'); break;
         case 'ultCast': if (ours || this.my < 0) audio.sfx('magic', 0.5, 300); break;
         case 'pivot': if (e.team === this.view) this.feed(`${this.name(e.hero)} will now build ${BUILDS[e.build].name}`, 'n'); break;
+        case 'trust': if (e.team === this.view) { const x = g.byId(e.hero); this.feed(e.tier === 2 ? `${x.def.name} is Inspired by your calls!` : e.tier === 0 ? `${x.def.name} is losing faith in your calls` : `${x.def.name} trusts you again`, e.tier === 0 ? 'r' : 's'); } break;
+        case 'tactic': if (e.team === this.view || this.my < 0) { this.feed(`${this.my < 0 ? TEAM_NAME[e.team] + ' plays' : 'Tactic:'} ${TACTICS[e.card].name}${e.lane ? ' ' + LANE_L[e.lane] : ''}`, e.team === 0 ? 'b' : 'r', true); this.banner(TACTICS[e.card].name.toUpperCase(), TEAM_COL[e.team], 1500); audio.sfx('powerup', 0.7); } break;
         case 'stolenCamp': if (e.team !== this.view) this.feed(`Enemy invaded your jungle!`, 'r'); break;
       }
       void ours;

@@ -42,6 +42,7 @@ export async function loadAssets(onProgress) {
   for (const f of new Set(Object.keys(FX).map((k) => FX[k].img || k))) jobs.push(['fx_' + f, `${BASE}fx/${f}.png`]);
   for (const p of Object.keys(PROJ)) jobs.push(['fx_' + p, `${BASE}fx/${p}.png`]);
   jobs.push(['shadow', `${BASE}fx/shadow.png`]);
+  for (const e of ['ok', 'think', 'doubt', 'up', 'down', 'tilt']) jobs.push(['emote_' + e, `${BASE}emote/${e}.png`]);
   let done = 0;
   await Promise.all(jobs.map(([k, s]) => load(k, s).then(() => { done++; onProgress && onProgress(done / jobs.length); })));
   buildVariants();

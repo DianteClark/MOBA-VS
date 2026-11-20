@@ -269,7 +269,7 @@ class App {
     const s = this.session;
     const cfg = {
       seed: s.seed, map: s.mapId,
-      teams: [0, 1].map((t) => ({ heroes: s.preps[t].heroes, plan: s.preps[t].plan, name: s.names[t] })),
+      teams: [0, 1].map((t) => ({ heroes: s.preps[t].heroes, plan: s.preps[t].plan, deck: s.preps[t].deck, name: s.names[t] })),
       coach: s.mode === 'ai' ? [s.myTeam !== 0, s.myTeam !== 1] : s.mode === 'watch' ? [true, true] : [false, false],
       coachLevel: [this.aiLevel, this.aiLevel],
     };

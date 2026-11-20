@@ -3,11 +3,11 @@ import { Game } from '../src/sim/game.js';
 import { HEROES } from '../src/data/heroes.js';
 const pick = (ids) => ids.map((id) => { const h = HEROES.find((x) => x.id === id); return { id, role: h.role, build: h.rec }; });
 const cfg = () => ({ seed: 777, coach: [false, true], teams: [
-  { heroes: pick(['grok', 'umbra', 'totem', 'bolt', 'bonehook']), plan: 'aggressive' },
+  { heroes: pick(['grok', 'umbra', 'totem', 'bolt', 'bonehook']), plan: 'aggressive', deck: ['smoke', 'ambush', 'rally'] },
   { heroes: pick(['varro', 'gama', 'hex', 'sling', 'aurelia']), plan: 'scaling' } ] });
 // A scripted "human" for blue.
 const script = { 1800: { type: 'gank', lane: 'bot' }, 3200: { type: 'objective', obj: 'dragon' }, 6000: { type: 'focus', targetIdx: 3 },
-  7000: { type: 'group', lane: 'mid' }, 9000: { type: 'reset' }, 11000: { type: 'objective', obj: 'baron' }, 12000: { type: 'build', heroIdx: 2, build: 'burn' } };
+  7000: { type: 'group', lane: 'mid' }, 7600: { type: 'tactic', card: 'smoke' }, 8200: { type: 'tactic', card: 'ambush', lane: 'bot' }, 9000: { type: 'reset' }, 11000: { type: 'objective', obj: 'baron' }, 12000: { type: 'build', heroIdx: 2, build: 'burn' } };
 function run() {
   const g = new Game(cfg()); const sums = [];
   while (!g.over && g.tick < 20 * 60 * 25) {

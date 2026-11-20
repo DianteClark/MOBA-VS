@@ -80,7 +80,7 @@ export function autoChoice(d, team, rng, skill = 1) {
 // Default prep for a team (roles + recommended builds).
 export function defaultPrep(ids) {
   const roles = assignRolesLoose(ids);
-  return { plan: 'balanced', heroes: ids.map((id, i) => ({ id, role: roles[i], build: HERO_BY_ID[id].rec })) };
+  return { plan: 'balanced', deck: ['rally', 'smoke', 'wind'], heroes: ids.map((id, i) => ({ id, role: roles[i], build: HERO_BY_ID[id].rec })) };
 }
 // AI prep: counter-build vs the enemy picks.
 export function aiPrep(ids, enemyIds) {
@@ -96,5 +96,7 @@ export function aiPrep(ids, enemyIds) {
   }
   const early = ids.filter((id) => HERO_BY_ID[id].curve === 'early').length, late = ids.filter((id) => HERO_BY_ID[id].curve === 'late').length;
   p.plan = early >= 2 ? 'aggressive' : late >= 3 ? 'scaling' : 'balanced';
+  // tactic deck that fits the plan
+  p.deck = p.plan === 'aggressive' ? ['rally', 'ambush', 'smoke'] : p.plan === 'scaling' ? ['fortify', 'wind', 'pact'] : ['rally', 'wind', 'pact'];
   return p;
 }

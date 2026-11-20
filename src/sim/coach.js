@@ -27,6 +27,7 @@ export class Coach {
     const near = (p, r, list) => list.filter((h) => dist2(h, p) < r * r).length;
     const deadEnemies = them.heroes.filter((h) => !h.alive && h.respawnAt - now > sec(12)).length;
 
+    if (this.useTactics(me, them, alive, visibleEnemies, deadEnemies)) return;
     // Drop herald as soon as we have it
     if (me.heraldEye > now) {
       const lane = this.pickHeraldLane();
@@ -99,6 +100,30 @@ export class Coach {
       const ej = them.heroes.find((h) => h.role === 'jungle');
       if (ej && (!ej.alive || (vis.has(ej.id) && jg && dist2(ej, jg) > 1600 * 1600))) { if (this.issue({ type: 'invade' })) { cd('invade', 120); return; } }
     }
+  }
+
+  useTactics(me, them, alive, vis, dead) {
+    const g = this.g, now = g.tick;
+    if (now < (this.tacticCd || 0)) return false;
+    const has = (id) => me.deck.some((d) => d.id === id && !d.used);
+    const play = (c) => { if (this.issue({ type: 'tactic', ...c })) { this.tacticCd = now + sec(25); return true; } return false; };
+    const fighting = alive.filter((h) => now - h.lastCombat < sec(2)).length;
+    const avgHp = alive.reduce((a, h) => a + h.hp / h.maxHp, 0) / Math.max(1, alive.length);
+    if (has('wind') && fighting >= 3 && avgHp < 0.5) return play({ card: 'wind' });
+    if (has('rally') && fighting >= 3 && vis.length >= 3) return play({ card: 'rally' });
+    const obj = ['baron', 'dragon', 'herald'].map((k) => g.objectives[k]).find((o) => o && o.alive);
+    if (obj && dead >= 2) { if (has('pact')) return play({ card: 'pact' }); if (has('smoke')) return play({ card: 'smoke' }); }
+    if (obj && has('sweep') && me.call && me.call.type === 'objective') return play({ card: 'sweep' });
+    const sieged = g.units.some((u) => u.type === 'tower' && u.team === this.team && u.alive && u.hp < u.maxHp * 0.6 && g.grid.query(u.x, u.y, 400).some((e) => e.type === 'hero' && e.team !== this.team && e.alive));
+    if (has('fortify') && sieged) return play({ card: 'fortify' });
+    if (has('siege') && g.time > 480 && alive.length >= 4 && dead >= 1) return play({ card: 'siege', lane: 'mid' });
+    if (has('ambush') && g.time > 200 && g.time < 700 && g.rng.chance(0.02)) return play({ card: 'ambush', lane: ['top', 'mid', 'bot'][g.rng.int(3)] });
+    if (has('swap') && g.time > 240 && g.time < 600) {
+      const top = me.heroes.find((h) => h.homeLane === 'top');
+      if (top && top.deaths >= 3 && top.kills === 0) return play({ card: 'swap' });
+    }
+    if (has('bait') && fighting >= 2) { const tank = alive.find((h) => h.def.cls === 'tank' && h.hp / h.maxHp > 0.6); if (tank) return play({ card: 'bait', hero: tank.id }); }
+    return false;
   }
 
   pickHeraldLane() {
