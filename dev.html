@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MOBA-VS dev viewer</title>
+<style>
+@font-face { font-family: PixelFont; src: url(assets/font/NormalFont.ttf); }
+html,body{margin:0;height:100%;background:#111;overflow:hidden;font-family:PixelFont,monospace;color:#fff}
+#c{position:absolute;inset:0;width:100%;height:100%}
+#mm{position:absolute;right:8px;bottom:8px;width:200px;height:200px;border:2px solid #000}
+#info{position:absolute;left:8px;top:8px;background:#0008;padding:6px;font-size:12px}
+</style></head><body>
+<canvas id="c"></canvas><canvas id="mm"></canvas><div id="info"></div>
+<script type="module">
+import { loadAssets } from './src/render/assets.js';
+import { Renderer } from './src/render/renderer.js';
+import { Minimap } from './src/render/minimap.js';
+import { bindCamera } from './src/render/input.js';
+import { Game } from './src/sim/game.js';
+import { HEROES } from './src/data/heroes.js';
+import { DT } from './src/sim/constants.js';
+const q = new URLSearchParams(location.search);
+await loadAssets();
+await document.fonts.load('10px PixelFont');
+const pick = (ids) => ids.map((id) => { const h = HEROES.find((x) => x.id === id); return { id, role: h.role, build: h.rec }; });
+const g = new Game({ seed: +(q.get('seed') || 3), coach: [true, true], teams: [
+  { heroes: pick(['bastion', 'kaze', 'ember', 'fletch', 'oak']), plan: 'balanced' },
+  { heroes: pick(['kenshi', 'leonin', 'raiden', 'marlowe', 'wu']), plan: 'balanced' } ] });
+const r = new Renderer(document.getElementById('c'));
+r.attach(g, +(q.get('team') ?? 0)); r.fogOn = q.get('fog') !== '0';
+const mm = new Minimap(document.getElementById('mm'), r);
+const cam = bindCamera(r, document.getElementById('c'), mm, document.getElementById('mm'), {});
+window.r = r; window.g = g;
+const skip = +(q.get('skip') || 0);
+while (g.time < skip) { r.snapshot(); g.step([]); g.fx.length = 0; }
+if (q.get('x')) { r.cam.x = +q.get('x'); r.cam.y = +q.get('y'); }
+if (q.get('z')) r.cam.zoom = +q.get('z');
+if (q.get('follow')) r.follow = g.teams.flatMap(t=>t.heroes).find(h=>h.heroId===q.get('follow')).id;
+const speed = +(q.get('speed') || 1);
+let acc = 0, last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  acc += dt * speed;
+  while (acc >= DT) { r.snapshot(); g.step([]); r.consume(); acc -= DT; }
+  cam.update(dt);
+  r.draw(acc / DT, dt); mm.draw();
+  document.getElementById('info').textContent = `${Math.floor(g.time/60)}:${String(Math.floor(g.time%60)).padStart(2,'0')}  ${g.teams[0].kills} - ${g.teams[1].kills}`;
+  requestAnimationFrame(frame);
+}
+window.addEventListener('resize', () => { r.resize(); mm.resize(); });
+requestAnimationFrame(frame);
+</script></body></html>
