@@ -9,20 +9,21 @@
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-<div id="loading"><div><div>Loading MOBA-VS…</div><div class="barw"><i></i></div></div></div>
+<div id="loading"><div class="ld"><div class="ldtitle">MOBA-VS</div><div class="barw"><i></i></div><div class="ldtip" id="ldtip">Painting the valley…</div></div></div>
+<div id="fade"></div>
 <canvas id="bg"></canvas>
 <div id="screen"></div>
 <div id="match" class="hidden">
   <canvas id="game"></canvas>
-  <div id="scorebar" class="hud"></div>
-  <div id="objtimers" class="hud"></div>
-  <div id="myteam" class="hud"></div>
-  <div id="enemyteam" class="hud"></div>
-  <div id="feed" class="hud"></div>
-  <div id="banner" class="hud"></div>
-  <div id="ctrl" class="hud"></div>
-  <div id="cmdbar" class="hud"></div>
-  <canvas id="mm"></canvas>
+  <div id="hud">
+    <div id="leftcol" class="hud"><div id="myteam"></div><div id="feed"></div></div>
+    <div id="topcenter" class="hud"><div id="scorebar"></div><div id="objtimers"></div></div>
+    <div id="rightcol" class="hud"><div id="enemyteam"></div><div id="killfeed"></div></div>
+    <div id="banner" class="hud"></div>
+    <div id="detail" class="hud hidden"></div>
+    <div id="cmdbar" class="hud"></div>
+    <div id="brcol" class="hud"><div id="ctrl"></div><canvas id="mm"></canvas></div>
+  </div>
 </div>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js" defer></script>
 <script type="module" src="src/main.js"></script>

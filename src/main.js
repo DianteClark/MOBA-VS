@@ -12,7 +12,7 @@ import { MAPS } from './maps/defs.js';
 import { newDraft, apply as draftApply, currentTurn, autoChoice, defaultPrep, aiPrep, TURN_SECONDS } from './sim/draft.js';
 import { LocalRunner, LockstepRunner } from './net/runner.js';
 import { host, join, makeCode } from './net/peer.js';
-import { showMenu, showLobby, DraftView, showPrep, showResults } from './ui/screens.js';
+import { showMenu, showLobby, DraftView, showPrep, showResults, startParade, stopParade } from './ui/screens.js';
 import { Hud } from './ui/hud.js';
 import { toast } from './ui/dom.js';
 import { audio } from './audio.js';
@@ -71,6 +71,12 @@ class App {
     this.showScreen(true);
     audio.music('menu');
     showMenu(this);
+    startParade();
+  }
+  fade(fn) {
+    const f = document.getElementById('fade');
+    f.classList.add('on');
+    setTimeout(() => { fn(); requestAnimationFrame(() => f.classList.remove('on')); }, 220);
   }
   showScreen(on) {
     document.getElementById('screen').classList.toggle('hidden', !on);
@@ -86,6 +92,7 @@ class App {
     this.startDraft();
   }
   watch() {
+    stopParade();
     const seed = (Math.random() * 2 ** 31) >>> 0;
     this.session = { mode: 'watch', myTeam: -1, seed, mapId: this.pickMap(seed), names: ['Blue AI', 'Red AI'], rng: new Rng(seed) };
     const d = newDraft();
@@ -183,6 +190,7 @@ class App {
 
   // ───────────── draft ─────────────
   startDraft() {
+    stopParade();
     const s = this.session;
     s.draft = newDraft(); s.turnStart = performance.now(); s.turnLeft = TURN_SECONDS;
     this.showScreen(true);
@@ -328,8 +336,11 @@ class App {
     m.hud.update(dt);
     if (m.game.over && !m.ended) {
       m.ended = true;
+      // victory camera: fly to the fallen crystal (or the winning side's crystal on time-out)
+      const lost = m.game.units.find((u) => u.type === 'nexus' && !u.alive) || m.game.units.find((u) => u.type === 'nexus' && u.team === m.game.winner);
+      if (lost) { this.renderer.follow = null; m.hud.director = false; this.renderer.focus = { x: lost.x, y: lost.y - 40, zoom: 1.5 }; }
       const won = this.session.myTeam < 0 || m.game.winner === this.session.myTeam;
-      setTimeout(() => this.endMatch(won), 3500);
+      setTimeout(() => this.endMatch(won), 4800);
     }
     if (m.runner.online && m.runner.waiting && performance.now() - m.runner.lastRemote > 5000 && !m.warned) { m.warned = true; toast('Waiting for opponent…', 2500); }
     if (m.runner.online && !m.runner.waiting) m.warned = false;
@@ -338,12 +349,14 @@ class App {
   endMatch(won) {
     const m = this.match; if (!m) return;
     this.match = null;
-    this.showScreen(true);
-    audio.music(won ? 'victory' : 'defeat');
-    const s = this.session;
-    showResults(this, m.game, s.myTeam,
-      s.mode === 'ai' ? () => this.startVsAI() : s.mode === 'watch' ? () => this.watch() : null,
-      () => this.menu());
+    this.fade(() => {
+      this.showScreen(true);
+      audio.music(won ? 'victory' : 'defeat');
+      const s = this.session;
+      showResults(this, m.game, s.myTeam,
+        s.mode === 'ai' ? () => this.startVsAI() : s.mode === 'watch' ? () => this.watch() : null,
+        () => this.menu());
+    });
   }
   quitMatch() {
     if (!confirm('Leave this match?')) return;

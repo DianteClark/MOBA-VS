@@ -23,6 +23,8 @@ export class Renderer {
     this.effects = [];
     this.texts = [];
     this.lines = [];
+    this.parts = [];
+    this.wparts = [];
     this.flashes = new Map();
     this.viewTeam = 0;
     this.fogOn = true;
@@ -48,7 +50,7 @@ export class Renderer {
     this.fog.width = this.canvas.width; this.fog.height = this.canvas.height;
     this.W = this.canvas.width; this.H = this.canvas.height;
   }
-  attach(game, viewTeam, map) { this.game = game; this.viewTeam = viewTeam; this.map = map || paintMap(game.world); this.theme = THEMES[game.world.def.theme] || THEMES.spring; this.fogSmooth.fill(0); this.prev.clear(); this.effects = []; this.texts = []; this.lines = []; }
+  attach(game, viewTeam, map) { this.game = game; this.viewTeam = viewTeam; this.map = map || paintMap(game.world); this.theme = THEMES[game.world.def.theme] || THEMES.spring; this.fogSmooth.fill(0); this.prev.clear(); this.effects = []; this.texts = []; this.lines = []; this.wparts = []; this.focus = null; }
 
   // World <-> screen
   get scale() { return this.cam.zoom * this.dpr; }
@@ -79,20 +81,28 @@ export class Renderer {
       switch (f.kind) {
         case 'dmg':
           if (u && (f.hero || f.crit || (u.type === 'hero' && f.v > 40))) this.text(u.x + (Math.random() - 0.5) * 16, u.y - 34, String(f.v), f.crit ? '#ffd84a' : f.t === 'magic' ? '#c9a7ff' : f.t === 'true' ? '#ffffff' : '#ff8f7a', f.crit ? 15 : 11, 0.8);
-          if (u) this.flashes.set(u.id, now);
+          if (u) { this.flashes.set(u.id, now); if (f.hero && (f.crit || f.v > 250)) this.shake = Math.max(this.shake || 0, 0.08); if (f.hero) this.wparts.push({ x: u.x + (Math.random() - 0.5) * 10, y: u.y - 16, vx: 0, vy: 0, g: 0, life: 0.18, t: 0, spark: true, s: 1 }); }
           break;
         case 'heal': if (u && f.v > 15) this.text(u.x, u.y - 40, '+' + f.v, '#6fdc8c', 11, 0.9); break;
         case 'gold': if (u && (u.team === this.viewTeam || this.viewTeam < 0)) this.text(f.x, f.y - 20, '+' + f.v + 'g', '#ffd84a', 9, 0.8); break;
         case 'levelup': if (u) { this.fxSprite('boost', u.x, u.y - 10, 1.4, u.id); this.text(u.x, u.y - 52, 'LEVEL ' + u.level, '#9fe8ff', 10, 1.2); } break;
-        case 'cast': if (u && f.ult) { this.text(u.x, u.y - 62, f.name.toUpperCase() + '!', TEAM_COL[u.team], 14, 1.6, true); this.fxSprite('circle_orange', u.x, u.y, 2.2); } break;
+        case 'cast': if (u && f.ult) { this.shake = Math.max(this.shake || 0, 0.1); this.text(u.x, u.y - 62, f.name.toUpperCase() + '!', TEAM_COL[u.team], 14, 1.6, true); this.fxSprite('circle_orange', u.x, u.y, 2.2); } break;
         case 'fx': if (this.visiblePoint(f.x, f.y)) this.fxSprite(f.name, f.x, f.y, f.s || 1, f.follow); break;
         case 'line': if (this.visiblePoint(f.x1, f.y1) || this.visiblePoint(f.x2, f.y2)) { this.lines.push({ ...f, born: now }); this.fxSprite(f.name, (f.x1 + f.x2) / 2, (f.y1 + f.y2) / 2, 1.3); } break;
         case 'telegraph': if (this.visiblePoint(f.x, f.y)) this.effects.push({ kind: 'tele', x: f.x, y: f.y, r: f.r, team: f.team, born: now, dur: Math.max(0.15, (f.until - g.tick) / TICK_RATE) }); break;
         case 'zone': if (this.visiblePoint(f.x, f.y)) this.effects.push({ kind: 'zone', x: f.x, y: f.y, r: f.r, team: f.team, born: now, dur: (f.until - g.tick) / TICK_RATE, name: f.name }); break;
         case 'death':
+          if (this.visiblePoint(f.x, f.y) && f.type === 'hero') {
+            for (let k = 0; k < 14; k++) { const a = Math.random() * 6.28, sp = 60 + Math.random() * 120; this.wparts.push({ x: f.x, y: f.y - 14, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 140, g: 420, life: 0.9 + Math.random() * 0.4, t: 0, c: Math.random() < 0.7 ? '#ffd84a' : '#fff3a0', s: 3 }); }
+            this.wparts.push({ x: f.x, y: f.y - 20, vx: 0, vy: -45, g: 0, life: 1.6, t: 0, sprite: 'spirit', s: 1.4 });
+            this.shake = Math.max(this.shake || 0, 0.12);
+          }
           if (this.visiblePoint(f.x, f.y)) {
             this.fxSprite(f.type === 'hero' || f.type === 'objective' ? 'smoke_ring' : 'smoke', f.x, f.y, f.type === 'hero' ? 2.4 : f.type === 'tower' || f.type === 'inhib' ? 4 : 1.2);
-            if (f.type === 'tower' || f.type === 'inhib' || f.type === 'nexus') { this.fxSprite('explosion', f.x, f.y - 20, 4); this.shake = 0.5; }
+            if (f.type === 'tower' || f.type === 'inhib' || f.type === 'nexus') {
+              this.fxSprite('explosion', f.x, f.y - 20, f.type === 'nexus' ? 7 : 4); this.shake = f.type === 'nexus' ? 1.2 : 0.5;
+              for (let k = 0; k < 24; k++) { const a = Math.random() * 6.28, sp = 80 + Math.random() * 200; this.wparts.push({ x: f.x, y: f.y - 30, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 200, g: 500, life: 1 + Math.random() * 0.6, t: 0, c: ['#8a7a6a', '#6b5b52', '#b3957f'][k % 3], s: 4 + (k % 3) }); }
+            }
           }
           break;
         case 'cc': if (u) this.text(u.x, u.y - 46, f.cc === 'knock' ? 'AIRBORNE' : f.cc.toUpperCase(), '#ffe066', 9, 0.9); break;
@@ -116,7 +126,8 @@ export class Renderer {
   draw(alpha, dt) {
     this.time += dt;
     const g = this.game, ctx = this.ctx;
-    if (this.follow) {
+    if (this.focus) { const k = Math.min(1, dt * 2); this.cam.x += (this.focus.x - this.cam.x) * k; this.cam.y += (this.focus.y - this.cam.y) * k; if (this.focus.zoom) this.cam.zoom += (this.focus.zoom - this.cam.zoom) * k; }
+    else if (this.follow) {
       const u = g.units.find((x) => x.id === this.follow);
       if (u && u.alive) { this.cam.x += (u.x - this.cam.x) * Math.min(1, dt * 6); this.cam.y += (u.y - this.cam.y) * Math.min(1, dt * 6); }
     }
@@ -167,6 +178,7 @@ export class Renderer {
     this.drawLines(dt);
     for (const e of this.effects) if (e.kind === 'sprite') this.drawSpriteFx(e); else if (e.kind === 'emote') this.drawEmote(e);
     this.effects = this.effects.filter((e) => this.time - e.born < e.dur);
+    this.drawParticles(dt);
     // bars on top
     for (const d of list) this.drawBars(d);
     // fog
@@ -422,6 +434,19 @@ export class Renderer {
     ctx.globalAlpha = 1;
   }
 
+  drawParticles(dt) {
+    const ctx = this.ctx;
+    this.wparts = this.wparts.filter((p) => (p.t += dt) < p.life);
+    for (const p of this.wparts) {
+      p.vy += p.g * dt; p.x += p.vx * dt; p.y += p.vy * dt;
+      const k = p.t / p.life;
+      ctx.globalAlpha = k > 0.7 ? (1 - k) / 0.3 : 1;
+      if (p.sprite) { const img = IMG['fx_' + p.sprite]; if (img) { const fr = FX[p.sprite].frames, fw = img.width / fr, f = Math.floor(this.time * 10) % fr; ctx.drawImage(img, f * fw, 0, fw, img.height, p.x - fw * p.s / 2, p.y - img.height * p.s / 2, fw * p.s, img.height * p.s); } }
+      else if (p.spark) { ctx.strokeStyle = '#fff6c8'; ctx.lineWidth = 2; const r = 4 + k * 10; ctx.beginPath(); ctx.moveTo(p.x - r, p.y); ctx.lineTo(p.x + r, p.y); ctx.moveTo(p.x, p.y - r); ctx.lineTo(p.x, p.y + r); ctx.stroke(); }
+      else { ctx.fillStyle = p.c; ctx.fillRect(Math.round(p.x), Math.round(p.y), p.s, p.s); }
+    }
+    ctx.globalAlpha = 1;
+  }
   drawEmote(e) {
     const u = this.game.units.find((q) => q.id === e.id); const img = IMG['emote_' + e.e];
     if (!u || !u.alive || !img) return;
@@ -508,7 +533,8 @@ export class Renderer {
       const k = (this.time - t.born) / t.dur;
       const y = t.y - k * (t.big ? 14 : 22);
       ctx.globalAlpha = k > 0.7 ? (1 - k) / 0.3 : 1;
-      ctx.font = `${t.size}px PixelFont, monospace`;
+      const pop = k < 0.12 ? 1 + (1 - k / 0.12) * 0.6 : 1;
+      ctx.font = `${Math.round(t.size * pop)}px PixelFont, monospace`;
       const str = sp(t.s); ctx.fillStyle = '#000'; ctx.fillText(str, t.x + 1, y + 1);
       ctx.fillStyle = t.color; ctx.fillText(str, t.x, y);
     }

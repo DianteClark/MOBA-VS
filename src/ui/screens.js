@@ -6,6 +6,48 @@ import { BUILDS } from '../data/items.js';
 import { DRAFT_ORDER, currentTurn, taken, legal, assignRoles, TURN_SECONDS } from '../sim/draft.js';
 import { TEAM_NAME, DRAGON_INFO, CLANS } from '../sim/constants.js';
 import { MAPS, MAP_BY_ID } from '../maps/defs.js';
+import { World, N as GN } from '../sim/world.js';
+import { THEMES } from '../render/mapgen.js';
+import { IMG } from '../render/assets.js';
+
+// Tiny map previews from the terrain grid (cheap: 100x100 pixels).
+const thumbs = {};
+function mapThumb(id) {
+  if (thumbs[id]) return thumbs[id];
+  const def = MAP_BY_ID[id], w = new World(def), th = THEMES[def.theme];
+  const c = document.createElement('canvas'); c.width = GN; c.height = GN;
+  const x = c.getContext('2d'), img = x.createImageData(GN, GN);
+  const col = (t) => [th.forestFloor[0], th.ground[1], th.lane[0], th.water[1], th.base[0][0], th.pit[1], th.shrine[0], th.path[0]][t];
+  for (let i = 0; i < GN * GN; i++) { const c3 = w.walk[i] ? col(w.type[i]) : th.forestFloor[0].map((v) => v * 0.7); img.data.set([c3[0], c3[1], c3[2], 255], i * 4); }
+  x.putImageData(img, 0, 0);
+  for (const st of w.structures) { x.fillStyle = st.team ? '#ff5a5a' : '#4aa3ff'; x.fillRect(Math.floor(st.x / 24) - 1, Math.floor(st.y / 24) - 1, 3, 3); }
+  thumbs[id] = c; return c;
+}
+// Heroes strolling along the bottom of the menu.
+let paradeRAF = 0;
+function parade(el) {
+  cancelAnimationFrame(paradeRAF);
+  const c = document.createElement('canvas'); el.append(c);
+  const ctx = c.getContext('2d');
+  const ids = HEROES.map((x) => x.id).sort(() => Math.random() - 0.5).slice(0, 7);
+  const walkers = ids.map((id, i) => ({ id, x: -60 - i * 150, sp: 34 + Math.random() * 18 }));
+  let last = performance.now();
+  const loop = (now) => {
+    if (!c.isConnected) return;
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    const r = c.getBoundingClientRect(); if (c.width !== Math.round(r.width)) { c.width = Math.round(r.width); c.height = Math.round(r.height); }
+    ctx.clearRect(0, 0, c.width, c.height); ctx.imageSmoothingEnabled = false;
+    for (const w of walkers) {
+      w.x += w.sp * dt; if (w.x > c.width + 40) w.x = -60 - Math.random() * 200;
+      const img = IMG['hero_' + w.id]; if (!img) continue;
+      const f = Math.floor(now / 140 + w.x) % 4;
+      ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(w.x + 18, c.height - 4, 13, 4, 0, 0, 6.3); ctx.fill();
+      ctx.drawImage(img, 3 * 16, f * 16, 16, 16, Math.round(w.x), c.height - 40, 36, 36);
+    }
+    paradeRAF = requestAnimationFrame(loop);
+  };
+  paradeRAF = requestAnimationFrame(loop);
+}
 
 const screen = () => document.getElementById('screen');
 const TEAMC = ['blue', 'red'];
@@ -25,17 +67,22 @@ export function showMenu(app) {
       h('div', { class: 'muted', style: { fontSize: '11px' } }, 'Coach name'),
       h('input', { value: name, maxlength: 12, oninput: (e) => { app.setName(e.target.value); } }),
       h('div', { class: 'muted', style: { fontSize: '11px' } }, 'Map'),
-      h('div', { class: 'row', style: { gap: '4px' } }, ...[['random', 'Random'], ...MAPS.map((m) => [m.id, m.name])].map(([id, l]) =>
-        h('button', { class: 'btn small' + (app.mapPref === id ? ' on' : ''), onclick: () => { app.mapPref = id; showMenu(app); } }, l))),
-      h('div', { class: 'row', style: { justifyContent: 'space-between', fontSize: '11px' } },
-        h('span', { class: 'muted' }, 'AI difficulty'),
+      h('div', { class: 'mapcards' }, ...[['random', 'Random'], ...MAPS.map((m) => [m.id, m.name])].map(([id, l]) =>
+        h('div', { class: 'mapcard' + (app.mapPref === id ? ' sel' : ''), title: id === 'random' ? 'A different valley every match' : MAP_BY_ID[id].blurb, onclick: () => { app.mapPref = id; showMenu(app); } },
+          id === 'random' ? h('div', { class: 'q' }, '?') : mapThumb(id), l))),
+      app.mapPref && app.mapPref !== 'random' ? h('div', { class: 'muted', style: { fontSize: '10px', textAlign: 'center' } }, MAP_BY_ID[app.mapPref].blurb) : null,
+      h('div', { class: 'muted', style: { fontSize: '11px' } }, 'AI difficulty'),
+      h('div', { class: 'diffrow' },
         ...['Easy', 'Normal', 'Hard'].map((l, i) => h('button', { class: 'btn small' + (app.aiLevel === i ? ' on' : ''), onclick: () => { app.aiLevel = i; showMenu(app); } }, l)),
       ),
     ),
     h('div', { class: 'credits' }, h('a', { href: 'https://dianteclark.github.io/MOBA-VS/', target: '_blank' }, 'dianteclark.github.io/MOBA-VS'), ' · ', h('a', { href: 'https://github.com/DianteClark/MOBA-VS', target: '_blank' }, 'GitHub')),
-    h('div', { class: 'credits' }, 'Art & audio: ', h('a', { href: 'https://pixel-boy.itch.io/ninja-adventure-asset-pack', target: '_blank' }, 'Ninja Adventure'), ' by Pixel-boy & AAA (CC0)'),
+    h('div', { class: 'credits' }, 'v1.0 · ', 'Art & audio: ', h('a', { href: 'https://pixel-boy.itch.io/ninja-adventure-asset-pack', target: '_blank' }, 'Ninja Adventure'), ' by Pixel-boy & AAA (CC0)'),
   ));
 }
+
+export function startParade() { const old = document.querySelector('.parade'); if (old) old.remove(); const el = h('div', { class: 'parade' }); document.body.append(el); parade(el); }
+export function stopParade() { cancelAnimationFrame(paradeRAF); const old = document.querySelector('.parade'); if (old) old.remove(); }
 
 export function showHowTo(app) {
   mount(screen(), h('div', { class: 'panel howto', style: { margin: 'auto' } },
@@ -110,7 +157,7 @@ export class DraftView {
       const bad = !off && t && t.act === 'pick' && myTurn && !legal(d, me, x.id);
       const ms = enemyPicks.length ? matchupScore(x, enemyPicks).score : 0;
       return h('div', { class: 'hcard' + (off ? ' off' : '') + (bad ? ' bad' : '') + (this.sel === x.id ? ' sel' : ''), onclick: () => { if (!off) { this.sel = x.id; this.render(); } }, title: x.name },
-        h('img', { src: face(x.id) }), h('div', { class: 'n' }, x.name), h('div', { class: 'r' }, x.roles.map((r) => ROLE_LABEL[r]).join('/')),
+        h('img', { src: face(x.id) }), h('i', { class: 'cl', style: { background: CLANS[x.clan].color }, title: CLANS[x.clan].name }), h('div', { class: 'n' }, x.name), h('div', { class: 'r' }, x.roles.map((r) => ROLE_LABEL[r]).join('/')),
         ms ? h('div', { class: 'score', style: { color: ms > 0 ? 'var(--green)' : 'var(--red)' } }, (ms > 0 ? '+' : '') + ms) : null);
     }));
     const info = this.infoPanel(this.sel, enemyPicks, myTurn, t);
@@ -207,8 +254,13 @@ export function showResults(app, g, myTeam, onAgain, onMenu) {
   const calls = g.callLog.filter((c) => myTeam < 0 || c.team === myTeam);
   const callEl = h('div', { class: 'panel' }, h('div', {}, myTeam < 0 ? 'Calls' : 'Your calls'), h('div', { class: 'calllog' },
     ...(calls.length ? calls.map((c) => h('div', { class: 'row' }, h('span', { class: 'muted' }, fmtTime(c.t / 20)), h('span', { class: TEAMC[c.team] }, c.type.toUpperCase()), h('span', {}, c.lane || c.obj || ''), h('span', { class: 'badge ' + (c.result || 'null') }, c.result || 'pending'))) : [h('div', { class: 'muted' }, 'No calls made.')])));
+  const all = [...g.teams[0].heroes, ...g.teams[1].heroes];
+  const score = (x) => x.kills * 3 + x.assists * 1.5 - x.deaths + x.dmgHeroes / 1500 + x.cs / 40 + (x.team === win ? 4 : 0);
+  const mvp = all.slice().sort((a, b) => score(b) - score(a))[0];
   mount(screen(), h('div', { class: 'results' },
     h('div', { class: 'verdict', style: { color: vcol } }, verdict),
+    mvp ? h('div', { class: 'mvp panel' }, h('img', { src: face(mvp.heroId) }), h('div', {}, h('div', { class: 'gold' }, 'MVP'), h('div', {}, `${mvp.def.name} (${TEAM_NAME[mvp.team]})`), h('div', { class: 'muted', style: { fontSize: '11px' } }, `${mvp.kills}/${mvp.deaths}/${mvp.assists} · ${Math.round(mvp.dmgHeroes)} damage · ${mvp.cs} CS`))) : null,
+    g.events.find((e) => e.type === 'victory' && e.timeout) ? h('div', { class: 'muted', style: { textAlign: 'center' } }, `Decided on time — towers standing ${g.towersStanding(0)} to ${g.towersStanding(1)}`) : null,
     h('div', { class: 'muted', style: { textAlign: 'center' } }, `Game length ${fmtTime(g.time)}`),
     table(0), table(1),
     h('div', { class: 'panel' }, h('div', { class: 'muted', style: { fontSize: '11px' } }, 'Gold lead (Blue above / Red below)'), graph),
