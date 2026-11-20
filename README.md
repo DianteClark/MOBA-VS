@@ -28,7 +28,22 @@ python3 -m http.server 8000
 
 ```bash
 node tools/determinism.mjs      # same seed + commands → identical checksums
+node tools/lockstep.mjs         # two peers over a laggy link stay in sync
 node tools/balance.mjs 200      # 200 AI-vs-AI games, win rates by hero and side
+```
+
+* `dev.html?seed=3&fog=0&speed=4` is a bare AI-vs-AI viewer for debugging.
+* `index.html?local=1` uses a same-device channel instead of PeerJS, so you can test Host/Join in two tabs.
+
+## Project layout
+
+```
+src/sim/     deterministic simulation (game, AI, coach, map, draft rules)
+src/data/    heroes + item builds (pure data, easy to tweak)
+src/render/  canvas renderer, map painter, minimap, camera input
+src/ui/      menu / draft / prep / HUD / results
+src/net/     lockstep runner + PeerJS transport
+tools/       headless test & balance scripts
 ```
 
 ## Credits

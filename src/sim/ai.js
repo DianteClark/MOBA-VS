@@ -230,11 +230,16 @@ function fightOrFlight(g, h, enemies, allies, recalling, focus) {
   let near = enemies.filter((e) => dist2(e, h) < 620 * 620);
   if (!near.length) return false;
   const nearAllies = allies.filter((a) => dist2(a, h) < 700 * 700);
-  let my = power(g, nearAllies), en = power(g, near);
-  const et = towerOf(g, h.team, h, 30);
-  if (et && minionCover(g, h.team, et) < 2) en += 900 * g.ehp(h) * 0.5 + 220 * 6000;
+  // Lanchester-style strength: (sum of effective HP) x (sum of DPS). Towers join a side
+  // only when they can actually shoot someone in this fight.
+  let mE = 0, mD = 0, eE = 0, eD = 0;
+  for (const a of nearAllies) { mE += g.ehp(a); mD += a.dps; }
+  for (const e of near) { eE += g.ehp(e); eD += e.dps; }
+  const et = towerOf(g, h.team, h, 10);
+  if (et) { eE += 1500; eD += 160; } // hitting a hero under their tower draws its fire
   const ot = ownTowerCovering(g, h.team, h);
-  if (ot) my += 220 * 6000 + g.ehp(h) * 120;
+  if (ot && near.some((e) => dist2(e, ot) < (ot.stats.range + 20) ** 2)) { mE += 1500; mD += 160; }
+  const my = mE * mD, en = eE * eD;
   const ratio = my / Math.max(1, en);
   const risk = riskFactor(g, h);
 
@@ -287,13 +292,13 @@ function fightOrFlight(g, h, enemies, allies, recalling, focus) {
   // Decide to engage. Laning needs a clear edge; committed calls fight on smaller edges;
   // anyone fights back when they are being hit and it's roughly even.
   const laning = h.task.kind === 'lane' || h.task.kind === 'jungle' || h.task.kind === 'split';
-  const engageAt = laning ? risk * 1.45 : risk * 1.1;
+  const engageAt = laning ? risk * 1.7 : risk * 1.1;
   const beingHit = now - h.lastHurtByHero < sec(1.2);
   if (!best) return false;
   let want;
   if (laning) {
     // Lane trades: short exchanges, then back off. All-in only with a clear edge or a kill.
-    const allIn = (killable && hpPct > 0.3) || ratio >= engageAt;
+    const allIn = (killable && hpPct > 0.35 && best.hp / best.maxHp < 0.5) || ratio >= engageAt;
     if (h.disengageUntil > now && !allIn) {
       const threat = near.find((e) => dist2(e, h) < (e.stats.range + 140) ** 2);
       if (threat) { g.moveToward(h, retreatTarget(g, h)); return true; }
@@ -301,11 +306,11 @@ function fightOrFlight(g, h, enemies, allies, recalling, focus) {
     }
     if (allIn) want = true;
     else if (beingHit) {
-      if (ratio >= risk * 1.1 && hpPct > 0.45) { want = true; h.tradeStart = h.tradeStart || now; }
+      if (ratio >= risk * 1.3 && hpPct > 0.55) { want = true; h.tradeStart = h.tradeStart || now; }
       else { h.disengageUntil = now + sec(3); g.moveToward(h, retreatTarget(g, h)); return true; }
     } else want = false;
-    if (want && !allIn && h.tradeStart && now - h.tradeStart > sec(2.5)) { h.tradeStart = 0; h.disengageUntil = now + sec(4); return false; }
-    if (hpPct < 0.42 && !allIn) { h.disengageUntil = now + sec(4); g.moveToward(h, retreatTarget(g, h)); return true; }
+    if (want && !allIn && h.tradeStart && now - h.tradeStart > sec(2)) { h.tradeStart = 0; h.disengageUntil = now + sec(4); return false; }
+    if (hpPct < 0.5 && !allIn) { h.disengageUntil = now + sec(4); g.moveToward(h, retreatTarget(g, h)); return true; }
     if (!want) h.tradeStart = 0;
   } else {
     want = (killable && hpPct > 0.3) || ratio >= engageAt || (beingHit && ratio >= risk * 0.85)
@@ -532,14 +537,15 @@ function doLane(g, h, lane, push) {
     g.moveToward(h, teamSidePoint(h.team, lane, Math.max(0.04, (fl.hasWave ? fl.prog : fl.towerProg) - 0.08))); return;
   }
   // Stand slightly behind our wave (ranged further back).
-  const back = h.def.ranged ? 0.035 : 0.015;
+  const back = h.def.ranged ? 0.05 : 0.025;
   let prog = fl.hasWave ? fl.prog - back : fl.towerProg - 0.03;
   if (push && fl.hasWave) prog = fl.prog - 0.005;
   prog = Math.max(0.04, prog);
   const hold = teamSidePoint(h.team, lane, prog);
   // Avoid standing inside enemy tower range without minion cover
-  const tw = towerOf(g, h.team, hold, 30);
-  if (tw && minionCover(g, h.team, tw) < 2) {
+  const tw = towerOf(g, h.team, hold, 40);
+  const heroesNear = enemiesNear(g, h, 650).length > 0;
+  if (tw && (minionCover(g, h.team, tw) < 2 || heroesNear)) {
     const safe = teamSidePoint(h.team, lane, Math.max(0.04, myProg(h.team, lane, tw) - 0.09));
     if (farmAround(g, h, 360, false)) return;
     g.moveToward(h, safe); return;

@@ -197,9 +197,10 @@ All art and audio come from **Ninja Adventure Asset Pack** by Pixel-boy & AAA (C
 ## 8. Roadmap
 
 - [x] Design doc, curated assets
-- [ ] Deterministic sim core: map, minions, towers, jungle, objectives, heroes, abilities, AI
-- [ ] Renderer, camera (mouse + touch), minimap, fog of war
-- [ ] Draft, prep, call panel, analyst feed, results
-- [ ] Peer-to-peer lockstep + vs-AI mode
-- [ ] Audio, balance passes via headless sims, polish
+- [x] Deterministic sim core: map, minions, towers, jungle, objectives, heroes, abilities, AI
+- [x] Renderer, camera (mouse + touch), minimap, fog of war
+- [x] Draft, prep, call panel, analyst feed, results
+- [x] Peer-to-peer lockstep + vs-AI mode (AI coach takes over if a peer disconnects)
+- [x] Audio, first balance pass via headless sims, mobile layouts
+- [ ] More balance passes (run `node tools/balance.mjs 200`)
 - [ ] *Later:* ranked ELO, replays (free: they're just seed + command log), spectator links, more maps

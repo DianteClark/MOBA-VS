@@ -44,27 +44,27 @@ export const HEROES = [
     ] },
   { id: 'varro', name: 'Varro', title: 'Arena Champion', role: 'top', flex: ['jungle'], cls: 'bruiser', dmgType: 'phys', curve: 'mid',
     tags: ['tank', 'split', 'sustain'], builds: ['sustain', 'tank', 'burn'],
-    passive: { kind: 'lowhpRegen', name: 'Second Wind', pct: 0.02, desc: 'Below 35% HP, regenerates 2% max HP per second.' },
+    passive: { kind: 'lowhpRegen', name: 'Second Wind', pct: 0.026, desc: 'Below 35% HP, regenerates 2% max HP per second.' },
     abilities: [
-      { name: 'Cleave', icon: 'Cut', kind: 'nova', radius: 150, cd: 7, dmg: { b: 60, l: 18, ad: 0.9 }, heal: { b: 30, l: 8, ad: 0.15 }, use: ['clear', 'engage'], fx: 'circular' },
+      { name: 'Cleave', icon: 'Cut', kind: 'nova', radius: 160, cd: 6, dmg: { b: 75, l: 22, ad: 1.0 }, heal: { b: 40, l: 10, ad: 0.2 }, use: ['clear', 'engage'], fx: 'circular' },
       { name: 'Crippling Strike', icon: 'Downgrade', kind: 'target', range: 70, cd: 8, dmg: { b: 40, l: 10, ad: 0.5 }, cc: { slow: [0.4, 2] }, use: ['engage', 'poke'], fx: 'cut' },
       { name: 'Champion of the Arena', icon: 'AttackUpgrade', kind: 'self', cd: 80, heal: { hp: 0.15 }, buff: { dur: 6, stats: { power: 40, armor: 30, mr: 30 } }, use: ['teamfight', 'defend'], fx: 'boost', ult: true },
     ] },
   { id: 'brawlo', name: 'Brawlo', title: 'Ringside Menace', role: 'top', flex: ['jungle'], cls: 'bruiser', dmgType: 'phys', curve: 'early',
     tags: ['dive', 'burst', 'early'], builds: ['burst', 'crit', 'sustain'],
-    passive: { kind: 'every3', name: 'Combo', dmg: { b: 25, l: 7, ad: 0.5 }, desc: 'Every third punch lands a heavy hit.' },
+    passive: { kind: 'every3', name: 'Combo', dmg: { b: 30, l: 9, ad: 0.6 }, desc: 'Every third punch lands a heavy hit.' },
     abilities: [
-      { name: 'Jab Rush', icon: 'BookWind', kind: 'dash', range: 250, cd: 8, dmg: { b: 50, l: 15, ad: 0.7 }, use: ['engage', 'escape'], fx: 'impact' },
+      { name: 'Jab Rush', icon: 'BookWind', kind: 'dash', range: 260, cd: 7, dmg: { b: 60, l: 18, ad: 0.8 }, use: ['engage', 'escape'], fx: 'impact' },
       { name: 'Counterpunch', icon: 'AttackUpgrade', kind: 'self', cd: 10, buff: { dur: 3, stats: { asPct: 0.5 } }, use: ['engage'], fx: 'aura' },
       { name: 'Knockout', icon: 'Explosion', kind: 'target', range: 70, cd: 55, dmg: { b: 180, l: 50, ad: 1.5 }, cc: { knock: 1.0 }, use: ['execute', 'engage'], fx: 'explosion', ult: true },
     ] },
   { id: 'grok', name: 'Grok', title: 'Stoneback', role: 'top', flex: ['support'], cls: 'tank', dmgType: 'phys', curve: 'late',
     tags: ['tank', 'cc', 'peel'], builds: ['tank', 'haste', 'burn'],
-    passive: { kind: 'dr', name: 'Thick Skull', pct: 0.08, desc: 'Takes 8% less damage from all sources.' },
+    passive: { kind: 'dr', name: 'Thick Skull', pct: 0.06, desc: 'Takes 6% less damage from all sources.' },
     abilities: [
       { name: 'Boulder Toss', icon: 'BookRock', kind: 'shot', range: 330, speed: 600, width: 34, cd: 8, dmg: { b: 70, l: 20, ad: 0.5, hp: 0.03 }, cc: { slow: [0.3, 1.5] }, use: ['poke', 'engage', 'clear'], proj: 'p_cannon', fx: 'rock' },
       { name: 'Ground Pound', icon: 'RockSpike', kind: 'nova', radius: 170, cd: 12, dmg: { b: 50, l: 12, hp: 0.04 }, cc: { root: 1.0 }, use: ['engage', 'peel'], fx: 'rockspike' },
-      { name: 'Stampede', icon: 'Counter', kind: 'dash', range: 450, radius: 200, cd: 80, dmg: { b: 150, l: 40, hp: 0.08 }, cc: { knock: 1.25 }, use: ['teamfight', 'engage'], fx: 'smoke_ring', ult: true },
+      { name: 'Stampede', icon: 'Counter', kind: 'dash', range: 420, radius: 180, cd: 85, dmg: { b: 120, l: 35, hp: 0.06 }, cc: { knock: 1.0 }, use: ['teamfight', 'engage'], fx: 'smoke_ring', ult: true },
     ] },
 
   // ───────────── JUNGLE ─────────────
@@ -89,16 +89,16 @@ export const HEROES = [
     passive: { kind: 'shieldOnHit', name: 'Feathered Mantle', pct: 0.07, cd: 12, desc: 'Taking hero damage grants a shield (7% max HP). 12s cooldown.' },
     abilities: [
       { name: 'Wing Slash', icon: 'Cut', kind: 'line', range: 250, width: 70, cd: 6, dmg: { b: 70, l: 20, ad: 0.9 }, use: ['poke', 'clear', 'engage'], fx: 'slash' },
-      { name: 'Gale', icon: 'BookWind', kind: 'nova', radius: 160, cd: 12, dmg: { b: 50, l: 12, ad: 0.6 }, cc: { knock: 0.6 }, use: ['engage', 'peel'], fx: 'circle' },
-      { name: 'Divine Wind', icon: 'OrbLight', kind: 'dash', range: 500, radius: 220, cd: 75, dmg: { b: 180, l: 50, ad: 1.0 }, cc: { knock: 1.0 }, use: ['teamfight', 'engage'], fx: 'smoke_ring', ult: true },
+      { name: 'Gale', icon: 'BookWind', kind: 'nova', radius: 150, cd: 13, dmg: { b: 45, l: 10, ad: 0.5 }, cc: { knock: 0.5 }, use: ['engage', 'peel'], fx: 'circle' },
+      { name: 'Divine Wind', icon: 'OrbLight', kind: 'dash', range: 450, radius: 180, cd: 80, dmg: { b: 150, l: 40, ad: 0.8 }, cc: { knock: 0.8 }, use: ['teamfight', 'engage'], fx: 'smoke_ring', ult: true },
     ] },
   { id: 'umbra', name: 'Umbra', title: 'The Unseen', role: 'jungle', flex: ['mid'], cls: 'assassin', dmgType: 'phys', curve: 'late',
     tags: ['burst', 'dive', 'scaling'], builds: ['burst', 'crit'],
     passive: { kind: 'msOutOfCombat', name: 'Shadowwalk', pct: 0.15, desc: '+15% move speed when out of combat.' },
     abilities: [
-      { name: 'Kunai Fan', icon: 'MagicWeapon', kind: 'shot', range: 320, speed: 950, width: 60, pierce: true, cd: 5, dmg: { b: 60, l: 20, ad: 0.7 }, use: ['poke', 'clear'], proj: 'p_kunai', fx: 'cut' },
+      { name: 'Kunai Fan', icon: 'MagicWeapon', kind: 'shot', range: 320, speed: 950, width: 60, pierce: true, cd: 5, dmg: { b: 70, l: 22, ad: 0.8 }, use: ['poke', 'clear'], proj: 'p_kunai', fx: 'cut' },
       { name: 'Smoke Veil', icon: 'Mist', kind: 'self', cd: 14, buff: { dur: 2, stats: { msPct: 0.4 } }, shield: { b: 60, l: 20, dur: 2 }, use: ['escape', 'defend'], fx: 'smoke' },
-      { name: 'Assassinate', icon: 'Death', kind: 'dash', range: 450, cd: 55, dmg: { b: 200, l: 70, ad: 1.4, miss: 0.2 }, use: ['execute', 'engage'], fx: 'cutx', ult: true },
+      { name: 'Assassinate', icon: 'Death', kind: 'dash', range: 450, cd: 55, dmg: { b: 230, l: 80, ad: 1.5, miss: 0.2 }, use: ['execute', 'engage'], fx: 'cutx', ult: true },
     ] },
   { id: 'gama', name: 'Gama', title: 'Swamp King', role: 'jungle', flex: ['support'], cls: 'tank', dmgType: 'magic', curve: 'mid',
     tags: ['tank', 'cc', 'engage'], builds: ['tank', 'burn', 'haste'],
@@ -146,9 +146,9 @@ export const HEROES = [
     tags: ['burst', 'dive', 'pick'], builds: ['burst', 'haste'],
     passive: { kind: 'executer', name: 'Malice', pct: 0.12, desc: 'Deals 12% more damage to targets below 35% HP.' },
     abilities: [
-      { name: 'Dark Orb', icon: 'OrbDarkness', kind: 'shot', range: 420, speed: 800, width: 30, cd: 5, dmg: { b: 75, l: 25, ap: 0.65 }, use: ['poke', 'clear'], proj: 'p_bigenergy', fx: 'spirit' },
-      { name: 'Shadow Leap', icon: 'Camouflage', kind: 'dash', range: 320, cd: 11, dmg: { b: 50, l: 15, ap: 0.4 }, use: ['engage', 'escape'], fx: 'smoke' },
-      { name: 'Annihilate', icon: 'BookDarkness', kind: 'target', range: 450, cd: 55, dmg: { b: 260, l: 80, ap: 1.1, miss: 0.15 }, use: ['execute'], fx: 'explosion', ult: true },
+      { name: 'Dark Orb', icon: 'OrbDarkness', kind: 'shot', range: 420, speed: 800, width: 30, cd: 5, dmg: { b: 85, l: 28, ap: 0.7 }, use: ['poke', 'clear'], proj: 'p_bigenergy', fx: 'spirit' },
+      { name: 'Shadow Leap', icon: 'Camouflage', kind: 'dash', range: 340, cd: 10, dmg: { b: 70, l: 20, ap: 0.5 }, use: ['engage', 'escape'], fx: 'smoke' },
+      { name: 'Annihilate', icon: 'BookDarkness', kind: 'target', range: 450, cd: 55, dmg: { b: 300, l: 90, ap: 1.2, miss: 0.18 }, use: ['execute'], fx: 'explosion', ult: true },
     ] },
 
   // ───────────── BOT ─────────────
@@ -188,8 +188,8 @@ export const HEROES = [
     tags: ['poke', 'early', 'cc'], builds: ['burst', 'sustain', 'crit'], proj: 'p_cannon',
     passive: { kind: 'every3', name: 'Heavy Stone', dmg: { b: 20, l: 6, ad: 0.4 }, desc: 'Every third stone hits harder.' },
     abilities: [
-      { name: 'Rock Sling', icon: 'BookRock', kind: 'shot', range: 450, speed: 900, width: 30, cd: 5, dmg: { b: 75, l: 22, ad: 0.9 }, use: ['poke', 'clear'], proj: 'p_cannon', fx: 'rock' },
-      { name: 'Pebble Trap', icon: 'RockSpike', kind: 'circle', range: 400, radius: 80, delay: 0.4, cd: 12, dmg: { b: 40, l: 10, ad: 0.3 }, cc: { root: 1.0 }, use: ['peel', 'engage'], fx: 'rockspike' },
+      { name: 'Rock Sling', icon: 'BookRock', kind: 'shot', range: 450, speed: 900, width: 30, cd: 5, dmg: { b: 82, l: 25, ad: 1.0 }, use: ['poke', 'clear'], proj: 'p_cannon', fx: 'rock' },
+      { name: 'Pebble Trap', icon: 'RockSpike', kind: 'circle', range: 400, radius: 80, delay: 0.4, cd: 12, dmg: { b: 50, l: 14, ad: 0.4 }, cc: { root: 1.25 }, use: ['peel', 'engage'], fx: 'rockspike' },
       { name: 'Landslide', icon: 'Explosion', kind: 'shot', range: 550, speed: 800, width: 120, pierce: true, cd: 60, dmg: { b: 180, l: 50, ad: 1.0 }, cc: { knock: 0.75 }, use: ['teamfight', 'engage'], proj: 'p_cannon', fx: 'rockspike', ult: true },
     ] },
 
@@ -198,16 +198,16 @@ export const HEROES = [
     tags: ['heal', 'peel', 'sustain'], builds: ['guardian', 'haste', 'tank'],
     passive: { kind: 'healAllies', name: 'Blessed Hands', heal: { b: 10, l: 4, ap: 0.1 }, desc: 'Basic attacks on heroes heal the lowest-HP nearby ally.' },
     abilities: [
-      { name: 'Mending Palm', icon: 'Heal', kind: 'ally', range: 450, cd: 8, heal: { b: 70, l: 25, ap: 0.5 }, use: ['sustain'], fx: 'spirit' },
+      { name: 'Mending Palm', icon: 'Heal', kind: 'ally', range: 450, cd: 8, heal: { b: 60, l: 20, ap: 0.45 }, use: ['sustain'], fx: 'spirit' },
       { name: 'Chi Burst', icon: 'OrbLight', kind: 'nova', radius: 170, cd: 10, dmg: { b: 40, l: 12, ap: 0.4 }, cc: { slow: [0.3, 1.5] }, use: ['peel', 'clear'], fx: 'circle' },
-      { name: 'Sanctuary', icon: 'BookLight', kind: 'allynova', radius: 350, cd: 75, heal: { b: 150, l: 40, ap: 0.6 }, use: ['teamfight', 'sustain'], fx: 'aura', ult: true },
+      { name: 'Sanctuary', icon: 'BookLight', kind: 'allynova', radius: 320, cd: 85, heal: { b: 110, l: 30, ap: 0.5 }, use: ['teamfight', 'sustain'], fx: 'aura', ult: true },
     ] },
   { id: 'wu', name: 'Sensei Wu', title: 'Old Master', role: 'support', flex: ['mid'], cls: 'support', dmgType: 'magic', curve: 'late',
     tags: ['shield', 'cc', 'peel'], builds: ['guardian', 'haste'],
     passive: { kind: 'every3', name: 'Discipline', type: 'magic', dmg: { b: 15, l: 5, ap: 0.2 }, desc: 'Every third strike deals bonus magic damage.' },
     abilities: [
-      { name: 'Palm Strike', icon: 'Counter', kind: 'shot', range: 400, speed: 800, width: 34, cd: 10, dmg: { b: 60, l: 20, ap: 0.5 }, cc: { stun: 0.75 }, use: ['engage', 'peel'], proj: 'p_energy', fx: 'spark' },
-      { name: 'Iron Ward', icon: 'DefenseUpgrade', kind: 'ally', range: 450, cd: 9, shield: { b: 80, l: 30, ap: 0.5, dur: 3 }, use: ['sustain', 'peel'], fx: 'shield_yellow' },
+      { name: 'Palm Strike', icon: 'Counter', kind: 'shot', range: 400, speed: 800, width: 34, cd: 9, dmg: { b: 70, l: 22, ap: 0.5 }, cc: { stun: 1.0 }, use: ['engage', 'peel'], proj: 'p_energy', fx: 'spark' },
+      { name: 'Iron Ward', icon: 'DefenseUpgrade', kind: 'ally', range: 450, cd: 8, shield: { b: 100, l: 35, ap: 0.6, dur: 3 }, use: ['sustain', 'peel'], fx: 'shield_yellow' },
       { name: 'Inner Peace', icon: 'BookLight', kind: 'allynova', radius: 350, cd: 70, shield: { b: 150, l: 50, ap: 0.7, dur: 3 }, buff: { dur: 4, stats: { armor: 20, mr: 20 } }, use: ['teamfight'], fx: 'shield', ult: true },
     ] },
   { id: 'aurelia', name: 'Aurelia', title: 'Sun Princess', role: 'support', flex: [], cls: 'support', dmgType: 'magic', curve: 'mid',
@@ -222,7 +222,7 @@ export const HEROES = [
     tags: ['cc', 'engage', 'pick'], builds: ['tank', 'haste'], range: 60,
     passive: { kind: 'shieldOnHit', name: 'Bone Armor', pct: 0.08, cd: 12, desc: 'Taking hero damage grants a shield (8% max HP).' },
     abilities: [
-      { name: 'Bone Hook', icon: 'Necromancy', kind: 'hook', range: 420, speed: 950, width: 38, cd: 13, dmg: { b: 80, l: 30, ap: 0.5 }, cc: { stun: 0.5 }, use: ['engage'], proj: 'p_bigkunai', fx: 'cut' },
+      { name: 'Bone Hook', icon: 'Necromancy', kind: 'hook', range: 450, speed: 1000, width: 40, cd: 12, dmg: { b: 90, l: 30, ap: 0.5 }, cc: { stun: 0.75 }, use: ['engage'], proj: 'p_bigkunai', fx: 'cut' },
       { name: 'Grave Chill', icon: 'BookIce', kind: 'nova', radius: 170, cd: 10, dmg: { b: 40, l: 12, ap: 0.3 }, cc: { slow: [0.4, 2] }, use: ['peel', 'clear'], fx: 'ice' },
       { name: "Death's Embrace", icon: 'BookDeath', kind: 'circle', range: 400, radius: 220, delay: 0.5, cd: 75, dmg: { b: 120, l: 40, ap: 0.4 }, cc: { stun: 1.25 }, use: ['teamfight', 'engage'], fx: 'spirit', ult: true },
     ] },

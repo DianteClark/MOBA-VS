@@ -533,6 +533,7 @@ export class Game {
     }
     if (tgt.type === 'hero') {
       if (tgt.def.passive.kind === 'dr') amt *= 1 - tgt.def.passive.pct;
+      if (src && src.type === 'minion') amt *= 0.5;
       if (src && src.type === 'hero') amt *= HERO_VS_HERO;
     }
     // shields
