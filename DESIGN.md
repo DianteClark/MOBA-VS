@@ -1,206 +1,94 @@
-# MOBA-VS — Design Document
+# MOBA-VS — Design Document (v1.0)
 
 **Live:** https://dianteclark.github.io/MOBA-VS/
 
 > A head-to-head **MOBA manager**. You don't pilot a hero; you *coach* five of them.
-> Every hero is a competent AI. Draft, builds and live **calls** are what decide the game.
+> Every hero is a capable AI with its own personality. Your draft, builds, tactic deck and live calls decide the game.
 
 ---
 
 ## 1. Pillars
 
-1. **Watching is playing.** The match is simulated in real time and everything you need to make a decision is on screen: who's missing from a lane, which lane is shoved, when dragon spawns.
-2. **Calls are bets, not cheats.** Your heroes follow calls, but a bad call still costs you: a gank into fog, a dragon fight while your bot lane is dead. AI heroes keep self-preservation, so they won't suicide on command, but they will lose tempo.
-3. **Draft and builds matter before the first minion spawns.** Counters, power curves and team composition create edges that compound.
-4. **Fair, deterministic and peer-to-peer.** Both browsers run the identical simulation; only commands travel over the wire.
-
----
+1. **Watching is playing.** Everything you need to make a call is on screen: who's missing, which lane is shoved, when the next Kami wakes, which shrine is open.
+2. **Calls are bets, not cheats.** Heroes follow you, but they keep their survival instincts, and a bad call costs time, lives and *trust*.
+3. **Our own world.** Spirits instead of dragons, shrines instead of passive rivers, weather that changes the fight, heroes with personalities.
+4. **Short and decisive.** 15-minute matches with a tower-count finish. Every minute matters.
+5. **Fair and deterministic.** Point-symmetric maps; both peers run the same simulation bit-for-bit; only commands travel.
 
 ## 2. Match flow
 
-| Phase | Length | What you do |
-|---|---|---|
-| Lobby | — | Host creates a room code, guest joins (or play vs AI) |
-| **Draft** | ~3 min | Alternating bans and picks; 25-hero pool, 5 roles |
-| **Prep** | 45 s | Assign lanes, choose each hero's **build path**, pick a **team game plan** |
-| **Match** | ~12–18 min | Watch, read the map, make **calls** with your command budget |
-| Results | — | Stats, gold graph, call log (what you called and what happened) |
-
-### 2.1 Draft (tournament style)
-
-```
-Ban phase 1:  B  R  B  R            (2 bans each)
-Pick phase 1: B  R R  B B  R        (3 picks each)
-Ban phase 2:  R  B                  (1 ban each)
-Pick phase 2: R  B B  R             (2 picks each)
-```
-
-* 30 s per turn; on timeout the best available pick for an unfilled role is auto-locked.
-* Each hero lists a **primary role** and sometimes a **flex role**. A pick is only legal if your team can still field all five roles.
-* Hovering a hero shows its **counter notes** against already-locked enemies.
-
-### 2.2 Prep — builds & plan
-
-Each hero has 2–3 allowed **build paths** (5 items each, bought automatically when the hero is at base with enough gold):
-
-| Build | Identity | Good against |
-|---|---|---|
-| **Burst** | Raw damage + penetration, executes low-HP targets | Squishy carries, no-tank comps |
-| **Burn** | Damage over time scaling on target **max HP** + grievous wounds | Tanks, healers, lifesteal |
-| **Tank** | HP, armor, MR, thorns | Burst / assassin comps |
-| **Sustain** | Lifesteal / omnivamp, regen | Poke, long lane phases |
-| **Crit** | Crit chance, crit damage, attack speed | Long fights, front-to-back |
-| **Haste** | Ability haste + mana flow, utility | Teams that need CC uptime |
-| **Guardian** | Heal/shield power, auras | Protecting a hyper-carry |
-
-You can **pivot** a hero's build mid-game with a call: future purchases switch paths (items already bought stay).
-
-**Team game plan** (biases every AI's risk tolerance):
-
-* **Aggressive:** more trades, earlier roams, AI chases further.
-* **Balanced:** default.
-* **Scaling:** safer laning, farm priority, avoids even fights before 2 items.
-
-### 2.3 Calls (the core verb)
-
-You have a **Command meter**: max 3 charges, +1 charge every 20 s. A dot pops on the meter when a call is affordable.
-
-| Call | Cost | Effect |
-|---|---|---|
-| **Gank** `lane` | 1 | Jungler (or a picked roamer) paths to the lane via the river/jungle and fights with the laner |
-| **Take objective** `Dragon/Herald/Baron` | 2 | Nearest 3–5 heroes group and start the objective |
-| **Group** `lane` | 1 | Team collapses on a lane to push towers together |
-| **Split** `hero` `lane` | 1 | One hero side-lanes alone; others play around it |
-| **Focus** `enemy hero` | 1 | All heroes prioritise this target for 20 s |
-| **Play safe** | 1 | Team holds under towers for 25 s (no trading, no facechecks) |
-| **Reset** | 1 | Everyone recalls and buys |
-| **Invade** | 2 | Jungler + 1 steal the enemy's next camp |
-| **Drop Herald** `lane` | 0 | Only after taking Herald — summon a tower-breaker in that lane |
-| **Pivot build** `hero` `build` | 0 | Change future item purchases |
-| **Cancel** | 0 | Clear the active team call |
-
-**Rules that make calls matter:**
-
-* AI heroes **only know what their team can see** (fog of war). A call made with good information is stronger than any AI default.
-* Heroes will **break off** a call to save their own life (HP below 25% and threatened), so you can't run your team into a wall, but the time you wasted is still gone.
-* Objectives are **never** taken autonomously. Only your calls start Dragon, Herald or Baron. (AIs will still defend an objective being taken by the enemy if they see it.)
-* Junglers gank autonomously only on near-certain opportunities, so most good ganks come from you.
-
-### 2.4 Analyst feed
-
-A scrolling ticker of *visible* information so you can react without staring at every lane:
-
-* “Enemy jungler spotted top side (3:41)”
-* “Bot lane shoved under enemy tower”
-* “Dragon spawns in 30 s — Infernal”
-* “Mid lane missing for 12 s” (enemy hero not visible anywhere)
-
----
-
-## 3. The map
-
-A 3-lane map on a 2400 × 2400 world grid. Blue base bottom-left, Red base top-right. River runs top-left → bottom-right.
-
-* **Per lane, per team:** Outer tower, Inner tower, Inhibitor tower.
-* **Base:** 2 Nexus towers and the Nexus crystal.
-* **Jungle (per side):** Sentinel (blue buff: haste + mana regen), Brambleback (red buff: burn on hit), Wolves, Raptors, Gromp, Krugs.
-* **River:** Dragon pit (bot side), Herald/Baron pit (top side).
-
-### 3.1 Objectives
-
-| Objective | Spawns | Reward |
-|---|---|---|
-| **Dragon** | 2:30, respawn 2:30 | Element stack for team: *Infernal* +AD/AP %, *Ocean* regen, *Mountain* resists, *Cloud* move speed. 4 stacks = **Soul** (big version) |
-| **Rift Herald** | 4:00 → despawns at 9:30 | *Eye of the Herald*: a **Drop Herald** call; it charges down a lane, wrecking towers |
-| **Baron** | 9:30, respawn 4:00 | *Hand of Baron* for 90 s: +AD/AP and empowered minions |
-| **Inhibitor** | — | Destroyed inhibitor spawns super minions in that lane for 2 min |
-
-### 3.2 Timings (compressed ~2× from LoL)
-
-| | |
+| Phase | What you do |
 |---|---|
-| First minion wave | 0:20, then every 25 s |
-| Siege minion | every 3rd wave |
-| Jungle camps | 0:45 first, respawn 60 s (buffs 120 s) |
-| Respawn | 4 s + 1.5 s × level (cap 30 s) |
-| Levels | 1–15, ultimate at level 5 |
+| Lobby | Host gets a 5-letter room code (or play vs AI / watch AI vs AI). Pick a map or Random. |
+| **Draft** | Tournament bans/picks from 25 heroes, 5 roles. Clans and matchups are shown live. Any unbanned hero can be picked. |
+| **Prep** | Lanes, build path per hero, team plan, and **3 tactic cards** for your deck. |
+| **Match** | 15:00 countdown. Make calls with your command charges; play your tactic cards. |
+| Results | MVP, stats, gold-lead graph, call log with outcomes. |
 
----
+**Victory:** destroy the enemy Shrine Crystal, or have **more towers standing at 0:00**. Tiebreaks: Crystal HP, then kills, then gold.
 
-## 4. Heroes
+## 3. Maps
 
-25 heroes, 5 per role. Each has a passive, two basic abilities and an ultimate, all **data-driven** in `src/data/heroes.js`.
+Three handcrafted maps share the same rules (3 lanes, 3 towers + gate per lane, 2 base towers, Crystal, 6 jungle camps per side, Kami pit, Kraken pit, 2 river shrines) but differ in layout, theme and weather:
 
-| Role | Heroes |
-|---|---|
-| **Top** | Bastion (tank), Kenshi (bruiser), Varro (juggernaut), Brawlo (duelist), Grok (warden) |
-| **Jungle** | Kaze (assassin), Leonin (bruiser), Karasu (diver), Umbra (assassin), Gama (tank) |
-| **Mid** | Ember (burn mage), Raiden (burst mage), Totem (control mage), Sanguis (drain mage), Hex (assassin mage) |
-| **Bot** | Fletch (sustained DPS), Marlowe (crit gunslinger), Shuri (on-hit), Bolt (artillery), Sling (lane bully) |
-| **Support** | Oak (healer), Wu (shield), Aurelia (enchanter), Bonehook (hook), Frost (engage) |
+| Map | Theme | Character | Weather cycle |
+|---|---|---|---|
+| **Sakura Valley** | Spring | Classic, wide river, balanced jungle | clear, rain, fog, gale |
+| **Frostfang Pass** | Winter | Winding lanes, frozen central lake, long rotations | snow, blizzard, fog |
+| **Ember Canyon** | Autumn | Tight canyon lanes, brawly | gale, heatwave, dust storm |
 
-### 4.1 Hero attributes
+Maps are authored for one half and point-mirrored. Trees and rocks are **real walls**: they block movement and line of sight. **Tall grass** hides units (attacking reveals you). Towers sit beside the lanes.
 
-* **Power curve:** early / mid / late. Tells the AI (and you) when to force fights.
-* **Tags:** `burst`, `burn`, `tank`, `cc`, `heal`, `poke`, `dive`, `split`, `scaling`, `antiheal`.
-* **Counters** emerge mechanically (armor vs AD, %max-HP vs tanks, grievous wounds vs healing, CC vs dashers). The draft UI also surfaces a simple **matchup score** from tags.
+**Living map:**
+* **River shrines:** stand on one to capture it. Owner gets +5% team damage, vision around it, and healing on the platform.
+* **Weather** changes every 2.5 minutes: rain (vision −15%, burns −30%), fog (vision −30%), gale (move +5%, projectiles +20%), snow, blizzard, heatwave (burns +35%, regen −40%), dust storm.
 
-### 4.2 Ability model
+## 4. Objectives
 
-Every ability is a record of: `kind` (skillshot, target, aoe, dash, self-buff, ally-buff, hook, zone), `range`, `radius`, `cooldown`, `damage {base, perLevel, ratio}`, optional `cc {stun|root|slow|knockup, duration}`, `burn`, `shield`, `heal`, plus AI hints (`use: engage | poke | peel | execute | clear | escape`).
+| Objective | When | Reward |
+|---|---|---|
+| **Kami** (Ember, Tide, Stone, Gale) | 1:30, every 2:00 | Team blessing stack; 4 = Kami Blessing; then **Ancient Kami** (execute low-HP enemies) |
+| **Oni** | 3:00 → leaves at 7:30 | **Oni Mask**: unleash the Oni down a lane to smash towers |
+| **Kraken** | 7:30, every 3:00 | Kraken's Wrath: +power and empowered minions for 75s |
+| **Gate** (inhibitor) | — | Destroyed gate spawns super minions in that lane until it's restored (2:00) |
 
----
+Objectives are **only started by your calls**. Junglers auto-smite to secure (or steal) them.
 
-## 5. AI
+## 5. Heroes
 
-Utility-based decision making in two layers:
+25 heroes, 5 per role (Top, Jungle, Mid, Bot, Support). Each has a passive, two abilities and an ultimate (level 5), all data-driven.
 
-**Macro (every 0.5 s):** chooses a *task*: `lane`, `jungle`, `recall`, `roam`, `objective`, `group`, `split`, `defend`, `retreat`. A team call overrides the default macro task for the heroes it targets.
+* **Range tiers:** melee 55, short 150, long 180. Towers 255 out-range every hero. Ability ranges are capped.
+* **Clans:** Shinobi, Beast, Spirit, Iron, Wild. 2+ and 3+ of a clan give team bonuses.
+* **Personalities:** Reckless, Cautious, Greedy, Loyal, Hothead, Calm. These shape aggression, discipline, dodging, reaction time, greed, peel, and how fast they trust you.
+* **Builds:** Burst, Burn, Tank, Sustain, Crit, Haste, Guardian (5 items each). Pivot mid-game with a call.
 
-**Micro (every tick):**
+## 6. Coaching
 
-1. Threat assessment: compare local **power** (HP × DPS of visible allies vs enemies within 700 units, towers included).
-2. If outmatched → kite / retreat toward nearest ally tower.
-3. Else pick a target: killable hero > focus-called hero > lowest effective HP in range > minion (last-hit aware) > structure.
-4. Cast abilities whose `use` hint fits the moment (engage when ahead, peel when an ally is dived, execute under threshold, clear on waves).
-5. Respect enemy towers: only dive with minion cover or for a guaranteed kill.
-6. Skillshots are aimed at **predicted** positions; targets can still walk out of them.
+### Calls (command charges: max 3, +1 every 20s)
+Gank, Objective (2), Shrine, Group, Split, Focus, Safe, Reset, Invade (2), Oni (free), Build pivot (free), Cancel.
 
-AI knowledge is **fog-limited**: it sees only what its team sees (plus last-known positions that decay).
+### Trust
+Each hero has trust 0–100. Successful calls raise it; deaths on your calls, stolen objectives and wasted calls lower it.
+* **Inspired (70+):** answers calls instantly, +4% damage, commits harder.
+* **Doubtful (≤30):** hesitates 1–2s before following calls, −3% damage.
+* Hotheads tilt for 60s after dying. Emotes over heroes show reactions.
 
----
+### Tactic cards (pick 3, each usable once)
+Smoke Bomb · Ambush · Rally Cry · Second Wind · Siege Formation · Ward Sweep · Bait · Lane Swap · Fortify · Ancient Pact.
 
-## 6. Technology
+### Analyst feed
+Only what your team can see: overextended laners (one-tap Gank), open shrines, enemy on an objective (Contest), missing enemies, numbers advantage.
 
-* **Pure static web app** (HTML/CSS/ES modules, no build step) → served by GitHub Pages.
-* **Deterministic simulation** (`src/sim/`): fixed 20 Hz tick, seeded PRNG (`mulberry32`), no `Math.random`, no trig in the sim, stable iteration order. Same seed + same commands ⇒ same match, bit for bit.
-* **Lockstep netcode** (`src/net/`): WebRTC data channel via PeerJS. Each peer sends its command list for tick *T + 6* every tick; the sim advances only when both peers' inputs for a tick are present. A state checksum is exchanged every 2 s to detect desyncs.
-* **Renderer** (`src/render/`): Canvas 2D, interpolates between sim ticks at 60 fps, pixel-perfect scaling, minimap, fog overlay, floating combat text.
-* **Headless tooling** (`tools/`): Node scripts to run thousands of AI-vs-AI games for balance and to verify determinism.
+## 7. AI
 
----
+* **Macro (2×/s):** lane / jungle routing / recall / defend / contest / help a fighting ally / shrines / call tasks.
+* **Micro (every tick):** dodge skillshots and telegraphs, fight-or-flight via Lanchester strength (towers count only when they can shoot), sticky target choice (killable, focus calls, carries, peel), role positioning (kiting, divers, supports escorting the carry), lane trading discipline, Flash + escapes.
+* Vision-limited: AI only reacts to what its team sees.
 
-## 7. Art & audio
+## 8. Technology
 
-All art and audio come from **Ninja Adventure Asset Pack** by Pixel-boy & AAA (CC0). See `assets/ASSETS_LICENSE_CC0.txt`.
-
-* Heroes: 16 × 16 character sheets (4 directions × walk/attack), drawn at 2× with team-colour rings.
-* Minions: Slime/Skull/Eye (blue) and Spirit/Skull/Eye (red).
-* Jungle: AxolotBlue, Beast, Beast2, Lizard, GreenOctopus, Mole.
-* Dragon: segmented DragonGreen/DragonBlue boss, recoloured per element.
-* Herald: DemonCyclop. Baron: SquidRed.
-* Towers: TilesetTowers (3 damage states). Nexus: crystal.
-* FX: elemental sheets (flame, thunder, ice, rock spike), slash/claw/cut, shields, projectiles.
-
----
-
-## 8. Roadmap
-
-- [x] Design doc, curated assets
-- [x] Deterministic sim core: map, minions, towers, jungle, objectives, heroes, abilities, AI
-- [x] Renderer, camera (mouse + touch), minimap, fog of war
-- [x] Draft, prep, call panel, analyst feed, results
-- [x] Peer-to-peer lockstep + vs-AI mode (AI coach takes over if a peer disconnects)
-- [x] Audio, first balance pass via headless sims, mobile layouts
-- [ ] More balance passes (run `node tools/balance.mjs 200`)
-- [ ] *Later:* ranked ELO, replays (free: they're just seed + command log), spectator links, more maps
+* Static ES-module web app (GitHub Pages). Canvas 2D renderer.
+* Deterministic sim at 20 Hz, seeded PRNG, IEEE-exact math only, integer A*.
+* Lockstep netcode over WebRTC (PeerJS); periodic checksums detect desyncs; AI coach takes over if a peer leaves.
+* Tooling: determinism, lockstep, map connectivity, stuck-unit, balance, self-play tuner and UI-overlap audits.

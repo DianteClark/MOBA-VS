@@ -6,6 +6,7 @@ import { World, S as MAP_SIZE, C as CELL, N as GRID_N } from './world.js';
 import { MAP_BY_ID } from '../maps/defs.js';
 import { HERO_BY_ID, PERSONALITIES } from '../data/heroes.js';
 import { TACTICS, DEFAULT_DECK } from '../data/tactics.js';
+import { TUNE } from '../data/tuning.js';
 import { BUILDS } from '../data/items.js';
 import { heroThink, heroMacro } from './ai.js';
 import { Coach } from './coach.js';
@@ -292,6 +293,7 @@ export class Game {
     for (const bf of h.buffs) if (bf.until > now && bf.stats) add(bf.stats);
     const team = this.teams[h.team];
     if (this.clanStats) add(this.clanStats[h.team]);
+    const tn = TUNE[h.heroId] || 1; if (tn !== 1) { s.dmgPct += tn - 1; s.hpPct += (tn - 1) * 0.6; }
     if (this.shrines) for (const sh of this.shrines) if (sh.owner === h.team) s.dmgPct += 0.05;
     for (const d of team.dragons) {
       if (d === 'infernal') s.powerMult += 0.05; else if (d === 'ocean') s.regenPct += 0.005; else if (d === 'mountain') s.resPct += 0.06; else if (d === 'cloud') s.msPct += 0.03;

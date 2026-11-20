@@ -112,11 +112,11 @@ export const HEROES = [
   // ───────────── MID ─────────────
   { id: 'ember', clan: 'wild', pers: 'hothead', name: 'Ember', title: 'Pyromancer', role: 'mid', flex: ['support'], cls: 'mage', dmgType: 'magic', curve: 'mid',
     tags: ['burn', 'poke', 'antiheal'], builds: ['burn', 'burst', 'haste'],
-    passive: { kind: 'burnAbilities', name: 'Kindling', burn: { b: 8, l: 3, dur: 3 }, desc: 'Ability hits set enemies ablaze.' },
+    passive: { kind: 'burnAbilities', name: 'Kindling', burn: { b: 5, l: 2, dur: 3 }, desc: 'Ability hits set enemies ablaze.' },
     abilities: [
       { name: 'Fireball', icon: 'Fireball', kind: 'shot', range: 450, speed: 650, width: 30, cd: 5, dmg: { b: 70, l: 25, ap: 0.6 }, use: ['poke', 'clear'], proj: 'p_fireball', fx: 'explosion' },
-      { name: 'Flame Pillar', icon: 'BookFire', kind: 'circle', range: 420, radius: 110, delay: 0.6, cd: 10, dmg: { b: 60, l: 20, ap: 0.5 }, cc: { root: 1.0 }, use: ['engage', 'peel', 'clear'], fx: 'flame' },
-      { name: 'Wildfire', icon: 'OrbFire', kind: 'circle', range: 450, radius: 220, delay: 0.3, cd: 65, dmg: { b: 160, l: 50, ap: 0.7 }, burn: { b: 40, l: 10, dur: 4 }, use: ['teamfight'], fx: 'explosion', ult: true },
+      { name: 'Flame Pillar', icon: 'BookFire', kind: 'circle', range: 420, radius: 110, delay: 0.6, cd: 11, dmg: { b: 60, l: 20, ap: 0.5 }, cc: { root: 0.75 }, use: ['engage', 'peel', 'clear'], fx: 'flame' },
+      { name: 'Wildfire', icon: 'OrbFire', kind: 'circle', range: 450, radius: 170, delay: 0.3, cd: 70, dmg: { b: 140, l: 45, ap: 0.7 }, burn: { b: 20, l: 5, dur: 4 }, use: ['teamfight'], fx: 'explosion', ult: true },
     ] },
   { id: 'raiden', clan: 'shinobi', pers: 'calm', name: 'Raiden', title: 'Storm Caller', role: 'mid', flex: [], cls: 'mage', dmgType: 'magic', curve: 'mid',
     tags: ['burst', 'poke'], builds: ['burst', 'haste'],
