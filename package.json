@@ -1,0 +1,9 @@
+{
+  "name": "moba-vs",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "serve": "python3 -m http.server 8000",
+    "test": "node tools/determinism.mjs && node tools/balance.mjs 10"
+  }
+}
