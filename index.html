@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14121c">
+<title>MOBA-VS — MOBA Manager</title>
+<link rel="icon" href="assets/img/faces/kaze.png">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="loading"><div><div>Loading MOBA-VS…</div><div class="barw"><i></i></div></div></div>
+<canvas id="bg"></canvas>
+<div id="screen"></div>
+<div id="match" class="hidden">
+  <canvas id="game"></canvas>
+  <div id="scorebar" class="hud"></div>
+  <div id="objtimers" class="hud"></div>
+  <div id="myteam" class="hud"></div>
+  <div id="enemyteam" class="hud"></div>
+  <div id="feed" class="hud"></div>
+  <div id="banner" class="hud"></div>
+  <div id="ctrl" class="hud"></div>
+  <div id="cmdbar" class="hud"></div>
+  <canvas id="mm"></canvas>
+</div>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js" defer></script>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>

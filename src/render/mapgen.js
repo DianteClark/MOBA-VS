@@ -15,7 +15,7 @@ const C = {
   dirtEdge: hex('#7d5a3c'),
   water: ['#5fa9c4', '#79b8ce', '#6db3cc'].map(hex), waterHi: hex('#a6e3ef'), waterEdge: hex('#e7d9a8'), deep: hex('#4a8fb0'),
   stone: ['#8e7c73', '#90775e', '#9b8778', '#a39182'].map(hex), stoneDark: hex('#6b5b52'),
-  blueStone: ['#6f86a8', '#7a91b3', '#6880a0'].map(hex), redStone: ['#a87070', '#b37a77', '#9f6767'].map(hex),
+  blueStone: ['#7d8ea6', '#8394ab', '#7889a1'].map(hex), redStone: ['#a88480', '#ad8985', '#a37f7b'].map(hex),
   pit: ['#6d6157', '#776a5f'].map(hex), sand: ['#d9b37a', '#e3be86'].map(hex),
 };
 

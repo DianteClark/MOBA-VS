@@ -6,14 +6,16 @@ import { TICK_RATE, VISION, DRAGON_INFO } from '../sim/constants.js';
 
 export const TEAM_COL = ['#4aa3ff', '#ff5a5a', '#c8c8c8'];
 const TEAM_DARK = ['#1d4f8a', '#8a1d27', '#555'];
+// The pixel font's space is very narrow; an en-space falls back to a wider glyph.
+const sp = (s) => String(s).replace(/ /g, '\u2002');
 
 export class Renderer {
-  constructor(canvas) {
+  constructor(canvas, map) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.fog = document.createElement('canvas');
     this.fctx = this.fog.getContext('2d');
-    this.map = paintMap();
+    this.map = map || paintMap();
     this.cam = { x: 600, y: 1800, zoom: 1.4 };
     this.prev = new Map();
     this.effects = [];
@@ -390,7 +392,7 @@ export class Renderer {
       ctx.fillStyle = '#111'; ctx.fillRect(x - w / 2 - 12, top - 2, 11, 9);
       ctx.fillStyle = '#fff'; ctx.font = '7px PixelFont, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(String(u.level), x - w / 2 - 6.5, top + 2.6);
-      if (this.showNames) { ctx.font = '7px PixelFont, monospace'; ctx.fillStyle = '#000'; ctx.fillText(u.def.name, x + 0.6, top - 5.4); ctx.fillStyle = u.team === this.viewTeam ? '#fff' : '#ffd0d0'; ctx.fillText(u.def.name, x, top - 6); }
+      if (this.showNames) { ctx.font = '7px PixelFont, monospace'; ctx.fillStyle = '#000'; const nm = sp(u.def.name); ctx.fillText(nm, x + 0.6, top - 5.4); ctx.fillStyle = u.team === this.viewTeam ? '#fff' : '#ffd0d0'; ctx.fillText(nm, x, top - 6); }
       return;
     }
     if (u.structure) {
@@ -405,7 +407,7 @@ export class Renderer {
       ctx.fillStyle = 'rgba(0,0,0,0.75)'; ctx.fillRect(x - w / 2 - 1, top - 1, w + 2, 7);
       ctx.fillStyle = u.kind === 'dragon' ? DRAGON_INFO[u.element].color : u.kind === 'baron' ? '#b56cff' : '#9fd0ff'; ctx.fillRect(x - w / 2, top, w * u.hp / u.maxHp, 5);
       ctx.font = '8px PixelFont, monospace'; ctx.textAlign = 'center'; ctx.fillStyle = '#fff';
-      ctx.fillText(u.kind === 'dragon' ? `${DRAGON_INFO[u.element].name} Drake` : u.kind === 'baron' ? 'Baron' : 'Rift Herald', x, top - 7);
+      ctx.fillText(sp(u.kind === 'dragon' ? `${DRAGON_INFO[u.element].name} Drake` : u.kind === 'baron' ? 'Baron' : 'Rift Herald'), x, top - 7);
       return;
     }
     if (u.hp < u.maxHp || u.type === 'summon') {
@@ -445,8 +447,8 @@ export class Renderer {
       const y = t.y - k * (t.big ? 14 : 22);
       ctx.globalAlpha = k > 0.7 ? (1 - k) / 0.3 : 1;
       ctx.font = `${t.size}px PixelFont, monospace`;
-      ctx.fillStyle = '#000'; ctx.fillText(t.s, t.x + 1, y + 1);
-      ctx.fillStyle = t.color; ctx.fillText(t.s, t.x, y);
+      const str = sp(t.s); ctx.fillStyle = '#000'; ctx.fillText(str, t.x + 1, y + 1);
+      ctx.fillStyle = t.color; ctx.fillText(str, t.x, y);
     }
     ctx.globalAlpha = 1;
   }
