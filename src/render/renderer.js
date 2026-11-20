@@ -2,7 +2,7 @@
 import { IMG, VAR, FX, PROJ, flashOf } from './assets.js';
 import { paintMap, THEMES } from './mapgen.js';
 import { S as MAP_SIZE, N as GN } from '../sim/world.js';
-import { TICK_RATE, DRAGON_INFO } from '../sim/constants.js';
+import { TICK_RATE, DRAGON_INFO, OBJ_NAME, T as TIMERS } from '../sim/constants.js';
 
 export const TEAM_COL = ['#4aa3ff', '#ff5a5a', '#c8c8c8'];
 const TEAM_DARK = ['#1d4f8a', '#8a1d27', '#555'];
@@ -142,6 +142,7 @@ export class Renderer {
       ctx.beginPath(); ctx.arc(w.x, w.y, 10, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
       ctx.fillStyle = '#fff8c8'; ctx.fillRect(w.x - 2, w.y - 12, 4, 10); ctx.fillStyle = TEAM_COL[w.team]; ctx.fillRect(w.x - 3, w.y - 15, 6, 4);
     }
+    for (const sh of g.shrines) if (inView(sh.x, sh.y, 200)) this.drawShrine(sh);
     // collect drawables
     const list = [];
     for (const u of g.units) {
@@ -169,9 +170,65 @@ export class Renderer {
     for (const d of list) this.drawBars(d);
     // fog
     if (this.fogOn && this.viewTeam >= 0) this.drawFog(s, shx, shy);
+    this.drawWeather(dt);
     // texts (screen space, above fog)
     ctx.setTransform(s, 0, 0, s, this.W / 2 - this.cam.x * s + shx, this.H / 2 - this.cam.y * s + shy);
     this.drawTexts();
+  }
+
+  drawShrine(sh) {
+    const ctx = this.ctx, g = this.game, t = this.time;
+    const col = sh.owner >= 0 ? TEAM_COL[sh.owner] : '#ffe9a8';
+    const locked = g.time < TIMERS.shrineUnlock;
+    // glow pool
+    const gr = ctx.createRadialGradient(sh.x, sh.y, 6, sh.x, sh.y, 120);
+    gr.addColorStop(0, sh.owner >= 0 ? (sh.owner ? 'rgba(255,90,90,0.45)' : 'rgba(74,163,255,0.45)') : 'rgba(255,233,168,0.35)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = gr; ctx.beginPath(); ctx.ellipse(sh.x, sh.y, 120, 100, 0, 0, Math.PI * 2); ctx.fill();
+    // capture ring
+    ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.beginPath(); ctx.ellipse(sh.x, sh.y, 112, 94, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = col; ctx.globalAlpha = locked ? 0.3 : 0.8; ctx.setLineDash([8, 6]); ctx.lineDashOffset = -t * 20;
+    ctx.beginPath(); ctx.ellipse(sh.x, sh.y, 112, 94, 0, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+    if (sh.capTeam >= 0 && sh.progress > 0) {
+      ctx.strokeStyle = TEAM_COL[sh.capTeam]; ctx.lineWidth = 6;
+      ctx.beginPath(); ctx.ellipse(sh.x, sh.y, 112, 94, 0, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, sh.progress / TIMERS.shrineCapture)); ctx.stroke();
+    }
+    // crystal
+    const stage = 0, c = VAR.crystal && (sh.owner >= 0 ? VAR.crystal[stage][sh.owner] : VAR.crystalNeutral);
+    const bob = Math.sin(t * 2 + sh.id) * 4, sc = 2.2;
+    if (c) ctx.drawImage(c, sh.x - 16 * sc, sh.y - 30 * sc + 10 + bob, 32 * sc, 32 * sc);
+    if (sh.owner >= 0 && Math.random() < 0.08) this.fxSprite('spark', sh.x + (Math.random() - 0.5) * 60, sh.y - 30 - Math.random() * 40, 0.6);
+  }
+
+  // Screen-space weather particles + tint.
+  drawWeather(dt) {
+    const g = this.game, w = g.weatherList[Math.max(0, g.weatherIdx)] || 'clear', ctx = this.ctx, W = this.W, H = this.H;
+    if (this.wxName !== w) { this.wxName = w; this.parts = []; this.wxFade = 0; }
+    this.wxFade = Math.min(1, (this.wxFade || 0) + dt * 0.5);
+    if (w === 'clear') return;
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
+    const k = this.wxFade, d = this.dpr;
+    const tint = { rain: 'rgba(40,60,110,0.16)', fog: 'rgba(200,210,225,0.22)', snow: 'rgba(220,235,255,0.08)', blizzard: 'rgba(225,238,255,0.26)', heat: 'rgba(255,140,40,0.10)', dust: 'rgba(200,150,80,0.20)', wind: 'rgba(255,255,255,0.0)' }[w];
+    if (tint) { ctx.globalAlpha = k; ctx.fillStyle = tint; ctx.fillRect(0, 0, W, H); }
+    const want = { rain: 140, snow: 110, blizzard: 260, wind: 40, dust: 90, heat: 0, fog: 0 }[w] || 0;
+    const P = this.parts;
+    while (P.length < want) P.push({ x: Math.random() * W, y: Math.random() * H, v: 0.6 + Math.random() * 0.8, s: Math.random() });
+    ctx.globalAlpha = k;
+    for (const p of P) {
+      if (w === 'rain') { p.x -= 160 * dt * d * p.v; p.y += 900 * dt * d * p.v; ctx.strokeStyle = 'rgba(180,210,255,0.55)'; ctx.lineWidth = d; ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x + 4 * d, p.y - 14 * d); ctx.stroke(); }
+      else if (w === 'snow' || w === 'blizzard') { const sp = w === 'blizzard' ? 3.2 : 1; p.x += (Math.sin(this.time * 2 + p.s * 9) * 20 - 60 * sp) * dt * d; p.y += 70 * sp * dt * d * p.v; ctx.fillStyle = 'rgba(255,255,255,0.85)'; const r = (1 + p.s * 2) * d; ctx.fillRect(p.x, p.y, r, r); }
+      else if (w === 'wind') { p.x += 380 * dt * d * p.v; p.y += Math.sin(this.time * 3 + p.s * 7) * 40 * dt * d; ctx.fillStyle = p.s > 0.5 ? '#9cc95a' : '#e7b04a'; ctx.fillRect(p.x, p.y, 3 * d, 2 * d); }
+      else if (w === 'dust') { p.x += 520 * dt * d * p.v; p.y += 30 * dt * d; ctx.fillStyle = 'rgba(230,190,120,0.5)'; ctx.fillRect(p.x, p.y, 8 * d * p.v, d); }
+      if (p.y > H + 20) { p.y = -20; p.x = Math.random() * W * 1.2; } if (p.x < -40) p.x = W + 20; if (p.x > W + 40) p.x = -20;
+    }
+    if (w === 'fog') {
+      for (let i = 0; i < 4; i++) {
+        const x = (Math.sin(this.time * 0.07 + i * 1.7) * 0.5 + 0.5) * W, y = (Math.cos(this.time * 0.05 + i * 2.3) * 0.5 + 0.5) * H;
+        const gr = ctx.createRadialGradient(x, y, 10, x, y, W * 0.4); gr.addColorStop(0, 'rgba(225,230,240,0.18)'); gr.addColorStop(1, 'rgba(225,230,240,0)');
+        ctx.fillStyle = gr; ctx.fillRect(0, 0, W, H);
+      }
+    }
+    if (w === 'heat') { ctx.globalAlpha = 0.05 + 0.03 * Math.sin(this.time * 3); ctx.fillStyle = '#ffcf6a'; ctx.fillRect(0, 0, W, H); }
+    ctx.restore();
   }
 
   drawGroundFx(e) {
@@ -402,7 +459,7 @@ export class Renderer {
       ctx.fillStyle = 'rgba(0,0,0,0.75)'; ctx.fillRect(x - w / 2 - 1, top - 1, w + 2, 7);
       ctx.fillStyle = u.kind === 'dragon' ? DRAGON_INFO[u.element].color : u.kind === 'baron' ? '#b56cff' : '#9fd0ff'; ctx.fillRect(x - w / 2, top, w * u.hp / u.maxHp, 5);
       ctx.font = '8px PixelFont, monospace'; ctx.textAlign = 'center'; ctx.fillStyle = '#fff';
-      ctx.fillText(sp(u.kind === 'dragon' ? `${DRAGON_INFO[u.element].name} Drake` : u.kind === 'baron' ? 'Baron' : 'Rift Herald'), x, top - 7);
+      ctx.fillText(sp(u.kind === 'dragon' ? DRAGON_INFO[u.element].name : OBJ_NAME[u.kind]), x, top - 7);
       return;
     }
     if (u.hp < u.maxHp || u.type === 'summon') {

@@ -1,7 +1,7 @@
 // The deterministic match simulation. Same seed + same commands => same game.
 import { Rng, hashInts } from './rng.js';
 import { dist2, dist, norm, r2 } from './geom.js';
-import { DT, sec, BLUE, RED, NEUTRAL, T, GOLD, XP, xpNeeded, VISION, CMD, DRAGONS } from './constants.js';
+import { DT, sec, BLUE, RED, NEUTRAL, T, GOLD, XP, xpNeeded, VISION, CMD, DRAGONS, MATCH_SECONDS, RANGE, CLANS, WEATHER } from './constants.js';
 import { World, S as MAP_SIZE, C as CELL, N as GRID_N } from './world.js';
 import { MAP_BY_ID } from '../maps/defs.js';
 import { HERO_BY_ID } from '../data/heroes.js';
@@ -20,7 +20,7 @@ const CAMP_DEFS = {
   krug: { name: 'Krugs', mobs: [{ k: 'camp_krug', hp: 1300, ad: 40, big: true }, { k: 'camp_krug', hp: 700, ad: 20, dx: 34, dy: 10 }] },
 };
 const ROLE_LANE = { top: 'top', mid: 'mid', bot: 'bot', support: 'bot', jungle: null };
-const STAT_KEYS = ['power', 'powerMult', 'hp', 'armor', 'mr', 'asPct', 'crit', 'critDmg', 'pen', 'haste', 'msPct', 'range', 'omnivamp',
+const STAT_KEYS = ['dmgPct', 'siegePct', 'power', 'powerMult', 'hp', 'armor', 'mr', 'asPct', 'crit', 'critDmg', 'pen', 'haste', 'msPct', 'range', 'omnivamp',
   'antiheal', 'thorns', 'healPower', 'execute', 'slowOnHit', 'regen', 'hpPct', 'lowHpShield', 'burnAura', 'shredAura', 'censer', 'resPct', 'regenPct'];
 
 class Grid {
@@ -79,11 +79,70 @@ export class Game {
     this.coaches = [null, null];
     this.setupStructures();
     this.setupCamps();
+    this.shrines = this.world.shrines.map((p, i) => ({ id: i, x: p.x, y: p.y, owner: -1, progress: 0, capTeam: -1 }));
+    const wl = this.world.def.weather || ['clear'];
+    const off = (cfg.seed >>> 3) % wl.length;
+    this.weatherList = wl.map((_, i) => wl[(i + off) % wl.length]);
+    this.weatherIdx = -1;
+    this.clanStats = [{}, {}];
     for (let t = 0; t < 2; t++) for (const h of cfg.teams[t].heroes) this.spawnHero(t, h);
+    for (let t = 0; t < 2; t++) {
+      const counts = {};
+      for (const h of this.teams[t].heroes) counts[h.def.clan] = (counts[h.def.clan] || 0) + 1;
+      const st = {}, active = [];
+      for (const [c, n] of Object.entries(counts)) {
+        const tier = CLANS[c].tiers.filter((x) => n >= x.n).pop();
+        if (tier) { active.push({ clan: c, n, text: tier.text }); for (const [k, v] of Object.entries(tier.stats)) st[k] = (st[k] || 0) + v; }
+      }
+      this.clanStats[t] = st; this.teams[t].clans = active;
+      for (const h of this.teams[t].heroes) { this.recalc(h); h.hp = h.maxHp; }
+    }
     for (let t = 0; t < 2; t++) if (cfg.coach && cfg.coach[t]) this.coaches[t] = new Coach(this, t, cfg.coachLevel?.[t] ?? 1);
   }
 
   get time() { return this.tick * DT; }
+  get timeLeft() { return Math.max(0, MATCH_SECONDS - this.time); }
+  get wx() { return WEATHER[this.weatherList[Math.max(0, this.weatherIdx)]] || WEATHER.clear; }
+  updateWeather() {
+    const idx = Math.min(this.weatherList.length - 1, Math.floor(this.time / T.weatherPhase));
+    if (idx !== this.weatherIdx) { this.weatherIdx = idx; this.emit({ type: 'weather', weather: this.weatherList[idx] }); }
+  }
+  towersStanding(team) { let n = 0; for (const u of this.units) if (u.type === 'tower' && u.team === team && u.alive) n++; return n; }
+  // Clock ran out: more towers standing wins; then crystal HP, kills, gold.
+  timeUp() {
+    const a = this.towersStanding(0), b = this.towersStanding(1);
+    let w;
+    if (a !== b) w = a > b ? 0 : 1;
+    else {
+      const nx = (t) => { const n = this.units.find((u) => u.type === 'nexus' && u.team === t); return n ? n.hp / n.maxHp : 0; };
+      const ha = nx(0), hb = nx(1);
+      if (Math.abs(ha - hb) > 1e-6) w = ha > hb ? 0 : 1;
+      else if (this.teams[0].kills !== this.teams[1].kills) w = this.teams[0].kills > this.teams[1].kills ? 0 : 1;
+      else { const g = (t) => this.teams[t].heroes.reduce((s, h) => s + h.goldEarned, 0); w = g(0) >= g(1) ? 0 : 1; }
+    }
+    this.over = true; this.winner = w;
+    this.emit({ type: 'victory', team: w, timeout: true, towers: [a, b] });
+  }
+  updateShrines() {
+    if (this.time < T.shrineUnlock) return;
+    const step = 5 * DT;
+    for (const sh of this.shrines) {
+      const n = [0, 0];
+      for (const u of this.grid.query(sh.x, sh.y, 120)) if (u.type === 'hero' && u.alive) n[u.team]++;
+      const who = n[0] && !n[1] ? 0 : n[1] && !n[0] ? 1 : -1;
+      if (who >= 0 && who !== sh.owner) {
+        if (sh.capTeam !== who) { sh.capTeam = who; sh.progress = 0; }
+        sh.progress += step * (1 + 0.25 * (n[who] - 1));
+        if (sh.progress >= T.shrineCapture) {
+          const prev = sh.owner; sh.owner = who; sh.progress = 0; sh.capTeam = -1;
+          this.emit({ type: 'shrine', team: who, id: sh.id, prev });
+          for (const t of this.teams) for (const h of t.heroes) this.recalc(h);
+        }
+      } else if (who < 0 && !(n[0] && n[1])) { sh.progress = Math.max(0, sh.progress - step); if (!sh.progress) sh.capTeam = -1; }
+      // owned shrines mend allies standing on them
+      if (sh.owner >= 0) for (const u of this.grid.query(sh.x, sh.y, 120)) if (u.type === 'hero' && u.alive && u.team === sh.owner && this.tick - u.lastCombat > sec(2)) this.heal(u, u.maxHp * 0.02 * 5 * DT, null, true);
+    }
+  }
   rollDragon() {
     const last = this.dragonQueue[this.dragonQueue.length - 1];
     let d; do { d = DRAGONS[this.rng.int(4)]; } while (d === last);
@@ -98,8 +157,8 @@ export class Game {
   setupStructures() {
     for (const s of this.world.structures) {
       const t = s.team, pos = { x: s.x, y: s.y };
-      const base = s.kind === 'nexus' ? { hp: 4200, ad: 0, range: 0 } : s.kind === 'inhib' ? { hp: 2200, ad: 0, range: 0 }
-        : { hp: [0, 2600, 2800, 3000, 2400][s.tier], ad: 165, range: 235 };
+      const base = s.kind === 'nexus' ? { hp: 3600, ad: 0, range: 0 } : s.kind === 'inhib' ? { hp: 2000, ad: 0, range: 0 }
+        : { hp: [0, 2300, 2500, 2700, 2200][s.tier], ad: 160, range: RANGE.tower };
       this.addUnit({ type: s.kind === 'tower' ? 'tower' : s.kind, team: t, x: pos.x, y: pos.y, tier: s.tier || 0, lane: s.lane,
         maxHp: base.hp, hp: base.hp, radius: s.kind === 'nexus' ? 50 : 34, structure: true,
         stats: { ad: base.ad, ap: 0, armor: 40, mr: 40, as: 0.83, range: base.range, ms: 0, pen: 0 }, streak: 0 });
@@ -147,6 +206,8 @@ export class Game {
     const now = this.tick;
     for (const bf of h.buffs) if (bf.until > now && bf.stats) add(bf.stats);
     const team = this.teams[h.team];
+    if (this.clanStats) add(this.clanStats[h.team]);
+    if (this.shrines) for (const sh of this.shrines) if (sh.owner === h.team) s.dmgPct += 0.05;
     for (const d of team.dragons) {
       if (d === 'infernal') s.powerMult += 0.05; else if (d === 'ocean') s.regenPct += 0.005; else if (d === 'mountain') s.resPct += 0.06; else if (d === 'cloud') s.msPct += 0.03;
     }
@@ -245,6 +306,13 @@ export class Game {
         team.call = { type: 'objective', obj: o, until: until(T.objectiveTimeout) };
         break;
       }
+      case 'shrine': {
+        const target = this.shrines.filter((x) => x.owner !== c.team).sort((a, b) => (c.shrine === a.id ? -1 : 0) - (c.shrine === b.id ? -1 : 0) || dist2(a, this.world.fountain[c.team]) - dist2(b, this.world.fountain[c.team]))[0];
+        if (!target || this.time < T.shrineUnlock) { ok = false; break; }
+        const pick = alive.slice().sort((a, b) => (a.role === 'jungle' ? -1 : 0) - (b.role === 'jungle' ? -1 : 0) || dist2(a, target) - dist2(b, target)).slice(0, 2);
+        for (const h of pick) h.task = { kind: 'shrine', shrine: target.id, until: until(25), call: true };
+        break;
+      }
       case 'group': {
         if (!this.world.laneNames.includes(c.lane)) { ok = false; break; }
         for (const h of alive) if (!(h.task.kind === 'split' && h.task.call)) h.task = { kind: 'group', lane: c.lane, until: until(T.groupTimeout), call: true };
@@ -338,6 +406,8 @@ export class Game {
       if (tm.call && tm.call.until <= now) tm.call = null;
     }
 
+    this.updateWeather();
+    if (now % 5 === 0) this.updateShrines();
     this.spawnWaves();
     this.updateCamps();
     this.updateObjectivesSpawn();
@@ -365,6 +435,7 @@ export class Game {
     this.separate();
     this.fountain();
 
+    if (!this.over && this.time >= MATCH_SECONDS) this.timeUp();
     // cleanup
     if (now % 20 === 0) {
       this.units = this.units.filter((u) => u.alive || u.type === 'hero' || u.structure);
@@ -482,9 +553,10 @@ export class Game {
       for (const u of this.units) {
         if (!u.alive || u.team !== t) continue;
         const r = u.type === 'hero' ? VISION.hero : u.type === 'minion' ? VISION.minion : u.type === 'summon' ? VISION.summon : u.structure ? VISION.tower : 0;
-        if (r) src.push({ x: u.x, y: u.y, r: r * (this.visionMult ? this.visionMult(t, u) : 1) });
+        if (r) src.push({ x: u.x, y: u.y, r: u.structure ? r : r * this.wx.vision });
       }
       for (const w of this.wards) if (w.team === t && w.until > this.tick) src.push({ x: w.x, y: w.y, r: VISION.ward });
+      for (const sh of this.shrines) if (sh.owner === t) src.push({ x: sh.x, y: sh.y, r: VISION.shrine });
       src.push({ x: W.fountain[t].x, y: W.fountain[t].y, r: VISION.fountain });
       const grid = W.computeVision(src, this.visGrid[t]);
       const vis = new Set();
@@ -522,6 +594,8 @@ export class Game {
       if (lowHp && src.def.passive.kind === 'executer') amt *= 1 + src.def.passive.pct;
       if (lowHp && ss.execute) amt *= 1 + ss.execute;
       if (tgt.structure && src.def.passive.kind === 'siege') amt *= 1 + src.def.passive.pct;
+      if (ss.dmgPct) amt *= 1 + ss.dmgPct;
+      if (tgt.structure && ss.siegePct) amt *= 1 + ss.siegePct;
       if ((tgt.type === 'mob' || tgt.type === 'objective') && src.role === 'jungle') amt *= 1.6;
       if (tgt.structure && !flags.summon) {
         // Backdoor protection: heroes deal reduced damage without minion cover.
@@ -603,6 +677,7 @@ export class Game {
   }
   addBurn(u, src, dps, dur, key) {
     if (!u.alive || dps <= 0) return;
+    dps *= this.wx.burn;
     const k = key + ':' + (src ? src.id : 0);
     const ex = u.burns.find((b) => b.key === k);
     if (ex) { ex.dps = Math.max(ex.dps, dps); ex.until = this.tick + sec(dur); }
@@ -676,7 +751,7 @@ export class Game {
   face(u, dx, dy) { if (Math.abs(dx) > Math.abs(dy)) u.facing = dx > 0 ? 3 : 2; else u.facing = dy > 0 ? 0 : 1; }
 
   moveSpeed(u) {
-    let ms = u.stats.ms;
+    let ms = u.stats.ms * this.wx.ms;
     let slow = 0; for (const s of u.slows) if (s.until > this.tick && s.pct > slow) slow = s.pct;
     return ms * (1 - slow);
   }
@@ -853,7 +928,8 @@ export class Game {
     // regen
     const regen = h.stats.regen + h.stats.regenPct * h.maxHp + (h.def.passive.kind === 'lowhpRegen' && h.hp / h.maxHp < 0.35 ? h.def.passive.pct * h.maxHp : 0)
       + (now - h.lastCombat > sec(5) ? h.maxHp * 0.012 : 0);
-    if (h.hp < h.maxHp) h.hp = Math.min(h.maxHp, h.hp + regen * DT * (h.grievousUntil > now ? 0.6 : 1));
+    const wxRegen = this.wx.regen;
+    if (h.hp < h.maxHp) h.hp = Math.min(h.maxHp, h.hp + regen * wxRegen * DT * (h.grievousUntil > now ? 0.6 : 1));
     // buffs expiry → recalc occasionally
     if ((now + h.id) % 10 === 0) this.recalc(h);
     // dash in progress
@@ -909,7 +985,7 @@ export class Game {
       case 'shot': case 'hook': {
         const d = norm(aim.x - h.x, aim.y - h.y);
         this.projectiles.push({ id: this.nextId++, x: h.x, y: h.y - 6, dx: d.x, dy: d.y, speed: ab.speed || 800, max: ab.range, trav: 0, team: h.team,
-          src: h, ab, abi: i, width: ab.width || 30, pierce: !!ab.pierce, hit: [], sprite: ab.proj || 'p_energy', hook: ab.kind === 'hook', type });
+          src: h, ab, abi: i, width: ab.width || 30, speedMul: this.wx.proj, pierce: !!ab.pierce, hit: [], sprite: ab.proj || 'p_energy', hook: ab.kind === 'hook', type });
         selfBuff();
         break;
       }
@@ -1020,7 +1096,7 @@ export class Game {
         p.x += dx / l * sp; p.y += dy / l * sp; p.dx = dx / l; p.dy = dy / l;
         keep.push(p); continue;
       }
-      const sp = p.speed * DT;
+      const sp = p.speed * (p.speedMul || 1) * DT;
       p.x += p.dx * sp; p.y += p.dy * sp; p.trav += sp;
       let done = p.trav >= p.max;
       for (const e of this.grid.query(p.x, p.y, p.width / 2 + 20)) {

@@ -24,7 +24,7 @@ class App {
   constructor() {
     this.name = 'Coach';
     try { this.name = localStorage.getItem('mobavs_name') || 'Coach'; this.aiLevel = +(localStorage.getItem('mobavs_ai') ?? 1); } catch { this.aiLevel = 1; }
-    this.session = null; this.net = null; this.match = null;
+    this.session = null; this.net = null; this.match = null; this.mapPref = 'random';
     this.bgCanvas = document.getElementById('bg');
   }
   // Painted map canvases are cached per map id (painting takes a moment on phones).
@@ -33,6 +33,7 @@ class App {
     if (!this.mapCache[world.def.id]) this.mapCache[world.def.id] = paintMap(world);
     return this.mapCache[world.def.id];
   }
+  pickMap(seed) { return this.mapPref && this.mapPref !== 'random' ? this.mapPref : MAPS[seed % MAPS.length].id; }
   setName(n) { this.name = n.slice(0, 12) || 'Coach'; try { localStorage.setItem('mobavs_name', this.name); } catch { /* ignore */ } }
 
   async boot() {
@@ -81,12 +82,12 @@ class App {
   startVsAI() {
     try { localStorage.setItem('mobavs_ai', String(this.aiLevel)); } catch { /* ignore */ }
     const seed = (Math.random() * 2 ** 31) >>> 0;
-    this.session = { mode: 'ai', myTeam: 0, seed, mapId: MAPS[seed % MAPS.length].id, names: [this.name, ['Easy', 'Normal', 'Hard'][this.aiLevel] + ' AI'], rng: new Rng(seed ^ 0x5eed) };
+    this.session = { mode: 'ai', myTeam: 0, seed, mapId: this.pickMap(seed), names: [this.name, ['Easy', 'Normal', 'Hard'][this.aiLevel] + ' AI'], rng: new Rng(seed ^ 0x5eed) };
     this.startDraft();
   }
   watch() {
     const seed = (Math.random() * 2 ** 31) >>> 0;
-    this.session = { mode: 'watch', myTeam: -1, seed, mapId: MAPS[seed % MAPS.length].id, names: ['Blue AI', 'Red AI'], rng: new Rng(seed) };
+    this.session = { mode: 'watch', myTeam: -1, seed, mapId: this.pickMap(seed), names: ['Blue AI', 'Red AI'], rng: new Rng(seed) };
     const d = newDraft();
     while (!d.done) { const t = currentTurn(d); draftApply(d, t.team, autoChoice(d, t.team, this.session.rng, 1)); }
     this.session.draft = d;
@@ -101,7 +102,7 @@ class App {
       const { peer, transport } = await host(code, (s) => showLobby(this, { code, status: s === 'waiting' ? 'Waiting for opponent… (share the code or this link: ' + location.origin + location.pathname + '?join=' + code + ')' : s, onCancel: cancel }));
       this.net = { peer, t: transport };
       const seed = (Math.random() * 2 ** 31) >>> 0;
-      this.session = { mode: 'host', myTeam: 0, seed, mapId: MAPS[seed % MAPS.length].id, names: [this.name, 'Guest'], rng: new Rng(seed) };
+      this.session = { mode: 'host', myTeam: 0, seed, mapId: this.pickMap(seed), names: [this.name, 'Guest'], rng: new Rng(seed) };
       this.wireNet();
       transport.send({ t: 'hello', v: VERSION, name: this.name, seed });
     } catch (e) {

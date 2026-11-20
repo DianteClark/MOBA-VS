@@ -8,7 +8,7 @@ export class Coach {
   constructor(g, team, level = 1) {
     this.g = g; this.team = team; this.level = level; // 0 easy, 1 normal, 2 hard
     this.next = sec(20) + team * 7;
-    this.cooldown = { gank: 0, objective: 0, reset: 0, group: 0, focus: 0, herald: 0, build: 0, invade: 0 };
+    this.cooldown = { gank: 0, objective: 0, reset: 0, group: 0, focus: 0, herald: 0, build: 0, invade: 0, shrine: 0 };
   }
   issue(c) { c.team = this.team; return this.g.applyCommand(c); }
 
@@ -59,6 +59,11 @@ export class Coach {
     if (takeObj('dragon', 3, jg && jg.alive && (botAlive >= 1) && (deadEnemies >= 1 || enemyJgVisibleTop || this.level >= 1 && g.rng.chance(0.25)))) return;
     if (takeObj('herald', 3, jg && jg.alive && (deadEnemies >= 1 || g.rng.chance(0.2)))) return;
 
+    // Shrines: grab one when it's quiet
+    if (ready('shrine') && charges >= 1 && g.time > 70) {
+      const sh = g.shrines.filter((x) => x.owner !== this.team).sort((a, b) => (a.id === this.team ? -1 : 1) - (b.id === this.team ? -1 : 1))[0];
+      if (sh && near(sh, 900, visibleEnemies) === 0 && alive.length >= 4) { if (this.issue({ type: 'shrine', shrine: sh.id })) { cd('shrine', 50); return; } }
+    }
     // Gank: enemy laner overextended & low
     if (ready('gank') && charges >= 1 && jg && jg.alive && jg.task.kind === 'jungle') {
       for (const e of visibleEnemies) {

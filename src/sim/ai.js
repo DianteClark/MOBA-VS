@@ -124,6 +124,15 @@ export function heroMacro(g, h) {
   const contest = contestTarget(g, h);
   if (contest) { h.task = { kind: 'contest', obj: contest.kind, until: now + sec(25) }; return; }
 
+  // Grab a nearby shrine when it's safe and on the way.
+  if ((h.role === 'jungle' || h.role === 'support' || g.time > 480) && g.time >= 60 && hpPct > 0.5 && (now + h.id * 3) % 40 === 0) {
+    for (const sh of g.shrines) {
+      if (sh.owner === h.team || pathDist(h, sh) > 650) continue;
+      if (enemiesNear(g, { x: sh.x, y: sh.y, team: h.team }, 700).length) continue;
+      h.task = { kind: 'shrine', shrine: sh.id, until: now + sec(14) }; return;
+    }
+  }
+  if (h.task.kind === 'shrine' && !(h.task.until < now)) return;
   if (h.role === 'jungle') {
     // Autonomous gank: only near-certain opportunities. Most good ganks come from calls.
     if ((now + h.id * 7) % 100 === 0) {
@@ -221,6 +230,12 @@ export function heroThink(g, h) {
     case 'objective': return doObjective(g, h, task.obj, task);
     case 'contest': return doObjective(g, h, task.obj, task, true);
     case 'safe': return doSafe(g, h);
+    case 'shrine': {
+      const sh = g.shrines[task.shrine];
+      if (!sh || sh.owner === h.team) { h.task = { kind: 'idle' }; return; }
+      if (dist2(h, sh) > 60 * 60) g.moveToward(h, sh); else { h.vx = h.vy = 0; }
+      return;
+    }
     case 'invade': return doInvade(g, h, task);
     case 'defend': {
       if (dist2(h, task) > 250 * 250) g.moveToward(h, task); else farmAround(g, h, 400, true);

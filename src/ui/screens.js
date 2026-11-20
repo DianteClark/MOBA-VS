@@ -3,7 +3,8 @@ import { h, mount, face, icon, fmtTime } from './dom.js';
 import { HEROES, HERO_BY_ID, ROLES, ROLE_LABEL, matchupScore } from '../data/heroes.js';
 import { BUILDS } from '../data/items.js';
 import { DRAFT_ORDER, currentTurn, taken, legal, assignRoles, TURN_SECONDS } from '../sim/draft.js';
-import { TEAM_NAME, DRAGON_INFO } from '../sim/constants.js';
+import { TEAM_NAME, DRAGON_INFO, CLANS } from '../sim/constants.js';
+import { MAPS, MAP_BY_ID } from '../maps/defs.js';
 
 const screen = () => document.getElementById('screen');
 const TEAMC = ['blue', 'red'];
@@ -22,6 +23,9 @@ export function showMenu(app) {
     h('div', { class: 'panel col', style: { width: 'min(320px, 90vw)' } },
       h('div', { class: 'muted', style: { fontSize: '11px' } }, 'Coach name'),
       h('input', { value: name, maxlength: 12, oninput: (e) => { app.setName(e.target.value); } }),
+      h('div', { class: 'muted', style: { fontSize: '11px' } }, 'Map'),
+      h('div', { class: 'row', style: { gap: '4px' } }, ...[['random', 'Random'], ...MAPS.map((m) => [m.id, m.name])].map(([id, l]) =>
+        h('button', { class: 'btn small' + (app.mapPref === id ? ' on' : ''), onclick: () => { app.mapPref = id; showMenu(app); } }, l))),
       h('div', { class: 'row', style: { justifyContent: 'space-between', fontSize: '11px' } },
         h('span', { class: 'muted' }, 'AI difficulty'),
         ...['Easy', 'Normal', 'Hard'].map((l, i) => h('button', { class: 'btn small' + (app.aiLevel === i ? ' on' : ''), onclick: () => { app.aiLevel = i; showMenu(app); } }, l)),
@@ -79,6 +83,7 @@ export class DraftView {
           const active = t && t.team === team && t.act === 'pick' && i === pickIdx;
           return h('div', { class: 'slot' + (active ? ' active' : '') }, id ? h('img', { src: face(id) }) : (active ? '...' : ''), id ? h('div', { class: 'role' }, ROLE_LABEL[roles[i]] || '') : null);
         })),
+        clanLine(picks),
         h('div', { class: 'slots bans' }, ...Array.from({ length: nBans }, (_, i) => {
           const id = bans[i];
           const active = t && t.team === team && t.act === 'ban' && i === banIdx;
@@ -86,11 +91,16 @@ export class DraftView {
         })),
       );
     };
+    const clanLine = (picks) => {
+      const c = {}; for (const id of picks) { const k = HERO_BY_ID[id].clan; c[k] = (c[k] || 0) + 1; }
+      return h('div', { class: 'clans' }, ...Object.entries(c).map(([k, n]) => h('span', { class: 'clan' + (n >= 2 ? ' on' : ''), style: { borderColor: CLANS[k].color, color: n >= 2 ? '#111' : CLANS[k].color, background: n >= 2 ? CLANS[k].color : 'transparent' } }, `${CLANS[k].name} ${n}`)));
+    };
     const timer = h('div', { class: 'timer', id: 'dtimer' }, String(Math.ceil(app.session.turnLeft ?? TURN_SECONDS)));
     const turnBox = h('div', { class: 'turn panel' },
       d.done ? h('div', {}, 'Draft complete') : h('div', { class: 'what ' + TEAMC[t.team] }, `${TEAM_NAME[t.team]} ${t.act === 'ban' ? 'BAN' : 'PICK'}`),
       timer,
       h('div', { class: 'muted', style: { fontSize: '10px' } }, myTurn ? 'Your turn' : (d.done ? '' : 'Waiting…')),
+      h('div', { class: 'mapname' }, (MAP_BY_ID[app.session.mapId] || MAPS[0]).name),
     );
     const roles = ['all', ...ROLES];
     const filters = h('div', { class: 'filters' }, ...roles.map((r) => h('button', { class: 'btn small' + (this.filter === r ? ' on' : ''), onclick: () => { this.filter = r; this.render(); } }, r === 'all' ? 'All' : ROLE_LABEL[r])));
@@ -117,7 +127,7 @@ export class DraftView {
     const canAct = myTurn && legal(d, me, id);
     return h('div', { class: 'panel info' },
       h('div', { class: 'row' }, h('div', { class: 'face' }, h('img', { src: face(id) })), h('div', {}, h('h2', {}, x.name), h('div', { class: 't' }, `${x.title} · ${x.roles.map((r) => ROLE_LABEL[r]).join(' / ')} · ${x.curve} game`))),
-      h('div', { class: 'tags' }, ...x.tags.map((tg) => h('span', { class: 'tag' }, tg)), h('span', { class: 'tag' }, x.dmgType === 'phys' ? 'physical' : 'magic'), h('span', { class: 'tag' }, x.ranged ? 'ranged' : 'melee')),
+      h('div', { class: 'tags' }, h('span', { class: 'tag', style: { background: CLANS[x.clan].color, color: '#111' } }, CLANS[x.clan].name), ...x.tags.map((tg) => h('span', { class: 'tag' }, tg)), h('span', { class: 'tag' }, x.dmgType === 'phys' ? 'physical' : 'magic'), h('span', { class: 'tag' }, x.ranged ? 'ranged' : 'melee')),
       h('div', { class: 'ab' }, h('img', { src: icon('LuckUpgrade') }), h('div', {}, h('b', {}, `Passive: ${x.passive.name}`), h('div', { class: 'd' }, x.passive.desc))),
       ...x.abilities.map((a) => h('div', { class: 'ab' }, h('img', { src: icon(a.icon) }), h('div', {}, h('b', {}, `${a.ult ? 'Ultimate: ' : ''}${a.name}`), h('div', { class: 'd' }, describeAbility(a))))),
       h('div', { class: 'muted', style: { fontSize: '10px', marginTop: '6px' } }, 'Builds: ' + x.builds.map((b) => BUILDS[b].name).join(', ')),
@@ -164,6 +174,10 @@ export function showPrep(app, prep, enemyIds, left, onChange, onReady, ready) {
       return h('div', { class: 'row', style: { gap: '4px', fontSize: '11px' } }, h('img', { src: face(id), style: { width: '28px', height: '28px' } }), h('span', {}, x.name), h('span', { class: 'muted', style: { fontSize: '9px' } }, x.tags.slice(0, 2).join(',')), mu.score > 0 ? h('span', { class: 'red', style: { fontSize: '9px' } }, `(+${mu.score} vs you)`) : null);
     })),
     h('div', { class: 'prep-cards' }, ...prep.heroes.map(card)),
+    h('div', { class: 'panel col' }, h('div', {}, 'Clan synergies'), h('div', { class: 'row' }, ...(() => {
+      const c = {}; for (const p of prep.heroes) { const k = HERO_BY_ID[p.id].clan; c[k] = (c[k] || 0) + 1; }
+      return Object.entries(c).map(([k, n]) => { const tier = CLANS[k].tiers.filter((t) => n >= t.n).pop(); return h('div', { class: 'bopt' + (tier ? ' sel' : ''), style: { borderColor: CLANS[k].color } }, h('div', { style: { color: CLANS[k].color } }, `${CLANS[k].name} ×${n}`), h('div', { class: 'bd' }, tier ? tier.text : `${CLANS[k].tiers[0].n} needed: ${CLANS[k].tiers[0].text}`)); });
+    })())),
     h('div', { class: 'panel col' }, h('div', {}, 'Team plan'), h('div', { class: 'plans' }, ...Object.entries(PLANS).map(([k, d]) => h('div', { class: 'bopt' + (prep.plan === k ? ' sel' : ''), onclick: () => { if (ready) return; prep.plan = k; onChange(); } }, h('div', {}, k[0].toUpperCase() + k.slice(1)), h('div', { class: 'bd' }, d))))),
     h('div', { class: 'row', style: { justifyContent: 'center' } }, h('button', { class: 'btn big', disabled: ready, onclick: onReady }, ready ? 'Waiting for opponent…' : 'Ready')),
   ));

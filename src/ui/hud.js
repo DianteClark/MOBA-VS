@@ -2,23 +2,24 @@
 import { h, mount, face, icon, fmtTime, toast } from './dom.js';
 import { BUILDS } from '../data/items.js';
 import { ROLE_LABEL } from '../data/heroes.js';
-import { CMD, DRAGON_INFO, TEAM_NAME, TICK_RATE, T } from '../sim/constants.js';
+import { CMD, DRAGON_INFO, TEAM_NAME, TICK_RATE, T, OBJ_NAME, WEATHER } from '../sim/constants.js';
 const LANE_NAMES = ['top', 'mid', 'bot'];
 import { TEAM_COL } from '../render/renderer.js';
 import { audio } from '../audio.js';
 
 const LANE_L = { top: 'Top', mid: 'Mid', bot: 'Bot' };
-const OBJ_L = { dragon: 'Dragon', herald: 'Herald', baron: 'Baron' };
+const OBJ_L = OBJ_NAME;
 const CALLS = [
   { type: 'gank', label: 'Gank', icon: 'Cut', key: 'g' },
   { type: 'objective', label: 'Objective', icon: 'OrbFire', key: 'o' },
+  { type: 'shrine', label: 'Shrine', icon: 'OrbLight', key: 'k' },
   { type: 'group', label: 'Group', icon: 'Upgrade', key: 'r' },
   { type: 'split', label: 'Split', icon: 'BookWind', key: 'p' },
   { type: 'focus', label: 'Focus', icon: 'Death', key: 'f' },
   { type: 'safe', label: 'Play safe', icon: 'DefenseUpgrade', key: 'x' },
   { type: 'reset', label: 'Reset', icon: 'Heal', key: 'b' },
   { type: 'invade', label: 'Invade', icon: 'Camouflage', key: 'i' },
-  { type: 'herald', label: 'Herald', icon: 'Counter', key: 'h' },
+  { type: 'herald', label: 'Oni', icon: 'Counter', key: 'h' },
   { type: 'build', label: 'Build', icon: 'Alchemy', key: 'u' },
   { type: 'cancel', label: 'Cancel', icon: 'Downgrade', key: 'c' },
 ];
@@ -144,13 +145,18 @@ export class Hud {
           let st = o && o.alive ? 'UP' : tmr ? fmtTime(Math.max(0, (tmr - g.tick) / TICK_RATE)) : '—';
           if (k === 'herald' && g.time > T.heraldDespawn) st = 'gone';
           if (k === 'baron' && !o && g.time < T.baronFirst) st = fmtTime(T.baronFirst - g.time);
-          const name = k === 'dragon' && o ? DRAGON_INFO[o.element].name + ' Drake' : OBJ_L[k];
+          const name = k === 'dragon' && o ? DRAGON_INFO[o.element].name : OBJ_L[k];
           return h('button', { class: 'btn', disabled: st === 'gone' || st === '—', onclick: () => this.send({ type: 'objective', obj: k }) }, `${name} · ${st}`);
         };
         return box('Take which objective? (team groups up — 2 charges)', h('div', { class: 'opts' }, opt('dragon'), opt('herald'), opt('baron')));
       }
+      case 'shrine': {
+        const opt = (sh) => h('button', { class: 'btn', disabled: sh.owner === this.my || g.time < T.shrineUnlock, onclick: () => this.send({ type: 'shrine', shrine: sh.id }) },
+          `${sh.id === this.my ? 'Home' : 'Enemy'} shrine · ${sh.owner === this.my ? 'ours' : sh.owner < 0 ? 'neutral' : 'theirs'}`);
+        return box('Capture which shrine? (+5% team damage & vision)', h('div', { class: 'opts' }, ...g.shrines.map(opt)));
+      }
       case 'group': return box('Group up and push which lane?', laneBtns((l) => this.send({ type: 'group', lane: l })));
-      case 'herald': return box('Drop the Herald in which lane?', laneBtns((l) => this.send({ type: 'herald', lane: l })));
+      case 'herald': return box('Unleash the Oni in which lane?', laneBtns((l) => this.send({ type: 'herald', lane: l })));
       case 'split': {
         if (!p.hero) return box('Who split-pushes?', this.heroPick(mine, (x) => { p.hero = x; this.renderCmd(); }, null, (x) => !x.alive));
         return box(`${p.hero.def.name} splits which lane?`, laneBtns((l) => this.send({ type: 'split', hero: p.hero.id, lane: l })));
@@ -192,24 +198,24 @@ export class Hud {
 
   updateScore() {
     const g = this.g, t0 = g.teams[0], t1 = g.teams[1];
-    const gold = (t) => Math.round(t.heroes.reduce((a, x) => a + x.goldEarned, 0) / 100) / 10;
     const pips = (t) => h('span', { class: 'drag-pips' }, ...t.dragons.map((d) => h('i', { style: { background: DRAGON_INFO[d].color } })));
+    const left = g.timeLeft, late = left < 60;
+    const wx = g.weatherList[Math.max(0, g.weatherIdx)];
     mount(this.el.score,
-      h('div', { class: 'col', style: { gap: '0', alignItems: 'flex-end' } }, h('div', { class: 'meta' }, pips(t0), h('span', {}, `${t0.towers}T`), h('span', { class: 'gold' }, gold(t0) + 'k'))),
-      h('div', { class: 'k blue' }, t0.kills),
-      h('div', { class: 'clock' }, fmtTime(g.time)),
-      h('div', { class: 'k red' }, t1.kills),
-      h('div', { class: 'col', style: { gap: '0' } }, h('div', { class: 'meta' }, h('span', { class: 'gold' }, gold(t1) + 'k'), h('span', {}, `${t1.towers}T`), pips(t1))));
+      h('div', { class: 'side blue' }, h('div', { class: 'tw', title: 'Towers standing' }, g.towersStanding(0)), h('div', { class: 'meta' }, h('span', {}, `${t0.kills} kills`), pips(t0))),
+      h('div', { class: 'mid' }, h('div', { class: 'clock' + (late ? ' late' : '') }, fmtTime(left)), h('div', { class: 'wx' }, WEATHER[wx].name)),
+      h('div', { class: 'side red' }, h('div', { class: 'tw', title: 'Towers standing' }, g.towersStanding(1)), h('div', { class: 'meta' }, pips(t1), h('span', {}, `${t1.kills} kills`))));
     const ot = (k) => {
       const o = g.objectives[k]; const tmr = g.objTimers[k];
       if (k === 'herald' && (g.time > T.heraldDespawn || (g.objectives.baron))) return null;
       if (k === 'baron' && g.time < T.heraldDespawn - 60 && !o) return null;
       const up = o && o.alive;
-      const label = k === 'dragon' ? (up ? DRAGON_INFO[o.element].name : DRAGON_INFO[g.nextDragon] ? DRAGON_INFO[this.g.teams.some((t) => t.soul) ? 'elder' : g.nextDragon].name : 'Dragon') : OBJ_L[k];
+      const label = k === 'dragon' ? (up ? DRAGON_INFO[o.element].short : DRAGON_INFO[g.teams.some((t) => t.soul) ? 'elder' : g.nextDragon].short) + ' Kami' : OBJ_L[k];
       const st = up ? 'UP' : tmr ? fmtTime(Math.max(0, (tmr - g.tick) / TICK_RATE)) : '—';
       return h('div', { class: 'ot' + (up ? ' up' : '') }, h('img', { src: `assets/img/${k === 'dragon' ? 'boss/dragon_green_faceset' : k === 'baron' ? 'boss/baron_faceset' : 'boss/herald_faceset'}.png` }), `${label} ${st}`);
     };
-    mount(this.el.obj, ot('dragon'), ot('herald'), ot('baron'));
+    const shr = g.shrines.map((sh) => h('div', { class: 'ot', style: { borderColor: sh.owner >= 0 ? TEAM_COL[sh.owner] : '' } }, h('span', { class: 'shr', style: { background: sh.owner >= 0 ? TEAM_COL[sh.owner] : '#ffe9a8' } }), sh.owner < 0 ? 'Shrine' : sh.owner === this.view ? 'Ours' : 'Theirs'));
+    mount(this.el.obj, ot('dragon'), ot('herald'), ot('baron'), ...shr);
   }
 
   taskLabel(x) {
@@ -285,28 +291,30 @@ export class Hud {
           break;
         }
         case 'objective': {
-          const nm = e.obj === 'dragon' ? `${DRAGON_INFO[e.element].name} Drake` : OBJ_L[e.obj];
+          const nm = e.obj === 'dragon' ? DRAGON_INFO[e.element].name : OBJ_L[e.obj];
           this.feed(`${TEAM_NAME[e.team]} ${e.steal ? 'STOLE' : 'took'} ${nm}${e.killer ? ' (' + this.name(e.killer) + ')' : ''}`, e.team === 0 ? 'b' : 'r', true);
           this.banner(`${e.steal ? 'STOLEN! ' : ''}${nm.toUpperCase()}`, TEAM_COL[e.team]);
           audio.sfx('objective');
           break;
         }
-        case 'soul': this.banner(`${TEAM_NAME[e.team].toUpperCase()} ${DRAGON_INFO[e.element].name.toUpperCase()} SOUL`, TEAM_COL[e.team]); break;
+        case 'soul': this.banner(`${TEAM_NAME[e.team].toUpperCase()}: ${DRAGON_INFO[e.element].short.toUpperCase()} BLESSING`, TEAM_COL[e.team]); break;
+        case 'shrine': this.feed(`${TEAM_NAME[e.team]} captured ${e.id === e.team ? 'their home' : e.id === this.view ? 'your' : 'a'} shrine`, e.team === 0 ? 'b' : 'r', true); audio.sfx('powerup', 0.6); break;
+        case 'weather': if (g.tick > 5) { const W_ = WEATHER[e.weather]; this.feed(`Weather: ${W_.name}${W_.desc ? ' — ' + W_.desc : ''}`, 'n'); } break;
         case 'tower': this.feed(`${TEAM_NAME[e.team]} destroyed a ${LANE_L[e.lane] || 'base'} tower`, e.team === 0 ? 'b' : 'r'); audio.sfx('explosion', 0.7); break;
         case 'inhib': this.feed(`${TEAM_NAME[e.team]} destroyed the ${LANE_L[e.lane]} inhibitor!`, e.team === 0 ? 'b' : 'r', true); this.banner('INHIBITOR DESTROYED', TEAM_COL[e.team]); audio.sfx('explosion'); break;
         case 'inhibRespawn': this.feed(`${TEAM_NAME[e.team]} ${LANE_L[e.lane]} inhibitor respawned`, 'n'); break;
-        case 'spawn': this.feed(`${e.obj === 'dragon' ? DRAGON_INFO[e.element].name + ' Drake' : OBJ_L[e.obj]} has spawned`, 'n'); audio.sfx('alert', 0.5); break;
-        case 'heraldDrop': this.feed(`${TEAM_NAME[e.team]} unleashed the Herald ${LANE_L[e.lane]}!`, e.team === 0 ? 'b' : 'r'); audio.sfx('explosion'); break;
+        case 'spawn': this.feed(`${e.obj === 'dragon' ? DRAGON_INFO[e.element].name : OBJ_L[e.obj]} has awakened`, 'n'); audio.sfx('alert', 0.5); break;
+        case 'heraldDrop': this.feed(`${TEAM_NAME[e.team]} unleashed the Oni ${LANE_L[e.lane]}!`, e.team === 0 ? 'b' : 'r'); audio.sfx('explosion'); break;
         case 'call': {
           const c = e.call;
           if (c.team !== this.view && this.my >= 0) break; // enemy calls are secret
           const what = c.type === 'gank' ? `${c.hero ? this.name(c.hero) : 'Jungler'} gank ${LANE_L[c.lane]}` : c.type === 'objective' ? `Take ${OBJ_L[c.obj]}` : c.type === 'group' ? `Group ${LANE_L[c.lane]}` :
             c.type === 'split' ? `${this.name(c.hero)} split ${LANE_L[c.lane]}` : c.type === 'focus' ? `Focus ${this.name(c.target)}` : c.type === 'build' ? `${this.name(c.hero)} → ${BUILDS[c.build].name}` :
-            c.type === 'herald' ? `Herald ${LANE_L[c.lane]}` : c.type === 'safe' ? 'Play safe' : c.type === 'reset' ? 'Reset' : c.type === 'invade' ? 'Invade' : 'Cancel calls';
+            c.type === 'herald' ? `Oni ${LANE_L[c.lane]}` : c.type === 'shrine' ? 'Capture shrine' : c.type === 'safe' ? 'Play safe' : c.type === 'reset' ? 'Reset' : c.type === 'invade' ? 'Invade' : 'Cancel calls';
           this.feed(`${this.my < 0 ? TEAM_NAME[c.team] + ' call' : 'Call'}: ${what}`, c.team === 0 ? 'b' : 'r');
           break;
         }
-        case 'victory': this.banner(this.my < 0 ? `${TEAM_NAME[e.team].toUpperCase()} WINS` : e.team === this.my ? 'VICTORY' : 'DEFEAT', e.team === this.my || this.my < 0 ? TEAM_COL[e.team] : '#ff5a5a', 4000); audio.sfx(e.team === this.my || this.my < 0 ? 'objective' : 'death'); break;
+        case 'victory': if (e.timeout) this.feed(`Time! Towers standing ${e.towers[0]} - ${e.towers[1]}`, 'n', true); this.banner(this.my < 0 ? `${TEAM_NAME[e.team].toUpperCase()} WINS` : e.team === this.my ? 'VICTORY' : 'DEFEAT', e.team === this.my || this.my < 0 ? TEAM_COL[e.team] : '#ff5a5a', 4000); audio.sfx(e.team === this.my || this.my < 0 ? 'objective' : 'death'); break;
         case 'ultCast': if (ours || this.my < 0) audio.sfx('magic', 0.5, 300); break;
         case 'pivot': if (e.team === this.view) this.feed(`${this.name(e.hero)} will now build ${BUILDS[e.build].name}`, 'n'); break;
         case 'stolenCamp': if (e.team !== this.view) this.feed(`Enemy invaded your jungle!`, 'r'); break;
@@ -337,7 +345,7 @@ export class Hud {
     // objective spawn warnings
     for (const k of ['dragon', 'baron', 'herald']) {
       const t = g.objTimers[k];
-      if (t && t - now > 0 && t - now < 30 * TICK_RATE && ready('spawnwarn' + k + t, 60)) this.feed(`${k === 'dragon' ? DRAGON_INFO[g.teams.some((x) => x.soul) ? 'elder' : g.nextDragon].name + ' Drake' : OBJ_L[k]} spawns in 30s`, 'n');
+      if (t && t - now > 0 && t - now < 30 * TICK_RATE && ready('spawnwarn' + k + t, 60)) this.feed(`${k === 'dragon' ? DRAGON_INFO[g.teams.some((x) => x.soul) ? 'elder' : g.nextDragon].name : OBJ_L[k]} awakens in 30s`, 'n');
     }
     // numbers advantage → objective
     if (deadEnemies.length >= 2) {

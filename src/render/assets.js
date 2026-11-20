@@ -98,6 +98,7 @@ function buildVariants() {
   if (tw) {
     const crop = (sx, sy) => { const c = document.createElement('canvas'); c.width = 32; c.height = 32; c.getContext('2d').drawImage(tw, sx, sy, 32, 32, 0, 0, 32, 32); return c; };
     VAR.crystal = [0, 1, 2].map((i) => [recolor(crop(288 + i * 32, 64), { hue: 120, sat: 1.1 }), recolor(crop(288 + i * 32, 64), { hue: -75, sat: 1.2 })]);
+    VAR.crystalNeutral = recolor(crop(288, 64), { hue: -30, sat: 0.35, light: 0.12 });
   }
   // White flash silhouettes for hit feedback are generated lazily.
 }

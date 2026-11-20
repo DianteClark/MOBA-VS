@@ -37,6 +37,11 @@ export class Minimap {
         ctx.beginPath(); ctx.arc(pit.x * k, pit.y * k, S * 0.022, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
       }
     }
+    // shrines
+    for (const sh of g.shrines) {
+      ctx.fillStyle = sh.owner >= 0 ? TEAM_COL[sh.owner] : '#ffe9a8'; ctx.strokeStyle = '#000'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(sh.x * k, sh.y * k - S * 0.022); ctx.lineTo(sh.x * k + S * 0.016, sh.y * k); ctx.lineTo(sh.x * k, sh.y * k + S * 0.022); ctx.lineTo(sh.x * k - S * 0.016, sh.y * k); ctx.closePath(); ctx.fill(); ctx.stroke();
+    }
     // structures
     for (const u of g.units) if (u.structure) {
       const s = u.type === 'nexus' ? S * 0.03 : S * 0.018;
