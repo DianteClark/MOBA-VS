@@ -1198,7 +1198,7 @@ export class Game {
     if (!e.alive) return;
     if (ab.cc) this.applyCC(e, ab.cc, h);
     if (ab.burn) this.addBurn(e, h, this.scaleVal(h, ab.burn), ab.burn.dur, 'ab');
-    if (h.def.passive.kind === 'burnAbilities') this.addBurn(e, h, this.scaleVal(h, h.def.passive.burn), h.def.passive.burn.dur, 'passive');
+    if (h.def.passive.kind === 'burnAbilities' && e.type !== 'minion') this.addBurn(e, h, this.scaleVal(h, h.def.passive.burn), h.def.passive.burn.dur, 'passive');
     this.itemBurn(h, e, 1);
     if (h.stats.slowOnHit) e.slows.push({ pct: h.stats.slowOnHit, until: this.tick + sec(1) });
   }

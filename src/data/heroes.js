@@ -142,7 +142,7 @@ export const HEROES = [
       { name: 'Mist Form', icon: 'Mist', kind: 'self', cd: 14, buff: { dur: 1.5, stats: { msPct: 0.3 } }, shield: { b: 80, l: 25, ap: 0.4, dur: 2 }, use: ['escape', 'defend'], fx: 'smoke' },
       { name: 'Hemoplague', icon: 'Necromancy', kind: 'circle', range: 450, radius: 220, delay: 1.0, cd: 70, dmg: { b: 200, l: 60, ap: 0.8 }, heal: { b: 100, l: 30 }, use: ['teamfight'], fx: 'explosion', ult: true },
     ] },
-  { id: 'hex', clan: 'shinobi', pers: 'reckless', name: 'Hex', title: 'Night Weaver', role: 'mid', flex: ['jungle'], cls: 'mage', dmgType: 'magic', curve: 'mid',
+  { id: 'hex', clan: 'shinobi', pers: 'calm', name: 'Hex', title: 'Night Weaver', role: 'mid', flex: ['jungle'], cls: 'mage', dmgType: 'magic', curve: 'mid',
     tags: ['burst', 'dive', 'pick'], builds: ['burst', 'haste'],
     passive: { kind: 'executer', name: 'Malice', pct: 0.12, desc: 'Deals 12% more damage to targets below 35% HP.' },
     abilities: [
