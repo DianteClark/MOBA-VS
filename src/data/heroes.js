@@ -44,7 +44,7 @@ export const HEROES = [
     ] },
   { id: 'varro', clan: 'iron', pers: 'hothead', name: 'Varro', title: 'Arena Champion', role: 'top', flex: ['jungle'], cls: 'bruiser', dmgType: 'phys', curve: 'mid',
     tags: ['tank', 'split', 'sustain'], builds: ['sustain', 'tank', 'burn'],
-    passive: { kind: 'lowhpRegen', name: 'Second Wind', pct: 0.026, desc: 'Below 35% HP, regenerates 2% max HP per second.' },
+    passive: { kind: 'lowhpRegen', name: 'Second Wind', pct: 0.026, desc: 'Below 35% HP, regenerates 2.6% max HP per second.' },
     abilities: [
       { name: 'Cleave', icon: 'Cut', kind: 'nova', radius: 160, cd: 6, dmg: { b: 75, l: 22, ad: 1.0 }, heal: { b: 40, l: 10, ad: 0.2 }, use: ['clear', 'engage'], fx: 'circular' },
       { name: 'Crippling Strike', icon: 'Downgrade', kind: 'target', range: 70, cd: 8, dmg: { b: 40, l: 10, ad: 0.5 }, cc: { slow: [0.4, 2] }, use: ['engage', 'poke'], fx: 'cut' },

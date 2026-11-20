@@ -167,7 +167,7 @@ export class Hud {
           if (k === 'herald' && g.time > T.heraldDespawn) st = 'gone';
           if (k === 'baron' && !o && g.time < T.baronFirst) st = fmtTime(T.baronFirst - g.time);
           const name = k === 'dragon' && o ? DRAGON_INFO[o.element].name : OBJ_L[k];
-          return h('button', { class: 'btn objbtn', disabled: st === 'gone' || st === '—', onclick: () => this.send({ type: 'objective', obj: k }) }, h('img', { src: `assets/img/${BOSS_FACE[k]}.png` }), h('span', {}, `${name} · ${st}`));
+          return h('button', { class: 'btn objbtn', disabled: st === 'gone' || st === '—' || !g.objAvailable(k), title: g.objAvailable(k) ? '' : 'Available 0:25 before it spawns', onclick: () => this.send({ type: 'objective', obj: k }) }, h('img', { src: `assets/img/${BOSS_FACE[k]}.png` }), h('span', {}, `${name} · ${st}`));
         };
         return box('Take which objective? (team groups up · 2 charges)', h('div', { class: 'opts' }, opt('dragon'), opt('herald'), opt('baron')));
       }
@@ -260,7 +260,7 @@ export class Hud {
     if (g.tick - x.lastHitHero < TICK_RATE * 1.5) return 'Fighting!';
     const L = (l) => LANE_L[l] || '';
     switch (t.kind) {
-      case 'lane': return x.role === 'support' ? 'Escorting bot' : `Laning ${L(t.lane)}`;
+      case 'lane': return x.role === 'support' ? `Escorting ${L(t.lane) || 'carry'}` : `Laning ${L(t.lane)}`;
       case 'jungle': return 'Clearing jungle';
       case 'gank': return `Ganking ${L(t.lane)}`;
       case 'objective': return `${OBJ_L[t.obj]}${t.call ? ' (call)' : ''}`;
@@ -387,7 +387,7 @@ export class Hud {
         case 'pivot': if (e.team === this.view) this.feed(`${this.name(e.hero)} will now build ${BUILDS[e.build].name}`, 'n'); break;
         case 'trust': if (e.team === this.view && this.my >= 0) { const x = g.byId(e.hero); this.feed(e.tier === 2 ? `${x.def.name} is Inspired by your calls!` : e.tier === 0 ? `${x.def.name} is losing faith in your calls` : `${x.def.name} trusts you again`, e.tier === 0 ? 'r' : 's'); } break;
         case 'tactic': if (e.team === this.view || this.my < 0) { this.banner(TACTICS[e.card].name.toUpperCase(), TEAM_COL[e.team], 1500); audio.sfx('powerup', 0.7); } break;
-        case 'stolenCamp': if (e.team !== this.view) this.feed('Enemy invaded your jungle!', 'r'); break;
+        case 'stolenCamp': if (e.big && e.team !== this.view) this.feed('Enemy invaded your jungle!', 'r'); break;
       }
     }
   }

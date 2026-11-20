@@ -47,11 +47,12 @@ function needPeer() {
 }
 
 // Host: register the code and wait for one guest.
-export function host(code, onStatus) {
+export function host(code, onStatus, onPeer) {
   if (LOCAL) return localHost(code, onStatus);
   needPeer();
   return new Promise((resolve, reject) => {
     const peer = new window.Peer(PREFIX + code, { debug: 0 });
+    if (onPeer) onPeer(peer);
     let done = false;
     peer.on('open', () => onStatus && onStatus('waiting'));
     peer.on('connection', (conn) => {
@@ -63,11 +64,12 @@ export function host(code, onStatus) {
 }
 
 // Guest: connect to a host code.
-export function join(code, onStatus) {
+export function join(code, onStatus, onPeer) {
   if (LOCAL) return localJoin(code);
   needPeer();
   return new Promise((resolve, reject) => {
     const peer = new window.Peer(undefined, { debug: 0 });
+    if (onPeer) onPeer(peer);
     const timer = setTimeout(() => reject(new Error('Could not reach that room.')), 15000);
     peer.on('open', () => {
       onStatus && onStatus('connecting');

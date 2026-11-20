@@ -281,7 +281,7 @@ export class World {
 const DX = [1, -1, 0, 0, 1, 1, -1, -1], DY = [0, 0, 1, -1, 1, -1, 1, -1];
 // Ray endpoints for each radius (cells), evenly around the circle, computed with sqrt only.
 const RAY = [];
-for (let rc = 1; rc <= 24; rc++) {
+for (let rc = 1; rc <= 30; rc++) {
   const n = rc * 8, list = [];
   // walk the square perimeter and project onto the circle (no trig needed)
   const per = [];

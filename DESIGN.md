@@ -50,7 +50,7 @@ Maps are authored for one half and point-mirrored. Trees and rocks are **real wa
 | **Kami** (Ember, Tide, Stone, Gale) | 1:30, every 2:00 | Team blessing stack; 4 = Kami Blessing; then **Ancient Kami** (execute low-HP enemies) |
 | **Oni** | 3:00 → leaves at 7:30 | **Oni Mask**: unleash the Oni down a lane to smash towers |
 | **Kraken** | 7:30, every 3:00 | Kraken's Wrath: +power and empowered minions for 75s |
-| **Gate** (inhibitor) | — | Destroyed gate spawns super minions in that lane until it's restored (2:00) |
+| **Gate** (inhibitor) | — | Destroyed gate spawns super minions in that lane until it's restored (3:00) |
 
 Objectives are **only started by your calls**. Junglers auto-smite to secure (or steal) them.
 

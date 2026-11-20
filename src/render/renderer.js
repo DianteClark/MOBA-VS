@@ -62,7 +62,7 @@ export class Renderer {
     this.cam.y = Math.max(Math.min(hh, MAP_SIZE / 2), Math.min(MAP_SIZE - Math.min(hh, MAP_SIZE / 2), this.cam.y));
   }
 
-  snapshot() { for (const u of this.game.units) if (u.alive && !u.structure) this.prev.set(u.id, { x: u.x, y: u.y }); }
+  snapshot() { this.prev.clear(); for (const u of this.game.units) if (u.alive && !u.structure) this.prev.set(u.id, { x: u.x, y: u.y }); }
   visible(u) {
     if (!this.fogOn || this.viewTeam < 0) return true;
     return u.team === this.viewTeam || u.structure || this.game.vision[this.viewTeam].has(u.id);

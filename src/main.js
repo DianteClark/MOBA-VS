@@ -16,6 +16,7 @@ import { showMenu, showLobby, DraftView, showPrep, showResults, startParade, sto
 import { Hud } from './ui/hud.js';
 import { toast } from './ui/dom.js';
 import { audio } from './audio.js';
+import { DEFAULT_DECK } from './data/tactics.js';
 
 const VERSION = 1;
 const PREP_SECONDS = 60;
@@ -66,6 +67,9 @@ class App {
   }
 
   menu() {
+    this.lobbyId = (this.lobbyId || 0) + 1;
+    clearInterval(this.prepTimer); clearInterval(this.draftTimer);
+    if (this.pendingPeer) { try { this.pendingPeer.destroy(); } catch { /* ignore */ } this.pendingPeer = null; }
     this.cleanupNet();
     this.session = null;
     this.showScreen(true);
@@ -104,15 +108,20 @@ class App {
   async hostGame() {
     const code = makeCode();
     const cancel = () => this.menu();
+    const id = this.lobbyId = (this.lobbyId || 0) + 1;
+    const live = () => this.lobbyId === id;
     showLobby(this, { code, status: 'Opening room…', onCancel: cancel });
     try {
-      const { peer, transport } = await host(code, (s) => showLobby(this, { code, status: s === 'waiting' ? 'Waiting for opponent… (share the code or this link: ' + location.origin + location.pathname + '?join=' + code + ')' : s, onCancel: cancel }));
+      const { peer, transport } = await host(code, (s) => live() && showLobby(this, { code, status: s === 'waiting' ? 'Waiting for opponent… (share the code or this link: ' + location.origin + location.pathname + '?join=' + code + ')' : s, onCancel: cancel }), (p) => { this.pendingPeer = p; });
+      if (!live()) { try { transport.close(); } catch { /* ignore */ } try { peer.destroy(); } catch { /* ignore */ } return; }
+      this.pendingPeer = null;
       this.net = { peer, t: transport };
       const seed = (Math.random() * 2 ** 31) >>> 0;
       this.session = { mode: 'host', myTeam: 0, seed, mapId: this.pickMap(seed), names: [this.name, 'Guest'], rng: new Rng(seed) };
       this.wireNet();
       transport.send({ t: 'hello', v: VERSION, name: this.name, seed });
     } catch (e) {
+      if (!live()) return;
       showLobby(this, { code, status: 'Could not open room: ' + (e.message || e.type || e), onCancel: cancel });
     }
   }
@@ -121,14 +130,18 @@ class App {
     const go = async (code) => {
       if (!/^[A-Z]{5}$/.test(code)) { toast('Room codes are 5 letters'); return; }
       showLobby(this, { joining: true, code, status: 'Connecting…', onJoin: go, onCancel: cancel });
+      const id = this.lobbyId = (this.lobbyId || 0) + 1;
       try {
-        const { peer, transport } = await join(code);
+        const { peer, transport } = await join(code, null, (p) => { this.pendingPeer = p; });
+        if (this.lobbyId !== id) { try { transport.close(); } catch { /* ignore */ } try { peer.destroy(); } catch { /* ignore */ } return; }
+        this.pendingPeer = null;
         this.net = { peer, t: transport };
         this.session = { mode: 'join', myTeam: 1, seed: 0, names: ['Host', this.name], rng: null };
         this.wireNet();
         transport.send({ t: 'hello', v: VERSION, name: this.name });
         showLobby(this, { joining: true, code, status: 'Connected! Waiting for host…', onJoin: go, onCancel: cancel });
       } catch (e) {
+        if (this.lobbyId !== id) return;
         showLobby(this, { joining: true, code, status: 'Failed: ' + (e.message || e.type || e), onJoin: go, onCancel: cancel });
       }
     };
@@ -157,11 +170,13 @@ class App {
         break;
       case 'prep':
         if (s.preps) { s.preps[m.team] = m.prep; s.ready[m.team] = true; this.checkPrepDone(); }
+        else s.pendingPrep = m; // arrived before our prep screen opened
         break;
       case 'in': case 'h':
         if (this.match && this.match.runner.receive) this.match.runner.receive(m);
         break;
       case 'quit':
+        if (s.finished) { this.cleanupNet(); return; }
         toast('Opponent left the match.');
         this.onDisconnect();
         break;
@@ -169,6 +184,7 @@ class App {
   }
   onDisconnect() {
     if (!this.session || this.session.mode === 'ai' || this.session.mode === 'watch') return;
+    if (this.session.finished || (this.match && this.match.game.over)) { this.cleanupNet(); return; }
     if (this.match && !this.match.game.over) {
       // Keep playing: the AI coach takes over the opponent.
       toast('Opponent disconnected — AI coach takes over.', 3500);
@@ -223,7 +239,7 @@ class App {
   afterDraftAct() {
     const s = this.session;
     s.turnStart = performance.now(); s.turnLeft = TURN_SECONDS;
-    if (s.draft.done) { clearInterval(this.draftTimer); setTimeout(() => this.startPrep(), 900); this.draftView.render(); return; }
+    if (s.draft.done) { clearInterval(this.draftTimer); setTimeout(() => { if (this.session === s) this.startPrep(); }, 900); this.draftView.render(); return; }
     this.draftView.render();
     this.maybeAiDraft();
   }
@@ -247,12 +263,14 @@ class App {
     s.preps = [null, null]; s.ready = [false, false];
     s.myPrep = defaultPrep(d.picks[me]);
     if (s.mode === 'ai') { s.preps[1 - me] = aiPrep(d.picks[1 - me], d.picks[me]); s.ready[1 - me] = true; }
+    if (s.pendingPrep) { s.preps[s.pendingPrep.team] = s.pendingPrep.prep; s.ready[s.pendingPrep.team] = true; s.pendingPrep = null; }
     s.prepEnd = performance.now() + PREP_SECONDS * 1000;
     const render = () => showPrep(this, s.myPrep, d.picks[1 - me], (s.prepEnd - performance.now()) / 1000, render, () => this.prepReady(), s.ready[me]);
     this.renderPrep = render;
     render();
     clearInterval(this.prepTimer);
     this.prepTimer = setInterval(() => {
+      if (this.session !== s) { clearInterval(this.prepTimer); return; }
       const left = (s.prepEnd - performance.now()) / 1000;
       const el = document.getElementById('ptimer'); if (el) el.textContent = String(Math.max(0, Math.ceil(left)));
       if (left <= 0 && !s.ready[me]) this.prepReady();
@@ -261,6 +279,8 @@ class App {
   prepReady() {
     const s = this.session, me = s.myTeam;
     if (s.ready[me]) return;
+    const deck = s.myPrep.deck || (s.myPrep.deck = []);
+    for (const id of DEFAULT_DECK) if (deck.length < 3 && !deck.includes(id)) deck.push(id);
     s.preps[me] = JSON.parse(JSON.stringify(s.myPrep)); s.ready[me] = true;
     audio.sfx('accept');
     if (this.net) this.net.t.send({ t: 'prep', team: me, prep: s.preps[me] });
@@ -340,14 +360,15 @@ class App {
       const lost = m.game.units.find((u) => u.type === 'nexus' && !u.alive) || m.game.units.find((u) => u.type === 'nexus' && u.team === m.game.winner);
       if (lost) { this.renderer.follow = null; m.hud.director = false; this.renderer.focus = { x: lost.x, y: lost.y - 40, zoom: 1.5 }; }
       const won = this.session.myTeam < 0 || m.game.winner === this.session.myTeam;
-      setTimeout(() => this.endMatch(won), 4800);
+      this.session.finished = true;
+      setTimeout(() => this.endMatch(won, m), 4800);
     }
     if (m.runner.online && m.runner.waiting && performance.now() - m.runner.lastRemote > 5000 && !m.warned) { m.warned = true; toast('Waiting for opponent…', 2500); }
     if (m.runner.online && !m.runner.waiting) m.warned = false;
     requestAnimationFrame((t) => this.frame(t));
   }
-  endMatch(won) {
-    const m = this.match; if (!m) return;
+  endMatch(won, which) {
+    const m = this.match; if (!m || (which && m !== which)) return;
     this.match = null;
     this.fade(() => {
       this.showScreen(true);

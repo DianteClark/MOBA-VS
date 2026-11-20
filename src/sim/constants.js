@@ -17,7 +17,7 @@ export const T = {
   heraldFirst: 180, heraldRespawn: 150, heraldDespawn: 450,
   baronFirst: 450, baronRespawn: 180,
   shrineUnlock: 60, shrineCapture: 5,
-  inhibRespawn: 120,
+  inhibRespawn: 180,
   heraldEye: 120, baronBuff: 75, elderBuff: 75,
   recallChannel: 4, gankTimeout: 24, objectiveTimeout: 45, groupTimeout: 40, safeTimeout: 22,
   weatherPhase: 150,
