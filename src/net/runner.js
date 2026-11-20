@@ -59,13 +59,13 @@ export class LockstepRunner {
   }
   update(dt, onBefore, onAfter) {
     if (this.game.over) return 0;
-    this.acc += Math.min(0.25, dt) * this.speed;
+    this.acc += Math.min(1.5, dt) * this.speed;
     // If the remote is ahead of us (we have their future inputs), catch up a bit faster.
     const theirMax = Math.max(-1, ...this.inputs[1 - this.myTeam].keys());
     if (theirMax - this.game.tick > DELAY * 3) this.acc += DT;
     let n = 0;
     this.waiting = false;
-    while (this.acc >= DT && n < 12) {
+    while (this.acc >= DT && n < 40) {
       this.flush();
       const k = this.game.tick;
       const a = this.inputs[0].get(k), b = this.inputs[1].get(k);

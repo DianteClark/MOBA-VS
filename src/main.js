@@ -293,6 +293,13 @@ class App {
     this.match = { game, runner, hud, ended: false };
     this.lastFrame = performance.now();
     requestAnimationFrame((t) => this.frame(t));
+    // Hidden tabs stop requestAnimationFrame: keep the lockstep sim ticking so the opponent never stalls.
+    clearInterval(this.bgTick);
+    this.bgTick = setInterval(() => {
+      const m = this.match; if (!m || !document.hidden) return;
+      const now = performance.now(), dt = Math.min(1.5, (now - this.lastFrame) / 1000); this.lastFrame = now;
+      m.runner.update(dt, () => this.renderer.snapshot(), () => { this.renderer.game.fx.length = 0; });
+    }, 100);
   }
   clickWorld(w) {
     // Tap a hero on the map to follow it.
@@ -303,9 +310,10 @@ class App {
   }
   frame(now) {
     const m = this.match; if (!m) return;
-    const dt = Math.min(0.1, (now - this.lastFrame) / 1000); this.lastFrame = now;
+    const raw = (now - this.lastFrame) / 1000; this.lastFrame = now;
+    const dt = Math.min(0.1, raw);
     const r = this.renderer;
-    m.runner.update(dt, () => r.snapshot(), () => r.consume());
+    m.runner.update(m.runner.online ? Math.min(1, raw) : dt, () => r.snapshot(), () => r.consume());
     this.camCtl.update(dt);
     r.draw(m.runner.alpha, dt);
     this.minimap.draw();

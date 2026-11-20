@@ -16,12 +16,39 @@ class Transport {
   close() { try { this.conn.close(); } catch { /* ignore */ } }
 }
 
+// Same-device transport (two tabs) via BroadcastChannel — used for local testing with ?local=1.
+const LOCAL = typeof location !== 'undefined' && new URLSearchParams(location.search).has('local');
+class BcTransport {
+  constructor(code, me) {
+    this.bc = new BroadcastChannel('mobavs-' + code); this.me = me; this.handlers = []; this.closeHandlers = []; this.open = true;
+    this.bc.onmessage = (e) => { if (e.data.from !== this.me) for (const h of this.handlers) h(JSON.parse(e.data.m)); };
+  }
+  send(m) { this.bc.postMessage({ from: this.me, m: JSON.stringify(m) }); }
+  onMessage(h) { this.handlers.push(h); } onClose(h) { this.closeHandlers.push(h); } close() { this.bc.close(); }
+}
+function localHost(code, onStatus) {
+  return new Promise((resolve) => {
+    const t = new BcTransport(code, 'host'); onStatus && onStatus('waiting');
+    const first = (m) => { if (m.t === 'knock') { t.handlers = t.handlers.filter((h) => h !== first); t.send({ t: 'welcome' }); resolve({ peer: { destroy() {} }, transport: t }); } };
+    t.onMessage(first);
+  });
+}
+function localJoin(code) {
+  return new Promise((resolve) => {
+    const t = new BcTransport(code, 'guest');
+    const iv = setInterval(() => t.send({ t: 'knock' }), 300);
+    const first = (m) => { if (m.t === 'welcome') { clearInterval(iv); t.handlers = t.handlers.filter((h) => h !== first); resolve({ peer: { destroy() {} }, transport: t }); } };
+    t.onMessage(first);
+  });
+}
+
 function needPeer() {
   if (!window.Peer) throw new Error('Networking library failed to load (check your connection).');
 }
 
 // Host: register the code and wait for one guest.
 export function host(code, onStatus) {
+  if (LOCAL) return localHost(code, onStatus);
   needPeer();
   return new Promise((resolve, reject) => {
     const peer = new window.Peer(PREFIX + code, { debug: 0 });
@@ -37,6 +64,7 @@ export function host(code, onStatus) {
 
 // Guest: connect to a host code.
 export function join(code, onStatus) {
+  if (LOCAL) return localJoin(code);
   needPeer();
   return new Promise((resolve, reject) => {
     const peer = new window.Peer(undefined, { debug: 0 });
