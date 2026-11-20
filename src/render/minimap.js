@@ -1,5 +1,5 @@
 // Minimap: terrain thumbnail + structures, heroes (portraits), minions, objectives, wards, camera box.
-import { MAP_SIZE, PITS } from '../sim/map.js';
+import { S as MAP_SIZE } from '../sim/world.js';
 import { IMG } from './assets.js';
 import { TEAM_COL } from './renderer.js';
 import { DRAGON_INFO } from '../sim/constants.js';
@@ -30,7 +30,7 @@ export class Minimap {
     // objectives
     for (const key of ['dragon', 'baron', 'herald']) {
       const o = g.objectives[key];
-      const pit = key === 'dragon' ? PITS.dragon : PITS.baron;
+      const pit = key === 'dragon' ? g.world.pits.kami : g.world.pits.kraken;
       ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 1;
       if (o && o.alive) {
         ctx.fillStyle = key === 'dragon' ? DRAGON_INFO[o.element].color : key === 'baron' ? '#b56cff' : '#9fd0ff';

@@ -5,9 +5,10 @@ import { Minimap } from './render/minimap.js';
 import { bindCamera } from './render/input.js';
 import { paintMap } from './render/mapgen.js';
 import { Game } from './sim/game.js';
+import { World } from './sim/world.js';
 import { Coach } from './sim/coach.js';
 import { Rng } from './sim/rng.js';
-import { FOUNTAIN } from './sim/map.js';
+import { MAPS } from './maps/defs.js';
 import { newDraft, apply as draftApply, currentTurn, autoChoice, defaultPrep, aiPrep, TURN_SECONDS } from './sim/draft.js';
 import { LocalRunner, LockstepRunner } from './net/runner.js';
 import { host, join, makeCode } from './net/peer.js';
@@ -26,6 +27,12 @@ class App {
     this.session = null; this.net = null; this.match = null;
     this.bgCanvas = document.getElementById('bg');
   }
+  // Painted map canvases are cached per map id (painting takes a moment on phones).
+  mapCanvas(world) {
+    this.mapCache = this.mapCache || {};
+    if (!this.mapCache[world.def.id]) this.mapCache[world.def.id] = paintMap(world);
+    return this.mapCache[world.def.id];
+  }
   setName(n) { this.name = n.slice(0, 12) || 'Coach'; try { localStorage.setItem('mobavs_name', this.name); } catch { /* ignore */ } }
 
   async boot() {
@@ -33,7 +40,7 @@ class App {
     const bar = document.querySelector('#loading .barw i');
     await loadAssets((p) => { bar.style.width = Math.round(p * 100) + '%'; });
     try { await document.fonts.load('12px PixelFont'); } catch { /* ignore */ }
-    this.map = paintMap();
+    this.map = this.mapCanvas(new World(MAPS[0]));
     document.getElementById('loading').remove();
     this.startBg();
     const code = new URLSearchParams(location.search).get('join');
@@ -74,12 +81,12 @@ class App {
   startVsAI() {
     try { localStorage.setItem('mobavs_ai', String(this.aiLevel)); } catch { /* ignore */ }
     const seed = (Math.random() * 2 ** 31) >>> 0;
-    this.session = { mode: 'ai', myTeam: 0, seed, names: [this.name, ['Easy', 'Normal', 'Hard'][this.aiLevel] + ' AI'], rng: new Rng(seed ^ 0x5eed) };
+    this.session = { mode: 'ai', myTeam: 0, seed, mapId: MAPS[seed % MAPS.length].id, names: [this.name, ['Easy', 'Normal', 'Hard'][this.aiLevel] + ' AI'], rng: new Rng(seed ^ 0x5eed) };
     this.startDraft();
   }
   watch() {
     const seed = (Math.random() * 2 ** 31) >>> 0;
-    this.session = { mode: 'watch', myTeam: -1, seed, names: ['Blue AI', 'Red AI'], rng: new Rng(seed) };
+    this.session = { mode: 'watch', myTeam: -1, seed, mapId: MAPS[seed % MAPS.length].id, names: ['Blue AI', 'Red AI'], rng: new Rng(seed) };
     const d = newDraft();
     while (!d.done) { const t = currentTurn(d); draftApply(d, t.team, autoChoice(d, t.team, this.session.rng, 1)); }
     this.session.draft = d;
@@ -94,7 +101,7 @@ class App {
       const { peer, transport } = await host(code, (s) => showLobby(this, { code, status: s === 'waiting' ? 'Waiting for opponent… (share the code or this link: ' + location.origin + location.pathname + '?join=' + code + ')' : s, onCancel: cancel }));
       this.net = { peer, t: transport };
       const seed = (Math.random() * 2 ** 31) >>> 0;
-      this.session = { mode: 'host', myTeam: 0, seed, names: [this.name, 'Guest'], rng: new Rng(seed) };
+      this.session = { mode: 'host', myTeam: 0, seed, mapId: MAPS[seed % MAPS.length].id, names: [this.name, 'Guest'], rng: new Rng(seed) };
       this.wireNet();
       transport.send({ t: 'hello', v: VERSION, name: this.name, seed });
     } catch (e) {
@@ -131,11 +138,11 @@ class App {
     switch (m.t) {
       case 'hello':
         if (m.v !== VERSION) { toast('Version mismatch — both players should refresh.'); return; }
-        if (s.mode === 'host') { s.names[1] = m.name || 'Guest'; this.net.t.send({ t: 'start', seed: s.seed, names: s.names }); this.startDraft(); }
+        if (s.mode === 'host') { s.names[1] = m.name || 'Guest'; this.net.t.send({ t: 'start', seed: s.seed, names: s.names, map: s.mapId }); this.startDraft(); }
         else if (s.mode === 'join' && m.seed !== undefined) { s.seed = m.seed; }
         break;
       case 'start':
-        if (s.mode === 'join') { s.seed = m.seed; s.names = m.names; s.names[1] = this.name; s.rng = new Rng(s.seed); this.startDraft(); }
+        if (s.mode === 'join') { s.seed = m.seed; s.mapId = m.map; s.names = m.names; s.names[1] = this.name; s.rng = new Rng(s.seed); this.startDraft(); }
         break;
       case 'draft':
         if (s.draft && s.draft.turn === m.turn) { draftApply(s.draft, m.team, m.hero); this.afterDraftAct(); }
@@ -260,7 +267,7 @@ class App {
   startMatch() {
     const s = this.session;
     const cfg = {
-      seed: s.seed,
+      seed: s.seed, map: s.mapId,
       teams: [0, 1].map((t) => ({ heroes: s.preps[t].heroes, plan: s.preps[t].plan, name: s.names[t] })),
       coach: s.mode === 'ai' ? [s.myTeam !== 0, s.myTeam !== 1] : s.mode === 'watch' ? [true, true] : [false, false],
       coachLevel: [this.aiLevel, this.aiLevel],
@@ -270,7 +277,7 @@ class App {
     audio.music(Math.random() < 0.5 ? 'match' : 'match2');
     const canvas = document.getElementById('game'), mmc = document.getElementById('mm');
     if (!this.renderer) {
-      this.renderer = new Renderer(canvas, this.map);
+      this.renderer = new Renderer(canvas);
       this.minimap = new Minimap(mmc, this.renderer);
       this.camCtl = bindCamera(this.renderer, canvas, this.minimap, mmc, {
         onKey: (e) => this.match && this.match.hud.onKey(e),
@@ -278,11 +285,11 @@ class App {
       });
       window.addEventListener('resize', () => { this.renderer.resize(); this.minimap.resize(); });
     }
-    this.renderer.map = this.map;
-    this.renderer.resize(); this.minimap.resize();
-    this.renderer.attach(game, s.myTeam);
+    this.renderer.resize();
+    this.renderer.attach(game, s.myTeam, this.mapCanvas(game.world));
+    this.minimap.resize();
     this.renderer.fogOn = s.myTeam >= 0;
-    const home = FOUNTAIN[Math.max(0, s.myTeam)];
+    const home = game.world.fountain[Math.max(0, s.myTeam)];
     this.renderer.cam.x = home.x + (s.myTeam === 1 ? -300 : 300); this.renderer.cam.y = home.y + (s.myTeam === 1 ? 300 : -300);
     this.renderer.cam.zoom = window.innerWidth < 700 ? 0.9 : 1.25;
     this.renderer.follow = null;

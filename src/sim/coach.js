@@ -2,7 +2,7 @@
 // It only uses information its own team can see.
 import { sec } from './constants.js';
 import { dist2 } from './geom.js';
-import { LANE_NAMES, PITS, distToLane, laneProgress } from './map.js';
+const LANE_NAMES = ['top', 'mid', 'bot'];
 
 export class Coach {
   constructor(g, team, level = 1) {
@@ -44,7 +44,7 @@ export class Coach {
       const spawnSoon = !o && g.objTimers[obj] && g.objTimers[obj] - now < sec(20) && g.objTimers[obj] > 0;
       if (!(o && o.alive) && !spawnSoon) return false;
       if (charges < 2 || !ready('objective')) return false;
-      const pit = obj === 'dragon' ? PITS.dragon : PITS.baron;
+      const pit = obj === 'dragon' ? g.world.pits.kami : g.world.pits.kraken;
       const enemiesNearPit = near(pit, 1100, visibleEnemies);
       if (alive.length < minAlive) return false;
       if (enemiesNearPit > 1 && deadEnemies === 0) return false;
@@ -63,8 +63,8 @@ export class Coach {
     if (ready('gank') && charges >= 1 && jg && jg.alive && jg.task.kind === 'jungle') {
       for (const e of visibleEnemies) {
         for (const lane of LANE_NAMES) {
-          if (distToLane(lane, e) > 300) continue;
-          const pr = laneProgress(lane, e), mine = this.team === 0 ? pr : 1 - pr;
+          if (g.world.distToLane(lane, e) > 300) continue;
+          const pr = g.world.laneProgress(lane, e), mine = this.team === 0 ? pr : 1 - pr;
           if (mine < 0.48 && e.hp / e.maxHp < 0.8) {
             const ally = me.heroes.find((a) => a.alive && a.lane === lane);
             if (ally && this.issue({ type: 'gank', lane })) { cd('gank', 35); return; }

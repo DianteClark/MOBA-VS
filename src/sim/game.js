@@ -2,7 +2,8 @@
 import { Rng, hashInts } from './rng.js';
 import { dist2, dist, norm, r2 } from './geom.js';
 import { DT, sec, BLUE, RED, NEUTRAL, T, GOLD, XP, xpNeeded, VISION, CMD, DRAGONS } from './constants.js';
-import { MAP_SIZE, P, LANES, LANE_NAMES, STRUCTURES_BLUE, CAMPS_BLUE, NODES, PITS, FOUNTAIN, navStep, nearestNode, laneProgress, WARD_SPOTS_BLUE } from './map.js';
+import { World, S as MAP_SIZE, C as CELL, N as GRID_N } from './world.js';
+import { MAP_BY_ID } from '../maps/defs.js';
 import { HERO_BY_ID } from '../data/heroes.js';
 import { BUILDS } from '../data/items.js';
 import { heroThink, heroMacro } from './ai.js';
@@ -10,6 +11,14 @@ import { Coach } from './coach.js';
 
 // Champion-vs-champion damage scale: keeps fights readable and lanes from snowballing at level 1.
 const HERO_VS_HERO = 0.6;
+const CAMP_DEFS = {
+  bluebuff: { name: 'Sentinel', buff: 'blue', mobs: [{ k: 'camp_bluebuff', hp: 1800, ad: 45, big: true }] },
+  redbuff: { name: 'Brambleback', buff: 'red', mobs: [{ k: 'camp_redbuff', hp: 1800, ad: 55, big: true }] },
+  wolf: { name: 'Wolves', mobs: [{ k: 'camp_wolf', hp: 1100, ad: 35, big: true }, { k: 'camp_wolf', hp: 400, ad: 15, dx: 34, dy: 20 }, { k: 'camp_wolf', hp: 400, ad: 15, dx: -30, dy: 26 }] },
+  raptor: { name: 'Raptors', mobs: [{ k: 'camp_raptor', hp: 800, ad: 25, big: true }, { k: 'camp_raptor', hp: 250, ad: 10, dx: 30, dy: -18 }, { k: 'camp_raptor', hp: 250, ad: 10, dx: -28, dy: 22 }, { k: 'camp_raptor', hp: 250, ad: 10, dx: 6, dy: 34 }] },
+  gromp: { name: 'Gromp', mobs: [{ k: 'camp_gromp', hp: 1500, ad: 50, big: true }] },
+  krug: { name: 'Krugs', mobs: [{ k: 'camp_krug', hp: 1300, ad: 40, big: true }, { k: 'camp_krug', hp: 700, ad: 20, dx: 34, dy: 10 }] },
+};
 const ROLE_LANE = { top: 'top', mid: 'mid', bot: 'bot', support: 'bot', jungle: null };
 const STAT_KEYS = ['power', 'powerMult', 'hp', 'armor', 'mr', 'asPct', 'crit', 'critDmg', 'pen', 'haste', 'msPct', 'range', 'omnivamp',
   'antiheal', 'thorns', 'healPower', 'execute', 'slowOnHit', 'regen', 'hpPct', 'lowHpShield', 'burnAura', 'shredAura', 'censer', 'resPct', 'regenPct'];
@@ -58,6 +67,8 @@ export class Game {
       charges: 1, kills: 0, towers: 0, dragons: [], soul: null, heraldEye: 0, baronUntil: 0, elderUntil: 0,
       focus: null, call: null, heroes: [], goldHistory: [], invadeCamp: null,
     }));
+    this.world = new World(MAP_BY_ID[cfg.map] || MAP_BY_ID.sakura);
+    this.visGrid = [new Uint8Array(GRID_N * GRID_N), new Uint8Array(GRID_N * GRID_N)];
     this.camps = [];
     this.objectives = { dragon: null, herald: null, baron: null };
     this.objTimers = { dragon: sec(T.dragonFirst), herald: sec(T.heraldFirst), baron: sec(T.baronFirst) };
@@ -85,8 +96,8 @@ export class Game {
     u.animAttack = -999; u.facing = u.facing || 0; this.units.push(u); return u; }
 
   setupStructures() {
-    for (let t = 0; t < 2; t++) for (const s of STRUCTURES_BLUE) {
-      const pos = t === 0 ? { x: s.x, y: s.y } : P(s);
+    for (const s of this.world.structures) {
+      const t = s.team, pos = { x: s.x, y: s.y };
       const base = s.kind === 'nexus' ? { hp: 4200, ad: 0, range: 0 } : s.kind === 'inhib' ? { hp: 2200, ad: 0, range: 0 }
         : { hp: [0, 2600, 2800, 3000, 2400][s.tier], ad: 165, range: 235 };
       this.addUnit({ type: s.kind === 'tower' ? 'tower' : s.kind, team: t, x: pos.x, y: pos.y, tier: s.tier || 0, lane: s.lane,
@@ -96,16 +107,15 @@ export class Game {
   }
 
   setupCamps() {
-    for (let t = 0; t < 2; t++) for (const c of CAMPS_BLUE) {
-      const node = t === 0 ? c.node : c.node.replace(/^b_/, 'r_');
-      const pos = NODES[node];
-      this.camps.push({ def: c, side: t, x: pos.x, y: pos.y, node, mobs: [], respawnAt: sec(T.campFirst), key: `${t}:${c.id}` });
+    for (const c of this.world.camps) {
+      const def = CAMP_DEFS[c.kind];
+      this.camps.push({ def: { ...def, id: c.id }, side: c.side, x: c.x, y: c.y, mobs: [], respawnAt: sec(T.campFirst), key: `${c.side}:${c.id}` });
     }
   }
 
   spawnHero(team, spec) {
     const def = HERO_BY_ID[spec.id];
-    const f = FOUNTAIN[team];
+    const f = this.world.fountain[team];
     const h = this.addUnit({
       type: 'hero', team, def, heroId: def.id, role: spec.role, lane: ROLE_LANE[spec.role], homeLane: ROLE_LANE[spec.role],
       build: spec.build || def.rec, items: [], x: f.x + (this.teams[team].heroes.length - 2) * 22, y: f.y - (this.teams[team].heroes.length - 2) * 22,
@@ -221,13 +231,13 @@ export class Game {
     switch (c.type) {
       case 'gank': {
         const h = heroes.find((x) => x.id === c.hero) || jungler;
-        if (!h || !h.alive || !LANE_NAMES.includes(c.lane)) { ok = false; break; }
+        if (!h || !h.alive || !this.world.laneNames.includes(c.lane)) { ok = false; break; }
         h.task = { kind: 'gank', lane: c.lane, until: until(T.gankTimeout), call: true };
         break;
       }
       case 'objective': {
         const o = c.obj; if (!['dragon', 'herald', 'baron'].includes(o)) { ok = false; break; }
-        const pit = o === 'dragon' ? PITS.dragon : PITS.baron;
+        const pit = o === 'dragon' ? this.world.pits.kami : this.world.pits.kraken;
         const pref = o === 'dragon' ? ['jungle', 'bot', 'support', 'mid', 'top'] : o === 'herald' ? ['jungle', 'top', 'mid', 'support', 'bot'] : ['jungle', 'mid', 'top', 'support', 'bot'];
         const n = o === 'baron' ? 5 : 4;
         const pick = alive.slice().sort((a, b) => (pref.indexOf(a.role) - pref.indexOf(b.role)) || (dist2(a, pit) - dist2(b, pit))).slice(0, n);
@@ -236,14 +246,14 @@ export class Game {
         break;
       }
       case 'group': {
-        if (!LANE_NAMES.includes(c.lane)) { ok = false; break; }
+        if (!this.world.laneNames.includes(c.lane)) { ok = false; break; }
         for (const h of alive) if (!(h.task.kind === 'split' && h.task.call)) h.task = { kind: 'group', lane: c.lane, until: until(T.groupTimeout), call: true };
         team.call = { type: 'group', lane: c.lane, until: until(T.groupTimeout) };
         break;
       }
       case 'split': {
         const h = heroes.find((x) => x.id === c.hero);
-        if (!h || !LANE_NAMES.includes(c.lane)) { ok = false; break; }
+        if (!h || !this.world.laneNames.includes(c.lane)) { ok = false; break; }
         h.task = { kind: 'split', lane: c.lane, until: until(90), call: true };
         break;
       }
@@ -269,7 +279,7 @@ export class Game {
         break;
       }
       case 'herald': {
-        if (team.heraldEye <= this.tick || !LANE_NAMES.includes(c.lane)) { ok = false; break; }
+        if (team.heraldEye <= this.tick || !this.world.laneNames.includes(c.lane)) { ok = false; break; }
         team.heraldEye = 0;
         this.spawnSummon(c.team, c.lane);
         break;
@@ -309,13 +319,8 @@ export class Game {
       if (ev.type === 'objective' && c.type === 'objective' && ev.obj === c.obj) c.result = ev.team === c.team ? (ev.steal ? 'success' : 'success') : 'stolen';
     }
   }
-  laneOf(u) {
-    let best = null, bd = 360 * 360;
-    for (const ln of LANE_NAMES) for (const p of LANES[ln]) { const d = dist2(u, p); if (d < bd) { bd = d; best = ln; } }
-    if (best) return best;
-    // fall back to lane progress geometry
-    return u.x + u.y < MAP_SIZE * 0.9 ? 'top' : u.x + u.y > MAP_SIZE * 1.1 ? 'bot' : 'mid';
-  }
+  laneOf(u) { return this.world.closestLane(u); }
+
   byId(id) { for (const u of this.units) if (u.id === id) return u; return null; }
 
   // ───────────────────────── main step ─────────────────────────
@@ -375,7 +380,7 @@ export class Game {
     this.nextWave += sec(T.waveEvery);
     this.waveCount++;
     const minute = this.time / 60;
-    for (let t = 0; t < 2; t++) for (const ln of LANE_NAMES) {
+    for (let t = 0; t < 2; t++) for (const ln of this.world.laneNames) {
       const kinds = ['melee', 'melee', 'melee', 'caster', 'caster', 'caster'];
       if (this.waveCount % T.siegeEvery === 0) kinds.splice(3, 0, 'siege');
       const enemyInhibDown = this.units.some((u) => u.type === 'inhib' && u.team !== t && u.lane === ln && !u.alive);
@@ -385,7 +390,7 @@ export class Game {
     }
   }
   spawnMinion(team, lane, kind, i, minute, baron) {
-    const pts = LANES[lane];
+    const pts = this.world.lanes[lane];
     const start = team === BLUE ? pts[0] : pts[pts.length - 1];
     const nextIdx = team === BLUE ? 1 : pts.length - 2;
     const d = norm(pts[nextIdx].x - start.x, pts[nextIdx].y - start.y);
@@ -401,10 +406,10 @@ export class Game {
   }
   spawnSummon(team, lane) {
     // Herald charges down the lane from the team's furthest allied presence.
-    const pts = LANES[lane];
+    const pts = this.world.lanes[lane];
     let prog = team === BLUE ? 0.15 : 0.85;
     for (const u of this.units) if (u.alive && u.team === team && (u.type === 'minion' || (u.type === 'tower' && u.lane === lane)) && (u.lane === lane)) {
-      const pr = laneProgress(lane, u); if (team === BLUE ? pr > prog : pr < prog) prog = pr;
+      const pr = this.world.laneProgress(lane, u); if (team === BLUE ? pr > prog : pr < prog) prog = pr;
     }
     prog = team === BLUE ? Math.min(prog, 0.8) : Math.max(prog, 0.2);
     const tot = this.lanePointAt(lane, prog);
@@ -415,15 +420,8 @@ export class Game {
       stats: { ad: 120, ap: 0, armor: 40, mr: 40, as: 0.6, range: 70, ms: 85, pen: 0 } });
     this.emit({ type: 'heraldDrop', team, lane, id: u.id });
   }
-  lanePointAt(lane, prog) {
-    const pts = LANES[lane];
-    // Walk the polyline.
-    let total = 0; const seg = [];
-    for (let i = 1; i < pts.length; i++) { const l = dist(pts[i - 1], pts[i]); seg.push(l); total += l; }
-    let d = prog * total;
-    for (let i = 1; i < pts.length; i++) { if (d <= seg[i - 1]) { const k = d / seg[i - 1]; return { x: pts[i - 1].x + (pts[i].x - pts[i - 1].x) * k, y: pts[i - 1].y + (pts[i].y - pts[i - 1].y) * k }; } d -= seg[i - 1]; }
-    return { ...pts[pts.length - 1] };
-  }
+  lanePointAt(lane, prog) { return this.world.lanePoint(lane, prog); }
+
 
   // ───────────────────────── jungle ─────────────────────────
   updateCamps() {
@@ -452,7 +450,7 @@ export class Game {
       const elder = this.teams.some((t) => t.soul);
       const el = elder ? 'elder' : this.nextDragon;
       const hp = (elder ? 6500 : 3200) + minute * 120;
-      ob.dragon = this.addUnit({ type: 'objective', kind: 'dragon', element: el, team: NEUTRAL, x: PITS.dragon.x, y: PITS.dragon.y, home: { ...PITS.dragon },
+      ob.dragon = this.addUnit({ type: 'objective', kind: 'dragon', element: el, team: NEUTRAL, x: this.world.pits.kami.x, y: this.world.pits.kami.y, home: { ...this.world.pits.kami },
         maxHp: hp, hp, radius: 30, big: true, boss: true, stats: { ad: (elder ? 150 : 55) + minute * 5, ap: 0, armor: 40, mr: 40, as: 0.7, range: 220, ms: 80, pen: 0 } });
       this.objTimers.dragon = 0;
       this.emit({ type: 'spawn', obj: 'dragon', element: el });
@@ -460,7 +458,7 @@ export class Game {
     if (!ob.herald && this.objTimers.herald && now >= this.objTimers.herald && !ob.baron) {
       if (this.time < T.heraldDespawn - 20) {
         const hp = 5000 + minute * 100;
-        ob.herald = this.addUnit({ type: 'objective', kind: 'herald', team: NEUTRAL, x: PITS.baron.x, y: PITS.baron.y, home: { ...PITS.baron },
+        ob.herald = this.addUnit({ type: 'objective', kind: 'herald', team: NEUTRAL, x: this.world.pits.kraken.x, y: this.world.pits.kraken.y, home: { ...this.world.pits.kraken },
           maxHp: hp, hp, radius: 26, big: true, boss: true, stats: { ad: 80, ap: 0, armor: 50, mr: 50, as: 0.6, range: 90, ms: 80, pen: 0 } });
         this.emit({ type: 'spawn', obj: 'herald' });
       }
@@ -469,7 +467,7 @@ export class Game {
     if (ob.herald && ob.herald.alive && this.time >= T.heraldDespawn) { ob.herald.alive = false; ob.herald = null; this.emit({ type: 'despawn', obj: 'herald' }); }
     if (!ob.baron && this.objTimers.baron && now >= this.objTimers.baron && !(ob.herald && ob.herald.alive)) {
       const hp = 9000 + Math.max(0, minute - 9) * 220;
-      ob.baron = this.addUnit({ type: 'objective', kind: 'baron', team: NEUTRAL, x: PITS.baron.x, y: PITS.baron.y, home: { ...PITS.baron },
+      ob.baron = this.addUnit({ type: 'objective', kind: 'baron', team: NEUTRAL, x: this.world.pits.kraken.x, y: this.world.pits.kraken.y, home: { ...this.world.pits.kraken },
         maxHp: hp, hp, radius: 34, big: true, boss: true, slam: 0, stats: { ad: 170 + minute * 6, ap: 0, armor: 70, mr: 70, as: 0.75, range: 230, ms: 0, pen: 0 } });
       this.objTimers.baron = 0;
       this.emit({ type: 'spawn', obj: 'baron' });
@@ -478,17 +476,22 @@ export class Game {
 
   // ───────────────────────── vision ─────────────────────────
   updateVision() {
+    const W = this.world;
     for (let t = 0; t < 2; t++) {
-      const vis = new Set();
-      const tmp = [];
-      const look = (x, y, r) => { tmp.length = 0; this.grid.query(x, y, r, tmp); for (const e of tmp) if (e.team !== t) vis.add(e.id); };
+      const src = [];
       for (const u of this.units) {
         if (!u.alive || u.team !== t) continue;
         const r = u.type === 'hero' ? VISION.hero : u.type === 'minion' ? VISION.minion : u.type === 'summon' ? VISION.summon : u.structure ? VISION.tower : 0;
-        if (r) look(u.x, u.y, r);
+        if (r) src.push({ x: u.x, y: u.y, r: r * (this.visionMult ? this.visionMult(t, u) : 1) });
       }
-      for (const w of this.wards) if (w.team === t && w.until > this.tick) look(w.x, w.y, VISION.ward);
-      look(FOUNTAIN[t].x, FOUNTAIN[t].y, VISION.fountain);
+      for (const w of this.wards) if (w.team === t && w.until > this.tick) src.push({ x: w.x, y: w.y, r: VISION.ward });
+      src.push({ x: W.fountain[t].x, y: W.fountain[t].y, r: VISION.fountain });
+      const grid = W.computeVision(src, this.visGrid[t]);
+      const vis = new Set();
+      for (const u of this.units) {
+        if (!u.alive || u.team === t) continue;
+        if (grid[W.idx(u.x, u.y)] || u.revealUntil > this.tick) vis.add(u.id);
+      }
       this.vision[t] = vis;
       const ls = this.lastSeen[t];
       for (const h of this.teams[1 - t].heroes) if (h.alive && vis.has(h.id)) ls[h.id] = { x: h.x, y: h.y, t: this.tick };
@@ -544,7 +547,7 @@ export class Game {
     tgt.lastCombat = this.tick;
     if (src && src.team !== tgt.team) tgt.lastHurt = this.tick;
     if ((tgt.type === 'mob' || tgt.type === 'objective') && src && src.type !== 'tower' && src.team !== NEUTRAL && (!tgt.target || !tgt.target.alive)) tgt.target = src;
-    if (src) src.lastCombat = this.tick;
+    if (src) { src.lastCombat = this.tick; if (src.type === 'hero' && tgt.type === 'hero') src.revealUntil = this.tick + 20; }
     if (tgt.type === 'hero') {
       tgt.dmgTaken += amt;
       if (tgt.recallAt) { tgt.recallAt = 0; }
@@ -678,17 +681,60 @@ export class Game {
     return ms * (1 - slow);
   }
   canMove(u) { return u.alive && this.tick >= u.stunUntil && this.tick >= u.rootUntil && !(u.castLock > this.tick); }
+  // Move toward p. With nav, units follow an A* path (cached, refreshed as the goal moves);
+  // movement always slides along walls instead of passing through them.
   moveToward(u, p, nav = true, stopAt = 0) {
     if (!this.canMove(u)) { u.vx = u.vy = 0; return; }
-    const step = nav ? navStep(u, p) : p;
+    const W = this.world;
+    let step = p;
+    const d2p = dist2(u, p);
+    // Straight-line moves are only allowed with a clear line; otherwise always pathfind.
+    const clear = d2p < 260 * 260 && ((this.tick + u.id) % 4 !== 0 && u._clearT === p ? u._clear : (u._clearT = p, u._clear = W.losWide(u.x, u.y, p.x, p.y)));
+    if (!clear) nav = true;
+    if (nav && !clear) {
+      const pc = u.path;
+      const stale = !pc || this.tick >= pc.until || dist2(pc.goal, p) > 48 * 48 || pc.i >= pc.pts.length;
+      if (stale) u.path = { goal: { x: p.x, y: p.y }, pts: W.findPath(u.x, u.y, p.x, p.y), i: 0, until: this.tick + 30 + (u.id % 9) };
+      const path = u.path, pts = path.pts;
+      while (path.i < pts.length - 1 && dist2(u, pts[path.i]) < 16 * 16) path.i++;
+      // live smoothing: aim at the furthest upcoming waypoint we can reach in a straight, body-wide line
+      let k = path.i;
+      for (const j of [8, 5, 3, 2, 1]) { const q = Math.min(pts.length - 1, path.i + j); if (q > k && W.losWide(u.x, u.y, pts[q].x, pts[q].y)) { k = q; break; } }
+      step = pts[k];
+      // no progress for a while? replan from scratch next tick
+      if (!path.prog || dist2(u, path.prog) > 20 * 20) path.prog = { x: u.x, y: u.y, t: this.tick };
+      else if (this.tick - path.prog.t > 30) { path.until = this.tick; path.prog = null; }
+    }
     const dx = step.x - u.x, dy = step.y - u.y;
     const d = Math.sqrt(dx * dx + dy * dy);
     const rem = step === p ? d - stopAt : d;
     if (rem <= 0.5) { u.vx = u.vy = 0; return; }
     const sp = Math.min(this.moveSpeed(u) * DT, rem);
-    u.vx = dx / d * sp; u.vy = dy / d * sp;
-    u.x += u.vx; u.y += u.vy;
+    if (rem > 30) u.moveIntent = this.tick;
+    this.slide(u, dx / d * sp, dy / d * sp);
     this.face(u, dx, dy);
+  }
+  slide(u, mx, my) {
+    const W = this.world;
+    const ox = u.x, oy = u.y;
+    if (W.isWalk(u.x + mx, u.y + my)) { u.x += mx; u.y += my; }
+    else if (Math.abs(mx) > 0.01 && W.isWalk(u.x + mx, u.y)) u.x += mx;
+    else if (Math.abs(my) > 0.01 && W.isWalk(u.x, u.y + my)) u.y += my;
+    else {
+      // corner: nudge along the wall tangent
+      const l = Math.sqrt(mx * mx + my * my) || 1;
+      if (W.isWalk(u.x - my / l * 2, u.y + mx / l * 2)) { u.x -= my / l * 2; u.y += mx / l * 2; }
+      else if (W.isWalk(u.x + my / l * 2, u.y - mx / l * 2)) { u.x += my / l * 2; u.y -= mx / l * 2; }
+    }
+    u.vx = u.x - ox; u.vy = u.y - oy;
+  }
+  // Furthest walkable point from a toward b (for dashes / knockbacks).
+  rayEnd(a, b) {
+    const dx = b.x - a.x, dy = b.y - a.y, l = Math.sqrt(dx * dx + dy * dy);
+    if (l < 1) return { x: a.x, y: a.y };
+    const steps = Math.ceil(l / 8); let last = { x: a.x, y: a.y };
+    for (let i = 1; i <= steps; i++) { const t = i / steps, p = { x: a.x + dx * t, y: a.y + dy * t }; if (!this.world.isWalk(p.x, p.y)) break; last = p; }
+    return last;
   }
 
   // ───────────────────────── unit updates ─────────────────────────
@@ -724,7 +770,7 @@ export class Game {
       return;
     }
     // follow lane
-    const pts = LANES[m.lane];
+    const pts = this.world.lanes[m.lane];
     const wp = pts[m.wp];
     if (dist2(m, wp) < 40 * 40) {
       if (m.team === BLUE && m.wp < pts.length - 1) m.wp++; else if (m.team === RED && m.wp > 0) m.wp--;
@@ -796,7 +842,7 @@ export class Game {
     const now = this.tick;
     if (!h.alive) {
       if (now >= h.respawnAt) {
-        h.alive = true; h.hp = h.maxHp; const f = FOUNTAIN[h.team]; h.x = f.x; h.y = f.y; h.task = { kind: 'idle' };
+        h.alive = true; h.hp = h.maxHp; const f = this.world.fountain[h.team]; h.x = f.x; h.y = f.y; h.task = { kind: 'idle' };
         h.burns = []; h.slows = []; h.shields = []; h.stunUntil = h.rootUntil = 0; h.dash = null;
         this.buyItems(h);
       }
@@ -815,7 +861,7 @@ export class Game {
     if (now < h.stunUntil) return;
     // recall channel
     if (h.recallAt) {
-      if (now >= h.recallAt) { const f = FOUNTAIN[h.team]; h.x = f.x; h.y = f.y; h.recallAt = 0; this.emit({ type: 'recalled', hero: h.id, team: h.team }); }
+      if (now >= h.recallAt) { const f = this.world.fountain[h.team]; h.x = f.x; h.y = f.y; h.recallAt = 0; this.emit({ type: 'recalled', hero: h.id, team: h.team }); }
       return;
     }
     if ((now + h.id) % 10 === 0) heroMacro(this, h);
@@ -910,7 +956,7 @@ export class Game {
           const d = norm(aim.x - h.x, aim.y - h.y);
           dest = { x: h.x + d.x * ab.range, y: h.y + d.y * ab.range };
         }
-        dest.x = Math.max(20, Math.min(MAP_SIZE - 20, dest.x)); dest.y = Math.max(20, Math.min(MAP_SIZE - 20, dest.y));
+        dest = this.rayEnd(h, dest);
         const tid = tgt ? tgt.id : 0;
         h.dash = { x: dest.x, y: dest.y, speed: 1000, until: this.tick + sec(0.8), onArrive: () => {
           if (ab.radius) {
@@ -986,7 +1032,8 @@ export class Game {
         this.fx.push({ kind: 'fx', name: p.ab.fx || 'spark', x: e.x, y: e.y, s: p.ab.ult ? 2 : 1.2 });
         if (p.hook && e.alive && !e.boss) {
           const src = p.src, d = norm(src.x - e.x, src.y - e.y), l = dist(src, e);
-          e.dash = { x: e.x + d.x * Math.max(0, l - 40), y: e.y + d.y * Math.max(0, l - 40), speed: 1100, until: this.tick + sec(0.7), pulled: true };
+          const pend = this.world.nearestOpen({ x: e.x + d.x * Math.max(0, l - 40), y: e.y + d.y * Math.max(0, l - 40) });
+          e.dash = { x: pend.x, y: pend.y, speed: 1100, until: this.tick + sec(0.7), pulled: true };
           if (e.type !== 'hero') { e.x = e.dash.x; e.y = e.dash.y; e.dash = null; }
         }
         if (!p.pierce) { done = true; break; }
@@ -1040,31 +1087,32 @@ export class Game {
   }
 
   separate() {
-    const tmp = [];
+    const tmp = [], W = this.world;
     for (const u of this.units) {
       if (!u.alive || u.structure || u.boss || u.dash) continue;
       if (u.type !== 'minion' && u.type !== 'hero' && u.type !== 'mob' && u.type !== 'summon') continue;
       tmp.length = 0; this.grid.query(u.x, u.y, 30, tmp);
       for (const o of tmp) {
-        if (o === u || !o.alive || o.structure || o.id < u.id) continue;
-        const dx = o.x - u.x, dy = o.y - u.y, d2 = dx * dx + dy * dy, rr = (u.radius + o.radius) * 0.75;
-        if (d2 >= rr * rr || d2 < 1e-6) { if (d2 < 1e-6) { u.x -= 0.5; o.x += 0.5; } continue; }
-        const d = Math.sqrt(d2), push = (rr - d) * 0.25;
-        const ux = dx / d, uy = dy / d;
-        if (!o.boss && !o.structure) { o.x += ux * push; o.y += uy * push; }
-        u.x -= ux * push; u.y -= uy * push;
+        if (o === u || !o.alive || o.structure || o.boss || o.dash || o.id < u.id) continue;
+        const dx = o.x - u.x, dy = o.y - u.y, d2 = dx * dx + dy * dy, rr = (u.radius + o.radius) * 0.7;
+        if (d2 >= rr * rr) continue;
+        let ux, uy, d;
+        if (d2 < 1e-6) { ux = (u.id & 1) ? 1 : -1; uy = 0; d = 0; } else { d = Math.sqrt(d2); ux = dx / d; uy = dy / d; }
+        const push = (rr - d) * 0.22;
+        // heroes yield less to minions; nobody is pushed into walls
+        const wu = o.type === 'hero' && u.type !== 'hero' ? 1.6 : u.type === 'hero' && o.type !== 'hero' ? 0.4 : 1;
+        const wo = 2 - wu;
+        if (W.isWalk(o.x + ux * push * wo, o.y + uy * push * wo)) { o.x += ux * push * wo; o.y += uy * push * wo; }
+        if (W.isWalk(u.x - ux * push * wu, u.y - uy * push * wu)) { u.x -= ux * push * wu; u.y -= uy * push * wu; }
       }
-      // Structures are solid
-      for (const s of this.grid.query(u.x, u.y, 60)) if (s.structure && s.alive) {
-        const dx = u.x - s.x, dy = u.y - s.y, d2 = dx * dx + dy * dy, rr = s.radius * 0.8 + u.radius * 0.5;
-        if (d2 < rr * rr && d2 > 1e-6) { const d = Math.sqrt(d2); u.x = s.x + dx / d * rr; u.y = s.y + dy / d * rr; }
-      }
+      // never end a tick inside a wall (e.g. after a knock or hook)
+      if (!W.isWalk(u.x, u.y)) { const o = W.nearestOpen(u); u.x = o.x; u.y = o.y; }
     }
   }
 
   fountain() {
     for (let t = 0; t < 2; t++) {
-      const f = FOUNTAIN[t];
+      const f = this.world.fountain[t];
       for (const u of this.grid.query(f.x, f.y, 300)) {
         if (!u.alive) continue;
         if (u.team !== t && dist2(u, f) > 190 * 190) continue;
@@ -1200,7 +1248,7 @@ export class Game {
     this.wards.push({ team: h.team, x: spot.x, y: spot.y, until: this.tick + sec(90), owner: h.id });
     this.fx.push({ kind: 'ward', x: spot.x, y: spot.y, team: h.team });
   }
-  wardSpots(team) { return WARD_SPOTS_BLUE.map((s) => team === BLUE ? s : P(s)); }
+  wardSpots(team) { return this.world.wardSpots[team]; }
 
   // ───────────────────────── checksum ─────────────────────────
   checksum() {
@@ -1213,5 +1261,4 @@ export class Game {
 
   // Public summary for UI.
   heroesOf(team) { return this.teams[team].heroes; }
-  nearestNodeTo(p) { return nearestNode(p); }
 }

@@ -3,7 +3,7 @@ import { h, mount, face, icon, fmtTime, toast } from './dom.js';
 import { BUILDS } from '../data/items.js';
 import { ROLE_LABEL } from '../data/heroes.js';
 import { CMD, DRAGON_INFO, TEAM_NAME, TICK_RATE, T } from '../sim/constants.js';
-import { LANE_NAMES, distToLane, laneProgress, PITS } from '../sim/map.js';
+const LANE_NAMES = ['top', 'mid', 'bot'];
 import { TEAM_COL } from '../render/renderer.js';
 import { audio } from '../audio.js';
 
@@ -97,7 +97,7 @@ export class Hud {
     void where;
   }
   callPoint(c) {
-    if (c.obj) { const p = c.obj === 'dragon' ? PITS.dragon : PITS.baron; return [p.x, p.y]; }
+    if (c.obj) { const p = c.obj === 'dragon' ? this.g.world.pits.kami : this.g.world.pits.kraken; return [p.x, p.y]; }
     if (c.lane) { const p = c.lane === 'top' ? { x: 300, y: 300 } : c.lane === 'bot' ? { x: 2100, y: 2100 } : { x: 1200, y: 1200 }; return [p.x, p.y]; }
     return [this.r.cam.x, this.r.cam.y];
   }
@@ -357,8 +357,8 @@ export class Hud {
       for (const e of enemy) {
         if (!e.alive || !vis.has(e.id) || e.role === 'jungle') continue;
         for (const lane of LANE_NAMES) {
-          if (distToLane(lane, e) > 260) continue;
-          const pr = laneProgress(lane, e), deep = me === 0 ? pr : 1 - pr;
+          if (g.world.distToLane(lane, e) > 260) continue;
+          const pr = g.world.laneProgress(lane, e), deep = me === 0 ? pr : 1 - pr;
           if (deep < 0.47 && ready('gank' + lane, 30)) this.feed(`${e.def.name} is overextended ${LANE_L[lane]}`, 's', true, { label: `Gank ${LANE_L[lane]}`, fn: () => this.send({ type: 'gank', lane, hero: jg.id }) });
         }
       }

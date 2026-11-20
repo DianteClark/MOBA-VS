@@ -21,7 +21,7 @@ const q = new URLSearchParams(location.search);
 await loadAssets();
 await document.fonts.load('10px PixelFont');
 const pick = (ids) => ids.map((id) => { const h = HEROES.find((x) => x.id === id); return { id, role: h.role, build: h.rec }; });
-const g = new Game({ seed: +(q.get('seed') || 3), coach: [true, true], teams: [
+const g = new Game({ seed: +(q.get('seed') || 3), map: q.get('map') || 'sakura', coach: [true, true], teams: [
   { heroes: pick(['bastion', 'kaze', 'ember', 'fletch', 'oak']), plan: 'balanced' },
   { heroes: pick(['kenshi', 'leonin', 'raiden', 'marlowe', 'wu']), plan: 'balanced' } ] });
 const r = new Renderer(document.getElementById('c'));

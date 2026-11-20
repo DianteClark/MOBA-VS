@@ -1,8 +1,8 @@
 // Canvas renderer: interpolated sprites, FX, fog of war, floating combat text.
 import { IMG, VAR, FX, PROJ, flashOf } from './assets.js';
-import { paintMap } from './mapgen.js';
-import { MAP_SIZE, FOUNTAIN } from '../sim/map.js';
-import { TICK_RATE, VISION, DRAGON_INFO } from '../sim/constants.js';
+import { paintMap, THEMES } from './mapgen.js';
+import { S as MAP_SIZE, N as GN } from '../sim/world.js';
+import { TICK_RATE, DRAGON_INFO } from '../sim/constants.js';
 
 export const TEAM_COL = ['#4aa3ff', '#ff5a5a', '#c8c8c8'];
 const TEAM_DARK = ['#1d4f8a', '#8a1d27', '#555'];
@@ -15,7 +15,9 @@ export class Renderer {
     this.ctx = canvas.getContext('2d');
     this.fog = document.createElement('canvas');
     this.fctx = this.fog.getContext('2d');
-    this.map = map || paintMap();
+    this.map = map || null;
+    this.fogTex = document.createElement('canvas'); this.fogTex.width = GN; this.fogTex.height = GN;
+    this.fogTexCtx = this.fogTex.getContext('2d'); this.fogImg = this.fogTexCtx.createImageData(GN, GN); this.fogSmooth = new Float32Array(GN * GN);
     this.cam = { x: 600, y: 1800, zoom: 1.4 };
     this.prev = new Map();
     this.effects = [];
@@ -46,7 +48,7 @@ export class Renderer {
     this.fog.width = this.canvas.width; this.fog.height = this.canvas.height;
     this.W = this.canvas.width; this.H = this.canvas.height;
   }
-  attach(game, viewTeam) { this.game = game; this.viewTeam = viewTeam; this.prev.clear(); this.effects = []; this.texts = []; this.lines = []; }
+  attach(game, viewTeam, map) { this.game = game; this.viewTeam = viewTeam; this.map = map || paintMap(game.world); this.theme = THEMES[game.world.def.theme] || THEMES.spring; this.fogSmooth.fill(0); this.prev.clear(); this.effects = []; this.texts = []; this.lines = []; }
 
   // World <-> screen
   get scale() { return this.cam.zoom * this.dpr; }
@@ -65,14 +67,7 @@ export class Renderer {
   }
   visiblePoint(x, y) {
     if (!this.fogOn || this.viewTeam < 0) return true;
-    const g = this.game, t = this.viewTeam;
-    for (const u of g.units) {
-      if (!u.alive || u.team !== t) continue;
-      const r = u.type === 'hero' ? VISION.hero : u.type === 'minion' ? VISION.minion : u.structure ? VISION.tower : u.type === 'summon' ? VISION.summon : 0;
-      if (r && (u.x - x) ** 2 + (u.y - y) ** 2 < r * r) return true;
-    }
-    for (const w of g.wards) if (w.team === t && (w.x - x) ** 2 + (w.y - y) ** 2 < VISION.ward ** 2) return true;
-    return false;
+    return this.game.visGrid[this.viewTeam][this.game.world.idx(x, y)] === 1;
   }
 
   // Convert sim fx into visual effects.
@@ -127,7 +122,7 @@ export class Renderer {
     this.clampCam();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.imageSmoothingEnabled = false;
-    ctx.fillStyle = '#1b2a1a'; ctx.fillRect(0, 0, this.W, this.H);
+    ctx.fillStyle = this.theme ? this.theme.sky : '#1b2a1a'; ctx.fillRect(0, 0, this.W, this.H);
     const s = this.scale;
     let shx = 0, shy = 0;
     if (this.shake > 0) { this.shake -= dt; shx = (Math.random() - 0.5) * 6 * this.dpr; shy = (Math.random() - 0.5) * 6 * this.dpr; }
@@ -417,25 +412,22 @@ export class Renderer {
     }
   }
 
+  // Fog from the team's line-of-sight grid: smoothed over time, upscaled with bilinear filtering.
   drawFog(s, shx, shy) {
-    const f = this.fctx, g = this.game, t = this.viewTeam;
-    f.setTransform(1, 0, 0, 1, 0, 0);
-    f.globalCompositeOperation = 'source-over';
-    f.clearRect(0, 0, this.W, this.H);
-    f.fillStyle = 'rgba(8,10,28,0.55)'; f.fillRect(0, 0, this.W, this.H);
-    f.globalCompositeOperation = 'destination-out';
-    f.setTransform(s, 0, 0, s, this.W / 2 - this.cam.x * s + shx, this.H / 2 - this.cam.y * s + shy);
-    const hole = (x, y, r) => f.drawImage(this.grad, x - r * 1.1, y - r * 1.1, r * 2.2, r * 2.2);
-    for (const u of g.units) {
-      if (!u.alive || u.team !== t) continue;
-      const r = u.type === 'hero' ? VISION.hero : u.type === 'minion' ? VISION.minion : u.structure ? VISION.tower : u.type === 'summon' ? VISION.summon : 0;
-      if (r) hole(u.x, u.y, r);
+    const g = this.game, grid = g.visGrid[this.viewTeam], sm = this.fogSmooth, d = this.fogImg.data;
+    const [fr, fg, fb] = this.theme.fog;
+    for (let i = 0; i < grid.length; i++) {
+      sm[i] += ((grid[i] ? 0 : 1) - sm[i]) * 0.18;
+      const o = i * 4; d[o] = fr; d[o + 1] = fg; d[o + 2] = fb; d[o + 3] = sm[i] * 150;
     }
-    for (const w of g.wards) if (w.team === t && w.until > g.tick) hole(w.x, w.y, VISION.ward);
-    hole(FOUNTAIN[t].x, FOUNTAIN[t].y, VISION.fountain);
-    f.globalCompositeOperation = 'source-over';
-    this.ctx.setTransform(1, 0, 0, 1, 0, 0);
-    this.ctx.drawImage(this.fog, 0, 0);
+    this.fogTexCtx.putImageData(this.fogImg, 0, 0);
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.setTransform(s, 0, 0, s, this.W / 2 - this.cam.x * s + shx, this.H / 2 - this.cam.y * s + shy);
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(this.fogTex, 0, 0, GN, GN, 0, 0, MAP_SIZE, MAP_SIZE);
+    ctx.restore();
+    ctx.imageSmoothingEnabled = false;
   }
 
   drawTexts() {

@@ -11,7 +11,7 @@ for (let i = 0; i < N; i++) {
   const used = new Set();
   const draft = () => ROLES.map((r) => { const pool = HEROES.filter((h) => h.role === r && !used.has(h.id)); const h = pool[rng.int(pool.length)]; used.add(h.id); return { id: h.id, role: r, build: h.builds[rng.int(h.builds.length)] }; });
   const a = draft(), b = draft();
-  const g = new Game({ seed: 1000 + i, coach: [true, true], teams: [{ heroes: a, plan: 'balanced' }, { heroes: b, plan: 'balanced' }] });
+  const g = new Game({ seed: 1000 + i, map: ['sakura', 'frost', 'ember'][i % 3], coach: [true, true], teams: [{ heroes: a, plan: 'balanced' }, { heroes: b, plan: 'balanced' }] });
   while (!g.over && g.time < MAXM * 60) { g.step([]); g.fx.length = 0; }
   const w = g.winner;
   if (w === 0) blueWins++; else if (w === 1) redWins++; else draws++;

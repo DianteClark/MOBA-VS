@@ -4,7 +4,12 @@
 // AI only reacts to enemies its team can see (fog of war).
 import { DT, sec, BLUE } from './constants.js';
 import { dist2, dist, norm } from './geom.js';
-import { LANES, LANE_NAMES, PITS, FOUNTAIN, laneProgress, lanePoint, distToLane, pathDist } from './map.js';
+// Current world (set on entry; the sim is single-threaded and maps are immutable).
+let W = null;
+const laneProgress = (l, p) => W.laneProgress(l, p), lanePoint = (l, p) => W.lanePoint(l, p), distToLane = (l, p) => W.distToLane(l, p), pathDist = (a, b) => W.pathDist(a, b);
+const FOUNTAIN = new Proxy([], { get: (_, k) => W.fountain[k] });
+const PITS = { get dragon() { return W.pits.kami; }, get baron() { return W.pits.kraken; } };
+const LANE_NAMES = ['top', 'mid', 'bot'];
 
 const PLAN_RISK = { aggressive: 0.82, balanced: 1.0, scaling: 1.18 };
 
@@ -77,6 +82,7 @@ function frontline(g, team, lane) {
 
 // ─────────────────────────── macro ───────────────────────────
 export function heroMacro(g, h) {
+  W = g.world;
   const now = g.tick;
   const t = h.task;
   // Expire timed tasks.
@@ -179,6 +185,7 @@ function gankOpportunity(g, h) {
 
 // ─────────────────────────── micro ───────────────────────────
 export function heroThink(g, h) {
+  W = g.world;
   const now = g.tick;
   if (h.castLock > now) return;
   g.trySmite(h);
