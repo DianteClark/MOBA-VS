@@ -6,7 +6,7 @@
 // AI only knows what its team can see. All randomness goes through g.rng (deterministic).
 // Personality/trust feed in through h.mods (see game.js personalities).
 // ─────────────────────────────────────────────────────────────────────────────
-import { DT, sec, BLUE } from './constants.js';
+import { DT, sec, BLUE, MOMENTUM } from './constants.js';
 import { dist2, dist, norm } from './geom.js';
 
 const LANES = ['top', 'mid', 'bot'];
@@ -79,11 +79,14 @@ function riskOf(g, h) {
   if (plan === 'aggressive' && g.time > 720) r = 0.92;
   r /= mods(h).aggro;
   if (h.task.call && ['gank', 'objective', 'group', 'invade', 'contest', 'defend', 'shrine'].includes(h.task.kind)) r -= 0.12 * mods(h).discipline;
+  if (h.task.kind === 'permit') r -= 0.16; // the coach gave the green light
   return r;
 }
 // Lanchester strength of a group: (sum eHP) × (sum DPS). Ready spells count as extra DPS
 // spread over a ~3s skirmish, so a team with ultimates up is rated stronger than one without.
-function strength(g, list) { let e = 0, d = 0; for (const u of list) { e += g.ehp(u); d += u.dps + readyBurst(g, u, null) / 3; } return { e, d }; }
+function strength(g, list) { let e = 0, d = 0; for (const u of list) { e += g.ehp(u); d += (u.dps + readyBurst(g, u, null) / 3) * surgeK(g, u); } return { e, d }; }
+// A team under Kami Surge hits harder (and is rated so on both sides).
+const surgeK = (g, u) => (g.teams[u.team].surgeUntil > g.tick ? 1 + MOMENTUM.dmg : 1);
 function readyBurst(g, h, t) {
   let b = 0;
   for (let i = 0; i < 3; i++) { const ab = h.def.abilities[i]; if (ab.dmg && g.abilityReady(h, i)) b += g.abilityDamage(h, ab, t); }
@@ -117,7 +120,7 @@ function diveOk(g, h, t, allies, near) {
   if (!tw) return true;
   const divers = allies.filter((a) => a === h || (dist2(a, t) < 480 * 480 && a.hp / a.maxHp > 0.35));
   let dps = 0, burst = 0;
-  for (const a of divers) { dps += a.dps; burst += readyBurst(g, a, t); }
+  for (const a of divers) { dps += a.dps * surgeK(g, a); burst += readyBurst(g, a, t) * surgeK(g, a); }
   const ttk = Math.max(0, g.ehp(t) - burst * 0.9) / Math.max(1, dps);
   if (ttk > 2.6) return false;
   // who eats the tower shots? minions first, then a healthier frontliner
@@ -126,7 +129,7 @@ function diveOk(g, h, t, allies, near) {
   const share = cover >= 3 && !(tw.target === h) ? 0.15 : tank ? 0.45 : 1;
   const towerDps = tw.stats.ad * tw.stats.as * 0.8 * (1 + Math.min(1.2, (tw.streak || 0) * 0.35));
   const exitT = Math.max(0, tw.stats.range + 30 - Math.sqrt(dist2(tw, t))) / Math.max(150, g.moveSpeed(h));
-  let enemyDps = 0; for (const e of near) if (dist2(e, t) < 600 * 600) enemyDps += e.dps;
+  let enemyDps = 0; for (const e of near) if (dist2(e, t) < 600 * 600) enemyDps += e.dps * surgeK(g, e);
   const exposure = ttk + 0.35 + exitT;
   const taken = towerDps * share * exposure + enemyDps * ttk / Math.max(1, divers.length);
   const value = (t.killStreak >= 3 ? 1 : 0) + (t.hp / t.maxHp < 0.2 ? 0.6 : 0) + (CARRY(t) ? 0.3 : 0) + (g.finalPhase ? 0.4 : 0);
@@ -142,6 +145,7 @@ export function heroMacro(g, h) {
   if (t.kind !== 'ambush') h.ambushSet = 0;
   if (t.kind === 'objective') { const ob = g.objectives[t.obj]; if (t.started && (!ob || !ob.alive)) h.task = { kind: 'idle' }; }
   if (t.kind === 'shrine') { const sh = g.shrines[t.shrine]; if (!sh || sh.owner === h.team) h.task = { kind: 'idle' }; }
+  if (t.kind === 'permit') { const x = g.byId(t.target); const seen = x && g.lastSeen[h.team][x.id]; if (!x || !x.alive || !seen || now - seen.t > sec(4)) h.task = { kind: 'idle' }; }
   const hpPct = h.hp / h.maxHp;
   const W = g.world, fountain = W.fountain[h.team];
   const atBase = dist2(h, fountain) < 360 * 360;
@@ -288,6 +292,11 @@ export function heroThink(g, h) {
       if (!h.ambushSet) { h.ambushSet = task.until; h.stealthUntil = task.until; }
       h.vx = h.vy = 0; return;
     }
+    case 'permit': { // green-lit solo play: hunt the target (combat() takes over once in range)
+      const x = g.byId(task.target), seen = x && g.lastSeen[h.team][x.id];
+      if (!x || !x.alive || !seen) { h.task = { kind: 'idle' }; return; }
+      g.moveToward(h, C.enemies.includes(x) ? x : seen, true, h.stats.range * 0.8); return;
+    }
     case 'help': { const a = g.byId(task.ally); if (!a || !a.alive) { h.task = { kind: 'idle' }; return; } g.moveToward(h, a, true, 90); return; }
     case 'defend': { if (dist2(h, task) > 260 * 260) g.moveToward(h, task); else farmAround(g, h, 420, true); return; }
     default: return doLane(g, h, h.lane || 'mid', false);
@@ -355,6 +364,7 @@ function combat(g, h, C, recalling) {
     const killable = h.burst * 0.75 + allyBurst > ehp;
     let s = 1000 - d * 0.9 + (1 - e.hp / e.maxHp) * 450 + (killable ? 500 : 0);
     if (focus && focus.id === e.id) s += 900;
+    if (h.task.kind === 'permit' && h.task.target === e.id) s += 700;
     if (CARRY(e)) s += h.def.cls === 'assassin' ? 350 : 140;
     if (h.fightTarget === e.id) s += 180;
     // threats on my carries get peeled
@@ -382,7 +392,7 @@ function combat(g, h, C, recalling) {
   if (backing >= 2 && backing * 2 >= allies.length - 1 && ratio < 1.6 * risk && !killable) { h.fleeUntil = now + sec(1); return flee(g, h, near, allies); }
   if (recalling || !best) return false;
 
-  const laning = h.task.kind === 'lane' || h.task.kind === 'jungle' || h.task.kind === 'split';
+  const laning = h.task.kind === 'lane' || h.task.kind === 'jungle' || (h.task.kind === 'split' && !h.task.call);
   const engageAt = laning ? risk * 1.7 : risk * 1.08;
   const beingHit = now - h.lastHurtByHero < sec(1.2);
   let want;
@@ -462,7 +472,7 @@ function chaseOk(g, h, t, killable) {
   if (h.chaseId !== t.id || now - h.lastCombat > sec(3)) { h.chaseId = t.id; h.chaseGap = d; h.chaseGrow = 0; }
   else { if (d > h.chaseGap + 400) h.chaseGrow++; else if (d < h.chaseGap) h.chaseGrow = 0; h.chaseGap = d; }
   if (h.chaseGrow > 30 && !(t.hp / t.maxHp < 0.12 && killable)) return false;
-  if (!killable && dist2(h, t) > (h.stats.range + 200) ** 2 && h.task.kind !== 'gank') return false;
+  if (!killable && dist2(h, t) > (h.stats.range + 200) ** 2 && h.task.kind !== 'gank' && !(h.task.kind === 'permit' && h.task.target === t.id)) return false;
   if (!h.chaseFrom || now - h.lastCombat > sec(3)) h.chaseFrom = { x: h.x, y: h.y };
   return dist2(h, h.chaseFrom) < 800 * 800 || (killable && t.hp / t.maxHp < 0.15);
 }

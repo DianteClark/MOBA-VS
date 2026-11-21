@@ -1,5 +1,6 @@
 // Match runners. Both drive the deterministic sim at a fixed tick rate.
 //  LocalRunner – vs AI / watch mode: free speed control, commands applied next tick.
+//                 `slow` is a presentation-only time scale (Coach's Call / fight cam slow-motion).
 //  LockstepRunner – peer-to-peer: each peer sends its command list for tick T+DELAY;
 //                   the sim only advances when both peers' inputs for the tick are known.
 import { DT, HALFTIME } from '../sim/constants.js';
@@ -21,12 +22,12 @@ const Halftime = {
 const record = (r, tick, cmds) => { if (cmds.length) r.log.push([tick, cmds.map((c) => ({ ...c }))]); };
 
 export class LocalRunner {
-  constructor(game, myTeam, opts = {}) { this.game = game; this.myTeam = myTeam; this.queue = []; this.speed = 1; this.paused = false; this.acc = 0; this.seq = 0; this.online = false; this.log = []; this.noHalftime = !!opts.noHalftime; this.script = opts.script || null; this.si = 0; }
+  constructor(game, myTeam, opts = {}) { this.game = game; this.myTeam = myTeam; this.queue = []; this.speed = 1; this.slow = 1; this.paused = false; this.acc = 0; this.seq = 0; this.online = false; this.log = []; this.noHalftime = !!opts.noHalftime; this.script = opts.script || null; this.si = 0; }
   send(cmd) { this.queue.push({ ...cmd, team: this.myTeam, seq: ++this.seq }); }
   update(dt, onBefore, onAfter) {
     if (this.paused || this.game.over) { this.acc = 0; return 0; }
     if (this.holding()) { this.acc = 0; return 0; }
-    this.acc += Math.min(0.25, dt) * this.speed;
+    this.acc += Math.min(0.25, dt) * this.speed * this.slow;
     let n = 0;
     while (this.acc >= DT && n < 40) {
       if (this.holding()) { this.acc = 0; break; }
@@ -41,6 +42,16 @@ export class LocalRunner {
     return n;
   }
   get alpha() { return Math.min(1, this.acc / DT); }
+  // Headless fast-forward (replays): run scripted ticks until `tick` or `max` steps. Returns true when there.
+  skipTo(tick, max = Infinity) {
+    let n = 0;
+    while (this.game.tick < tick && !this.game.over && n++ < max) {
+      const cmds = []; const s = this.script;
+      if (s) while (this.si < s.length && s[this.si][0] <= this.game.tick) { if (s[this.si][0] === this.game.tick) cmds.push(...s[this.si][1]); this.si++; }
+      this.game.step(cmds); this.game.fx.length = 0;
+    }
+    return this.game.tick >= tick || this.game.over;
+  }
 }
 Object.assign(LocalRunner.prototype, Halftime);
 

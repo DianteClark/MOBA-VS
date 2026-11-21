@@ -45,9 +45,13 @@ export const PACE = { rampFrom: 240, rampPer: 300, siegeAllFrom: 480, wrathFrom:
 export const FINAL = { at: 720, gold: 1.5, respawn: 1.25 };
 // Halftime (runner-level pause at 7:30) and the window for halftime-only commands.
 export const HALFTIME = { at: 450, seconds: 20, window: 8 };
+// Momentum: fills from paid-off calls, kills, objectives, towers and shrines; a full meter buys one Kami Surge.
+export const MOMENTUM = { max: 100, call: 14, kill: 4, objective: 18, tower: 10, shrine: 8, surgeSec: 8, dmg: 0.1, ms: 0.05 };
+// Hero requests ("can I go?"): a 'permit' is a short solo task; one per team every 20s.
+export const PERMIT = { fight: 12, split: 60, range: 1500, cooldown: 20 };
 export const CMD = {
   maxCharges: 3, regen: 20, // seconds per charge
-  cost: { ult: 0, plan: 0, redraw: 0, gank: 1, objective: 2, shrine: 1, group: 1, split: 1, focus: 1, safe: 1, reset: 1, invade: 2, herald: 0, build: 0, cancel: 0, tactic: 0 },
+  cost: { ult: 0, plan: 0, redraw: 0, surge: 0, permit: 0, gank: 1, objective: 2, shrine: 1, group: 1, split: 1, focus: 1, safe: 1, reset: 1, invade: 2, herald: 0, build: 0, cancel: 0, tactic: 0 },
 };
 
 // Internal ids keep their old names (dragon/herald/baron); these are the names players see.

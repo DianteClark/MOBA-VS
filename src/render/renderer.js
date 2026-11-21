@@ -64,7 +64,7 @@ export class Renderer {
   attach(game, viewTeam, map) {
     this.game = game; this.viewTeam = viewTeam; this.map = map || paintMap(game.world); this.theme = THEMES[game.world.def.theme] || THEMES.spring;
     this.fogSmooth.fill(0); this.prev.clear(); this.effects = []; this.texts = []; this.lines = []; this.fxp.clear(); this.focus = null;
-    this.chatter.reset(); this.hpT.clear(); this.heroPos.clear(); this.callouts = []; this.trauma = 0; this.hitStop = 0; this.tint = null; this.panTo = null;
+    this.chatter.reset(); this.hpT.clear(); this.heroPos.clear(); this.callouts = []; this.trauma = 0; this.hitStop = 0; this.tint = null; this.panTo = null; this.visSlow = null;
     this.evIdx = game.events.length;
   }
   get motion() { return !settings.reducedMotion; }
@@ -281,6 +281,8 @@ export class Renderer {
     // hit-stop: visuals crawl for a few frames (the sim keeps its own pace)
     let vdt = dt;
     if (this.hitStop > 0) { this.hitStop -= dt; vdt = dt * 0.1; alpha = this._alpha ?? alpha; } else this._alpha = alpha;
+    // fight-cam slow motion online: effects and particles slow down; the sim keeps its pace
+    if (this.visSlow) { if (performance.now() < this.visSlow.until && this.motion) vdt *= this.visSlow.k; else this.visSlow = null; }
     this.time += vdt; this.frame++; this._dt = vdt;
     const g = this.game, ctx = this.ctx;
     if (this.focus) { const k = Math.min(1, dt * 2); this.cam.x += (this.focus.x - this.cam.x) * k; this.cam.y += (this.focus.y - this.cam.y) * k; if (this.focus.zoom) this.cam.zoom += (this.focus.zoom - this.cam.zoom) * k; }
