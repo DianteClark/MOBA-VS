@@ -1036,22 +1036,28 @@ export class Game {
       const pvx = fresh ? u.mvx || 0 : 0, pvy = fresh ? u.mvy || 0 : 0;
       if (pvx || pvy) {
         const k = STEER_K;
+        const rx = mx, ry = my;
         mx = pvx + (mx - pvx) * k; my = pvy + (my - pvy) * k;
         const l = Math.sqrt(mx * mx + my * my); if (l > sp) { mx = mx / l * sp; my = my / l * sp; }
+        // a lagging turn that would clip a wall (late corner): take the route's own heading instead
+        if (!this.world.isWalk(u.x + mx * 3, u.y + my * 3) && this.world.isWalk(u.x + rx * 3, u.y + ry * 3)) { mx = rx; my = ry; }
       }
       u.mvx = mx; u.mvy = my;
     }
     this.slide(u, mx, my);
-    this.face(u, mx, my);
+    // walking never flips facing more than once per 0.2s (attacks still turn instantly)
+    if (!(now - (u.faceT || -99) < 4)) this.face(u, mx, my);
   }
   // Facing with hysteresis: only switch axis when the new one clearly dominates.
   face(u, dx, dy) {
     const ax = Math.abs(dx), ay = Math.abs(dy);
     if (ax < 0.05 && ay < 0.05) return;
+    const f0 = u.facing;
     const horiz = u.facing === 2 || u.facing === 3;
     if (horiz ? ay > ax * 1.35 : ax > ay * 1.35) { if (ax > ay) u.facing = dx > 0 ? 3 : 2; else u.facing = dy > 0 ? 0 : 1; }
     else if (horiz) u.facing = dx > 0.05 ? 3 : dx < -0.05 ? 2 : u.facing;
     else u.facing = dy > 0.05 ? 0 : dy < -0.05 ? 1 : u.facing;
+    if (u.facing !== f0) u.faceT = this.tick;
   }
   slide(u, mx, my) {
     const W = this.world, ox = u.x, oy = u.y;
