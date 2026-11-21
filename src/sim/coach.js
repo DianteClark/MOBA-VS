@@ -107,8 +107,11 @@ export class Coach {
       if (avg < 0.45 && alive.every((h) => now - h.lastCombat > sec(3))) { if (this.issue({ type: 'reset' })) { cd('reset', 60); return; } }
     }
     // Mid/late: group to push where the enemy is missing
-    if (ready('group') && g.time > 720 && charges >= 2 && alive.length >= 4 && (deadEnemies >= 2 || alive.length > enemyAlive.length)) {
-      if (this.issue({ type: 'group', lane: 'mid' })) { cd('group', 50); return; }
+    // Late game: close it out. Group on the lane where the enemy base is most open.
+    const late = g.time > 600;
+    if (ready('group') && late && charges >= 1 && alive.length >= 3 && (deadEnemies >= 1 || alive.length >= enemyAlive.length || g.time > 780)) {
+      const lane = this.weakestLane();
+      if (this.issue({ type: 'group', lane })) { cd('group', g.time > 780 ? 25 : 40); return; }
     }
     // Invade when enemy jungler seen far away
     if (this.level >= 1 && ready('invade') && charges >= 2 && g.time > 200 && g.time < 900) {
@@ -145,6 +148,15 @@ export class Coach {
     return false;
   }
 
+  // The enemy lane with the fewest structures left standing (ties: mid).
+  weakestLane() {
+    const g = this.g; let best = 'mid', bs = Infinity;
+    for (const ln of ['mid', 'top', 'bot']) {
+      let n = 0; for (const u of g.units) if (u.alive && u.team !== this.team && (u.type === 'tower' || u.type === 'inhib') && u.lane === ln) n += u.type === 'inhib' ? 2 : 1;
+      if (n < bs) { bs = n; best = ln; }
+    }
+    return best;
+  }
   pickHeraldLane() {
     const g = this.g;
     let best = null, bs = -1;

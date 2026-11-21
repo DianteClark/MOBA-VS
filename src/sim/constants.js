@@ -17,7 +17,7 @@ export const T = {
   heraldFirst: 180, heraldRespawn: 150, heraldDespawn: 450,
   baronFirst: 450, baronRespawn: 180,
   shrineUnlock: 60, shrineCapture: 5,
-  inhibRespawn: 180,
+  inhibRespawn: 210,
   heraldEye: 120, baronBuff: 75, elderBuff: 75,
   recallChannel: 4, gankTimeout: 24, objectiveTimeout: 45, groupTimeout: 40, safeTimeout: 22,
   weatherPhase: 150,
@@ -38,6 +38,10 @@ export const VISION = { hero: 400, minion: 300, tower: 460, ward: 340, summon: 3
 export const RANGE = { melee: 55, short: 150, long: 180, tower: 255 };
 
 // Final phase ("Last Stand"): the last 3 minutes pay more and respawns get longer.
+// Match pacing: the game escalates so most matches end at a Crystal by ~15:00.
+//   structures take more damage over time, waves get siege minions every wave from 8:00 and a
+//   super minion per lane from 11:00 ("Kami's Wrath"), and backdoor protection fades late.
+export const PACE = { rampFrom: 240, rampPer: 300, siegeAllFrom: 480, wrathFrom: 660, backdoorOffFrom: 780 };
 export const FINAL = { at: 720, gold: 1.5, respawn: 1.25 };
 // Halftime (runner-level pause at 7:30) and the window for halftime-only commands.
 export const HALFTIME = { at: 450, seconds: 20, window: 8 };

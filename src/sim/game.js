@@ -1,7 +1,7 @@
 // The deterministic match simulation. Same seed + same commands => same game.
 import { Rng, hashInts } from './rng.js';
 import { dist2, dist, norm, r2 } from './geom.js';
-import { DT, sec, BLUE, RED, NEUTRAL, T, GOLD, XP, xpNeeded, VISION, CMD, DRAGONS, MATCH_SECONDS, RANGE, CLANS, WEATHER, FINAL, HALFTIME } from './constants.js';
+import { DT, sec, BLUE, RED, NEUTRAL, T, GOLD, XP, xpNeeded, VISION, CMD, DRAGONS, MATCH_SECONDS, RANGE, CLANS, WEATHER, FINAL, HALFTIME, PACE } from './constants.js';
 import { World, S as MAP_SIZE, C as CELL, N as GRID_N } from './world.js';
 import { MAP_BY_ID } from '../maps/defs.js';
 import { HERO_BY_ID, PERSONALITIES } from '../data/heroes.js';
@@ -106,6 +106,7 @@ export class Game {
 
   get time() { return this.tick * DT; }
   get timeLeft() { return Math.max(0, MATCH_SECONDS - this.time); }
+  get siegeRamp() { return 1 + Math.max(0, this.time - PACE.rampFrom) / PACE.rampPer; }
   get finalPhase() { return this.time >= FINAL.at; }
   get finalMult() { return this.time >= FINAL.at ? FINAL.gold : 1; }
   get halftimeTick() { return sec(HALFTIME.at); }
@@ -541,6 +542,7 @@ export class Game {
 
     this.updateWeather();
     if (now === sec(FINAL.at)) this.emit({ type: 'finalPhase' });
+    if (now === sec(PACE.wrathFrom)) this.emit({ type: 'wrath' });
     if (now === sec(HALFTIME.at)) this.emit({ type: 'halftime' });
     if (now % 5 === 0) this.updateShrines();
     this.spawnWaves();
@@ -591,9 +593,10 @@ export class Game {
     const minute = this.time / 60;
     for (let t = 0; t < 2; t++) for (const ln of this.world.laneNames) {
       const kinds = ['melee', 'melee', 'melee', 'caster', 'caster', 'caster'];
-      if (this.waveCount % T.siegeEvery === 0) kinds.splice(3, 0, 'siege');
+      if (this.waveCount % T.siegeEvery === 0 || this.time >= PACE.siegeAllFrom) kinds.splice(3, 0, 'siege');
+      if (this.time >= PACE.wrathFrom) kinds.unshift('super');
       const enemyInhibDown = this.units.some((u) => u.type === 'inhib' && u.team !== t && u.lane === ln && !u.alive);
-      if (enemyInhibDown) kinds.unshift('super');
+      if (enemyInhibDown) kinds.unshift('super', 'super');
       let baron = this.teams[t].heroes.some((h) => h.alive && h.baronUntil > this.tick);
       if (this.teams[t].siegeWaves[ln] > 0) { this.teams[t].siegeWaves[ln]--; baron = true; }
       kinds.forEach((k, i) => this.spawnMinion(t, ln, k, i, minute, baron));
@@ -747,9 +750,10 @@ export class Game {
       if (tgt.structure && !flags.summon) {
         // Backdoor protection: heroes deal reduced damage without minion cover.
         const cover = this.grid.query(tgt.x, tgt.y, 450).some((u) => (u.type === 'minion' || u.type === 'summon') && u.team === src.team && u.alive);
-        if (!cover) amt *= 0.5;
+        if (!cover && this.time < PACE.backdoorOffFrom) amt *= 0.5;
       }
     }
+    if (tgt.structure) amt *= this.siegeRamp;
     if (tgt.structure && tgt.team < 2 && this.teams[tgt.team].fortifyUntil > this.tick) amt *= 0.6;
     if (type !== 'true') {
       const res = type === 'phys' ? (tgt.stats.armor || 0) : (tgt.stats.mr || 0);
