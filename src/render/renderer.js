@@ -186,7 +186,7 @@ export class Renderer {
         case 'zone': if (this.visiblePoint(f.x, f.y)) this.effects.push({ kind: 'zone', x: f.x, y: f.y, r: f.r, team: f.team, born: now, dur: (f.until - g.tick) / TICK_RATE, name: f.name }); break;
         case 'death': this.deathFx(f); break;
         case 'cc': if (u) this.text(u.x, u.y - 46, f.cc === 'knock' ? 'AIRBORNE' : f.cc.toUpperCase(), STATUS_COL[f.cc] || '#ffe066', 9, 0.9); break;
-        case 'duo': if (this.visiblePoint(f.x, f.y)) { const a = byId.get(f.a); this.text(f.x, f.y - 58, 'DUO: ' + f.name.toUpperCase(), a ? TEAM_COL[a.team] : '#fff', 10, 1.3, 'pop'); this.fxSprite('boost', f.x, f.y, 1.4); } break;
+        case 'duo': if (this.visiblePoint(f.x, f.y)) { const a = byId.get(f.a); this.text(f.x, f.y - 58, 'DUO: ' + f.name.toUpperCase(), a ? TEAM_COL[a.team] : '#fff', 10, 1.3, 'pop'); if (this.motion) this.fxSprite('boost', f.x, f.y, 1.4); } break;
         case 'swing': { const t = byId.get(f.tid); if (u && t && this.visible(t)) this.fxSprite('slash', (u.x + t.x) / 2, (u.y + t.y) / 2 - 10, 0.8); } break;
         case 'shield': if (u) this.fxSprite('shield', u.x, u.y - 14, 1.3, u.id); break;
         case 'flash': if (this.visiblePoint(f.x, f.y)) { this.fxSprite('spark', f.x, f.y - 10, 1.4); this.text(f.x, f.y - 40, 'FLASH', '#fff', 9, 0.8); } break;
@@ -588,7 +588,7 @@ export class Renderer {
     if (u.slows.some((s) => s.until > t)) pips.push('slow');
     if (u.rootUntil > t) { ctx.strokeStyle = STATUS_COL.root; ctx.globalAlpha = 0.8; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(x, y + 2, 15, 6, 0, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1; }
     if (u.mark && u.mark.until > t) {
-      const my = py - 12 + Math.sin(this.time * 6) * 1.5; ctx.strokeStyle = STATUS_COL.mark; ctx.lineWidth = 1.5;
+      const my = py - 12 + (this.motion ? Math.sin(this.time * 6) * 1.5 : 0); ctx.strokeStyle = STATUS_COL.mark; ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.moveTo(x, my - 5); ctx.lineTo(x + 5, my); ctx.lineTo(x, my + 5); ctx.lineTo(x - 5, my); ctx.closePath(); ctx.stroke();
       ctx.fillStyle = STATUS_COL.mark; ctx.fillRect(x - 1, my - 1, 2, 2);
     }
