@@ -36,7 +36,7 @@ import { installBuildTips } from './ui/buildguide.js';
 import { saveClip, clipSupport } from './ui/clip.js';
 import { installPressSounds, tokRecent, confetti } from './ui/juice.js';
 
-const VERSION = 10; // bump whenever the sim or balance changes (peers must match)
+const VERSION = 20; // bump whenever the sim or balance changes (peers must match)
 const PREP_SECONDS = 60;
 
 class App {

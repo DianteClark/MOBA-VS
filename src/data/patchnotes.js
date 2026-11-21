@@ -34,6 +34,8 @@ export const PATCHES = [
       'Quick chat and emotes in online games, with a mute toggle.',
       'Faster: the app opens instantly on repeat visits and works on a weak signal, first load is 1.1 MB lighter, the HUD does about 70% less work, and slower phones use an adaptive render resolution.',
       'Fixed: the scoreboard and menu stacking up after several matches.',
+      'Fairer sides: blue and red now win about equally, after fixing who-acts-first order, mirrored timings and objective pits.',
+      'Match pacing: the late game ramps harder, so more matches end at the Crystal before 15:00. The fountain heals only on its platform.',
       'Towers always out-range heroes. Hachi, Tetsu and Brawlo reworked, and every hero and build tuned.',
     ],
     heroes: [],
