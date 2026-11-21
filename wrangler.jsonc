@@ -1,0 +1,12 @@
+// Cloudflare Workers deploy: serves the game as static assets and runs the online API
+// (worker/index.js) for /api/* routes. Deployed by Cloudflare's Git integration on push to main.
+{
+  "name": "moba-vs",
+  "main": "worker/index.js",
+  "compatibility_date": "2025-09-01",
+  "assets": {
+    "directory": "./",
+    "binding": "ASSETS",
+    "not_found_handling": "none"
+  }
+}
