@@ -749,7 +749,7 @@ function doJungle(g, h) {
   }
   if (best) { g.moveToward(h, best); return; }
   // nothing up: hover the lane most likely to need help
-  doLane(g, h, g.time > 540 ? 'mid' : (h.team === BLUE ? 'bot' : 'top'), false);
+  doLane(g, h, h.lane || (g.time > 540 ? 'mid' : (h.team === BLUE ? 'bot' : 'top')), false);
 }
 
 function doGank(g, h, task, C) {

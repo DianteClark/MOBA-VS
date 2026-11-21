@@ -9,6 +9,11 @@ import { pickScore, suggestedBans, teamRoles, presetRole } from '../presets.js';
 import { describeAbility } from './herotext.js';
 import { statBars } from './heroui.js';
 import { audio } from '../audio.js';
+import { BUILDS } from '../data/items.js';
+import { profile } from '../profile.js';
+import { masteryBadge } from './badges.js';
+import { compLine } from './comp.js';
+import { buildLine } from './buildguide.js';
 
 const screen = () => document.getElementById('screen');
 export const AUTO_GRACE = 1.2; // seconds before a preset auto-pick locks in
@@ -59,7 +64,8 @@ export class DraftView {
       });
       return h('div', { class: 'dteam t' + team + (acting ? ' acting' : '') },
         h('div', { class: 'tname' }, h('span', { class: 'tdot' }), h('span', { class: 'tn' }, s.names[team]), team === me ? h('small', {}, 'you') : null,
-          team === me && s.preset ? h('span', { class: 'lineup', title: 'Active lineup: picks lock in automatically' }, '★ ' + s.preset.name) : null),
+          team === me && s.preset && !picks.length ? h('span', { class: 'lineup', title: 'Active lineup: picks lock in automatically' }, '★ ' + s.preset.name) : null,
+          compLine(picks, tk)),
         h('div', { class: 'slots' }, h('div', { class: 'picks' }, pickSlots), h('div', { class: 'bans' }, banSlots)));
     };
     const left = Math.ceil(s.turnLeft ?? TURN_SECONDS);
@@ -83,7 +89,7 @@ export class DraftView {
       return h('button', { class: 'hcard' + (off ? ' off' : '') + (bad ? ' bad' : '') + (this.sel === x.id ? ' sel' : '') + (rec ? ' rec' : ''), disabled: off,
         style: { '--cc': CLANS[x.clan].color }, title: `${x.name} · ${CLANS[x.clan].name} · ${pers.name}`, onclick: () => { if (!off) this.select(x.id); } },
         h('div', { class: 'fwrap' }, h('img', { src: face(x.id) }), ms ? h('span', { class: 'score ' + (ms > 0 ? 'pos' : 'neg') }, (ms > 0 ? '+' : '') + ms) : null,
-          mine ? h('span', { class: 'mine', title: 'In your lineup' }, '★') : null),
+          mine ? h('span', { class: 'mine', title: 'In your lineup' }, '★') : null, me >= 0 ? masteryBadge(profile.mastery(x.id).lv) : null),
         rec ? h('span', { class: 'recb' + (ban ? ' banb' : '') }, ban ? 'BAN?' : 'REC') : null,
         h('div', { class: 'n' }, x.name));
     }));
@@ -141,6 +147,7 @@ export class DraftView {
       myTurn && ban && inLineup ? h('div', { class: 'warnline' }, `${x.name} is in your lineup (${ROLE_LABEL[inLineup]}).`) : null,
       myTurn && !canAct ? h('div', { class: 'warnline' }, taken(d).has(id) ? 'Already banned or picked.' : 'Your team already covers this hero\'s roles.') : null,
       statBars(id, true),
+      h('div', { class: 'chips dbuilds' }, ...x.builds.map((b) => h('span', { class: 'chipx', style: { '--cc': BUILDS[b].color }, title: buildLine(b), 'data-build': b, 'data-build-info': true }, BUILDS[b].name + (b === x.rec ? ' ★' : '')))),
       h('div', { class: 'abl' },
         h('div', { class: 'ab' }, h('img', { src: icon('LuckUpgrade') }), h('div', {}, h('b', {}, x.passive.name), h('div', { class: 'd' }, x.passive.desc))),
         ...x.abilities.map((a) => h('div', { class: 'ab' + (a.ult ? ' ult' : '') }, h('img', { src: icon(a.icon) }), h('div', {}, h('b', {}, (a.ult ? 'Ult: ' : '') + a.name), h('div', { class: 'd' }, describeAbility(a)))))),

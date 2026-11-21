@@ -12,6 +12,11 @@ import { abilitySentence } from './herotext.js';
 import { statBars, heroSprite, heroStill } from './heroui.js';
 import { audio } from '../audio.js';
 import { stopParade } from './screens.js';
+import { buildGuide, buildLine } from './buildguide.js';
+import { masteryPanel } from './mastery.js';
+import { masteryBadge } from './badges.js';
+import { duoSection } from './comp.js';
+import { SEASON_REWARDS, tierById } from '../data/ranks.js';
 
 const screen = () => document.getElementById('screen');
 const tap = () => audio.sfx('move', 0.4);
@@ -23,10 +28,10 @@ export function showDojo(app, patch = {}) {
   stopParade();
   if (patch.tab === 'lineups' && patch.slot === undefined) state.slot = Math.max(0, profile.d.presets.active);
   const prevScroll = screen().scrollTop;
-  const body = state.tab === 'lineups' ? lineups(app) : state.hero ? heroPage(app, state.hero) : heroList(app);
+  const body = state.tab === 'lineups' ? lineups(app) : state.tab === 'builds' ? buildGuide((id) => { tap(); showDojo(app, { tab: 'heroes', hero: id }); }) : state.hero ? heroPage(app, state.hero) : heroList(app);
   const head = h('div', { class: 'shead dojohead' },
     h('button', { class: 'btn backbtn', onclick: () => { tap(); if (state.hero && state.tab === 'heroes') showDojo(app, { hero: null }); else app.menu(); } }, state.hero && state.tab === 'heroes' ? '‹ Heroes' : '‹ Back'),
-    h('div', { class: 'dojotabs' }, ...[['heroes', 'Heroes'], ['lineups', 'Lineups']].map(([k, l]) => h('button', { class: 'chip' + (state.tab === k ? ' on' : ''), onclick: () => { tap(); showDojo(app, { tab: k }); } }, l))),
+    h('div', { class: 'dojotabs' }, ...[['heroes', 'Heroes'], ['builds', 'Builds'], ['lineups', 'Lineups']].map(([k, l]) => h('button', { class: 'chip' + (state.tab === k ? ' on' : ''), onclick: () => { tap(); showDojo(app, { tab: k }); } }, l))),
     h('h2', {}, 'Dojo'));
   mount(screen(), h('div', { class: 'subscreen dojo' }, head, body));
   if (patch.keepScroll) screen().scrollTop = prevScroll; else screen().scrollTop = 0;
@@ -47,7 +52,7 @@ function heroList(app) {
       const r = record(x.id), mine = presetRole(lineup, x.id);
       return h('button', { class: 'dcard', style: { '--cc': CLANS[x.clan].color }, onclick: () => { tap(); showDojo(app, { hero: x.id }); } },
         h('img', { src: face(x.id) }), h('b', {}, x.name), h('small', {}, x.roles.map((q) => ROLE_LABEL[q]).join(' / ')),
-        r ? h('span', { class: 'drec' }, `${r.w}-${r.g - r.w}`) : null, mine ? h('span', { class: 'mine', title: 'In your active lineup' }, '★') : null);
+        masteryBadge(profile.mastery(x.id).lv), r ? h('span', { class: 'drec' }, `${r.w}-${r.g - r.w}`) : null, mine ? h('span', { class: 'mine', title: 'In your active lineup' }, '★') : null);
     })),
     list.length ? null : h('p', { class: 'muted center' }, 'No heroes match these filters.'));
 }
@@ -63,14 +68,17 @@ function heroPage(app, id) {
     onclick: (e) => { sprite.anim = k; for (const b of e.target.parentNode.children) b.classList.toggle('on', b === e.target); } }, l)));
   const muRow = (q) => h('button', { class: 'murow', onclick: () => { tap(); showDojo(app, { hero: q.id }); } }, h('img', { src: face(q.id) }), h('b', {}, HERO_BY_ID[q.id].name), h('small', {}, q.note));
   const skins = h('div', { class: 'dskins' }, ...Object.entries(SKINS).map(([k, sk]) => {
-    const have = profile.d.unlocked.skins.includes(k), lvl = Object.entries(TRACK).find(([, rw]) => rw.kind === 'skin' && rw.id === k);
+    const have = profile.hasSkin(id, k), lvl = Object.entries(TRACK).find(([, rw]) => rw.kind === 'skin' && rw.id === k);
+    const rank = Object.entries(SEASON_REWARDS).find(([, list]) => list.some((rw) => rw.kind === 'skin' && rw.id === k));
+    const how = sk.mastery ? `${x.name} Mastery ${sk.mastery}` : rank ? `${tierById(rank[0]).name} season reward` : `Season Pass level ${lvl ? lvl[0] : '?'}`;
+    const short = sk.mastery ? `M${sk.mastery}` : rank ? tierById(rank[0]).name : `Lv ${lvl ? lvl[0] : '?'}`;
     return h('button', { class: 'skinopt' + (equipped === k ? ' on' : '') + (have ? '' : ' locked'), title: sk.name,
       onclick: () => {
         sprite.skin = k;
-        if (!have) { toast(`${sk.name}: unlocks at Season Pass level ${lvl ? lvl[0] : '?'}`); return; }
+        if (!have) { toast(`${sk.name}: unlocks with ${how}`); return; }
         profile.equipSkin(id, k); audio.sfx('accept', 0.5); showDojo(app, { keepScroll: true });
       } },
-      heroStill(id, k, 40), h('b', {}, sk.name), h('small', {}, have ? (equipped === k ? 'Equipped' : 'Equip') : `Lv ${lvl ? lvl[0] : '?'}`));
+      heroStill(id, k, 40), h('b', {}, sk.name), h('small', {}, have ? (equipped === k ? 'Equipped' : 'Equip') : short));
   }));
   return h('div', { class: 'dhero', style: { '--cc': clan.color } },
     h('div', { class: 'dh-left' },
@@ -93,7 +101,9 @@ function heroPage(app, id) {
       h('div', { class: 'dsec mus' },
         h('div', {}, h('div', { class: 'dsh pos' }, 'Strong vs'), ...(mu.strong.length ? mu.strong.map(muRow) : [h('small', { class: 'muted' }, 'No clear edge')])),
         h('div', {}, h('div', { class: 'dsh neg' }, 'Weak vs'), ...(mu.weak.length ? mu.weak.map(muRow) : [h('small', { class: 'muted' }, 'No hard counters')]))),
-      h('div', { class: 'dsec' }, h('div', { class: 'dsh' }, 'Builds'), h('div', { class: 'chips' }, ...x.builds.map((b) => h('span', { class: 'chipx', style: { '--cc': BUILDS[b].color }, title: BUILDS[b].desc }, BUILDS[b].name + (b === x.rec ? ' ★' : ''))))),
+      h('div', { class: 'dsec' }, h('div', { class: 'dsh' }, 'Builds'), h('div', { class: 'chips' }, ...x.builds.map((b) => h('span', { class: 'chipx', style: { '--cc': BUILDS[b].color }, title: buildLine(b), 'data-build': b, 'data-build-info': true }, BUILDS[b].name + (b === x.rec ? ' ★' : ''))))),
+      duoSection(id, (pid) => { tap(); showDojo(app, { hero: pid }); }),
+      masteryPanel(id),
       h('div', { class: 'dsec' }, h('div', { class: 'dsh' }, 'Skins'), skins, h('small', { class: 'muted' }, 'Skins show on this hero in every match. Online, your opponent sees them too.'))));
 }
 
@@ -111,7 +121,7 @@ function lineups(app) {
     return h('button', { class: 'lhero' + (id ? '' : ' empty') + (kind === 'backup' ? ' bk' : ''), onclick: () => { tap(); pickHero(app, role, kind); } },
       id ? h('img', { src: face(id) }) : h('span', { class: 'plus' }, '+'), h('span', { class: 'ln' }, id ? HERO_BY_ID[id].name : kind === 'main' ? 'Choose' : 'Backup'));
   };
-  const buildChips = (id) => id ? h('div', { class: 'lbuilds' }, ...HERO_BY_ID[id].builds.map((b) => h('button', { class: 'bchip' + (p.builds[id] === b ? ' on' : ''), style: { '--bc': BUILDS[b].color }, title: BUILDS[b].desc,
+  const buildChips = (id) => id ? h('div', { class: 'lbuilds' }, ...HERO_BY_ID[id].builds.map((b) => h('button', { class: 'bchip' + (p.builds[id] === b ? ' on' : ''), style: { '--bc': BUILDS[b].color }, title: buildLine(b), 'data-build': b,
     onclick: () => { tap(); p.builds[id] = b; save(app, p); } }, BUILDS[b].name))) : h('div', { class: 'lbuilds' });
   const rows = ROLES.map((role) => h('div', { class: 'lrow2' },
     h('span', { class: 'lrole' }, ROLE_LABEL[role]),
