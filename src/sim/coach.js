@@ -3,10 +3,13 @@
 import { sec } from './constants.js';
 import { dist2 } from './geom.js';
 import { aiMoment } from './moments-coach.js';
+import { coachWeights, PLAN_IDS, PLAN_BEATS } from './plans.js';
 
 export class Coach {
-  constructor(g, team, level = 1) {
+  // style (rival coaches, part of the match cfg): { moment: 'early'|'late', backup: plan id for halftime }
+  constructor(g, team, level = 1, style = null) {
     this.g = g; this.team = team; this.level = level; // 0 easy, 1 normal, 2 hard
+    this.style = style || {};
     this.next = sec(20) + team * 7;
     this.cooldown = { surge: 0, ult: 0, gank: 0, objective: 0, reset: 0, group: 0, focus: 0, herald: 0, build: 0, invade: 0, shrine: 0 };
   }
@@ -31,12 +34,17 @@ export class Coach {
     if (this.useTactics(me, them, alive, visibleEnemies, deadEnemies)) return;
     if (me.momentum >= 100 && ready('surge') && this.useSurge(me, alive, visibleEnemies)) { cd('surge', 10); return; }
     if (aiMoment(this, { alive, visibleEnemies, deadEnemies })) return;
-    // Halftime adjustments: change plan by tower score, swap a weak card
+    // Halftime adjustments: behind on towers (or gold), switch plan: the rival's backup plan, or (Normal/Hard)
+    // one that beats the enemy's plan; swap a weak card
     if (g.halftimeTick >= 0 && now >= g.halftimeTick && now < g.halftimeTick + sec(6) && !this.didHalftime) {
       this.didHalftime = true;
       const diff = g.towersStanding(this.team) - g.towersStanding(1 - this.team);
-      const plan = diff < 0 ? 'aggressive' : diff > 1 ? 'balanced' : me.plan;
-      if (plan !== me.plan) this.issue({ type: 'plan', plan });
+      const gold = (t) => g.teams[t].heroes.reduce((a, h) => a + h.goldEarned, 0), behind = diff < 0 || (diff === 0 && gold(this.team) < gold(1 - this.team) - 1500);
+      if (behind && PLAN_IDS.includes(me.plan)) {
+        const counter = PLAN_IDS.find((p) => p !== me.plan && (PLAN_BEATS[p] || []).includes(them.plan));
+        const plan = this.style.backup && this.style.backup !== me.plan && (this.level < 1 || !counter) ? this.style.backup : this.level >= 1 ? counter : this.style.backup;
+        if (plan && plan !== me.plan) this.issue({ type: 'plan', plan });
+      }
       const unused = me.deck.find((d) => !d.used && (d.id === 'sweep' || d.id === 'swap'));
       if (unused) for (const to of ['rally', 'wind', 'smoke', 'siege']) if (!me.deck.some((d) => d.id === to)) { this.issue({ type: 'redraw', card: unused.id, to }); break; }
     }
@@ -65,7 +73,9 @@ export class Coach {
         if (want && want !== h.build) { this.issue({ type: 'build', hero: h.id, build: want }); break; }
       }
     }
-    // Objectives
+    // Objectives (the plan bends how eager: Objective Control and early Aggression call them more freely,
+    // early Scale only with an enemy down)
+    const W = coachWeights(g, this.team);
     const takeObj = (obj, minAlive, extra) => {
       const o = g.objectives[obj];
       const spawnSoon = !o && g.objTimers[obj] && g.objTimers[obj] - now < sec(20) && g.objTimers[obj] > 0;
@@ -75,8 +85,9 @@ export class Coach {
       const enemiesNearPit = near(pit, LANE_NAMES.length === 1 ? 650 : 1100, visibleEnemies);
       if (alive.length < minAlive) return false;
       if (enemiesNearPit > 1 && deadEnemies === 0) return false;
-      if (!extra) return false;
-      if (this.issue({ type: 'objective', obj })) { cd('objective', 40); return true; }
+      if (W.objWait && deadEnemies < 1) return false;
+      if (!extra && !(W.objFree && obj !== 'baron' && alive.length >= enemyAlive.length && enemiesNearPit === 0)) return false;
+      if (this.issue({ type: 'objective', obj })) { cd('objective', W.objCd); return true; }
       return false;
     };
     if (takeObj('baron', 4, deadEnemies >= 2 || (g.time > 1050 * k && alive.length >= enemyAlive.length + 1) || (LANE_NAMES.length === 1 && alive.length >= enemyAlive.length + 1))) return;
@@ -99,7 +110,7 @@ export class Coach {
           const pr = g.world.laneProgress(lane, e), mine = this.team === 0 ? pr : 1 - pr;
           if (mine < 0.48 && e.hp / e.maxHp < 0.8) {
             const ally = me.heroes.find((a) => a.alive && a.lane === lane);
-            if (ally && this.issue({ type: 'gank', lane })) { cd('gank', 35); return; }
+            if (ally && this.issue({ type: 'gank', lane })) { cd('gank', W.gankCd); return; }
           }
         }
       }
@@ -119,15 +130,17 @@ export class Coach {
     }
     // Mid/late: group to push where the enemy is missing
     // Late game: close it out. Group on the lane where the enemy base is most open.
-    const late = g.time > 600 * k || (LANE_NAMES.length === 1 && deadEnemies >= 2); // one lane: every won fight is a push
+    // (Split Push groups mid, Protect the Carry groups where the carry is; both start earlier.)
+    const late = g.time > W.lateAt * k || (LANE_NAMES.length === 1 && deadEnemies >= 2); // one lane: every won fight is a push
     if (ready('group') && late && charges >= 1 && alive.length >= 3 && (deadEnemies >= 1 || alive.length >= enemyAlive.length || g.time > 780 * k)) {
-      const lane = this.weakestLane();
-      if (this.issue({ type: 'group', lane })) { cd('group', g.time > 780 * k ? 25 : 40); return; }
+      const lane = W.groupLane && LANE_NAMES.includes(W.groupLane) && g.time < 780 * k ? W.groupLane : this.weakestLane();
+      if (this.issue({ type: 'group', lane })) { cd('group', g.time > 780 * k ? 25 : W.groupCd); return; }
     }
     // Invade when enemy jungler seen far away
-    if (this.level >= 1 && ready('invade') && charges >= 2 && g.camps.length && g.time > 200 * k && g.time < 900 * k) {
+    // (Early Aggression invades sooner.)
+    if (this.level >= 1 && ready('invade') && charges >= 2 && g.camps.length && g.time > W.invadeFrom * k && g.time < 900 * k) {
       const ej = them.heroes.find((h) => h.role === 'jungle');
-      if (ej && (!ej.alive || (vis.has(ej.id) && jg && dist2(ej, jg) > 1600 * 1600))) { if (this.issue({ type: 'invade' })) { cd('invade', 120); return; } }
+      if (ej && (!ej.alive || (vis.has(ej.id) && jg && dist2(ej, jg) > 1600 * 1600))) { if (this.issue({ type: 'invade' })) { cd('invade', W.invadeCd); return; } }
     }
   }
 

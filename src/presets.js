@@ -3,13 +3,16 @@
 import { HEROES, HERO_BY_ID, ROLES, matchupScore } from './data/heroes.js';
 import { TACTIC_IDS, DEFAULT_DECK } from './data/tactics.js';
 import { taken, legal, currentTurn, aiPrep } from './sim/draft.js';
+import { PLAN_IDS, PLAN_INFO } from './data/plans.js';
 
 const PRESET_VERSION = 1;
 const PRESET_SLOTS = 5;
-export const PLANS = { aggressive: ['Aggressive', 'Trade often, roam early, chase further.'], balanced: ['Balanced', 'Default risk. Adapt to the game.'], scaling: ['Scaling', 'Farm safely; avoid even fights before ~10 min.'] };
+// Lineup plan choices: 'auto' takes the recommended plan for each matchup (src/sim/draft.js recommendPlan).
+export const PLANS = { auto: ['Auto', 'The recommended plan for each matchup.'], ...Object.fromEntries(PLAN_IDS.map((k) => [k, [PLAN_INFO[k].short, PLAN_INFO[k].desc]])) };
+const LEGACY_PLAN = { aggressive: 'aggro', scaling: 'scale' };
 
 const emptyRoles = () => Object.fromEntries(ROLES.map((r) => [r, null]));
-export function newPreset(name) { return { name, main: emptyRoles(), backup: emptyRoles(), builds: {}, plan: 'balanced', deck: DEFAULT_DECK.slice() }; }
+export function newPreset(name) { return { name, main: emptyRoles(), backup: emptyRoles(), builds: {}, plan: 'auto', deck: DEFAULT_DECK.slice() }; }
 const STARTER = { name: 'Starter', main: { top: 'bastion', jungle: 'kaze', mid: 'ember', bot: 'fletch', support: 'oak' },
   backup: { top: 'grok', jungle: 'leonin', mid: 'raiden', bot: 'marlowe', support: 'wu' } };
 function freshPresets() {
@@ -29,7 +32,8 @@ export function sanitize(p) {
     if (id && HERO_BY_ID[id] && HERO_BY_ID[id].roles.includes(r) && !used.has(id)) { out[kind][r] = id; used.add(id); }
   }
   for (const id of used) { const b = p.builds && p.builds[id]; out.builds[id] = HERO_BY_ID[id].builds.includes(b) ? b : HERO_BY_ID[id].rec; }
-  out.plan = PLANS[p.plan] ? p.plan : 'balanced';
+  const plan = LEGACY_PLAN[p.plan] || p.plan;
+  out.plan = PLANS[plan] ? plan : 'auto';
   const deck = [...new Set((p.deck || []).filter((c) => TACTIC_IDS.includes(c)))].slice(0, 3);
   for (const c of DEFAULT_DECK) if (deck.length < 3 && !deck.includes(c)) deck.push(c);
   out.deck = deck;
@@ -115,13 +119,13 @@ export function presetChoice(d, team, preset) {
 
 // ── prep ──
 // Builds, lanes, plan and deck from the preset for heroes that came from it; recommended defaults otherwise.
-export function prepFromPreset(ids, enemyIds, preset) {
-  const rec = aiPrep(ids, enemyIds), roles = teamRoles(ids, preset);
+export function prepFromPreset(ids, enemyIds, preset, mode) {
+  const rec = aiPrep(ids, enemyIds, mode), roles = teamRoles(ids, preset);
   const fromPreset = ids.filter((id) => presetRole(preset, id));
   const prep = { plan: rec.plan, deck: DEFAULT_DECK.slice(), heroes: rec.heroes.map((hp, i) => {
     const b = preset && preset.builds[hp.id];
     return { id: hp.id, role: roles ? roles[i] : hp.role, build: presetRole(preset, hp.id) && HERO_BY_ID[hp.id].builds.includes(b) ? b : hp.build };
   }) };
-  if (preset) { prep.plan = preset.plan; prep.deck = preset.deck.slice(0, 3); } else prep.deck = rec.deck.slice(0, 3);
+  if (preset) { if (PLAN_INFO[preset.plan] && !(mode === 'rush' && preset.plan === 'split')) prep.plan = preset.plan; prep.deck = preset.deck.slice(0, 3); } else prep.deck = rec.deck.slice(0, 3);
   return { prep, fromPreset };
 }

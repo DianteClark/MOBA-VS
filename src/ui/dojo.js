@@ -142,7 +142,7 @@ function lineups(app) {
       h('div', { class: 'muted small' }, isActive ? 'Your picks lock in automatically from this lineup (top to support). If a hero is banned or taken, the backup steps in.' : 'Make this lineup active to auto-pick it in the draft.'),
       h('div', { class: 'lgrid' }, h('div', { class: 'lrow2 lh' }, h('span'), h('small', {}, 'Main pick + build'), h('small', {}, 'Backup + build')), ...rows),
       h('div', { class: 'lbottom' },
-        h('div', { class: 'lplan' }, h('div', { class: 'dsh' }, 'Team plan'), h('div', { class: 'seg3' }, ...Object.entries(PLANS).map(([k, [nm, dsc]]) => h('button', { class: 'chip' + (p.plan === k ? ' on' : ''), title: dsc, onclick: () => { tap(); p.plan = k; save(app, p); } }, nm)))),
+        h('div', { class: 'lplan' }, h('div', { class: 'dsh' }, 'Team plan'), h('div', { class: 'seg3 segplan' }, ...Object.entries(PLANS).map(([k, [nm, dsc]]) => h('button', { class: 'chip' + (p.plan === k ? ' on' : ''), title: dsc, onclick: () => { tap(); p.plan = k; save(app, p); } }, nm)))),
         h('div', { class: 'ldeck' }, h('div', { class: 'dsh' }, 'Tactic cards'),
           h('button', { class: 'ldeckbtn', onclick: () => { tap(); pickCards(app); } }, ...p.deck.map((c) => h('span', { class: 'pdc' }, h('img', { src: icon(TACTICS[c].icon) }), TACTICS[c].name)), h('span', { class: 'chg' }, 'Change')))),
       issues.length ? h('div', { class: 'lissues' }, ...issues.map((t) => h('div', {}, t))) : null));

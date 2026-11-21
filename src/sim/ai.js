@@ -9,9 +9,9 @@
 import { DT, sec, BLUE, MOMENTUM } from './constants.js';
 import { dist2, dist, norm, segDist2 } from './geom.js';
 import { isCCd } from './effects.js';
+import { planRisk, planLane, planSplits, planCarry, diveMul, gankWeights, wardWeights, contestReach, peelMul } from './plans.js';
 
 const LANES = ['top', 'mid', 'bot'];
-const PLAN_RISK = { aggressive: 0.84, balanced: 1.0, scaling: 1.16 };
 const CARRY = (h) => h.def.cls === 'marksman' || h.def.cls === 'mage';
 const FRONT = (h) => h.def.cls === 'tank' || h.def.cls === 'bruiser';
 
@@ -82,10 +82,7 @@ function stepBack(g, h) {
   return W.nearestOpen(lanePt(g, h.team, lane, Math.max(0.03, myProg(g, h.team, lane, h) - 0.08)));
 }
 function riskOf(g, h) {
-  const plan = g.teams[h.team].plan;
-  let r = PLAN_RISK[plan] || 1;
-  if (plan === 'scaling' && g.time > 540) r = 1;
-  if (plan === 'aggressive' && g.time > 720) r = 0.92;
+  let r = planRisk(g, h); // the team's game plan (src/sim/plans.js)
   r /= mods(h).aggro;
   if (h.task.call && ['gank', 'objective', 'group', 'invade', 'contest', 'defend', 'shrine'].includes(h.task.kind)) r -= 0.12 * mods(h).discipline;
   if (h.task.kind === 'permit') r -= 0.16; // the coach gave the green light
@@ -142,7 +139,7 @@ function diveOk(g, h, t, allies, near) {
   const exposure = ttk + 0.35 + exitT;
   const taken = towerDps * share * exposure + enemyDps * ttk / Math.max(1, divers.length);
   const value = (t.killStreak >= 3 ? 1 : 0) + (t.hp / t.maxHp < 0.2 ? 0.6 : 0) + (CARRY(t) ? 0.3 : 0) + (g.finalPhase ? 0.4 : 0);
-  const margin = Math.max(0.06, 0.32 - 0.1 * value) * h.maxHp;
+  const margin = Math.max(0.06, 0.32 - 0.1 * value) * diveMul(g, h.team) * h.maxHp;
   return g.ehp(h) - taken > margin;
 }
 
@@ -252,9 +249,10 @@ export function heroMacro(g, h) {
   const enemiesClose = C.enemies.filter((e) => dist2(e, h) < 900 * 900).length;
 
   // wards: supports & junglers drop wards near key spots they pass
-  if ((h.role === 'support' || h.role === 'jungle' || h.stats.sight > 0) && now >= h.wardCd) {
+  const [wardK, allWard] = wardWeights(g, h.team); // Objective Control: faster wards, and everyone carries them
+  if ((h.role === 'support' || h.role === 'jungle' || h.stats.sight > 0 || allWard) && now >= h.wardCd) {
     for (const s of g.wardSpots(h.team)) if (dist2(h, s) < 240 * 240 && !g.wards.some((w) => w.team === h.team && dist2(w, s) < 220 * 220 && w.until > now)) {
-      g.placeWard(h, s); h.wardCd = now + sec((h.role === 'support' ? 22 : 40) / (h.stats.sight >= 0.2 ? 2 : 1)); break;
+      g.placeWard(h, s); h.wardCd = now + sec((h.role === 'support' ? 22 : 40) * wardK / (h.stats.sight >= 0.2 ? 2 : 1)); break;
     }
   }
 
@@ -301,8 +299,9 @@ export function heroMacro(g, h) {
     if (h.task.kind !== 'jungle') h.task = { kind: 'jungle' };
     return;
   }
-  const lk = wantsSplit(g, h) ? 'split' : 'lane';
-  if (h.task.kind !== lk || h.task.lane !== h.lane) h.task = { kind: lk, lane: h.lane };
+  const lane = planLane(g, h) || h.lane; // the plan's shape (1-3-1, walk with the carry)
+  const lk = wantsSplit(g, h) || planSplits(g, h) ? 'split' : 'lane';
+  if (h.task.kind !== lk || h.task.lane !== lane) h.task = { kind: lk, lane };
 }
 
 function baseThreat(g, team) {
@@ -322,7 +321,7 @@ function contestTarget(g, h, C) {
     const on = C.enemies.filter((e) => dist2(e, o) < 650 * 650);
     if (!on.length) continue;
     const d = g.world.pathDist(h, o);
-    if (d > (h.role === 'jungle' ? 2300 : 1600)) continue;
+    if (d > (h.role === 'jungle' ? 2300 : 1600) + contestReach(g, h.team)) continue;
     const coming = C.allies.filter((a) => g.world.pathDist(a, o) < 1900).length;
     if (coming >= on.length - 1 || h.role === 'jungle') return o;
   }
@@ -333,6 +332,7 @@ function contestTarget(g, h, C) {
 function helpTarget(g, h, C) {
   if (h.hp / h.maxHp < 0.45 || h.helpCd > g.tick) return null;
   const now = g.tick, eta = h.role === 'jungle' || h.role === 'support' ? 3.2 : 2.2;
+  const carry = g.teams[h.team].plan === 'protect' ? planCarry(g, h.team) : null; // Protect the Carry: run to the carry's fights
   const midCamp = h.role === 'jungle' && g.grid.query(h.x, h.y, 260).some((m) => m.type === 'mob' && m.alive && m.hp < m.maxHp);
   let best = null, bs = 0;
   for (const a of C.allies) {
@@ -340,7 +340,7 @@ function helpTarget(g, h, C) {
     const ahp = a.hp / a.maxHp, dived = ahp < 0.5;
     if (!(now - a.lastHitHero < sec(1.5) || dived)) continue; // one-sided poke is not a fight
     if (midCamp && ahp > 0.4) continue;
-    const d = g.world.pathDist(a, h), t = d / Math.max(200, h.stats.ms); if (t > eta) continue;
+    const d = g.world.pathDist(a, h), t = d / Math.max(200, h.stats.ms); if (t > eta * (a === carry ? 1.6 : 1)) continue;
     const foes = C.enemies.filter((e) => dist2(e, a) < 600 * 600);
     if (!foes.length || foes.length > 3) continue;
     const s = (1 - ahp) + 1 - t / eta;
@@ -364,7 +364,8 @@ function gankOpportunity(g, h, C) {
       if (score > bs) { bs = score; best = lane; }
     }
   }
-  return bs > 0.85 && g.rng.chance(0.55 * mods(h).aggro) ? best : null;
+  const [gate, mul] = gankWeights(g, h.team); // Early Aggression ganks on thinner chances; Scale farms instead
+  return bs > gate && g.rng.chance(Math.min(0.95, 0.55 * mods(h).aggro * mul)) ? best : null;
 }
 
 // ─────────────────────────── micro ───────────────────────────
@@ -494,7 +495,7 @@ function combat(g, h, C, recalling) {
     if (CARRY(e)) s += h.def.cls === 'assassin' ? 350 : 140;
     if (h.fightTarget === e.id) s += 180;
     // threats on my carries get peeled
-    if ((h.role === 'support' || FRONT(h)) && allies.some((a) => CARRY(a) && dist2(a, e) < 220 * 220)) s += 260 * m.peel;
+    if ((h.role === 'support' || FRONT(h)) && allies.some((a) => CARRY(a) && dist2(a, e) < 220 * 220)) s += 260 * m.peel * peelMul(g, h);
     const tw = enemyTowerAt(g, h.team, e, 0);
     if (tw && !diveOk(g, h, e, allies, near)) s -= 1400;
     if (s > bestScore) { bestScore = s; best = e; }
@@ -814,7 +815,7 @@ function farmAround(g, h, r, includeStructures) {
   const tmp = g.grid.query(h.x, h.y, r);
   let lastHit = null, soon = null, soonD = Infinity, push = null, pushS = Infinity, tower = null;
   const myDmg = h.stats.ad;
-  const pushing = h.task.kind !== 'lane' || g.teams[h.team].plan === 'aggressive';
+  const pushing = h.task.kind !== 'lane' || (g.teams[h.team].plan === 'aggro' && g.gameMinute < 10);
   const mobs = [];
   for (const e of tmp) {
     if (!e.alive || e.team === h.team) continue;

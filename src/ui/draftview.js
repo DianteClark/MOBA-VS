@@ -17,6 +17,8 @@ import { masteryBadge } from './badges.js';
 import { compLine } from './comp.js';
 import { buildLine } from './buildguide.js';
 import { searchBox, applySearch } from './herosearch.js';
+import { rivalDraftNote, rivalFaceImg } from './rivals.js';
+import { RIVAL_BY_ID } from '../data/rivals.js';
 import { draftLegal, draftWho, rolesLine, coachOf, COOP_COL } from '../coop-room.js';
 import { coopRoles, seatRoles } from '../sim/coop.js';
 
@@ -74,7 +76,7 @@ export class DraftView {
         return h('div', { class: 'slot ban' + (active ? ' active' : '') + (id ? ' filled' : '') }, id ? h('img', { src: face(id) }) : null);
       });
       return h('div', { class: 'dteam t' + team + (acting ? ' acting' : '') },
-        h('div', { class: 'tname' }, h('span', { class: 'tdot' }), h('span', { class: 'tn' }, s.names[team]), team === me ? h('small', {}, 'you') : null,
+        h('div', { class: 'tname' }, h('span', { class: 'tdot' }), team !== me && s.rival && RIVAL_BY_ID[s.rival] ? rivalFaceImg(RIVAL_BY_ID[s.rival], 18) : null, h('span', { class: 'tn' }, s.names[team]), team === me ? h('small', {}, 'you') : null,
           team === me && s.preset && !picks.length ? h('span', { class: 'lineup', title: 'Active lineup: picks lock in automatically' }, '★ ' + s.preset.name) : null,
           compLine(picks, tk)),
         h('div', { class: 'slots' }, h('div', { class: 'picks' }, pickSlots), h('div', { class: 'bans' }, banSlots)));
@@ -166,7 +168,8 @@ export class DraftView {
           : t.act === 'ban' ? 'Your ban: remove a hero you fear.' : `Your pick. Still needed: ${need.join(', ')}`),
         h('div', { class: 'muted small' }, myTurn && t.act === 'ban' ? (recs.length ? 'Suggested bans counter your lineup.' : 'Tap a hero to ban it.')
           : recs.length && myTurn ? 'Heroes marked REC suit your draft.' : 'Tap a hero to see abilities and matchups.'),
-        !s.preset && me >= 0 && !d.done && s.mode !== 'coop' ? h('div', { class: 'muted small' }, 'Tip: set up a lineup in the Dojo and your picks lock in automatically.') : null]);
+        !s.preset && me >= 0 && !d.done && s.mode !== 'coop' ? h('div', { class: 'muted small' }, 'Tip: set up a lineup in the Dojo and your picks lock in automatically.') : null,
+        rivalDraftNote(s)]);
     }
     const x = HERO_BY_ID[id], pers = PERSONALITIES[x.pers], clan = CLANS[x.clan];
     const ban = t && t.act === 'ban', canAct = myTurn && this.legal(id), mu = matchupScore(x, enemyPicks);

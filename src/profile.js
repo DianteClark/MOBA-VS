@@ -10,12 +10,13 @@ import { loadPresets, sanitize } from './presets.js';
 import { recordCareer } from './ui/career.js';
 import { FREE_EMOTES, EMOTES, BORDERS } from './data/cosmetics.js';
 import { ACH, matchContext } from './data/achievements.js';
+import { RIVAL_BY_ID } from './data/rivals.js';
 
 const KEY = 'mobavs_profile_v1';
 const fresh = () => ({
   v: 1, seasons: {}, unlocked: { skins: ['base'], banners: ['plain'], titles: ['rookie'], emotes: [...FREE_EMOTES], borders: [] },
   equip: { banner: 'plain', title: 'rookie', skins: {}, emote: 'grin', border: null }, ach: { got: {}, roles: [] }, trophies: { gold: 0, silver: 0 }, borders: [],
-  history: [], heroStats: {}, cup: null, seenPatch: '', lastSeason: 0, mastery: {},
+  history: [], heroStats: {}, cup: null, seenPatch: '', lastSeason: 0, mastery: {}, rivals: {},
 });
 
 // Same MVP rule as the results screen.
@@ -100,7 +101,7 @@ export class Profile {
   //   potgHero: hero id of the Play of the Game (mastery points); analytics: the match's analytics record (career stats).
   //   coop: { kind: 'ai' | '2v2', heroes: the hero ids this coach ran, info } for co-op rooms (casual: no rating;
   //   hero stats and mastery count for this coach's own heroes).
-  record({ game, myTeam, mode, aiLevel, cup, ranked, oppElo, potgHero, analytics, coop = null }) {
+  record({ game, myTeam, mode, aiLevel, cup, ranked, oppElo, potgHero, analytics, coop = null, rival = null }) {
     if (myTeam < 0) return null;
     const s = this.ss(), season = this.season;
     const won = game.winner === myTeam;
@@ -158,15 +159,40 @@ export class Profile {
       names: (this.lastNames || ['You', 'Rival']).slice(), mvp, crystal: !game.events.some((e) => e.type === 'victory' && e.timeout),
       rank: rankOf(s.elo).label, rpDelta: elo - before, cup: cup ? (profile_cupRound(this.d.cup)) : null,
       calls: game.callLog.filter((c) => c.team === myTeam && c.result === 'success').length,
+      ...(rival && RIVAL_BY_ID[rival] ? { rv: rival } : {}),
       ...(coop ? { coop: coop.info } : {}),
       emote: this.emote, sk: this.skinsFor(team.heroes.map((x) => x.heroId)), // share card: signature emote + skinned portraits
     });
+    const rv = rival ? this.recordRival(rival, won) : null;
     this.d.history.length = Math.min(this.d.history.length, 50);
     this.save();
     const rankAfter = rankOf(elo);
     return { won, rated, rg: s.rg, key, eloBefore: before, elo, delta: elo - before, rankBefore, rankAfter,
       promoted: rankAfter.step > rankBefore.step, demoted: rankAfter.step < rankBefore.step,
-      xp, xpParts, lvBefore, lvAfter, unlocks, mastery, ach, capped: rated && key.startsWith('ai') && won && elo >= AI_CAP[aiLevel] };
+      xp, xpParts, lvBefore, lvAfter, unlocks, mastery, ach, rival: rv, capped: rated && key.startsWith('ai') && won && elo >= AI_CAP[aiLevel] };
+  }
+
+  // Rival coaches: { [id]: { w, l, s (streak: +wins / -losses), t } } for the 12 known rivals only (bounded).
+  rivalRec(id) { return (this.d.rivals || {})[id] || { w: 0, l: 0, s: 0, t: 0 }; }
+  // Your nemesis: the rival with the worst record against you (3+ losses, at least 2 more losses than wins).
+  nemesis() {
+    let best = null, bv = 1, bt = 0;
+    for (const [id, r] of Object.entries(this.d.rivals || {})) {
+      if (!RIVAL_BY_ID[id] || r.l < 3) continue;
+      const v = r.l - r.w;
+      if (v > bv || (v === bv && best && r.t > bt)) { bv = v; best = id; bt = r.t; }
+    }
+    return best;
+  }
+  recordRival(id, won) {
+    if (!RIVAL_BY_ID[id]) return null;
+    const R = this.d.rivals || (this.d.rivals = {});
+    for (const k of Object.keys(R)) if (!RIVAL_BY_ID[k]) delete R[k];
+    const nemBefore = this.nemesis(), r = R[id] || (R[id] = { w: 0, l: 0, s: 0, t: 0 });
+    if (won) { r.w++; r.s = r.s > 0 ? r.s + 1 : 1; } else { r.l++; r.s = r.s < 0 ? r.s - 1 : -1; }
+    r.t = Date.now();
+    const nem = this.nemesis();
+    return { id, w: r.w, l: r.l, s: r.s, nemesis: nem === id, newNemesis: nem === id && nemBefore !== id, revenge: won && nemBefore === id, freed: nemBefore === id && nem !== id };
   }
 
   // Mastery of one hero: { lv, pts, into, toNext, max }

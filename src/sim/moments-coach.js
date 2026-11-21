@@ -56,6 +56,10 @@ export function aiMoment(coach, ctx) {
   const g = coach.g, me = coach.team, now = g.tick;
   if (coach.level === 0 && g.rng.chance(0.5)) return false; // Easy coaches forget about them half the time
   const { alive, visibleEnemies, deadEnemies } = ctx;
+  // Rival coaches have a habit: 'early' fires them on the first decent fight, 'late' saves them for the second half
+  const habit = (coach.style && coach.style.moment) || '';
+  if (habit === 'late' && g.time < 450 * g.rules.k && deadEnemies < 3) return false;
+  const minFight = habit === 'early' ? 2 : 3;
   const use = (id) => momentReady(g, me, id) && coach.issue({ type: 'moment', id });
   const near = (h, list, r) => list.filter((e) => (e.x - h.x) ** 2 + (e.y - h.y) ** 2 < r * r);
   const fighters = alive.filter((h) => now - h.lastCombat < sec(2) && near(h, visibleEnemies, 700).length);
@@ -63,7 +67,7 @@ export function aiMoment(coach, ctx) {
   const avgHp = fighters.reduce((a, h) => a + h.hp / h.maxHp, 0) / Math.max(1, fighters.length);
   const underTheirTower = fighters.some((h) => g.units.some((u) => u.type === 'tower' && u.alive && u.team !== me && (u.x - h.x) ** 2 + (u.y - h.y) ** 2 < (u.stats.range + 60) ** 2));
   // Rally: an even-or-better teamfight in the open
-  if (fighters.length >= 3 && foes.length >= 2 && fighters.length >= foes.length && avgHp > 0.4 && !underTheirTower && use('rally')) return true;
+  if (fighters.length >= minFight && foes.length >= 2 && fighters.length >= foes.length && avgHp > 0.4 && !underTheirTower && use('rally')) return true;
   // Timeout: a drawn-out fight where the team is worn down but nobody has died yet
   const worn = alive.length >= 3 && alive.reduce((a, h) => a + h.hp / h.maxHp, 0) / alive.length < 0.45;
   const spent = alive.filter((h) => h.cds[0] > now + sec(3) && h.cds[1] > now + sec(3)).length;

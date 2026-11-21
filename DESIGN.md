@@ -21,7 +21,7 @@
 |---|---|
 | Lobby | Host gets a 5-letter room code (or play vs AI / watch AI vs AI). Pick a map or Random. |
 | **Draft** | Tournament bans/picks from 60 heroes, 5 roles. Bans are always manual (with suggested bans). With an active **lineup**, your picks lock in automatically (backup if the main is gone, a 3-hero prompt if both are). |
-| **Prep** | A quick confirm: lanes, builds, team plan and **3 tactic cards** come prefilled from your lineup; *Adjust* opens the editors. |
+| **Prep** | A quick confirm: lanes, builds, **game plan** (recommended one marked) and **3 tactic cards** come prefilled from your lineup; *Adjust* opens the editors. Plans stay secret until kickoff. |
 | **Match** | 15:00 countdown. Make calls with your command charges; play your tactic cards. |
 | Results | Play of the Game (replayed from the match replay), coach report card (Calls / Objectives / Macro grades + one tip), MVP, stats, gold-lead graph, call log with outcomes. |
 
@@ -98,13 +98,29 @@ Shown as a hand of big cards above the calls. Smoke Bomb · Ambush · Rally Cry 
 Auto (heroes decide) · **Hold** (save ultimates for kills/self-defence, 45s) · **ALL-IN** (fire them in the next fight, 20s). Free.
 
 ### Halftime (7:30) and Last Stand (12:00+)
-At 7:30 the match pauses (up to 20s, both coaches ready to skip): change plan, builds and swap one unused card. In the final 3 minutes gold rewards are ×1.5 and respawns ×1.25.
+At 7:30 the match pauses (up to 20s, both coaches ready to skip): switch game plan (the only plan change of the match), builds and swap one unused card. In the final 3 minutes gold rewards are ×1.5 and respawns ×1.25.
 
 ### Ticker, alerts and fight cam
 A single priority ticker line under the score (only what your team can see: missing enemies, objectives waking, captures, towers). Off-screen edge arrows show fights, structures and objectives under attack; a fight with 3+ heroes becomes "FIGHT AT KAMI, tap to watch": tapping cuts the camera there and the first big ultimate plays in brief slow motion (off with Reduced motion).
 
 ### Play of the Game & report card
 At the end the event log is scanned for the ~12s window with the biggest swing for the winner (kills, ultimates, objectives, towers). The results screen replays it: a fresh game is fast-forwarded headlessly from the replay (config + command log) to the window, then shown with the director camera. The coach report card grades Calls, Objectives and Macro (S-D) and gives one concrete tip.
+
+### Game plans (`src/sim/plans.js`, `src/data/plans.js`)
+Five plans, picked in prep, revealed to both sides at kickoff, switchable once at halftime. They are deterministic **weights** on the existing AI (no new behaviour trees): fight-or-flight risk by minute, dive margin, jungler gank appetite, ward rate, contest reach, peel, lane assignment, and the AI coach's invade / objective / gank / group timing.
+
+| Plan | Plays like | Beats | Loses to |
+|---|---|---|---|
+| Early Aggression | low risk before 8:00, deeper dives, more ganks, earlier invades, early Oni/Kami calls; fades late | Scale, Split | Objectives, Protect |
+| Scale | high risk early (no even fights), no invades, objectives only when 2 up; loose and grouped after 10:00 | Split, Objectives | Aggression, Protect |
+| Objective Control | everyone wards (faster), brave near live pits, freer objective calls, wider contest reach | Protect, Aggression | Scale, Split |
+| Split Push | 1-3-1: one or two side laners (siege builds first) split from 7:00, the rest hold mid from 9:00 | Objectives, Protect | Aggression, Scale |
+| Protect the Carry | the best-scaling carry plays safe; support + frontline walk with it from 7:00, peel ×1.8, allies run to its fights | Aggression, Scale | Objectives, Split |
+
+**Counter-plan edge:** a team whose plan beats the enemy's (table above) has read it and deals +5% damage (`planEdge`), all match; a halftime switch can take or lose the edge. The recommended plan (`recommendPlan` in `src/sim/draft.js`) reads curves and tags of both comps. Results and the Analysis sheet judge each side's plan ("Your plan: Scale. It worked: you out-scaled them from 11:20"). `node tools/balance.mjs N W --plans --smart` reports plan win rates and the plan-vs-plan matrix.
+
+### Rival coaches (`src/data/rivals.js`, `src/ui/rivals.js`)
+Play vs AI is played against 12 named rivals, four per difficulty (Easy/Normal/Hard = coach level 0/1/2). Each has a portrait (pack facesets in `assets/img/coaches`), a personality, signature + halftime plans, favourite heroes and draft habits (pick bias, ban style: your best heroes / carries / counters), a Coach Moment habit (early / late; sent in the match cfg as `coachStyle`, so replays and the Play of the Game stay exact), a ladder rating and draft/results lines. The Rivals screen (from the Play vs AI card) picks or randomises a rival and shows your record; records live in `profile.d.rivals` (12 entries max, cloud-saved). A nemesis is the rival with 3+ wins over you and a 2+ lead.
 
 ## 7. Seasons, ranks and the Cup
 

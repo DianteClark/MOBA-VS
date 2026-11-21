@@ -5,8 +5,8 @@ import { EVENTS } from '../src/data/events.js';
 const pick = (ids) => ids.map((id) => { const h = HEROES.find((x) => x.id === id); return { id, role: h.role, build: h.rec }; });
 // 'event': a weekly map event on a v22 map (Kami Storm on Mossgate Ruins); every other event gets a short run below
 const cfg = (mode, ev) => ({ seed: 777, coach: [false, true], ...(mode === 'rush' ? { mode: 'rush', map: 'rush_ember' } : mode === 'event' ? { map: 'ruins', event: 'kamistorm' } : ev ? { map: 'oasis', event: ev } : {}), teams: [
-  { heroes: pick(['grok', 'umbra', 'totem', 'bolt', 'bonehook']), plan: 'aggressive', deck: ['smoke', 'ambush', 'rally'] },
-  { heroes: pick(['varro', 'gama', 'hex', 'sling', 'aurelia']), plan: 'scaling' } ] });
+  { heroes: pick(['grok', 'umbra', 'totem', 'bolt', 'bonehook']), plan: 'aggro', deck: ['smoke', 'ambush', 'rally'] },
+  { heroes: pick(['varro', 'gama', 'hex', 'sling', 'aurelia']), plan: 'scale' } ] });
 // A scripted "human" for blue.
 const script = { 1800: { type: 'gank', lane: 'bot' }, 3200: { type: 'objective', obj: 'dragon' }, 6000: { type: 'focus', targetIdx: 3 },
   1700: { type: 'moment', id: 'rally' }, 2600: { type: 'moment', id: 'timeout' }, 5000: { type: 'moment', id: 'push' },

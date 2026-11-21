@@ -260,10 +260,10 @@ export function rolesLine(s) {
 // ───────────── prep ─────────────
 export function coopPrep(s) {
   const d = s.draft, me = s.myTeam, own = ownOf(s, me);
-  const pp = prepFromPreset(d.picks[me], d.picks[1 - me], null);
+  const pp = prepFromPreset(d.picks[me], d.picks[1 - me], null, s.gameMode);
   if (own) { const roles = coopRoles(d, me, own); pp.prep.heroes.forEach((hp, i) => { hp.role = roles[i]; }); }
   s.seatPreps = [[null, null], [null, null]];
-  for (const t of [0, 1]) if (!s.coop[t]) { s.preps[t] = aiPrep(d.picks[t], d.picks[1 - t]); s.ready[t] = true; }
+  for (const t of [0, 1]) if (!s.coop[t]) { s.preps[t] = aiPrep(d.picks[t], d.picks[1 - t], s.gameMode); s.ready[t] = true; }
   return pp.prep;
 }
 // Heroes this coach sets up in prep (all five for a lone coach).

@@ -31,7 +31,7 @@ def parse(specs):
     return out
 VIEWS = parse(sys.argv[3] if len(sys.argv) > 3 else '844x390,1366x768,844x390@47/47/0/21,956x440@62/62/0/21,667x313')
 
-M = "const H = await import('./src/ui/home.js'), S = await import('./src/ui/screens.js'), O = await import('./src/ui/online.js'), D = await import('./src/ui/dojo.js'), ST = await import('./src/ui/settings.js'), SO = await import('./src/ui/social.js'), N = await import('./src/net/online.js');"
+M = "const H = await import('./src/ui/home.js'), S = await import('./src/ui/screens.js'), O = await import('./src/ui/online.js'), D = await import('./src/ui/dojo.js'), ST = await import('./src/ui/settings.js'), SO = await import('./src/ui/social.js'), N = await import('./src/net/online.js'), RV = await import('./src/ui/rivals.js');"
 # Friends tab data (API mode only): one friend online, one pending request. Offline it is a no-op.
 SEED = """if (!window.__seeded) { window.__seeded = 1; try {
   await N.ensureAccount(app.name); const me = N.getAccount(), post = (a, path, body) => fetch(N.API + path, { method: 'POST', headers: a ? { authorization: `Bearer ${a.id}.${a.secret}` } : {}, body: JSON.stringify(body) }).then((r) => r.json());
@@ -51,6 +51,8 @@ SCREENS = [
     ('profile-borders', "H.showProfile(app, 'borders')"),
     ('home-casual-rush', "app.queueMode = 'casual'; app.mapPref = 'frost'; app.menu()"),
     ('cup', 'H.showCup(app)'),
+    ('rivals', 'app.aiLevel = 1; RV.showRivals(app)'),
+    ('rivals-hard', "app.aiLevel = 2; RV.showRivals(app, 'kin')"),
     ('patch', 'H.showPatch(app)'),
     ('history-empty', 'H.showHistory(app)'),
     ('ladder', 'await O.showLeaderboard(app)'),
@@ -71,6 +73,7 @@ SCREENS = [
     ('matchmaking', "app.session = null; app.menu(); O.showSearch(app, { elapsed: 12000, limit: 60000, status: 'Searching…', onCancel: () => app.menu() })"),
     ('draft', "app.queueMode = 'ranked'; app.mapPref = 'random'; app.startVsAI('classic'); await new Promise((r) => setTimeout(r, 2500))"),
     ('prep', "const m = await import('./src/sim/draft.js'); const s = app.session; while (!s.draft.done) { const t = m.currentTurn(s.draft); m.apply(s.draft, t.team, m.autoChoice(s.draft, t.team, s.rng, 1)); } app.afterDraftAct(); await new Promise((r) => setTimeout(r, 1500))"),
+    ('prep-adjust', "app.session.prepAdjust = true; app.renderPrep(); document.querySelector('.prep .plans').scrollIntoView({ block: 'center' })"),
     ('results', "app.prepReady(); await new Promise((r) => setTimeout(r, 1200)); app.match.runner.speed = 40; await new Promise((r) => setTimeout(r, 3000)); const g = app.match.game; g.over = true; g.winner = 0; app.endMatch(true); await new Promise((r) => setTimeout(r, 1500))"),
     ('results-story', "document.querySelector('.acard').scrollIntoView({ block: 'center' })"),
     ('analysis', "document.querySelector('.anbtn').click()"),

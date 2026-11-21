@@ -3,8 +3,8 @@ import { HEROES } from '../src/data/heroes.js';
 const seed = +(process.argv[2] || 1);
 const pick = (ids) => ids.map((id) => { const h = HEROES.find((x) => x.id === id); return { id, role: h.role, build: h.rec }; });
 const g = new Game({ seed, coach: [true, true], teams: [
-  { heroes: pick(['bastion', 'kaze', 'ember', 'fletch', 'oak']), plan: 'balanced' },
-  { heroes: pick(['kenshi', 'leonin', 'raiden', 'marlowe', 'wu']), plan: 'balanced' } ] });
+  { heroes: pick(['bastion', 'kaze', 'ember', 'fletch', 'oak']), plan: 'objective' },
+  { heroes: pick(['kenshi', 'leonin', 'raiden', 'marlowe', 'wu']), plan: 'scale' } ] });
 const t0 = Date.now();
 let lastMin = -1;
 while (!g.over && g.tick < 20 * 60 * 30) {

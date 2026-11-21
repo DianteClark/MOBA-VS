@@ -6,8 +6,8 @@ import { loopbackPair, Hub } from '../src/net/peer.js';
 import { DEFAULT_OWN } from '../src/sim/coop.js';
 const pick = (ids) => ids.map((id) => { const h = HEROES.find((x) => x.id === id); return { id, role: h.role, build: h.rec }; });
 const cfg = (mode) => ({ seed: 4242, coach: [false, false], ...(mode === 'rush' ? { mode: 'rush', map: 'rush_sakura' } : mode === 'event' ? { map: 'oasis', event: 'shrine' } : {}), teams: [
-  { heroes: pick(['bastion', 'kaze', 'ember', 'fletch', 'oak']), plan: 'balanced' },
-  { heroes: pick(['kenshi', 'leonin', 'raiden', 'marlowe', 'wu']), plan: 'aggressive' } ] });
+  { heroes: pick(['bastion', 'kaze', 'ember', 'fletch', 'oak']), plan: 'protect' },
+  { heroes: pick(['kenshi', 'leonin', 'raiden', 'marlowe', 'wu']), plan: 'split' } ] });
 async function run(mode) {
   const [ta, tb] = loopbackPair(+(process.argv[2] || 60));
   const ga = new Game(cfg(mode)), gb = new Game(cfg(mode));

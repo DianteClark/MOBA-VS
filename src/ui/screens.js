@@ -2,9 +2,9 @@
 import { h, mount, face, icon, fmtTime } from './dom.js';
 import { HEROES, HERO_BY_ID, ROLES, ROLE_LABEL, matchupScore, PERSONALITIES } from '../data/heroes.js';
 import { TACTICS, TACTIC_IDS } from '../data/tactics.js';
-import { PLANS } from '../presets.js';
+import { PLAN_IDS, PLAN_INFO, planLine, EDGE_TEXT } from '../data/plans.js';
 import { BUILDS } from '../data/items.js';
-import { aiPrep } from '../sim/draft.js';
+import { aiPrep, recommendPlan } from '../sim/draft.js';
 import { TEAM_NAME, DRAGON_INFO, CLANS } from '../sim/constants.js';
 import { MAP_BY_ID } from '../maps/defs.js';
 import { World, N as GN } from '../sim/world.js';
@@ -66,7 +66,7 @@ export function showHowTo(app) {
     h('div', { class: 'panel howto' },
     h('p', {}, 'You are the coach. Your five heroes play on their own: they farm, trade, fight and retreat. They only know what your team can see. You win by making the calls.'),
     h('h3', {}, '1. Draft'), h('p', {}, 'Ban and pick in turns: Top, Jungle, Mid, Bot and Support. Filter by role or search ("tank", "dive", a name). Green numbers show counters; duos, comps and matching clans give team bonuses.'),
-    h('h3', {}, '2. Prep'), h('p', {}, 'Pick each hero\'s build path and choose 3 tactic cards for your hand.'),
+    h('h3', {}, '2. Prep'), h('p', {}, 'Pick each hero\'s build path, 3 tactic cards and a game plan: Early Aggression, Scale, Objective Control, Split Push or Protect the Carry. Your heroes play to it. The recommended plan (★) reads your comp against theirs. Each plan beats two others and loses to two; both plans are revealed at kickoff, and you can switch once at halftime.'),
     h('h3', {}, '3. Calls'), h('p', {}, 'Six big buttons along the bottom: Gank, Objective, Push, Shrine, Defend and Regroup. Calls cost charges (max 3, +1 every 20s). Or just tap the map: tap a lane, a pit, a shrine or an enemy and a ring of calls pops up right there.'),
     h('p', {}, 'Your analyst flashes one-tap suggestions ("Mid is overextended: Gank"). Tap the button and the call goes out. Tactic cards (Q, E, T) are one-time plays like Smoke Bomb or Second Wind.'),
     h('p', {}, 'Tap one of your portraits to follow that hero and change its build; tap an enemy portrait to focus them. Press and hold (or right-click) a portrait for details, including "Why": what the hero is doing and why. Good calls build trust, and inspired heroes react faster.'),
@@ -74,7 +74,7 @@ export function showHowTo(app) {
     h('h3', {}, '4. Big moments'), h('p', {}, 'Coach\'s Calls pop up above the buttons when something big is about to happen: pick one of the 2-3 options before the bar runs out. Fill Momentum with calls that pay off, then tap the meter for a Kami Surge.'),
     h('p', {}, 'Moments (M) are three once-per-match calls that open at 1:15: Timeout (reset cooldowns and heal), Rally (+15% damage and speed) and All-Out Push (super minions). The Ults button switches between Auto, Hold (save them for a fight) and ALL-IN. At halftime you can change the game plan, swap a card and adjust builds.'),
     h('h3', {}, 'Winning'), h('p', {}, 'Destroy the enemy Shrine Crystal, or have more towers standing when the clock runs out (15:00; Lane Rush: 8:00).'),
-    h('h3', {}, 'Modes'), h('p', {}, 'Play vs AI and the Season Cup move your rating (Bronze to Kami). Find Match pairs you with real players: Ranked climbs the ladder while Casual and Rush never change it. Lane Rush is a quick one-lane game. Host and Join are private games with a friend. Co-op puts two coaches on one team (vs the AI, or 2v2): each runs their own heroes, and the lead makes the team-wide calls while the partner suggests them. Settings has sound, colour-blind colours, text size, reduced effects, graphics quality and a button to replay the first-match coach tips.'),
+    h('h3', {}, 'Modes'), h('p', {}, 'Play vs AI pits you against rival coaches: four per difficulty, each with signature plans, favourite heroes and draft habits. Tap the rival on the Play vs AI card to see them all, pick one, and track your record (beware your nemesis). Play vs AI and the Season Cup move your rating (Bronze to Kami). Find Match pairs you with real players: Ranked climbs the ladder while Casual and Rush never change it. Lane Rush is a quick one-lane game. Host and Join are private games with a friend. Co-op puts two coaches on one team (vs the AI, or 2v2): each runs their own heroes, and the lead makes the team-wide calls (and picks the game plan) while the partner suggests them. Settings has sound, colour-blind colours, text size, reduced effects, graphics quality and a button to replay the first-match coach tips.'),
     h('h3', {}, 'Controls'), h('p', {}, 'Drag to pan, scroll or pinch to zoom, tap the minimap to jump. Keys: G O R K X B for calls, Q E T for cards, M for Moments, C to cancel, 1-5 follow heroes, Tab for the scoreboard, Space for the auto-camera.'),
   )));
 }
@@ -104,7 +104,7 @@ export function showPrep(app, prep, enemyIds, left, onChange, onReady, ready) {
   const leadPrep = lead ? prep : s.seatPreps && s.seatPreps[s.myTeam][s.coop[s.myTeam].lead];
   const autoSetup = () => {
     if (ready) return;
-    const ai = aiPrep(myIds, enemyIds);
+    const ai = aiPrep(myIds, enemyIds, s.gameMode);
     for (const hp of prep.heroes) { const a = ai.heroes.find((q) => q.id === hp.id); if (a && mine.has(hp.id)) hp.build = a.build; }
     if (lead) { prep.plan = ai.plan; prep.deck = ai.deck.slice(0, 3); }
     audio.sfx('accept', 0.6); onChange();
@@ -139,17 +139,22 @@ export function showPrep(app, prep, enemyIds, left, onChange, onReady, ready) {
     return Object.entries(c).sort((a, b) => b[1] - a[1]).map(([k, n]) => { const tier = CLANS[k].tiers.filter((t) => n >= t.n).pop(); return h('div', { class: 'cchip' + (tier ? ' on' : ''), style: { '--cc': CLANS[k].color } }, h('b', {}, `${CLANS[k].name} x${n}`), h('small', {}, tier ? tier.text : `${CLANS[k].tiers[0].n} needed: ${CLANS[k].tiers[0].text}`)); });
   })();
   const sec = (title, extra, ...kids) => h('div', { class: 'panel psec' }, h('div', { class: 'psh' }, h('span', {}, title), extra || null), ...kids);
-  const lp = leadPrep || prep, plan = PLANS[lp.plan] || PLANS.balanced;
+  // game plan: the recommended one (your comp vs theirs) is marked; the enemy only sees yours at kickoff. Co-op: the lead picks it.
+  const rush = s.gameMode === 'rush', rec = recommendPlan(myIds, enemyIds, s.gameMode), lp = leadPrep || prep, plan = PLAN_INFO[lp.plan] || PLAN_INFO[rec.id];
   const summary = h('div', { class: 'psum' },
     h('div', { class: 'pminis' }, ...byRole.map(mini)),
     h('div', { class: 'pplan' },
-      h('div', { class: 'pp' }, h('small', {}, lead ? 'Plan' : `Plan (${mate ? mate.name : 'lead'})`), h('b', {}, leadPrep ? plan[0] : 'choosing…')),
+      h('button', { class: 'pp', disabled: ready || !lead, title: `${plan.desc} ${planLine(lp.plan)}.${lead ? ' Tap to change.' : ''}`, style: { '--pc': plan.color }, onclick: () => { if (lead && !s.prepAdjust) toggleAdjust(); } },
+        h('small', {}, !lead ? `Plan (${mate ? mate.name : 'lead'})` : lp.plan === rec.id ? 'Plan · recommended' : 'Plan'), h('b', {}, h('img', { src: icon(plan.icon), alt: '' }), leadPrep ? plan.name : 'choosing…')),
       leadPrep ? h('div', { class: 'pdeck' }, ...lp.deck.map((id) => h('span', { class: 'pdc', title: TACTICS[id].desc }, h('img', { src: icon(TACTICS[id].icon) }), TACTICS[id].name))) : null,
       h('div', { class: 'pclans' }, clans)));
   const editors = adjust ? [
     sec(coop ? 'Your heroes: lanes & builds' : 'Lanes & builds', h('button', { class: 'btn small', onclick: autoSetup, title: 'Counter-builds, plan and deck picked for you' }, 'Auto counter-build'), h('div', { class: 'prep-cards' }, ...byRole.filter((hp) => mine.has(hp.id)).map(card))),
     !lead ? h('div', { class: 'panel psec muted small' }, `${mate ? mate.name : 'Your partner'} leads: they pick the game plan and the tactic deck.`) : null,
-    !lead ? null : sec('Game plan', null, h('div', { class: 'plans' }, ...Object.entries(PLANS).map(([k, [nm, dsc]]) => h('button', { class: 'plan' + (prep.plan === k ? ' on' : ''), onclick: () => { prep.plan = k; audio.sfx('move', 0.4); onChange(); } }, h('b', {}, nm), h('small', {}, dsc))))),
+    !lead ? null : sec('Game plan', h('small', { class: 'muted' }, `Secret until kickoff · countering theirs: ${EDGE_TEXT}${rush ? ' · one lane: no Split Push' : ' · one switch at halftime'}`), h('div', { class: 'plans' }, ...PLAN_IDS.filter((k) => !(rush && k === 'split')).map((k) => { const P = PLAN_INFO[k];
+      return h('button', { class: 'plan' + (prep.plan === k ? ' on' : '') + (rec.id === k ? ' rec' : ''), style: { '--pc': P.color }, onclick: () => { prep.plan = k; audio.sfx('move', 0.4); onChange(); } },
+        h('b', {}, h('img', { src: icon(P.icon), alt: '' }), P.name), h('small', {}, P.desc), h('small', { class: 'pvs' }, planLine(k)),
+        rec.id === k ? h('span', { class: 'precw' }, '★ ' + rec.why) : null); }))),
     !lead ? null : sec('Tactic deck', h('span', { class: 'dcount' + (prep.deck.length === 3 ? ' full' : '') }, `${prep.deck.length}/3`),
       h('div', { class: 'deck' }, ...TACTIC_IDS.map((id) => {
         const t = TACTICS[id], on = prep.deck.includes(id);
@@ -221,6 +226,7 @@ export function showResults(app, g, myTeam, onAgain, onMenu, extra = {}) {
   mount(screen(), h('div', { class: 'results' },
     h('div', { class: 'verdict ' + vcls }, verdict, myTeam >= 0 && extra.emotes && extra.emotes[myTeam] ? extra.emotes[myTeam] : null),
     h('div', { class: 'vsub muted' }, timeout ? `Decided on time: ${timeTiebreak(g)} · ` : '', `Game length ${fmtTime(g.time)}`),
+    extra.rival || null,
     extra.progress || null,
     potgEl || repEl ? h('div', { class: 'rrow' }, potgEl, repEl) : null,
     mvpCard,
