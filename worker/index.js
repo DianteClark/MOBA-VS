@@ -10,6 +10,11 @@
 // Social: friends (requests, mutual friendship, block), a presence heartbeat (players.seen/status, polled
 // only while the menu is open), friend/link invites to a private PeerJS room (/i/CODE) and read-only
 // public profiles built from a small `pub` summary that is cut from the cloud save when it is uploaded.
+// Weekend Cups (worker/cups.js): 8-coach brackets between real players. Anti-cheat (worker/anticheat.js):
+// ranked and cup reports carry the command log; a scheduled GitHub Action re-simulates it (tools/verify.mjs)
+// through the token-protected /api/admin/* endpoints and flags (and rolls back) results that do not hold up.
+import { CUP_SCHEMA, CUP_TABLES, cupApi, cupMatchFor, trophiesStmt, trophyRow } from './cups.js';
+import { REPLAY_SCHEMA, REPLAY_TABLES, REPLAY_MIGRATIONS, replayStmt, pruneStmts, adminApi } from './anticheat.js';
 
 const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS players (id TEXT PRIMARY KEY, name TEXT NOT NULL, secret_hash TEXT NOT NULL, created INTEGER, updated INTEGER, profile TEXT, profile_at INTEGER DEFAULT 0)`,
@@ -28,8 +33,9 @@ const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS invites (id TEXT PRIMARY KEY, sender TEXT, target TEXT, room TEXT, mode TEXT, status TEXT, created INTEGER)`,
   `CREATE INDEX IF NOT EXISTS invites_to ON invites (target, status, created)`,
   `CREATE INDEX IF NOT EXISTS invites_from ON invites (sender, created)`,
+  ...CUP_SCHEMA, ...REPLAY_SCHEMA,
 ];
-const TABLES = ['players', 'ladder', 'reports', 'matches', 'hero_results', 'queue', 'shares', 'friends', 'invites'];
+const TABLES = ['players', 'ladder', 'reports', 'matches', 'hero_results', 'queue', 'shares', 'friends', 'invites', ...CUP_TABLES, ...REPLAY_TABLES];
 // Columns added after launch: tables created by older deploys get them here. ALTER fails harmlessly
 // ("duplicate column") once the column exists, so each one is tried on its own.
 const MIGRATIONS = [
@@ -42,6 +48,7 @@ const MIGRATIONS = [
   `ALTER TABLE players ADD COLUMN elo INTEGER`,
   // leaderboard pages walk (rating DESC, player) with a keyset cursor
   `CREATE INDEX IF NOT EXISTS ladder_page ON ladder (season, rating DESC, player)`,
+  ...REPLAY_MIGRATIONS,
 ];
 async function migrate(db) { for (const q of MIGRATIONS) { try { await db.prepare(q).run(); } catch { /* already migrated */ } } }
 let ready = null;
@@ -92,6 +99,8 @@ function limited(key, max, win = 60000) {
 }
 const ip = (req) => req.headers.get('cf-connecting-ip') || 'local';
 const slow = () => bad('Too many requests: try again in a minute', 429);
+const CUPS = cupApi({ json, bad, body, auth, rand, limited, slow });
+const admin = adminApi({ json, bad, body, sha });
 
 // ── public profile ──
 // The read-only summary other coaches can see, cut from the uploaded cloud save: rank, title, banner, newest
@@ -197,9 +206,9 @@ async function social(req, db, url, p, M, now) {
   if (pm && M === 'GET') {
     const who = await auth(req, db), id = pm[1], season = Number(url.searchParams.get('season')) | 0;
     if (limited('pl:' + (who ? who.id : ip(req)), 40)) return slow();
-    const stmts = [db.prepare('SELECT id, name, pub, seen, status FROM players WHERE id = ?').bind(id), db.prepare(rankSql).bind(season, id)];
+    const stmts = [db.prepare('SELECT id, name, pub, seen, status FROM players WHERE id = ?').bind(id), db.prepare(rankSql).bind(season, id), trophiesStmt(db, id)];
     if (who && who.id !== id) stmts.push(db.prepare('SELECT a, state FROM friends WHERE (a = ? AND b = ?) OR (a = ? AND b = ?)').bind(who.id, id, id, who.id));
-    const [pr, lr, fr] = await db.batch(stmts);
+    const [pr, lr, tr, fr] = await db.batch(stmts);
     const pl = (pr.results || [])[0]; if (!pl) return bad('Coach not found', 404);
     let pub = null; try { pub = pl.pub ? JSON.parse(pl.pub) : null; } catch { pub = null; }
     if (!pub) { // saved before public profiles existed: cut the summary from the cloud save once
@@ -209,7 +218,7 @@ async function social(req, db, url, p, M, now) {
     }
     const rows = (fr && fr.results) || [], mine = who && rows.find((r) => r.a === who.id), theirs = rows.find((r) => r.a === id);
     const relation = who && who.id === id ? 'me' : mine ? { ok: 'friend', req: 'sent', block: 'blocked' }[mine.state] || null : theirs && theirs.state === 'req' ? 'incoming' : null;
-    return json({ id, name: pl.name, pub, ladder: ladderRow((lr.results || [])[0]), relation, presence: relation === 'friend' ? presenceOf(pl, now) : null });
+    return json({ id, name: pl.name, pub, ladder: ladderRow((lr.results || [])[0]), cups: trophyRow((tr.results || [])[0]), relation, presence: relation === 'friend' ? presenceOf(pl, now) : null });
   }
   // Invites to a private room. A friend invite shows up in their next heartbeat (3 min); a link invite (/i/ID)
   // can be opened by anyone for 30 min. The room itself is the existing PeerJS Host/Join code.
@@ -304,10 +313,17 @@ async function route(req, env, url) {
   if (p === '/api/match/report' && M === 'POST') {
     const me = await auth(req, db); if (!me) return bad('unauthorized', 401);
     const b = await body(req);
-    const match = String(b.match || '').slice(0, 40), season = Number(b.season) | 0, side = b.side === 1 ? 1 : 0, winner = b.winner === 1 ? 1 : 0, mode = queueOf(b.mode);
+    const match = String(b.match || '').slice(0, 40), season = Number(b.season) | 0, side = b.side === 1 ? 1 : 0, winner = b.winner === 1 ? 1 : 0, mode = b.mode === 'cup' ? 'cup' : queueOf(b.mode);
     if (!/^[A-Za-z0-9-]{8,40}$/.test(match) || !b.opponent) return bad('bad report');
-    await db.prepare('INSERT OR IGNORE INTO reports (match, player, season, side, opponent, winner, checksum, summary, created, mode) VALUES (?,?,?,?,?,?,?,?,?,?)')
-      .bind(match, me.id, season, side, String(b.opponent).slice(0, 10), winner, String(b.checksum || ''), JSON.stringify(b.summary || {}).slice(0, 8000), now, mode).run();
+    if (mode === 'cup') { // only the two coaches of that cup match, each on the side the bracket gave them
+      const cm = await cupMatchFor(db, match, me.id);
+      if (!cm || String(b.opponent) !== (cm.a === me.id ? cm.b : cm.a) || side !== (cm.a === me.id ? 0 : 1)) return bad('not your cup match', 403);
+    }
+    const rs = mode === 'ranked' || mode === 'cup' ? await replayStmt(db, sha, match, me.id, mode, b.replay, now) : null;
+    await db.batch([db.prepare('INSERT OR IGNORE INTO reports (match, player, season, side, opponent, winner, checksum, summary, created, mode) VALUES (?,?,?,?,?,?,?,?,?,?)')
+      .bind(match, me.id, season, side, String(b.opponent).slice(0, 10), winner, String(b.checksum || ''), JSON.stringify(b.summary || {}).slice(0, 8000), now, mode),
+      ...(rs ? [rs] : []), ...(match.charCodeAt(5) % 16 === 0 ? pruneStmts(db, env, now) : [])]); // occasional replay sweep
+    if (mode === 'cup') return json(await CUPS.onReport(db, env, match, me.id, now));
     const done = await db.prepare('SELECT status FROM matches WHERE id = ?').bind(match).first();
     if (done) return json({ status: done.status });
     const reps = (await db.prepare('SELECT * FROM reports WHERE match = ?').bind(match).all()).results || [];
@@ -336,7 +352,7 @@ async function route(req, env, url) {
       }
     };
     if (queueOf(a.mode) !== 'ranked') {
-      return settle([db.prepare('INSERT INTO matches (id, season, blue, red, winner, status, summary, created) VALUES (?,?,?,?,?,?,?,?)').bind(match, season, blue.player, red.player, a.winner, 'verified', a.summary, now), ...heroStmts],
+      return settle([db.prepare(`INSERT INTO matches (id, season, blue, red, winner, status, summary, created, mode, verify) VALUES (?,?,?,?,?,?,?,?,?, 'none')`).bind(match, season, blue.player, red.player, a.winner, 'verified', a.summary, now, queueOf(a.mode)), ...heroStmts],
         { status: 'verified', mode: queueOf(a.mode), casual: true });
     }
     const row = async (pid) => (await db.prepare('SELECT * FROM ladder WHERE season = ? AND player = ?').bind(season, pid).first()) || { rating: 1000, wins: 0, losses: 0, peak: 1000 };
@@ -348,7 +364,9 @@ async function route(req, env, url) {
       ON CONFLICT(season, player) DO UPDATE SET rating = excluded.rating, wins = excluded.wins, losses = excluded.losses, peak = excluded.peak, updated = excluded.updated`)
       .bind(season, pid, r, old.wins + (won ? 1 : 0), old.losses + (won ? 0 : 1), Math.max(old.peak, r), now);
     const stmts = [
-      db.prepare('INSERT INTO matches (id, season, blue, red, winner, status, summary, created) VALUES (?,?,?,?,?,?,?,?)').bind(match, season, blue.player, red.player, a.winner, 'verified', a.summary, now),
+      // the applied deltas are kept so a flagged replay can roll this exact change back (worker/anticheat.js)
+      db.prepare(`INSERT INTO matches (id, season, blue, red, winner, status, summary, created, mode, dblue, dred, verify) VALUES (?,?,?,?,?,?,?,?, 'ranked', ?, ?,
+        CASE WHEN EXISTS (SELECT 1 FROM replays WHERE match = ?) THEN 'pending' ELSE 'none' END)`).bind(match, season, blue.player, red.player, a.winner, 'verified', a.summary, now, nb - B.rating, nr - R.rating, match),
       up(blue.player, nb, B, blueWon), up(red.player, nr, R, !blueWon), ...heroStmts,
     ];
     return settle(stmts, { status: 'verified', mode: 'ranked', delta: { blue: nb - B.rating, red: nr - R.rating }, rating: { blue: nb, red: nr } });
@@ -430,6 +448,8 @@ async function route(req, env, url) {
   }
 
   const soc = await social(req, db, url, p, M, now); if (soc) return soc;
+  const cup = await CUPS.route(req, env, db, url, p, M, now); if (cup) return cup;
+  const adm = await admin(req, env, db, url, p, M, now); if (adm) return adm;
 
   // ── share links ──
   if (p === '/api/share' && M === 'POST') {

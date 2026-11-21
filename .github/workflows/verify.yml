@@ -1,0 +1,31 @@
+# Replay verification (anti-cheat): every hour, pull the Ranked / Weekend Cup replays the Worker has queued,
+# re-simulate each with the deterministic sim at the replay's VERSION (older versions come from git history,
+# hence fetch-depth 0) and post the verdicts back. Mismatches are flagged and rolled back by the Worker.
+# Needs the repository secret MOBAVS_ADMIN (the same value as the Worker secret MOBAVS_ADMIN); without it
+# the job skips. Run it by hand from the Actions tab at any time.
+name: Replay verification
+on:
+  schedule:
+    - cron: '41 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency: replay-verify
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify queued replays
+        env:
+          MOBAVS_API: https://moba-vs.chesscomplex.workers.dev
+          MOBAVS_ADMIN: ${{ secrets.MOBAVS_ADMIN }}
+        run: |
+          if [ -z "$MOBAVS_ADMIN" ]; then echo "::notice::MOBAVS_ADMIN is not set: replay verification is off."; exit 0; fi
+          node tools/verify.mjs --workers 4 --budget 40

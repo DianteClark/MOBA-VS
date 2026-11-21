@@ -31,6 +31,8 @@ import { showHome, showCup, progressPanel } from './ui/home.js';
 import { shareMatch } from './ui/share.js';
 import { ping, ensureAccount, fetchMe, getAccount, reportMatch, matchStatus, newMatchId, findQueue, cancelQueue } from './net/online.js';
 import { showShared, showSearch } from './ui/online.js';
+import { showWeekendCup } from './ui/cups.js';
+import { packReplay } from './net/replaypack.js';
 import { startSocial, matchPresence, lobbyInvite, closeInvites, showInviteLink, socialPanel, onRematch, rematchGone } from './ui/social.js';
 import { profile } from './profile.js';
 import { newCup, recordCup, myMatch } from './cup.js';
@@ -56,6 +58,7 @@ class App {
     this.session = null; this.net = null; this.match = null; this.mapPref = 'random';
     this.bgCanvas = document.getElementById('bg');
   }
+  get version() { return VERSION; }
   // Painted map canvases are cached per map id (painting takes a moment on phones).
   mapCanvas(world) {
     this.mapCache = this.mapCache || {};
@@ -222,7 +225,7 @@ class App {
       this.pendingPeer = null;
       this.net = { peer, t: transport };
       const seed = (Math.random() * 2 ** 31) >>> 0, gameMode = opts.gameMode || (this.queueMode === 'rush' ? 'rush' : 'classic');
-      this.session = { mode: 'host', gameMode, myTeam: 0, seed, mapId: this.pickMap(seed, gameMode), names: [this.name, 'Guest'], rng: new Rng(seed), ranked: !!opts.ranked, queue: opts.queue || 'private' };
+      this.session = { mode: 'host', gameMode, myTeam: 0, seed, mapId: opts.mapId || this.pickMap(seed, gameMode), names: [this.name, 'Guest'], rng: new Rng(seed), ranked: !!opts.ranked, queue: opts.queue || 'private', wcup: opts.wcup || null };
       this.wireNet();
       transport.send({ t: 'hello', v: VERSION, name: this.name, seed, pid: getAccount() && getAccount().id, elo: profile.elo, looks: myLooks() });
     } catch (e) {
@@ -242,7 +245,7 @@ class App {
         if (this.lobbyId !== id) { try { transport.close(); } catch { /* ignore */ } try { peer.destroy(); } catch { /* ignore */ } return; }
         this.pendingPeer = null;
         this.net = { peer, t: transport };
-        this.session = { mode: 'join', gameMode: 'classic', myTeam: 1, seed: 0, names: ['Host', this.name], rng: null, ranked: !!opts.ranked, queue: opts.queue || 'private' };
+        this.session = { mode: 'join', gameMode: 'classic', myTeam: 1, seed: 0, names: ['Host', this.name], rng: null, ranked: !!opts.ranked, queue: opts.queue || 'private', wcup: opts.wcup || null };
         this.wireNet();
         transport.send({ t: 'hello', v: VERSION, name: this.name, pid: getAccount() && getAccount().id, elo: profile.elo, ranked: !!this.session.ranked, looks: myLooks() });
         showLobby(this, { joining: true, code, status: 'Connected! Waiting for host…', onJoin: go, onCancel: cancel });
@@ -299,7 +302,7 @@ class App {
       case 'hello':
         if (m.v !== VERSION) { toast('Version mismatch — both players should refresh.'); return; }
         if (s.mode === 'host') {
-          s.names[1] = m.name || 'Guest'; s.oppId = m.pid || null; s.matchId = newMatchId(); s.oppElo = m.elo || null; s.oppLooks = cleanLooks(m.looks);
+          s.names[1] = m.name || 'Guest'; s.oppId = m.pid || null; s.matchId = (s.wcup && s.wcup.match) || newMatchId(); s.oppElo = m.elo || null; s.oppLooks = cleanLooks(m.looks); // a cup match keeps the server's id
           s.ranked = !!(s.ranked && m.ranked); // rated only when both coaches opted in (queue or Ranked invite)
           this.net.t.send({ t: 'start', seed: s.seed, names: s.names, map: s.mapId, mode: s.gameMode, match: s.matchId, pid: getAccount() && getAccount().id, elo: profile.elo, ranked: s.ranked, looks: myLooks() });
           this.startDraft();
@@ -307,7 +310,7 @@ class App {
         else if (s.mode === 'join' && m.seed !== undefined) { s.seed = m.seed; }
         break;
       case 'start':
-        if (s.mode === 'join') { s.seed = m.seed; s.mapId = m.map; s.gameMode = m.mode === 'rush' ? 'rush' : 'classic'; s.names = m.names; s.names[1] = this.name; s.rng = new Rng(s.seed); s.matchId = m.match || null; s.oppId = m.pid || null; s.oppElo = m.elo || null; s.oppLooks = cleanLooks(m.looks); s.ranked = !!(s.ranked && m.ranked); this.startDraft(); }
+        if (s.mode === 'join') { s.seed = m.seed; s.mapId = m.map; s.gameMode = m.mode === 'rush' ? 'rush' : 'classic'; s.names = m.names; s.names[1] = this.name; s.rng = new Rng(s.seed); s.matchId = (s.wcup && s.wcup.match) || m.match || null; s.oppId = m.pid || null; s.oppElo = m.elo || null; s.oppLooks = cleanLooks(m.looks); s.ranked = !!(s.ranked && m.ranked); this.startDraft(); }
         break;
       case 'rm': // rematch asked / accepted on the results screen
         onRematch(this, m);
@@ -346,6 +349,7 @@ class App {
       toast('Opponent disconnected — AI coach takes over.', 3500);
       const g = this.match.game, enemy = 1 - this.session.myTeam;
       g.coaches[enemy] = new Coach(g, enemy, 1);
+      this.session.aiTakeover = [[g.tick, enemy]]; // part of the uploaded replay (anti-cheat re-simulation)
       const old = this.match.runner, r = new LocalRunner(g, this.session.myTeam); r.acc = old.acc;
       r.log = old.log; r.htDone = old.htDone; r.ht = old.ht; if (r.ht) r.ht.them = true; r.onHalftime = old.onHalftime; r.onHalftimeEnd = old.onHalftimeEnd;
       this.match.runner = r; this.match.hud.runner = r; this.match.hud.disableChat();
@@ -635,8 +639,8 @@ class App {
       this.potgReel = potg && src ? this.prerollPOTG(src, potg) : null;
       const report = s.myTeam >= 0 ? reportCard(m.game, s.myTeam, m.hud.stats) : null;
       const args = [this, m.game, s.myTeam,
-        s.cup ? () => showCup(this) : s.mode === 'ai' ? () => this.startVsAI(s.gameMode === 'rush' ? 'rush' : 'classic') : s.mode === 'watch' ? () => this.watch() : null,
-        () => this.menu(), { progress: progressPanel(sum, cupOut), ladder, social: socialPanel(this, s), againLabel: s.cup ? 'Back to bracket' : null, potg: this.potgReel ? potg : null, report,
+        s.wcup ? () => showWeekendCup(this) : s.cup ? () => showCup(this) : s.mode === 'ai' ? () => this.startVsAI(s.gameMode === 'rush' ? 'rush' : 'classic') : s.mode === 'watch' ? () => this.watch() : null,
+        () => this.menu(), { progress: progressPanel(sum, cupOut), ladder, social: s.wcup ? null : socialPanel(this, s), againLabel: s.cup || s.wcup ? 'Back to bracket' : null, potg: this.potgReel ? potg : null, report,
           onPOTG: () => this.playPOTG(), onClip: potg && src && clipSupport() ? () => saveClip(src, potg, s.names, this.mapCanvas(m.game.world)) : null,
           analytics, onAnalysis: analytics ? () => showAnalysis(analytics, { title: 'Match analysis', onTheater: this.lastReplay() ? () => this.watchReplay(null, { back: () => this.backToResults() }) : null }) : null,
           emotes: resultEmotes(s), onReplay: () => this.watchReplay(null, { back: () => this.backToResults() }), share: sum ? () => shareMatch(profile.d.history[0], { name: this.name, rank: profile.rank.label, border: profile.border }, this.lastReplay()) : null }];
@@ -727,13 +731,18 @@ class App {
   // Online ladder: both players report; the server counts the match when the reports agree.
   async reportOnline(m, s) {
     const g = m.game, season = profile.season.id;
-    const body = { match: s.matchId, season, side: s.myTeam, opponent: s.oppId, winner: g.winner, checksum: String(g.checksum()), mode: s.queue === 'ranked' && s.ranked ? 'ranked' : s.gameMode === 'rush' ? 'rush' : 'casual',
+    const body = { match: s.matchId, season, side: s.myTeam, opponent: s.oppId, winner: g.winner, checksum: String(g.checksum()), mode: s.wcup ? 'cup' : s.queue === 'ranked' && s.ranked ? 'ranked' : s.gameMode === 'rush' ? 'rush' : 'casual',
       summary: { picks: [0, 1].map((t) => g.teams[t].heroes.map((x) => x.heroId)), kills: [g.teams[0].kills, g.teams[1].kills], len: Math.round(g.time) } };
     try {
+      // ranked and cup results carry the command log for server-side replay verification
+      if (m.cfg && (body.mode === 'ranked' || body.mode === 'cup')) body.replay = await packReplay(VERSION, m.cfg, m.runner.log, s.aiTakeover);
       let r = await reportMatch(body);
-      for (let i = 0; i < 6 && r && r.status === 'pending'; i++) { await new Promise((res) => setTimeout(res, 2500)); const st = await matchStatus(s.matchId); if (st.status !== 'pending') r = { ...r, ...st }; }
-      return r && { ...r, mySide: s.myTeam, casual: body.mode !== 'ranked' };
-    } catch (e) { return { status: 'offline', error: String(e.message || e), casual: body.mode !== 'ranked' }; }
+      for (let i = 0; i < 6 && r && r.status === 'pending'; i++) {
+        await new Promise((res) => setTimeout(res, 2500)); const st = await matchStatus(s.matchId);
+        if (st.status !== 'pending') r = r.cup ? { ...r, status: st.status === 'disputed' ? 'replay' : 'decided', advanced: st.winner === s.myTeam } : { ...r, ...st };
+      }
+      return r && { ...r, mySide: s.myTeam, casual: body.mode !== 'ranked' && body.mode !== 'cup' };
+    } catch (e) { return { status: 'offline', error: String(e.message || e), casual: body.mode !== 'ranked' && body.mode !== 'cup', cup: body.mode === 'cup' }; }
   }
   // Replays: config + command log is enough to re-run the whole match deterministically. The last few are kept
   // with their analytics (src/ui/replays.js); `id` links one to its match-history entry.

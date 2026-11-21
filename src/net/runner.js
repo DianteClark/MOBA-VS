@@ -71,7 +71,9 @@ export class LockstepRunner {
   send(cmd) { this.queue.push({ ...cmd, team: this.myTeam, seq: ++this.seq }); }
   receive(msg) {
     this.lastRemote = performance.now();
-    if (msg.t === 'in') { for (const [k, c] of msg.b) this.inputs[1 - this.myTeam].set(k, c); }
+    // Remote commands always act for the remote team: a tampered client cannot issue calls for our heroes
+    // (its own sim would then disagree with ours, and the reports would not match).
+    if (msg.t === 'in') { const them = 1 - this.myTeam; for (const [k, c] of msg.b) this.inputs[them].set(k, Array.isArray(c) ? c.slice(0, 16).map((x) => ({ ...x, team: them })) : []); }
     else if (msg.t === 'h') { this.remoteHashes.set(msg.k, msg.v); this.checkHash(msg.k); }
     else if (msg.t === 'ht') this.remoteHt = true;
   }
