@@ -50,6 +50,8 @@ async function play(ids) {
     r.over = g.over; r.winner = g.over ? g.winner : -1; r.min = g.time / 60;
     r.crystal = g.over && !g.events.some((e) => e.type === 'victory' && e.timeout);
     r.end = snap();
+    // at the clock: structures the trailing team (fewer towers) still has, and its Crystal HP
+    if (!r.crystal && g.over) { const lo = 1 - g.winner; r.lo = { towers: g.towersStanding(lo), inhibs: g.units.filter((u) => u.type === 'inhib' && u.team === lo && u.alive).length, nexus: (g.units.find((u) => u.type === 'nexus' && u.team === lo) || { hp: 0, maxHp: 1 }).hp / (g.units.find((u) => u.type === 'nexus' && u.team === lo) || { maxHp: 1 }).maxHp }; }
     rows.push(r);
   }
   return rows;
@@ -79,6 +81,8 @@ if (process.env.SIDE_WORKER) {
     const first = (k) => { const S = R.filter((r) => r.first[k] !== undefined); return S.length ? `${pct(S.filter((r) => r.first[k] === 0).length, S.length)} (${S.length})` : '-'; };
     const lost = (t) => ['top', 'mid', 'bot', 'base'].map((l) => l + ' ' + avg((r) => r.lost[t][l] || 0).toFixed(2)).join(' ');
     console.log(`${name}: ${R.length} games | blue wins ${pct(blue, done.length)}${MINS ? '' : ` | Crystal ${pct(cr.length, R.length)} | Crystal 12-15 ${pct(cr12.length, R.length)} | median end ${em[em.length >> 1].toFixed(2)} min | ends <10 min ${pct(R.filter((r) => r.crystal && r.min < 10).length, R.length)}`}`);
+    const TO = R.filter((r) => r.lo);
+    if (TO.length && !MINS) console.log(`   clock games: trailing side still had ${(TO.reduce((s, r) => s + r.lo.towers, 0) / TO.length).toFixed(1)} towers, ${(TO.reduce((s, r) => s + r.lo.inhibs, 0) / TO.length).toFixed(1)} inhibs, Crystal ${(100 * TO.reduce((s, r) => s + r.lo.nexus, 0) / TO.length).toFixed(0)}% HP | Crystal end minutes: ${[8, 10, 11, 12, 13, 14, 15].map((m, i, A) => `<${m} ${R.filter((r) => r.crystal && r.min < m && (i === 0 || r.min >= A[i - 1])).length}`).join(' ')}`);
     console.log(`   blue-red @5: gold ${at(5, 'gold')} kills ${at(5, 'kills')} towers ${at(5, 'towers')} | @10: gold ${at(10, 'gold')} kills ${at(10, 'kills')} towers ${at(10, 'towers')} | end: gold ${(avg((r) => r.end[0].gold - r.end[1].gold)).toFixed(0)}`);
     console.log(`   blue first: tower ${first('tower')} dragon ${first('dragon')} herald ${first('herald')} baron ${first('baron')} | towers lost blue: ${lost(0)} | red: ${lost(1)}`);
   };

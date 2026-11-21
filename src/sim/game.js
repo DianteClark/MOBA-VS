@@ -1330,7 +1330,7 @@ export class Game {
     switch (ab.kind) {
       case 'shot': case 'hook': {
         const d = norm(aim.x - h.x, aim.y - h.y);
-        this.projectiles.push({ id: this.nextId++, x: h.x, y: h.y - 6, dx: d.x, dy: d.y, speed: ab.speed || 800, max: ab.range, trav: 0, team: h.team,
+        this.projectiles.push({ id: this.nextId++, x: h.x, y: h.y, dx: d.x, dy: d.y, speed: ab.speed || 800, max: ab.range, trav: 0, team: h.team,
           src: h, ab, abi: i, width: ab.width || 30, speedMul: this.wx.proj, pierce: !!ab.pierce, hit: [], sprite: ab.proj || 'p_energy', hook: ab.kind === 'hook', type });
         selfBuff();
         break;

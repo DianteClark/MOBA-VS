@@ -963,7 +963,8 @@ function doJungle(g, h) {
   // nothing up: wait at the camp that comes back first if it is close in time, else help a lane
   if (next && nt < 12) { h.why = 'jungle: wait for ' + next.def.name; if (arrive(g, h, next, 80, 160)) h.vx = h.vy = 0; return; }
   const L = g.teams[h.team].lanes, need = L && g.world.laneNames.find((l) => L[l] && L[l].need);
-  doLane(g, h, need || h.lane || (g.time > 540 || g.world.laneNames.length === 1 ? 'mid' : (h.team === BLUE ? 'bot' : 'top')), false);
+  // (same lane for both teams: Blue used to help its duo lane while Red helped its solo top laner)
+  doLane(g, h, need || h.lane || (g.time > 540 || g.world.laneNames.length === 1 ? 'mid' : 'bot'), false);
 }
 
 function doGank(g, h, task, C) {
