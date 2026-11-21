@@ -12,7 +12,7 @@ Draft, pick builds and a tactic deck, then win the match with your calls.
 
 * **15-minute matches.** If no Crystal falls, the team with more towers standing at 0:00 wins. **Halftime** at 7:30 and a **Last Stand** for the final 3 minutes.
 * **Four handcrafted maps:** Sakura Valley, Frostfang Pass, Ember Canyon and Moonlit Marsh. Real walls, tall grass, line-of-sight fog, river shrines and changing weather.
-* **40 heroes**, each with a clan (Shinobi, Beast, Spirit, Iron, Wild) and a personality that shapes how they play and how fast they trust you.
+* **60 heroes**, each with a clan (Shinobi, Beast, Spirit, Iron, Wild) and a personality that shapes how they play and how fast they trust you.
 * **Simple, deep calling:** six big calls, tap-the-map call ring, one-tap analyst suggestions, ult calls (Auto / Hold / ALL-IN), and 14 tactic cards.
 * **Seasons:** ranked ladder, a 20-level pass with skins, banners and titles, the Season Cup, and automatic season-end balancing.
 * **Replays** of your last match; peer-to-peer online play with deterministic lockstep.

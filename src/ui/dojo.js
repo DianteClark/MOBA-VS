@@ -3,6 +3,7 @@ import { h, mount, face, icon, toast } from './dom.js';
 import { HEROES, HERO_BY_ID, ROLES, ROLE_LABEL, PERSONALITIES } from '../data/heroes.js';
 import { CLANS } from '../sim/constants.js';
 import { BUILDS } from '../data/items.js';
+import { duosOf, COMBO_TEXT } from '../data/synergy.js';
 import { TACTICS, TACTIC_IDS } from '../data/tactics.js';
 import { SKINS, TRACK } from '../data/seasons.js';
 import { matchups } from '../data/herostats.js';
@@ -78,6 +79,7 @@ function heroPage(app, id) {
         h('button', { class: 'navb', title: 'Next hero', onclick: () => showDojo(app, { hero: step(1) }) }, '›')),
       animBtns,
       h('div', { class: 'dh-name' }, h('h2', {}, x.name), h('div', { class: 'muted' }, x.title)),
+      x.lore ? h('p', { class: 'muted small' }, x.lore) : null,
       h('div', { class: 'chips' }, h('span', { class: 'chipx', style: { '--cc': clan.color }, title: clan.tiers.map((q) => `${q.n}+: ${q.text}`).join(' · ') }, clan.name),
         h('span', { class: 'chipx', style: { '--cc': pers.color } }, pers.name)),
       h('div', { class: 'chips' }, h('span', { class: 'chipx plain' }, ROLE_LABEL[x.role] + (x.flex.length ? ' · flex ' + x.flex.map((q) => ROLE_LABEL[q]).join('/') : '')),
@@ -93,7 +95,9 @@ function heroPage(app, id) {
       h('div', { class: 'dsec mus' },
         h('div', {}, h('div', { class: 'dsh pos' }, 'Strong vs'), ...(mu.strong.length ? mu.strong.map(muRow) : [h('small', { class: 'muted' }, 'No clear edge')])),
         h('div', {}, h('div', { class: 'dsh neg' }, 'Weak vs'), ...(mu.weak.length ? mu.weak.map(muRow) : [h('small', { class: 'muted' }, 'No hard counters')]))),
-      h('div', { class: 'dsec' }, h('div', { class: 'dsh' }, 'Builds'), h('div', { class: 'chips' }, ...x.builds.map((b) => h('span', { class: 'chipx', style: { '--cc': BUILDS[b].color }, title: BUILDS[b].desc }, BUILDS[b].name + (b === x.rec ? ' ★' : ''))))),
+      h('div', { class: 'dsec' }, h('div', { class: 'dsh' }, 'Builds'), h('div', { class: 'chips' }, ...x.builds.map((b) => h('span', { class: 'chipx', style: { '--cc': BUILDS[b].color }, title: `${BUILDS[b].desc} Good at: ${BUILDS[b].goodAt}. Weak to: ${BUILDS[b].weakTo}.` }, BUILDS[b].name + (b === x.rec ? ' ★' : ''))))),
+      duosOf(id).length ? h('div', { class: 'dsec' }, h('div', { class: 'dsh' }, 'Duos'), ...duosOf(id).map((q) => h('button', { class: 'murow', onclick: () => { tap(); showDojo(app, { hero: q.partner }); } },
+        h('img', { src: face(q.partner) }), h('b', {}, `${q.name}: ${HERO_BY_ID[q.partner].name}`), h('small', {}, `${q.desc} ${COMBO_TEXT[q.combo]}.`)))) : null,
       h('div', { class: 'dsec' }, h('div', { class: 'dsh' }, 'Skins'), skins, h('small', { class: 'muted' }, 'Skins show on this hero in every match. Online, your opponent sees them too.'))));
 }
 

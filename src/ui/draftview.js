@@ -4,6 +4,7 @@ import { h, mount, face, icon } from './dom.js';
 import { HEROES, HERO_BY_ID, ROLES, ROLE_LABEL, matchupScore, PERSONALITIES } from '../data/heroes.js';
 import { currentTurn, taken, legal, assignRoles, TURN_SECONDS } from '../sim/draft.js';
 import { CLANS } from '../sim/constants.js';
+import { duosOf, compOf, COMPS } from '../data/synergy.js';
 import { MAPS, MAP_BY_ID } from '../maps/defs.js';
 import { pickScore, suggestedBans, teamRoles, presetRole } from '../presets.js';
 import { describeAbility } from './herotext.js';
@@ -129,7 +130,8 @@ export class DraftView {
           : t.act === 'ban' ? 'Your ban: remove a hero you fear.' : `Your pick. Still needed: ${need.join(', ')}`),
         h('div', { class: 'muted small' }, myTurn && t.act === 'ban' ? (recs.length ? 'Suggested bans counter your lineup.' : 'Tap a hero to ban it.')
           : recs.length && myTurn ? 'Heroes marked REC suit your draft.' : 'Tap a hero to see abilities and matchups.'),
-        !s.preset && me >= 0 && !d.done ? h('div', { class: 'muted small' }, 'Tip: set up a lineup in the Dojo and your picks lock in automatically.') : null]);
+        !s.preset && me >= 0 && !d.done ? h('div', { class: 'muted small' }, 'Tip: set up a lineup in the Dojo and your picks lock in automatically.') : null,
+        me >= 0 && d.picks[me].length ? compLine(d.picks[me]) : null]);
     }
     const x = HERO_BY_ID[id], pers = PERSONALITIES[x.pers], clan = CLANS[x.clan];
     const ban = t && t.act === 'ban', canAct = myTurn && legal(d, me, id), mu = matchupScore(x, enemyPicks);
@@ -144,7 +146,8 @@ export class DraftView {
       h('div', { class: 'abl' },
         h('div', { class: 'ab' }, h('img', { src: icon('LuckUpgrade') }), h('div', {}, h('b', {}, x.passive.name), h('div', { class: 'd' }, x.passive.desc))),
         ...x.abilities.map((a) => h('div', { class: 'ab' + (a.ult ? ' ult' : '') }, h('img', { src: icon(a.icon) }), h('div', {}, h('b', {}, (a.ult ? 'Ult: ' : '') + a.name), h('div', { class: 'd' }, describeAbility(a)))))),
-      enemyPicks.length ? h('div', { class: 'notes' }, ...(mu.notes.length ? mu.notes.map((n) => h('div', { class: /struggles|countered|into heavy/i.test(n) ? 'neg' : 'pos' }, n)) : [h('div', { class: 'muted' }, 'Neutral into their picks')])) : null],
+      enemyPicks.length ? h('div', { class: 'notes' }, ...(mu.notes.length ? mu.notes.map((n) => h('div', { class: /struggles|countered|into heavy/i.test(n) ? 'neg' : 'pos' }, n)) : [h('div', { class: 'muted' }, 'Neutral into their picks')])) : null,
+      synergyNotes(id, me >= 0 ? d.picks[me] : [])],
     myTurn ? [h('button', { class: 'btn big lockbtn' + (ban ? ' banbtn' : ''), disabled: !canAct, onclick: () => app.draftAct(id) }, (ban ? 'Ban ' : 'Lock ') + x.name)] : null);
   }
 
@@ -156,3 +159,15 @@ export class DraftView {
     if (a) { const v = Math.max(0, (a.at - performance.now()) / 1000).toFixed(1) + 's'; for (const k of ['autocd', 'autocd2']) { const e = document.getElementById(k); if (e) e.textContent = v; } }
   }
 }
+
+// Duo partners and team-comp progress (v20 synergy; minimal text for now).
+function synergyNotes(id, mine) {
+  const rows = duosOf(id).map((q) => h('div', { class: mine.includes(q.partner) ? 'pos' : 'muted' }, `Duo ${q.name} with ${HERO_BY_ID[q.partner].name}${mine.includes(q.partner) ? ' (ready)' : ''}`));
+  if (mine.length && !mine.includes(id)) { const c = compOf([...mine, id]); rows.push(h('div', { class: c.active ? 'pos' : 'muted' }, `Comp: ${c.name} ${Math.min(c.count, c.need)}/${c.need}${c.active ? ` · ${COMPS[c.id].bonus}` : ''}`)); }
+  return rows.length ? h('div', { class: 'notes' }, ...rows) : null;
+}
+function compLine(ids) {
+  const c = compOf(ids);
+  return h('div', { class: 'muted small' }, `Team comp: ${c.name} ${Math.min(c.count, c.need)}/${c.need}${c.active ? ` active (${COMPS[c.id].bonus})` : ''}`);
+}
+

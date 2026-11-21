@@ -15,6 +15,8 @@ import * as FX from './effects.js';
 // Champion-vs-champion damage scale: keeps fights readable and lanes from snowballing at level 1.
 const STEER_K = +(globalThis.process?.env?.SK || 0.45);
 const HERO_VS_HERO = 0.6;
+// Tower reach (range + hero radius) must beat hero reach (range + both radii) to the tower.
+const HERO_RANGE_CAP = RANGE.tower - 45;
 const CAMP_DEFS = {
   bluebuff: { name: 'Sentinel', buff: 'blue', mobs: [{ k: 'camp_bluebuff', hp: 1800, ad: 45, big: true }] },
   redbuff: { name: 'Brambleback', buff: 'red', mobs: [{ k: 'camp_redbuff', hp: 1800, ad: 55, big: true }] },
@@ -332,6 +334,7 @@ export class Game {
     s.ms = b.ms * (1 + s.msPct);
     s.cdMult = 100 / (100 + s.haste);
     s.pen = Math.min(0.45, s.pen);
+    s.range = Math.min(s.range, HERO_RANGE_CAP); // towers always out-range heroes
     if (h.maxHp > 1 && s.maxHp !== h.maxHp) h.hp = Math.max(1, h.hp + (s.maxHp - h.maxHp));
     h.maxHp = s.maxHp;
     h.stats = s;
