@@ -24,9 +24,15 @@ export function emptyState(img, title, text, action) {
 }
 export const face = (id) => `assets/img/faces/${id}.png`;
 // Boss portraits: every Kami element has its own face; the Oni and the Kraken have one each.
-export const KAMI_FACE = { infernal: 'kami_infernal', ocean: 'kami_ocean', mountain: 'kami_mountain', cloud: 'kami_cloud', elder: 'kami_elder' };
+const KAMI_FACE = { infernal: 'kami_infernal', ocean: 'kami_ocean', mountain: 'kami_mountain', cloud: 'kami_cloud', elder: 'kami_elder' };
 export const bossFace = (k, el) => `assets/img/boss/${k === 'dragon' ? KAMI_FACE[el] || 'kami_elder' : k === 'herald' ? 'herald_faceset' : 'baron_faceset'}.png`;
 // The Kami that is up, or the one that wakes next.
 export const kamiNow = (g) => (g.objectives.dragon ? g.objectives.dragon.element : g.teams.some((t) => t.soul) ? 'elder' : g.nextDragon);
 export const icon = (name) => `assets/img/icons/${name}.png`;
+// Per-tick HUD writes: touch the DOM only when a value really changes (no style recalc / mutations for nothing).
+export const setText = (el, v) => { v = String(v); if (el.textContent !== v) el.textContent = v; };
+export const setCss = (el, k, v) => { const c = el._css || (el._css = {}); if (c[k] !== v) { c[k] = v; if (k.startsWith('--')) el.style.setProperty(k, v); else el.style[k] = v; } };
+export const setOff = (el, off) => { if (el.disabled !== off) el.disabled = off; };
+// History / share-card label for a profile history `mode` key.
+export const MODE_LABEL = { ai0: 'vs Easy AI', ai1: 'vs Normal AI', ai2: 'vs Hard AI', online: 'Online Ranked', casual: 'Online Casual', rush: 'Lane Rush vs AI', rushOnline: 'Lane Rush Online', cup: 'Season Cup' };
 export const fmtTime = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;

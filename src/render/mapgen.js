@@ -8,7 +8,7 @@ const HALF = 2;
 const hex = (c) => [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)];
 const pal = (a) => a.map(hex);
 
-export const SPR = {
+const SPR = {
   g0: [0, 0, 32, 32], pine: [32, 0, 32, 32], dead: [64, 0, 32, 32], roots: [96, 0, 32, 32], snowpine: [128, 0, 32, 32], snowpine2: [160, 0, 32, 32],
   white: [192, 0, 32, 32], pink: [224, 0, 32, 32], g1: [256, 0, 32, 32], yel: [288, 0, 32, 32],
   tPine: [0, 32, 64, 48], tGreen: [64, 32, 64, 48], tWhite: [128, 32, 64, 48], tPink: [192, 32, 64, 48], tG2: [256, 32, 64, 48], tYel: [320, 32, 64, 48],

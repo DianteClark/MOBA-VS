@@ -58,7 +58,7 @@ export class Renderer {
   resize(force) {
     const r = this.canvas.getBoundingClientRect();
     if (r.width < 2 || r.height < 2) return false; // hidden (menus): keep the old size until shown
-    const dpr = renderDpr(), w = Math.max(1, Math.round(r.width * dpr)), hgt = Math.max(1, Math.round(r.height * dpr));
+    const dpr = this.wantDpr(), w = Math.max(1, Math.round(r.width * dpr)), hgt = Math.max(1, Math.round(r.height * dpr));
     this.cssW = r.width; this.cssH = r.height;
     if (!force && w === this.canvas.width && hgt === this.canvas.height && dpr === this.dpr) return false;
     this.dpr = dpr;
@@ -69,11 +69,20 @@ export class Renderer {
   }
   fit() {
     const c = this.canvas, cw = c.clientWidth, ch = c.clientHeight;
-    if (cw && ch && (cw !== Math.round(this.cssW || 0) || ch !== Math.round(this.cssH || 0) || renderDpr() !== this.dpr)) this.resize();
+    if (cw && ch && (cw !== Math.round(this.cssW || 0) || ch !== Math.round(this.cssH || 0) || this.wantDpr() !== this.dpr)) this.resize();
+  }
+  wantDpr() { return Math.min(renderDpr(), this.dprCap || 9); }
+  // Auto quality: a device that can't hold ~40 fps for a few seconds drops to 1 canvas px per CSS px (2.25x fewer
+  // pixels at the usual 1.5 cap). One step down per match, never back up mid-match (no visible pumping).
+  govern(dt) {
+    if (settings.quality !== 'auto' || this.dprCap || renderDpr() <= 1 || !(dt > 0 && dt < 0.25)) return;
+    this.slowT = Math.max(0, (this.slowT || 0) + (dt > 1 / 40 ? dt : -dt / 2));
+    if (this.slowT > 3) { this.dprCap = 1; this.resize(); }
   }
   attach(game, viewTeam, map) {
     this.game = game; this.viewTeam = viewTeam; this.map = map || paintMap(game.world); this.theme = THEMES[game.world.def.theme] || THEMES.spring;
     this.fogSmooth.fill(0); this.prev.clear(); this.effects = []; this.texts = []; this.lines = []; this.fxp.clear(); this.focus = null;
+    this.dprCap = 0; this.slowT = 0;
     this.chatter.reset(); this.hpT.clear(); this.heroPos.clear(); this.callouts = []; this.trauma = 0; this.hitStop = 0; this.tint = null; this.panTo = null; this.visSlow = null;
     this.evIdx = game.events.length;
   }
@@ -294,6 +303,7 @@ export class Renderer {
     // fight-cam slow motion online: effects and particles slow down; the sim keeps its pace
     if (this.visSlow) { if (performance.now() < this.visSlow.until && this.motion) vdt *= this.visSlow.k; else this.visSlow = null; }
     this.time += vdt; this.frame++; this._dt = vdt;
+    this.govern(dt);
     this.fit();
     this.fxp.keep = this.motion ? 1 : 0.35; // Reduced effects: about a third of the particles
     const g = this.game, ctx = this.ctx;
@@ -402,7 +412,7 @@ export class Renderer {
       const ult = sp_(c.ult.toUpperCase() + '!'), nm = sp_(c.name.toUpperCase());
       const w1 = ctx.measureText(ult).width; ctx.font = `${f2}px PixelFont, monospace`; const w2 = ctx.measureText(nm).width;
       const w = face + Math.max(w1, w2) + 22 * d, hh = face + 8 * d;
-      const x = Math.max(w / 2 + 6 * d, Math.min(this.W - w / 2 - 6 * d, sp.x)), y = Math.min(this.H * 0.7, Math.max(hh + 8 * d, sp.y - i * (hh + 6 * d)));
+      const x = Math.max(w / 2 + 6 * d, Math.min(this.W - w / 2 - 6 * d, sp.x)), y = this.dodge(x, Math.min(this.H * 0.7, Math.max(hh + 8 * d, sp.y - i * (hh + 6 * d))), w, hh);
       ctx.save(); ctx.globalAlpha = a; ctx.translate(x, y); ctx.scale(pop, pop);
       const bx = -w / 2, by = -hh, col = TEAM_COL[c.team];
       ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(bx + 3 * d, by + 3 * d, w, hh);
@@ -415,6 +425,17 @@ export class Renderer {
       ctx.font = `${f1}px PixelFont, monospace`; ctx.fillStyle = '#000'; ctx.fillText(ult, bx + face + 12 * d + d, by + hh * 0.66 + d); ctx.fillStyle = '#ffe3a3'; ctx.fillText(ult, bx + face + 12 * d, by + hh * 0.66);
       ctx.restore();
     });
+  }
+  // Screen-space labels (ult callouts, chatter) keep clear of the HUD panels: `avoid` holds their CSS-px rects
+  // (refreshed by the HUD a few times a second). Box = [x - w/2, x + w/2] x [y - h, y] in device px; returns a y.
+  dodge(x, y, w, h) {
+    const d = this.dpr;
+    for (const q of this.avoid || []) {
+      const l = q.l * d, r = q.r * d, t = q.t * d, b = q.b * d;
+      if (x + w / 2 <= l || x - w / 2 >= r || y <= t || y - h >= b) continue;
+      y = (t + b) / 2 < this.H / 2 ? b + h + 2 * d : t - 2 * d; // below a top panel, above a bottom one
+    }
+    return y;
   }
   pruneHp() { const live = this.byIdMap; if (!live) return; for (const id of this.hpT.keys()) { const u = live.get(id); if (!u || (!u.alive && !u.structure)) this.hpT.delete(id); } }
   // Smoothed HP front + delayed "damage taken" trail.
@@ -482,10 +503,17 @@ export class Renderer {
       if (p.y > H + 20) { p.y = -20; p.x = Math.random() * W * 1.2; } if (p.x < -40) p.x = W + 20; if (p.x > W + 40) p.x = -20;
     }
     if (w === 'fog') {
+      // drifting mist banks: one cached soft blob, scaled (a full-screen radial gradient per bank cost ~4 ms each on phones)
+      if (!this.mistBlob) {
+        const c = this.mistBlob = document.createElement('canvas'); c.width = c.height = 64;
+        const x = c.getContext('2d'), gr = x.createRadialGradient(32, 32, 1, 32, 32, 32);
+        gr.addColorStop(0, 'rgba(225,230,240,0.18)'); gr.addColorStop(1, 'rgba(225,230,240,0)'); x.fillStyle = gr; x.fillRect(0, 0, 64, 64);
+      }
+      ctx.imageSmoothingEnabled = true;
+      const R = W * 0.4;
       for (let i = 0; i < 4; i++) {
         const x = (Math.sin(this.time * 0.07 + i * 1.7) * 0.5 + 0.5) * W, y = (Math.cos(this.time * 0.05 + i * 2.3) * 0.5 + 0.5) * H;
-        const gr = ctx.createRadialGradient(x, y, 10, x, y, W * 0.4); gr.addColorStop(0, 'rgba(225,230,240,0.18)'); gr.addColorStop(1, 'rgba(225,230,240,0)');
-        ctx.fillStyle = gr; ctx.fillRect(0, 0, W, H);
+        ctx.drawImage(this.mistBlob, x - R, y - R, R * 2, R * 2);
       }
     }
     if (w === 'heat') { ctx.globalAlpha = 0.05 + 0.03 * Math.sin(this.time * 3); ctx.fillStyle = '#ffcf6a'; ctx.fillRect(0, 0, W, H); }
@@ -725,7 +753,7 @@ export class Renderer {
     }
     if (u.structure) {
       if (u.hp >= u.maxHp && !(u.type === 'nexus')) return;
-      const w = u.type === 'nexus' ? 80 : 56, top = u.y - (u.type === 'nexus' ? 120 : u.tier === 4 ? 82 : 90);
+      const w = u.type === 'nexus' ? 80 : 56, top = u.y - (u.type === 'nexus' ? 100 : u.tier === 4 ? 82 : 90);
       this.bar(u.x - w / 2, top, w, 4, u, TEAM_COL[u.team]);
       return;
     }
@@ -757,7 +785,11 @@ export class Renderer {
     ctx.save();
     ctx.setTransform(s, 0, 0, s, this.W / 2 - this.cam.x * s + shx, this.H / 2 - this.cam.y * s + shy);
     ctx.imageSmoothingEnabled = true;
-    ctx.drawImage(this.fogTex, 0, 0, GN, GN, 0, 0, MAP_SIZE, MAP_SIZE);
+    // only the cells in view (plus one for the filter): blitting the whole 100x100 grid as a 2400px quad costs ~2x
+    const C = MAP_SIZE / GN, vw = this.W / s, vh = this.H / s;
+    const cx0 = Math.max(0, Math.floor((this.cam.x - vw / 2) / C) - 1), cy0 = Math.max(0, Math.floor((this.cam.y - vh / 2) / C) - 1);
+    const cx1 = Math.min(GN, Math.ceil((this.cam.x + vw / 2) / C) + 1), cy1 = Math.min(GN, Math.ceil((this.cam.y + vh / 2) / C) + 1);
+    if (cx1 > cx0 && cy1 > cy0) ctx.drawImage(this.fogTex, cx0, cy0, cx1 - cx0, cy1 - cy0, cx0 * C, cy0 * C, (cx1 - cx0) * C, (cy1 - cy0) * C);
     ctx.restore();
     ctx.imageSmoothingEnabled = false;
   }

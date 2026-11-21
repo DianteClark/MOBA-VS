@@ -27,6 +27,10 @@ export class Minimap {
     if (!this.bg || this.c.clientWidth !== this._cw) { this._cw = this.c.clientWidth; this.resize(); }
     if (!this.bg) return;
     const ctx = this.ctx, S = this.size, k = S / MAP_SIZE, g = this.r.game; if (!g) return;
+    // the dots move slowly: ~15 redraws a second are plenty, except while the camera box moves or a ping animates
+    const cam = this.r.cam, now0 = performance.now(), camKey = cam.x + cam.y * 7919 + cam.zoom * 104729;
+    if (camKey === this._camKey && !this.pings.length && now0 - (this._drawn || 0) < 66) return;
+    this._camKey = camKey; this._drawn = now0;
     ctx.imageSmoothingEnabled = true;
     ctx.drawImage(this.bg, 0, 0);
     const vis = (u) => this.r.visible(u);

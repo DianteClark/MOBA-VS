@@ -144,19 +144,16 @@
 .bgfaces button { cursor: pointer; padding: 0; background: none; border: 1px solid var(--line); position: relative; }
 .bgfaces button.best { border-color: var(--bc); box-shadow: 0 0 4px var(--bc); }
 .bgfaces img { width: 24px; height: 24px; display: block; image-rendering: pixelated; }
-.bgfilter { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
 
 /* ── draft: comp progress + duos ── */
 .compbar { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 9px; color: var(--muted); }
 .compbar b { font-weight: normal; color: var(--cc, var(--gold)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 110px; }
 .compbar .pbar { flex: 1; min-width: 30px; height: 5px; }
 .compbar .pbar i { background: var(--cc, var(--gold)); }
-.compbar .cnext { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .duochips { display: flex; gap: 3px; flex-wrap: nowrap; overflow: hidden; }
 .duochip { display: inline-flex; align-items: center; gap: 2px; padding: 0 4px 0 1px; font-size: 8px; background: #2a1f3a; border: 1px solid var(--purple); color: #e4d4ff; white-space: nowrap; }
 .duochip img { width: 14px; height: 14px; image-rendering: pixelated; margin-right: -3px; }
 .duochip.live { border-color: var(--gold); color: var(--gold); box-shadow: 0 0 5px #ffd84a66; }
-.dteam .compline { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .dduos { display: flex; flex-direction: column; gap: 4px; }
 .dduo { display: flex; align-items: center; gap: 6px; padding: 3px 6px; background: #1e1928; border: 1px solid var(--line); cursor: pointer; text-align: left; color: var(--ink); font-family: inherit; }
 .dduo img { width: 28px; height: 28px; image-rendering: pixelated; }
@@ -166,8 +163,8 @@
 .clipbtn[disabled] { opacity: 0.45; }
 .clipstat { font-size: 10px; color: var(--muted); }
 .clipwrap { position: fixed; inset: 0; z-index: 92; display: grid; place-items: center; background: #000c; }
-.clipbox { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px; background: var(--panel); border: 2px solid var(--gold); max-width: 94vw; max-height: 94vh; }
-.clipbox video, .clipbox img, .clipbox canvas { max-width: min(640px, 88vw); max-height: 62vh; border: 2px solid #000; image-rendering: pixelated; background: #000; }
+.clipbox { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px; overflow: auto; background: var(--panel); border: 2px solid var(--gold); max-width: 94vw; max-height: 94vh; }
+.clipbox video, .clipbox img, .clipbox canvas { max-width: min(640px, 88vw); max-height: min(62vh, calc(94vh - 150px)); border: 2px solid #000; image-rendering: pixelated; background: #000; }
 .clipbox .barw { width: 260px; height: 8px; background: #0008; border: 1px solid #000; } .clipbox .barw i { display: block; height: 100%; width: 0; background: var(--gold); transition: width 0.2s; }
 @media (max-height: 500px) and (orientation: landscape) { .home .coach .tbadge { width: 42px !important; height: 42px !important; margin: -4px 0; } }
 .htile.proft .tbadge { width: 34px !important; height: 34px !important; margin: 4px; }

@@ -1,7 +1,7 @@
 // In-match HUD. Layout is built from columns so panels never overlap:
 //   #leftcol  (my team)                     #topcenter (score + objectives + one-line ticker)   #rightcol (enemies + kill feed)
 //   #detail   (followed hero)               #cmdbar    (decision tray + tactic cards + calls)  #brcol    (controls + minimap)
-import { h, mount, face, icon, fmtTime, toast, bossFace, kamiNow } from './dom.js';
+import { h, mount, face, icon, fmtTime, toast, bossFace, kamiNow, setText, setCss, setOff } from './dom.js';
 import { BUILDS } from '../data/items.js';
 import { PERSONALITIES } from '../data/heroes.js';
 import { TACTICS } from '../data/tactics.js';
@@ -108,11 +108,12 @@ export class Hud {
     // Phones: one Menu button reveals the controls (CSS decides when it shows).
     ctrl.unshift(h('button', { class: 'btn small menubtn', onclick: () => { this.el.ctrl.classList.toggle('open'); audio.sfx('move', 0.4); } }, 'Menu'));
     mount(this.el.ctrl, ctrl);
-    this.el.ctrl.addEventListener('click', (e) => { if (e.target.closest('.seg') && this.el.ctrl.classList.contains('open')) setTimeout(() => this.el.ctrl.classList.remove('open'), 150); });
+    // #ctrl and #scorebar outlive a match: assign (not add) their handlers so an old HUD never answers a tap
+    this.el.ctrl.onclick = (e) => { if (e.target.closest('.seg') && this.el.ctrl.classList.contains('open')) setTimeout(() => this.el.ctrl.classList.remove('open'), 150); };
     this.refreshCtrl();
     this.dock = new Dock(this);
     this.objTaken = [{ dragon: 0, herald: 0, baron: 0 }, { dragon: 0, herald: 0, baron: 0 }];
-    this.el.score.addEventListener('click', () => this.toggleScoreboard());
+    this.el.score.onclick = () => this.toggleScoreboard();
     this.el.score.title = 'Tap for the scoreboard [Tab]';
     this.buildFoeStrip();
     this.buildObjBar();
@@ -123,6 +124,7 @@ export class Hud {
     if (this.fogBtn) this.fogBtn.classList.toggle('on', this.r.fogOn);
   }
   toggleDirector() { this.director = !this.director; if (this.director) this.r.follow = null; this.refreshCtrl(); }
+  manualCam() { if (this.director) { this.director = false; this.refreshCtrl(); } }
   selectHero(hero) {
     if (this.r.follow === hero.id) { this.r.follow = null; this.sel = null; }
     else { this.r.follow = hero.id; this.sel = hero; if (!hero.alive) { this.r.cam.x = hero.x; this.r.cam.y = hero.y; } }
@@ -147,6 +149,7 @@ export class Hud {
     if (this.director) this.directorCam(dt);
     this.applySlow();
     this.alerts.place();
+    this.r.avoid = this.alerts.panelRects(); // cached 250 ms: callouts and chat bubbles keep clear of the HUD
     if (now - this.lastDom < (isTouch ? 180 : 120)) return;
     this.lastDom = now;
     this.dock.tick();
@@ -179,7 +182,7 @@ export class Hud {
     mount(this.el.score, c.sides[0].el, h('div', { class: 'mid' }, c.clock, c.wx), c.sides[1].el, h('div', { class: 'markrow' }, c.sides[0].marks, c.kk, c.sides[1].marks));
   }
   updateScore() {
-    const g = this.g, set = (el, v) => { v = String(v); if (el.textContent !== v) el.textContent = v; };
+    const g = this.g, set = setText;
     if (!this.sc) this.buildScore();
     const c = this.sc, left = g.timeLeft, wx = g.weatherList[Math.max(0, g.weatherIdx)], ot = this.objTaken || [{}, {}];
     set(c.clock, fmtTime(left)); c.clock.classList.toggle('late', left < 60);
@@ -255,7 +258,7 @@ export class Hud {
     mount(this.el.obj, this.objCells.map((c) => c.el), this.shrCells.map((c) => c.el));
   }
   updateObjBar() {
-    const g = this.g, set = (el, v) => { if (el.textContent !== v) el.textContent = v; };
+    const g = this.g, set = setText;
     for (const c of this.objCells) {
       const k = c.k, o = g.objectives[k], tmr = g.objTimers[k];
       const hide = (k === 'herald' && (g.time > g.T.heraldDespawn || g.objectives.baron)) || (k === 'baron' && g.time < g.T.heraldDespawn - 60 && !o);
@@ -269,7 +272,7 @@ export class Hud {
     }
     for (const c of this.shrCells) {
       const bg = c.sh.owner >= 0 ? TEAM_COL[c.sh.owner] : '#ffe9a8';
-      if (c.dot.style.background !== bg) c.dot.style.background = bg;
+      setCss(c.dot, 'background', bg); // (style.background reads back as rgb(): compare with the cached value)
       set(c.val, c.sh.owner < 0 ? '—' : c.sh.owner === this.view ? 'Ours' : 'Theirs');
     }
   }
@@ -307,17 +310,18 @@ export class Hud {
       const vis = mine || this.my < 0 || !this.r.fogOn || g.vision[this.view].has(x.id);
       row.classList.toggle('sel', this.r.follow === x.id);
       row.classList.toggle('isdead', !x.alive);
-      if (q.lv.textContent !== String(x.level)) q.lv.textContent = x.level;
-      if (!x.alive) { q.dead.classList.remove('hidden'); q.deadT.textContent = Math.max(0, Math.ceil((x.respawnAt - g.tick) / TICK_RATE)); } else q.dead.classList.add('hidden');
-      q.kda.textContent = `${x.kills}/${x.deaths}/${x.assists}`;
-      const pct = x.alive ? (vis ? x.hp / x.maxHp : 0) : 0, w = pct * 100 + '%';
-      q.bar.style.width = w; q.mini.style.width = w; q.barT.style.width = w; q.miniT.style.width = w;
+      setText(q.lv, x.level);
+      q.dead.classList.toggle('hidden', x.alive);
+      if (!x.alive) setText(q.deadT, Math.max(0, Math.ceil((x.respawnAt - g.tick) / TICK_RATE)));
+      setText(q.kda, `${x.kills}/${x.deaths}/${x.assists}`);
+      const pct = x.alive ? (vis ? x.hp / x.maxHp : 0) : 0, w = Math.round(pct * 200) / 2 + '%';
+      setCss(q.bar, 'width', w); setCss(q.mini, 'width', w); setCss(q.barT, 'width', w); setCss(q.miniT, 'width', w);
       // juice: hit flash on a big chunk of damage, pulse when low
       if (x.alive && vis && pct < q.last - 0.07) { row.classList.remove('hit'); void row.offsetWidth; row.classList.add('hit'); }
       q.last = pct;
       row.classList.toggle('low', x.alive && vis && pct < 0.3);
-      if (q.trust) { q.trust.style.width = x.trust + '%'; q.trust.style.background = x.trust >= 70 ? 'var(--green)' : x.trust <= 30 ? 'var(--red)' : 'var(--gold)'; }
-      q.st.textContent = mine ? this.taskLabel(x) : (vis ? (x.alive ? this.taskLabelEnemy(x) : this.taskLabel(x)) : this.missingText(x));
+      if (q.trust) { setCss(q.trust, 'width', Math.round(x.trust) + '%'); setCss(q.trust, 'background', x.trust >= 70 ? 'var(--green)' : x.trust <= 30 ? 'var(--red)' : 'var(--gold)'); }
+      setText(q.st, mine ? this.taskLabel(x) : (vis ? (x.alive ? this.taskLabelEnemy(x) : this.taskLabel(x)) : this.missingText(x)));
       if (q.its.childElementCount !== x.items.length) mount(q.its, ...x.items.map((it) => h('img', { src: icon(it.icon), title: it.name })));
       if (q.mia) { row.classList.toggle('mia', !vis && x.alive); q.mia.classList.toggle('hidden', vis || !x.alive); }
       const ultUp = mine && x.alive && x.level >= 5 && g.abilityReady(x, 2);
@@ -380,7 +384,7 @@ export class Hud {
   // Online quick chat (non-sim messages; see quickchat.js).
   enableChat(send) { if (!this.chat) this.chat = new QuickChat(this, send); return this.chat; }
   disableChat() { if (this.chat) { this.chat.destroy(); this.chat = null; } }
-  destroy() { this.closePop(); this.alerts.destroy(); this.disableChat(); clearTimeout(this._bt); document.getElementById('hud').classList.remove('bannering'); window.removeEventListener('pointerdown', this._popClose, true); }
+  destroy() { if (Hud.current === this) Hud.current = null; this.closePop(); this.alerts.destroy(); this.disableChat(); clearTimeout(this._bt); document.getElementById('hud').classList.remove('bannering'); window.removeEventListener('pointerdown', this._popClose, true); }
   taskLabelEnemy(x) { return this.g.tick - x.lastHitHero < TICK_RATE * 1.5 ? 'Fighting!' : `Seen ${LANE_L[this.g.world.closestLane(x)]}`; }
   missingText(x) {
     const ls = this.g.lastSeen[this.view][x.id];
@@ -407,18 +411,18 @@ export class Hud {
         h('div', { class: 'ablrow' }, ...abl, this._det.items), this._det.stats, this._det.info);
     }
     const d = this._det;
-    d.hp.style.width = (x.alive ? x.hp / x.maxHp * 100 : 0) + '%';
-    d.xp.style.width = Math.min(100, x.xp / xpNeeded(x.level) * 100) + '%';
+    setCss(d.hp, 'width', Math.round(x.alive ? x.hp / x.maxHp * 200 : 0) / 2 + '%');
+    setCss(d.xp, 'width', Math.round(Math.min(100, x.xp / xpNeeded(x.level) * 100)) + '%');
     x.def.abilities.forEach((ab, i) => {
       const el = d.abl[i].children[1];
       const locked = ab.ult && x.level < 5;
       const left = Math.max(0, (x.cds[i] - g.tick) / TICK_RATE);
-      el.textContent = locked ? 'L5' : left > 0 ? Math.ceil(left) : '';
+      setText(el, locked ? 'L5' : left > 0 ? Math.ceil(left) : '');
       d.abl[i].classList.toggle('cool', locked || left > 0);
     });
     if (d.items.childElementCount !== x.items.length) mount(d.items, ...x.items.map((it) => h('img', { src: icon(it.icon), title: it.name })));
-    d.stats.textContent = `AD ${Math.round(s.ad)}  AP ${Math.round(s.ap)}  AR ${Math.round(s.armor)}  MR ${Math.round(s.mr)}  AS ${s.as.toFixed(2)}  MS ${Math.round(g.moveSpeed(x))}`;
-    d.info.textContent = `Lv ${x.level} · ${x.kills}/${x.deaths}/${x.assists} · ${x.cs} CS · ${Math.round(x.goldEarned / 100) / 10}k` + (x.team === this.my ? ` · Trust ${Math.round(x.trust)}${x.tiltUntil > g.tick ? ' (tilted)' : ''}` : '') + ` · ${this.taskLabel(x)}`;
+    setText(d.stats, `AD ${Math.round(s.ad)}  AP ${Math.round(s.ap)}  AR ${Math.round(s.armor)}  MR ${Math.round(s.mr)}  AS ${s.as.toFixed(2)}  MS ${Math.round(g.moveSpeed(x))}`);
+    setText(d.info, `Lv ${x.level} · ${x.kills}/${x.deaths}/${x.assists} · ${x.cs} CS · ${Math.round(x.goldEarned / 100) / 10}k` + (x.team === this.my ? ` · Trust ${Math.round(x.trust)}${x.tiltUntil > g.tick ? ' (tilted)' : ''}` : '') + ` · ${this.taskLabel(x)}`);
   }
 
   // ───────────────────────── events → feeds / banners / audio ─────────────────────────

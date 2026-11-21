@@ -4,15 +4,15 @@ import { HEROES, HERO_BY_ID, ROLES, matchupScore } from './data/heroes.js';
 import { TACTIC_IDS, DEFAULT_DECK } from './data/tactics.js';
 import { taken, legal, currentTurn, aiPrep } from './sim/draft.js';
 
-export const PRESET_VERSION = 1;
-export const PRESET_SLOTS = 5;
+const PRESET_VERSION = 1;
+const PRESET_SLOTS = 5;
 export const PLANS = { aggressive: ['Aggressive', 'Trade often, roam early, chase further.'], balanced: ['Balanced', 'Default risk. Adapt to the game.'], scaling: ['Scaling', 'Farm safely; avoid even fights before ~10 min.'] };
 
 const emptyRoles = () => Object.fromEntries(ROLES.map((r) => [r, null]));
 export function newPreset(name) { return { name, main: emptyRoles(), backup: emptyRoles(), builds: {}, plan: 'balanced', deck: DEFAULT_DECK.slice() }; }
 const STARTER = { name: 'Starter', main: { top: 'bastion', jungle: 'kaze', mid: 'ember', bot: 'fletch', support: 'oak' },
   backup: { top: 'grok', jungle: 'leonin', mid: 'raiden', bot: 'marlowe', support: 'wu' } };
-export function freshPresets() {
+function freshPresets() {
   const slots = Array.from({ length: PRESET_SLOTS }, (_, i) => newPreset(`Lineup ${i + 1}`));
   Object.assign(slots[0], { name: STARTER.name, main: { ...STARTER.main }, backup: { ...STARTER.backup } });
   return { v: PRESET_VERSION, active: 0, slots: slots.map(sanitize) };
@@ -51,13 +51,13 @@ export function presetIssues(p) {
   if (missing.length) out.push(`No hero for ${missing.join(', ')}: you'll pick those yourself`);
   return out;
 }
-export const presetHeroes = (p) => (p ? ROLES.flatMap((r) => [p.main[r], p.backup[r]]).filter(Boolean) : []);
+const presetHeroes = (p) => (p ? ROLES.flatMap((r) => [p.main[r], p.backup[r]]).filter(Boolean) : []);
 // Which role a hero was meant for in this preset (main or backup), or null.
 export function presetRole(p, id) { if (!p) return null; for (const r of ROLES) if (p.main[r] === id || p.backup[r] === id) return r; return null; }
 
 // Role assignment that keeps each hero in its preferred role when the team allows it
 // (same rules as draft.assignRoles, which only guarantees *some* valid assignment).
-export function assignPreferred(ids, prefer = []) {
+function assignPreferred(ids, prefer = []) {
   const heroes = ids.map((id) => HERO_BY_ID[id]);
   const used = new Set(), cur = []; let best = null;
   (function go(i) {
@@ -79,7 +79,7 @@ export function pickScore(d, team, x) {
   return matchupScore(x, enemy).score * 2 + (x.roles.some((r) => need.includes(r)) ? 3 : -4) + (need.includes(x.role) ? 1 : 0) + (clanN[x.clan] || 0) * 1.5;
 }
 // The 3 best open heroes for one role (shown when the preset hero and its backup are gone).
-export function recommendForRole(d, team, role, n = 3) {
+function recommendForRole(d, team, role, n = 3) {
   const tk = taken(d), mine = d.picks[team];
   return HEROES.filter((x) => x.roles.includes(role) && !tk.has(x.id) && legal(d, team, x.id) && assignPreferred([...mine, x.id], [...mine.map(() => null), role]))
     .map((x) => [pickScore(d, team, x) + (x.role === role ? 2 : 0), x.id]).sort((a, b) => b[0] - a[0] || (a[1] < b[1] ? -1 : 1)).slice(0, n).map((q) => q[1]);

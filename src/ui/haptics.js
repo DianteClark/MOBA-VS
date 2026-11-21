@@ -5,7 +5,7 @@ import { settings } from './settings.js';
 const can = typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function';
 let last = 0;
 export const hapticsSupported = can;
-export const HAPTIC = {
+const HAPTIC = {
   kill: 18,                 // we got a kill
   death: [12, 50, 12],      // we lost a hero
   objective: [30, 40, 60],  // we took an objective
