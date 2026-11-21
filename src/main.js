@@ -109,9 +109,11 @@ class App {
       const r = c.getBoundingClientRect();
       if (c.width !== Math.round(r.width) || c.height !== Math.round(r.height)) { c.width = Math.round(r.width); c.height = Math.round(r.height); }
       ctx.imageSmoothingEnabled = false;
-      const z = 1.4, vw = c.width / z, vh = c.height / z;
-      const cx = 1200 + Math.cos(t * 0.03) * 700, cy = 1200 + Math.sin(t * 0.03) * 700;
-      ctx.drawImage(this.map, Math.max(0, cx - vw / 2), Math.max(0, cy - vh / 2), vw, vh, 0, 0, c.width, c.height);
+      // zoomed enough that the view never runs off the painted map (a big monitor used to show a dark strip)
+      const M = this.map, z = Math.max(1.4, c.width / M.width * 1.05, c.height / M.height * 1.05), vw = c.width / z, vh = c.height / z;
+      const cx = M.width / 2 + Math.cos(t * 0.03) * 700, cy = M.height / 2 + Math.sin(t * 0.03) * 700;
+      const sx = Math.max(0, Math.min(M.width - vw, cx - vw / 2)), sy = Math.max(0, Math.min(M.height - vh, cy - vh / 2));
+      ctx.drawImage(M, sx, sy, vw, vh, 0, 0, c.width, c.height);
       requestAnimationFrame(loop);
     };
     requestAnimationFrame(loop);

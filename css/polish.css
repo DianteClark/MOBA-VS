@@ -187,3 +187,4 @@ button.h2card:hover { filter: brightness(1.15); } button.h2card:active { transfo
 .patch.old:not([open]) { padding-top: 4px; padding-bottom: 4px; }
 /* re-rendering the same screen never replays the slide-in */
 #screen > .same { animation: none; }
+@media (min-width: 1600px) and (min-height: 900px) { #screen > .home2 { zoom: calc(var(--ts) * 1.4); } }
