@@ -55,3 +55,11 @@ tools/       headless tests, balance, tuning, UI audit
 ## Credits
 
 Art, music and sound: [Ninja Adventure Asset Pack](https://pixel-boy.itch.io/ninja-adventure-asset-pack) by Pixel-boy & AAA, CC0.
+
+## Seasons & balance
+
+* `src/data/seasons.js`: season calendar (themes, featured map/clan), rank tiers, pass rewards, skins.
+* `tools/season.mjs`: the season balancer. Runs self-play, moves each legend toward 50% (max ±5% per season),
+  writes `src/data/tuning.js`, prepends patch notes and bumps the netcode version.
+* `.github/workflows/season.yml`: runs the balancer daily; it only acts when a new season starts
+  (or when run by hand with **force**). Real match reports dropped in `data/matches/` are counted too.

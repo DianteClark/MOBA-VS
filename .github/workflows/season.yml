@@ -1,0 +1,39 @@
+# Season balancer: every day, check whether a new season has started. If so, play a few
+# hundred self-play matches, re-tune every legend (max ±5% each), write patch notes and
+# ship it to GitHub Pages. Run it by hand from the Actions tab with "force" to rebalance now.
+name: Season balance
+on:
+  schedule:
+    - cron: '17 7 * * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Rebalance now even if this season was already balanced'
+        type: boolean
+        default: false
+permissions:
+  contents: write
+concurrency: season-balance
+jobs:
+  balance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Balance
+        run: node tools/season.mjs ${{ github.event.inputs.force == 'true' && '--force' || '' }} --rounds 2 --games 160 --workers 4
+      - name: Sanity checks
+        run: |
+          node tools/determinism.mjs
+          node tools/lockstep.mjs
+      - name: Publish
+        run: |
+          if git diff --quiet; then echo "No changes."; exit 0; fi
+          git config user.name "season-balancer[bot]"
+          git config user.email "season-balancer@users.noreply.github.com"
+          git add src/data/tuning.js src/data/patchnotes.js src/main.js
+          git commit -m "Season balance: $(node -e "import('./src/data/patchnotes.js').then(m=>console.log('v'+m.PATCHES[0].version+' '+m.PATCHES[0].title))")"
+          git push
