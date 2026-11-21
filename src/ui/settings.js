@@ -1,0 +1,109 @@
+// Player settings: volumes, team colours, text size, reduced motion, default speed, chatter.
+// Persisted in localStorage. Render/UI read `settings.*` live; `applySettings()` pushes them
+// into audio, CSS variables and the shared TEAM_COL palette (mutated in place, so every
+// module that imported it sees the change).
+import { h, mount } from './dom.js';
+import { audio } from '../audio.js';
+import { TEAM_COL, TEAM_DARK } from '../render/palette.js';
+
+const KEY = 'mobavs_settings';
+const PALETTES = {
+  classic: { col: ['#4aa3ff', '#ff5a5a'], dark: ['#1d4f8a', '#8a1d27'] },
+  // blue / orange: safe for deuteranopia, protanopia and tritanopia
+  cb: { col: ['#3d9bff', '#ffa22e'], dark: ['#174a8a', '#8a4d0c'] },
+};
+const DEFAULTS = { music: 70, sfx: 80, colorblind: false, textSize: 'normal', reducedMotion: false, speed: 1, chatter: true, alerts: true };
+
+function systemReduced() { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { return false; } }
+
+export const settings = { ...DEFAULTS };
+export function loadSettings() {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch { /* ignore */ }
+  Object.assign(settings, DEFAULTS, saved && typeof saved === 'object' ? saved : { reducedMotion: systemReduced() });
+  applySettings();
+  return settings;
+}
+export function saveSettings() { try { localStorage.setItem(KEY, JSON.stringify(settings)); } catch { /* ignore */ } }
+export function setSetting(k, v) { settings[k] = v; saveSettings(); applySettings(); }
+
+export const TEXT_SCALE = { small: 0.88, normal: 1, large: 1.16 };
+export function textScale() { return TEXT_SCALE[settings.textSize] || 1; }
+
+export function applySettings() {
+  const p = settings.colorblind ? PALETTES.cb : PALETTES.classic;
+  TEAM_COL[0] = p.col[0]; TEAM_COL[1] = p.col[1];
+  TEAM_DARK[0] = p.dark[0]; TEAM_DARK[1] = p.dark[1];
+  const root = document.documentElement;
+  root.style.setProperty('--team0', p.col[0]);
+  root.style.setProperty('--team1', p.col[1]);
+  root.style.setProperty('--ts', String(textScale()));
+  root.classList.toggle('reduce-motion', !!settings.reducedMotion);
+  root.classList.toggle('cb', !!settings.colorblind);
+  audio.setVolumes(settings.music / 100 * 0.5, settings.sfx / 100 * 0.7);
+  for (const f of listeners) f(settings);
+}
+const listeners = new Set();
+export function onSettings(f) { listeners.add(f); return () => listeners.delete(f); }
+
+// ───────────── UI ─────────────
+function slider(label, key, onDone) {
+  const val = h('b', { class: 'sval' }, settings[key] + '%');
+  const inp = h('input', { type: 'range', min: 0, max: 100, step: 5, value: settings[key],
+    oninput: (e) => { settings[key] = +e.target.value; val.textContent = settings[key] + '%'; applySettings(); },
+    onchange: () => { saveSettings(); onDone && onDone(); } });
+  return h('div', { class: 'srow' }, h('span', { class: 'slab' }, label), h('div', { class: 'sctl' }, inp, val));
+}
+function seg(label, key, opts, rerender) {
+  return h('div', { class: 'srow' }, h('span', { class: 'slab' }, label),
+    h('div', { class: 'sctl segctl' }, ...opts.map(([v, l]) => h('button', { class: 'chip' + (settings[key] === v ? ' on' : ''), onclick: () => { setSetting(key, v); audio.sfx('move', 0.5); rerender(); } }, l))));
+}
+function toggle(label, key, desc, rerender, extra) {
+  return h('div', { class: 'srow' }, h('div', { class: 'slab' }, label, desc ? h('small', {}, desc) : null),
+    h('div', { class: 'sctl' }, extra || null, h('button', { class: 'tog' + (settings[key] ? ' on' : ''), role: 'switch', 'aria-checked': settings[key] ? 'true' : 'false', onclick: () => { setSetting(key, !settings[key]); audio.sfx('move', 0.5); rerender(); } }, h('i'))));
+}
+function body(rerender) {
+  const sw = h('span', { class: 'swatches' }, h('i', { style: { background: TEAM_COL[0] } }), h('i', { style: { background: TEAM_COL[1] } }));
+  return [
+    h('div', { class: 'sgroup' }, h('div', { class: 'sgt' }, 'Sound'),
+      slider('Music', 'music'),
+      slider('Effects', 'sfx', () => audio.sfx('coin', 1, 0)),
+      h('div', { class: 'srow' }, h('span', { class: 'slab' }, 'Mute everything'),
+        h('div', { class: 'sctl' }, h('button', { class: 'tog' + (audio.muted ? ' on' : ''), role: 'switch', onclick: () => { audio.setMuted(!audio.muted); rerender(); } }, h('i'))))),
+    h('div', { class: 'sgroup' }, h('div', { class: 'sgt' }, 'Display'),
+      toggle('Colour-blind team colours', 'colorblind', 'Blue vs orange instead of blue vs red', rerender, sw),
+      seg('Text size', 'textSize', [['small', 'Small'], ['normal', 'Normal'], ['large', 'Large']], rerender),
+      toggle('Reduced motion', 'reducedMotion', 'No screen shake, hit-stop or flashes', rerender)),
+    h('div', { class: 'sgroup' }, h('div', { class: 'sgt' }, 'Match'),
+      seg('Default speed', 'speed', [[1, '1x'], [2, '2x'], [4, '4x']], rerender),
+      toggle('Hero chatter', 'chatter', 'Speech bubbles when heroes react', rerender),
+      toggle('Off-screen alerts', 'alerts', 'Edge arrows for fights, towers and objectives', rerender)),
+  ];
+}
+
+// Full screen (from the home menu).
+export function showSettings(app) {
+  const render = () => mount(document.getElementById('screen'), h('div', { class: 'subscreen settings' },
+    h('div', { class: 'shead' }, h('button', { class: 'btn backbtn', onclick: () => { audio.sfx('move', 0.5); app.menu(); } }, '< Back'), h('h2', {}, 'Settings'), h('div')),
+    h('div', { class: 'panel spanel' }, ...body(render),
+      h('div', { class: 'srow sfoot' }, h('button', { class: 'chip', onclick: () => { Object.assign(settings, DEFAULTS, { reducedMotion: systemReduced() }); saveSettings(); applySettings(); audio.setMuted(false); render(); } }, 'Reset to defaults')))));
+  render();
+}
+
+// In-match overlay; pauses a local game while open.
+export function openSettingsModal(runner) {
+  if (document.querySelector('.modal')) return;
+  const wasPaused = runner && !runner.online ? runner.paused : null;
+  if (wasPaused === false) runner.paused = true;
+  const close = () => { wrap.remove(); if (wasPaused === false) runner.paused = false; document.removeEventListener('keydown', esc, true); };
+  const esc = (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
+  const inner = h('div', { class: 'panel spanel mpanel' });
+  const render = () => mount(inner, h('div', { class: 'mhead' }, h('b', {}, 'Settings'), wasPaused === false ? h('small', { class: 'muted' }, 'Game paused') : null, h('button', { class: 'x', title: 'Close', onclick: close }, 'X')), ...body(render),
+    h('div', { class: 'srow sfoot' }, h('button', { class: 'btn', onclick: close }, 'Resume')));
+  const wrap = h('div', { class: 'modal', onpointerdown: (e) => { if (e.target === wrap) close(); } }, inner);
+  render();
+  document.body.append(wrap);
+  document.addEventListener('keydown', esc, true);
+}
+
+loadSettings();

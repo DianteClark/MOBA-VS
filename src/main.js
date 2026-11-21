@@ -17,6 +17,7 @@ import { Hud } from './ui/hud.js';
 import { toast } from './ui/dom.js';
 import { audio } from './audio.js';
 import { DEFAULT_DECK } from './data/tactics.js';
+import { showHalftime, hideHalftime } from './ui/halftime.js';
 import { showHome, showCup, progressPanel } from './ui/home.js';
 import { profile } from './profile.js';
 import { newCup, recordCup, myMatch } from './cup.js';
@@ -184,7 +185,7 @@ class App {
         if (s.preps) { s.preps[m.team] = m.prep; s.ready[m.team] = true; this.checkPrepDone(); }
         else s.pendingPrep = m; // arrived before our prep screen opened
         break;
-      case 'in': case 'h':
+      case 'in': case 'h': case 'ht':
         if (this.match && this.match.runner.receive) this.match.runner.receive(m);
         break;
       case 'quit':
@@ -202,7 +203,8 @@ class App {
       toast('Opponent disconnected — AI coach takes over.', 3500);
       const g = this.match.game, enemy = 1 - this.session.myTeam;
       g.coaches[enemy] = new Coach(g, enemy, 1);
-      const r = new LocalRunner(g, this.session.myTeam); r.acc = this.match.runner.acc;
+      const old = this.match.runner, r = new LocalRunner(g, this.session.myTeam); r.acc = old.acc;
+      r.log = old.log; r.htDone = old.htDone; r.ht = old.ht; if (r.ht) r.ht.them = true; r.onHalftime = old.onHalftime; r.onHalftimeEnd = old.onHalftimeEnd;
       this.match.runner = r; this.match.hud.runner = r;
       this.session.mode = 'ai';
       this.cleanupNet();
@@ -308,12 +310,13 @@ class App {
   // ───────────── match ─────────────
   startMatch() {
     const s = this.session;
-    const cfg = {
+    const cfg = s.replay ? JSON.parse(JSON.stringify(s.replay.cfg)) : {
       seed: s.seed, map: s.mapId,
       teams: [0, 1].map((t) => ({ heroes: s.preps[t].heroes, plan: s.preps[t].plan, deck: s.preps[t].deck, name: s.names[t] })),
       coach: s.mode === 'ai' ? [s.myTeam !== 0, s.myTeam !== 1] : s.mode === 'watch' ? [true, true] : [false, false],
       coachLevel: [s.aiLevel ?? this.aiLevel, s.aiLevel ?? this.aiLevel],
     };
+    const cfgSaved = JSON.parse(JSON.stringify(cfg));
     const game = new Game(cfg);
     this.showScreen(false);
     audio.music(Math.random() < 0.5 ? 'match' : 'match2');
@@ -329,18 +332,21 @@ class App {
     }
     this.renderer.resize();
     this.renderer.attach(game, s.myTeam, this.mapCanvas(game.world));
-    this.renderer.skins = [0, 1].map((t) => (s.preps[t] && s.preps[t].skins) || {});
+    this.renderer.skins = s.replay ? s.replay.skins || [{}, {}] : [0, 1].map((t) => (s.preps[t] && s.preps[t].skins) || {});
     this.minimap.resize();
     this.renderer.fogOn = s.myTeam >= 0;
     const home = game.world.fountain[Math.max(0, s.myTeam)];
     this.renderer.cam.x = home.x + (s.myTeam === 1 ? -300 : 300); this.renderer.cam.y = home.y + (s.myTeam === 1 ? 300 : -300);
     this.renderer.cam.zoom = window.innerWidth < 700 ? 0.9 : 1.25;
     this.renderer.follow = null;
-    const runner = this.net ? new LockstepRunner(game, s.myTeam, this.net.t) : new LocalRunner(game, s.myTeam);
+    const runner = this.net ? new LockstepRunner(game, s.myTeam, this.net.t)
+      : new LocalRunner(game, s.myTeam, { noHalftime: s.mode === 'watch', script: s.replay ? s.replay.log : null });
+    runner.onHalftime = (ht) => showHalftime(this, game, s.myTeam, runner, ht);
+    runner.onHalftimeEnd = () => hideHalftime();
     if (runner.online) runner.onDesync = (k) => { console.warn('desync at', k); toast('Warning: games out of sync (tick ' + k + ')', 4000); };
     const hud = new Hud(this, game, runner, this.renderer, this.minimap, s.myTeam, s.mode);
     if (s.mode === 'watch') hud.toggleDirector();
-    this.match = { game, runner, hud, ended: false };
+    this.match = { game, runner, hud, ended: false, cfg: cfgSaved };
     this.lastFrame = performance.now();
     requestAnimationFrame((t) => this.frame(t));
     // Hidden tabs stop requestAnimationFrame: keep the lockstep sim ticking so the opponent never stalls.
@@ -394,6 +400,7 @@ class App {
       this.showScreen(true);
       audio.music(won ? 'victory' : 'defeat');
       const s = this.session;
+      if (!s.replay && m.cfg) this.saveReplay(m, s);
       let sum = null, cupOut = null;
       try {
         sum = profile.record({ game: m.game, myTeam: s.myTeam, mode: s.mode === 'ai' ? 'ai' : 'online', aiLevel: s.aiLevel ?? this.aiLevel, cup: !!s.cup });
@@ -404,6 +411,20 @@ class App {
         s.cup ? () => showCup(this) : s.mode === 'ai' ? () => this.startVsAI() : s.mode === 'watch' ? () => this.watch() : null,
         () => this.menu(), { progress: progressPanel(sum, cupOut), againLabel: s.cup ? 'Back to bracket' : null });
     });
+  }
+  // Replays: config + command log is enough to re-run the whole match deterministically.
+  saveReplay(m, s) {
+    try {
+      localStorage.setItem('mobavs_replay', JSON.stringify({ v: VERSION, t: Date.now(), cfg: m.cfg, log: m.runner.log, names: s.names, mapId: s.mapId,
+        myTeam: s.myTeam, winner: m.game.winner, skins: this.renderer.skins, len: Math.round(m.game.time) }));
+    } catch { /* storage full or unavailable */ }
+  }
+  lastReplay() { try { const r = JSON.parse(localStorage.getItem('mobavs_replay') || 'null'); return r && r.v === VERSION ? r : null; } catch { return null; } }
+  watchReplay() {
+    const r = this.lastReplay(); if (!r) { toast('No replay saved yet (or it is from an older version).'); return; }
+    stopParade();
+    this.session = { mode: 'watch', replay: r, myTeam: -1, seed: r.cfg.seed, mapId: r.mapId || r.cfg.map, names: r.names, rng: new Rng(1) };
+    this.fade(() => this.startMatch());
   }
   quitMatch() {
     if (!confirm('Leave this match?')) return;

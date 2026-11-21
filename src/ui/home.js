@@ -10,6 +10,7 @@ import { myMatch, ROUND_NAMES } from '../cup.js';
 import { IMG, recolor } from '../render/assets.js';
 import { mapThumb, showHowTo } from './screens.js';
 import { audio } from '../audio.js';
+import { showSettings } from './settings.js';
 
 const screen = () => document.getElementById('screen');
 const item = (n) => `assets/img/${n}.png`;
@@ -65,10 +66,12 @@ export function showHome(app) {
           h('button', { class: 'btn big', onclick: () => app.joinScreen() }, 'Join')))),
     h('div', { class: 'subnav' },
       h('button', { class: 'chip', onclick: () => app.watch() }, 'Watch AI'),
+      app.lastReplay() ? h('button', { class: 'chip', onclick: () => app.watchReplay() }, 'Last Replay') : null,
       h('button', { class: 'chip', onclick: () => showLocker(app) }, 'Locker'),
       h('button', { class: 'chip', onclick: () => showSeason(app) }, 'Season Pass'),
       h('button', { class: 'chip' + (unseen ? ' new' : ''), onclick: () => showPatch(app) }, 'Patch Notes'),
-      h('button', { class: 'chip', onclick: () => showHowTo(app) }, 'How to Play')),
+      h('button', { class: 'chip', onclick: () => showHowTo(app) }, 'How to Play'),
+      h('button', { class: 'chip gear', onclick: () => { audio.sfx('move', 0.5); showSettings(app); } }, h('img', { src: 'assets/img/icons/Permutation.png' }), 'Settings')),
     p.newSeasonNote ? h('div', { class: 'panel note' }, `Season ${p.newSeasonNote.from} is over. You peaked at ${p.newSeasonNote.peak}. Your rank was soft-reset; your border is in the Locker.`) : null,
     h('div', { class: 'credits' }, h('a', { href: 'https://dianteclark.github.io/MOBA-VS/', target: '_blank' }, 'dianteclark.github.io/MOBA-VS'), ' · ', h('a', { href: 'https://github.com/DianteClark/MOBA-VS', target: '_blank' }, 'GitHub'), ` · v${PATCHES[0].version}`),
     h('div', { class: 'credits' }, 'Art & audio: ', h('a', { href: 'https://pixel-boy.itch.io/ninja-adventure-asset-pack', target: '_blank' }, 'Ninja Adventure'), ' by Pixel-boy & AAA (CC0)'),
@@ -127,8 +130,8 @@ export function showLocker(app, tab = 'skins', sel = null) {
     const hero = sel || HEROES[0].id;
     const cur = p.d.equip.skins[hero] || 'base';
     body = h('div', { class: 'col' },
-      h('div', { class: 'lockgrid' }, ...ROLES.flatMap((r) => HEROES.filter((x) => x.role === r).map((x) => h('button', { class: 'lockhero' + (x.id === hero ? ' on' : ''), title: `${x.name} · ${ROLE_LABEL[r]}`, onclick: () => showLocker(app, 'skins', x.id) },
-        skinPreview(x.id, p.d.equip.skins[x.id] || 'base', 40), h('small', {}, x.name))))),
+      h('div', { class: 'lockgrid' }, ...ROLES.flatMap((r) => [h('div', { class: 'lockrole' }, ROLE_LABEL[r]), ...HEROES.filter((x) => x.role === r).map((x) => h('button', { class: 'lockhero' + (x.id === hero ? ' on' : ''), title: `${x.name} · ${ROLE_LABEL[r]}`, onclick: () => showLocker(app, 'skins', x.id) },
+        skinPreview(x.id, p.d.equip.skins[x.id] || 'base', 36), h('small', {}, x.name)))])),
       h('div', { class: 'panel' }, h('b', {}, `${HERO_BY_ID[hero].name} · ${HERO_BY_ID[hero].title}`),
         h('div', { class: 'skinrow' }, ...Object.entries(SKINS).map(([k, sk]) => {
           const have = un.skins.includes(k), lvl = Object.entries(TRACK).find(([, r]) => r.kind === 'skin' && r.id === k);

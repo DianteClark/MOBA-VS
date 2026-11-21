@@ -2,7 +2,7 @@
 export function bindCamera(r, canvas, minimap, mmCanvas, hooks = {}) {
   const keys = new Set();
   let drag = null, pinch = null, moved = 0;
-  const stopFollow = () => { if (r.follow) { r.follow = null; hooks.onFollow && hooks.onFollow(null); } };
+  const stopFollow = () => { r.panTo = null; if (r.follow) { r.follow = null; hooks.onFollow && hooks.onFollow(null); } };
 
   canvas.addEventListener('mousedown', (e) => { drag = { x: e.clientX, y: e.clientY }; moved = 0; });
   window.addEventListener('mousemove', (e) => {

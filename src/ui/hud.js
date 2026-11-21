@@ -9,6 +9,8 @@ import { CMD, DRAGON_INFO, TEAM_NAME, TICK_RATE, T, OBJ_NAME, WEATHER, CLANS, xp
 import { TEAM_COL } from '../render/renderer.js';
 import { audio } from '../audio.js';
 import { Dock } from './commands.js';
+import { Alerts } from './alerts.js';
+import { settings, openSettingsModal } from './settings.js';
 
 const LANES = ['top', 'mid', 'bot'];
 const LANE_L = { top: 'Top', mid: 'Mid', bot: 'Bot' };
@@ -27,27 +29,48 @@ export class Hud {
       banner: byId('banner'), ctrl: byId('ctrl'), cmd: byId('cmdbar'), detail: byId('detail') };
     mount(this.el.feed); mount(this.el.kf); mount(this.el.banner);
     byId('rightcol').classList.remove('show');
+    if (Hud.current && Hud.current !== this) Hud.current.destroy();
+    Hud.current = this;
+    if (!runner.online && mode !== 'watch') runner.speed = settings.speed || 1;
     this.build();
+    this.alerts = new Alerts(this);
+    this._popClose = (e) => { if (this.pop && !this.pop.el.contains(e.target)) this.closePop(); };
+    window.addEventListener('pointerdown', this._popClose, true);
   }
 
   // ───────────────────────── build ─────────────────────────
   build() {
     const g = this.g;
     const card = (hero, mine) => {
-      const pers = PERSONALITIES[hero.def.pers];
-      const row = h('div', { class: 'hrow' + (mine ? ' mine' : ''), onclick: () => { this.selectHero(hero); if (this.my >= 0) { if (this.r.follow === hero.id) this.dock.open('hero:' + hero.id); else this.dock.close(); } }, title: `${hero.def.name} · ${pers.name}` },
-        h('div', { class: 'pf' }, h('img', { src: face(hero.heroId) }), h('div', { class: 'lv' }, '1'), h('div', { class: 'dead hidden' }, ''), h('div', { class: 'ultdot hidden', title: 'Ultimate ready' })),
+      const pers = PERSONALITIES[hero.def.pers], tc = `var(--team${hero.team})`;
+      const ultAb = hero.def.abilities.find((a) => a.ult) || hero.def.abilities[2];
+      const row = h('div', { class: 'hrow' + (mine ? ' mine' : ''), title: `${hero.def.name} · ${pers.name} (hold or right-click for details)` },
+        h('div', { class: 'pf' }, h('img', { class: 'fc', src: face(hero.heroId) }), h('div', { class: 'lv' }, '1'),
+          h('div', { class: 'dead hidden' }, h('span', { class: 'skull' }), h('b', {}, '')),
+          h('div', { class: 'ultdot hidden', title: 'Ultimate ready' }, h('img', { src: icon(ultAb.icon) })),
+          h('img', { class: 'stb hidden', src: 'assets/img/emote/up.png' })),
         h('div', { class: 'info2' },
-          h('div', { class: 'nm' }, h('span', { style: { color: TEAM_COL[hero.team] } }, hero.def.name), h('span', { class: 'kda' }, '0/0/0')),
-          h('div', { class: 'bar' }, h('i', { style: { background: TEAM_COL[hero.team] } })),
+          h('div', { class: 'nm' }, h('span', { style: { color: tc } }, hero.def.name), h('span', { class: 'kda' }, '0/0/0')),
+          h('div', { class: 'bar' }, h('i', { class: 'tr' }), h('i', { class: 'hp', style: { background: tc } })),
           mine ? h('div', { class: 'trust', title: 'Trust in your calls' }, h('i')) : null,
           h('div', { class: 'st' }, ''),
           h('div', { class: 'its' })),
-        h('div', { class: 'hpmini' }, h('i', { style: { background: TEAM_COL[hero.team] } })),
+        h('div', { class: 'hpmini' }, h('i', { class: 'tr' }), h('i', { class: 'hp', style: { background: tc } })),
         mine ? null : h('div', { class: 'mia hidden' }, 'MIA'));
       row._hero = hero;
-      row._q = { lv: row.querySelector('.lv'), dead: row.querySelector('.dead'), kda: row.querySelector('.kda'), bar: row.querySelector('.bar i'), mini: row.querySelector('.hpmini i'),
-        trust: row.querySelector('.trust i'), st: row.querySelector('.st'), its: row.querySelector('.its'), mia: row.querySelector('.mia'), ult: row.querySelector('.ultdot') };
+      row._q = { lv: row.querySelector('.lv'), dead: row.querySelector('.dead'), deadT: row.querySelector('.dead b'), kda: row.querySelector('.kda'), bar: row.querySelector('.bar .hp'), barT: row.querySelector('.bar .tr'),
+        mini: row.querySelector('.hpmini .hp'), miniT: row.querySelector('.hpmini .tr'),
+        trust: row.querySelector('.trust i'), st: row.querySelector('.st'), its: row.querySelector('.its'), mia: row.querySelector('.mia'), ult: row.querySelector('.ultdot'), stb: row.querySelector('.stb'), last: 1 };
+      // tap: follow (tap again: build sheet / focus) · hold or right-click: details popover
+      let lpT = 0, sx = 0, sy = 0;
+      row.addEventListener('click', () => {
+        if (row._lp) { row._lp = false; return; }
+        this.selectHero(hero); if (this.my >= 0) { if (this.r.follow === hero.id) this.dock.open('hero:' + hero.id); else this.dock.close(); }
+      });
+      row.addEventListener('contextmenu', (e) => { e.preventDefault(); this.openPop(hero, row); });
+      row.addEventListener('pointerdown', (e) => { if (e.button) return; sx = e.clientX; sy = e.clientY; clearTimeout(lpT); lpT = setTimeout(() => { row._lp = true; this.openPop(hero, row); audio.sfx('move', 0.4); }, 430); });
+      row.addEventListener('pointermove', (e) => { if (Math.abs(e.clientX - sx) + Math.abs(e.clientY - sy) > 10) clearTimeout(lpT); });
+      for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) row.addEventListener(ev, () => clearTimeout(lpT));
       return row;
     };
     this.mineRows = g.teams[this.view].heroes.map((x) => card(x, true));
@@ -65,7 +88,7 @@ export class Hud {
       this.dirBtn = h('button', { class: 'btn small', title: 'Auto-camera follows the action [Space]', onclick: () => this.toggleDirector() }, 'Cam'),
       this.my < 0 ? (this.fogBtn = h('button', { class: 'btn small', onclick: () => { this.r.fogOn = !this.r.fogOn; this.refreshCtrl(); } }, 'Fog')) : null,
       h('button', { class: 'btn small foesbtn', onclick: () => byId('rightcol').classList.toggle('show') }, 'Foes'),
-      this.muteBtn = h('button', { class: 'btn small', onclick: () => { audio.toggle(); this.refreshCtrl(); } }, 'Snd'),
+      h('button', { class: 'btn small', title: 'Settings (pauses vs AI)', onclick: () => openSettingsModal(this.runner) }, 'Opt'),
       h('button', { class: 'btn small', onclick: () => this.app.quitMatch() }, 'Quit')));
     mount(this.el.ctrl, ctrl);
     this.refreshCtrl();
@@ -76,7 +99,6 @@ export class Hud {
     for (const b of this.el.ctrl.querySelectorAll('.spd')) b.classList.toggle('on', b._s === 0 ? this.runner.paused : (!this.runner.paused && this.runner.speed === b._s));
     this.dirBtn.classList.toggle('on', this.director);
     if (this.fogBtn) this.fogBtn.classList.toggle('on', this.r.fogOn);
-    this.muteBtn.classList.toggle('on', audio.muted); this.muteBtn.textContent = audio.muted ? 'Mute' : 'Snd';
   }
   toggleDirector() { this.director = !this.director; if (this.director) this.r.follow = null; this.refreshCtrl(); }
   selectHero(hero) {
@@ -101,6 +123,7 @@ export class Hud {
     const g = this.g, now = performance.now();
     this.processEvents();
     if (this.director) this.directorCam(dt);
+    this.alerts.place();
     if (now - this.lastDom < 120) return;
     this.lastDom = now;
     this.dock.tick();
@@ -108,6 +131,8 @@ export class Hud {
     this.updateRows(this.mineRows, true);
     this.updateRows(this.enemyRows, false);
     this.renderDetail(false);
+    this.alerts.scan();
+    if (this.pop) this.pop.upd();
     if (now - this.lastAnalyst > 1000) { this.lastAnalyst = now; this.analyst(); }
     const fade = (list, ttl) => list.filter((f) => { if (now - f.t > (f.sticky ? 12000 : ttl)) { f.el.classList.add('out'); setTimeout(() => f.el.remove(), 300); return false; } return true; });
     this.feedItems = fade(this.feedItems, 7000);
@@ -193,18 +218,77 @@ export class Hud {
       const vis = mine || this.my < 0 || !this.r.fogOn || g.vision[this.view].has(x.id);
       row.classList.toggle('sel', this.r.follow === x.id);
       row.classList.toggle('isdead', !x.alive);
-      q.lv.textContent = x.level;
-      if (!x.alive) { q.dead.classList.remove('hidden'); q.dead.textContent = Math.ceil((x.respawnAt - g.tick) / TICK_RATE); } else q.dead.classList.add('hidden');
+      if (q.lv.textContent !== String(x.level)) q.lv.textContent = x.level;
+      if (!x.alive) { q.dead.classList.remove('hidden'); q.deadT.textContent = Math.max(0, Math.ceil((x.respawnAt - g.tick) / TICK_RATE)); } else q.dead.classList.add('hidden');
       q.kda.textContent = `${x.kills}/${x.deaths}/${x.assists}`;
-      const pct = x.alive ? (vis ? x.hp / x.maxHp : 0) : 0;
-      q.bar.style.width = pct * 100 + '%'; q.mini.style.width = pct * 100 + '%';
+      const pct = x.alive ? (vis ? x.hp / x.maxHp : 0) : 0, w = pct * 100 + '%';
+      q.bar.style.width = w; q.mini.style.width = w; q.barT.style.width = w; q.miniT.style.width = w;
+      // juice: hit flash on a big chunk of damage, pulse when low
+      if (x.alive && vis && pct < q.last - 0.07) { row.classList.remove('hit'); void row.offsetWidth; row.classList.add('hit'); }
+      q.last = pct;
+      row.classList.toggle('low', x.alive && vis && pct < 0.3);
       if (q.trust) { q.trust.style.width = x.trust + '%'; q.trust.style.background = x.trust >= 70 ? 'var(--green)' : x.trust <= 30 ? 'var(--red)' : 'var(--gold)'; }
       q.st.textContent = mine ? this.taskLabel(x) : (vis ? (x.alive ? this.taskLabelEnemy(x) : this.taskLabel(x)) : this.missingText(x));
       if (q.its.childElementCount !== x.items.length) mount(q.its, ...x.items.map((it) => h('img', { src: icon(it.icon), title: it.name })));
       if (q.mia) { row.classList.toggle('mia', !vis && x.alive); q.mia.classList.toggle('hidden', vis || !x.alive); }
-      q.ult.classList.toggle('hidden', !(mine && x.alive && x.level >= 5 && g.abilityReady(x, 2)));
+      const ultUp = mine && x.alive && x.level >= 5 && g.abilityReady(x, 2);
+      if (ultUp && q.ult.classList.contains('hidden')) { row.classList.remove('ultpop'); void row.offsetWidth; row.classList.add('ultpop'); }
+      q.ult.classList.toggle('hidden', !ultUp);
+      // mood badge (your heroes only): tilted > inspired > doubtful
+      const mood = !mine || this.my < 0 || !x.alive ? null : x.tiltUntil > g.tick ? 'tilt' : x.trust >= 70 ? 'up' : x.trust <= 30 ? 'doubt' : null;
+      if (mood !== q.mood) {
+        q.mood = mood; q.stb.classList.toggle('hidden', !mood);
+        if (mood) { q.stb.src = `assets/img/emote/${mood}.png`; q.stb.title = { tilt: 'Tilted', up: 'Inspired', doubt: 'Doubtful' }[mood]; }
+        row.dataset.mood = mood || '';
+      }
     }
   }
+  // ── press-and-hold / right-click details popover ──
+  openPop(x, row) {
+    if (this.pop && this.pop.id === x.id) return;
+    this.closePop();
+    const g = this.g, pers = PERSONALITIES[x.def.pers], mine = x.team === this.view && this.my >= 0;
+    const abl = x.def.abilities.map((ab, i) => h('div', { class: 'abl', title: ab.name }, h('img', { src: icon(ab.icon) }), h('div', { class: 'cd' }), h('span', { class: 'k' }, ab.ult ? 'R' : ['Q', 'W'][i])));
+    const els = { hp: h('i'), trust: h('i'), trustL: h('small', {}), stats: h('div', { class: 'pstats' }), task: h('div', { class: 'ptask' }), items: h('div', { class: 'its' }) };
+    const el = h('div', { id: 'hpop', class: 'hpop' },
+      h('div', { class: 'phead' }, h('img', { class: 'pface', src: face(x.heroId), style: { borderColor: `var(--team${x.team})` } }),
+        h('div', { class: 'pcol' }, h('b', { style: { color: `var(--team${x.team})` } }, x.def.name), h('small', { class: 'muted' }, x.def.title),
+          h('div', { class: 'pchips' }, h('span', { class: 'pchip', style: { color: CLANS[x.def.clan].color, borderColor: CLANS[x.def.clan].color } }, CLANS[x.def.clan].name),
+            h('span', { class: 'pchip', style: { color: pers.color, borderColor: pers.color } }, pers.name),
+            h('span', { class: 'pchip', style: { color: BUILDS[x.build].color, borderColor: BUILDS[x.build].color } }, BUILDS[x.build].name))),
+        h('button', { class: 'x', onclick: () => this.closePop() }, 'X')),
+      h('div', { class: 'pdesc' }, pers.desc),
+      h('div', { class: 'pbarrow' }, h('span', {}, 'HP'), h('div', { class: 'pbar hp' }, els.hp)),
+      mine ? h('div', { class: 'pbarrow' }, h('span', {}, 'Trust'), h('div', { class: 'pbar tr' }, els.trust), els.trustL) : null,
+      h('div', { class: 'ablrow' }, ...abl, els.items), els.stats, els.task);
+    document.body.append(el);
+    const upd = () => {
+      const vis = mine || this.my < 0 || !this.r.fogOn || g.vision[this.view].has(x.id);
+      els.hp.style.width = (x.alive && vis ? x.hp / x.maxHp * 100 : 0) + '%';
+      if (mine) {
+        els.trust.style.width = x.trust + '%'; els.trust.style.background = x.trust >= 70 ? 'var(--green)' : x.trust <= 30 ? 'var(--red)' : 'var(--gold)';
+        els.trustL.textContent = (x.tiltUntil > g.tick ? 'Tilted · ' : '') + (x.trust >= 70 ? 'Inspired' : x.trust <= 30 ? 'Doubtful' : 'Steady');
+      }
+      x.def.abilities.forEach((ab, i) => {
+        const c = abl[i].children[1], locked = ab.ult && x.level < 5, left = Math.max(0, (x.cds[i] - g.tick) / TICK_RATE);
+        const t = !mine && this.my >= 0 ? '' : locked ? 'L5' : left > 0 ? String(Math.ceil(left)) : '';
+        if (c.textContent !== t) c.textContent = t; abl[i].classList.toggle('cool', mine || this.my < 0 ? (locked || left > 0) : false);
+      });
+      if (els.items.childElementCount !== x.items.length) mount(els.items, ...x.items.map((it) => h('img', { src: icon(it.icon), title: it.name })));
+      els.stats.textContent = `Lv ${x.level}  ·  ${x.kills}/${x.deaths}/${x.assists}  ·  ${x.cs} CS  ·  ${Math.round(x.goldEarned / 100) / 10}k gold`;
+      els.task.textContent = !x.alive ? this.taskLabel(x) : mine ? this.taskLabel(x) : vis ? this.taskLabelEnemy(x) : this.missingText(x);
+    };
+    upd();
+    // place beside the card, clamped to the viewport
+    const rb = row.getBoundingClientRect(), pw = el.offsetWidth, ph = el.offsetHeight, W = window.innerWidth, H = window.innerHeight;
+    let left = rb.left + rb.width / 2 < W / 2 ? rb.right + 6 : rb.left - pw - 6;
+    left = Math.max(6, Math.min(W - pw - 6, left));
+    const top = Math.max(6, Math.min(H - ph - 6, rb.top));
+    el.style.left = left + 'px'; el.style.top = top + 'px';
+    this.pop = { id: x.id, el, upd };
+  }
+  closePop() { if (this.pop) { this.pop.el.remove(); this.pop = null; } }
+  destroy() { this.closePop(); this.alerts.destroy(); window.removeEventListener('pointerdown', this._popClose, true); }
   taskLabelEnemy(x) { return this.g.tick - x.lastHitHero < TICK_RATE * 1.5 ? 'Fighting!' : `Seen ${LANE_L[this.g.world.closestLane(x)]}`; }
   missingText(x) {
     const ls = this.g.lastSeen[this.view][x.id];
@@ -282,7 +366,9 @@ export class Hud {
           if ((c.team !== this.view && this.my >= 0) || c.type === 'tactic') break;
           const what = c.type === 'gank' ? `${c.hero ? this.name(c.hero) : 'Jungler'} gank ${LANE_L[c.lane]}` : c.type === 'objective' ? `Take ${OBJ_L[c.obj]}` : c.type === 'group' ? `Group ${LANE_L[c.lane]}` :
             c.type === 'split' ? `${this.name(c.hero)} split ${LANE_L[c.lane]}` : c.type === 'focus' ? `Focus ${this.name(c.target)}` : c.type === 'build' ? `${this.name(c.hero)} → ${BUILDS[c.build].name}` :
-            c.type === 'herald' ? `Oni ${LANE_L[c.lane]}` : c.type === 'shrine' ? 'Capture shrine' : c.type === 'safe' ? 'Play safe' : c.type === 'reset' ? 'Reset' : c.type === 'invade' ? 'Invade' : 'Cancel calls';
+            c.type === 'herald' ? `Oni ${LANE_L[c.lane]}` : c.type === 'shrine' ? 'Capture shrine' : c.type === 'safe' ? 'Play safe' : c.type === 'reset' ? 'Reset' : c.type === 'invade' ? 'Invade' :
+            c.type === 'ult' ? ({ go: 'ALL-IN, ultimates fire next fight!', save: 'Hold ultimates', free: 'Ults: heroes choose' })[c.mode] : c.type === 'plan' ? `Plan: ${c.plan}` : c.type === 'redraw' ? 'Swapped a tactic card' : 'Cancel calls';
+          if (c.type === 'ult' && c.mode === 'go') this.banner('ALL-IN!', TEAM_COL[c.team], 1200);
           this.feed(`${this.my < 0 ? TEAM_NAME[c.team] + ' call' : 'Call'}: ${what}`, c.team === 0 ? 'b' : 'r');
           break;
         }
@@ -295,6 +381,7 @@ export class Hud {
         case 'pivot': if (e.team === this.view) this.feed(`${this.name(e.hero)} will now build ${BUILDS[e.build].name}`, 'n'); break;
         case 'trust': if (e.team === this.view && this.my >= 0) { const x = g.byId(e.hero); this.feed(e.tier === 2 ? `${x.def.name} is Inspired by your calls!` : e.tier === 0 ? `${x.def.name} is losing faith in your calls` : `${x.def.name} trusts you again`, e.tier === 0 ? 'r' : 's'); } break;
         case 'tactic': if (e.team === this.view || this.my < 0) { this.banner(TACTICS[e.card].name.toUpperCase(), TEAM_COL[e.team], 1500); audio.sfx('powerup', 0.7); } break;
+        case 'finalPhase': this.banner('LAST STAND', '#ff8a3a', 2200, null); this.feed('Final 3 minutes: gold ×1.5, longer respawns. Every tower counts!', 's', true); audio.sfx('alert', 0.8); break;
         case 'stolenCamp': if (e.big && e.team !== this.view) this.feed('Enemy invaded your jungle!', 'r'); break;
       }
     }

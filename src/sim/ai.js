@@ -351,7 +351,8 @@ function combat(g, h, C, recalling) {
       return false;
     }
   } else {
-    want = (killable && hpPct > 0.3) || ratio >= engageAt || (beingHit && ratio >= risk * 0.85)
+    const allInCall = g.teams[h.team].ultMode && g.teams[h.team].ultMode.mode === 'go';
+    want = (killable && hpPct > 0.3) || ratio >= engageAt * (allInCall ? 0.8 : 1) || (beingHit && ratio >= risk * 0.85)
       || (h.task.kind === 'objective' && ratio >= risk * 0.85) || (h.fightTarget === best.id && now - h.lastCombat < sec(1.5) && ratio >= risk * 0.9);
   }
   if (castAllySustain(g, h, allies)) return true;
@@ -468,6 +469,9 @@ function castCombat(g, h, t, near, allies, killable) {
     const ab = h.def.abilities[i], u = ab.use;
     if (ab.kind === 'ally' || ab.kind === 'allynova') continue;
     if (ab.kind === 'self') {
+      const um = ab.ult && g.teams[h.team].ultMode;
+      if (um && um.mode === 'save' && !(u.includes('defend') && h.hp / h.maxHp < 0.4)) continue;
+      if (um && um.mode === 'go' && dist2(h, t) < (h.stats.range + 200) ** 2) { g.cast(h, i, null); return true; }
       if ((u.includes('engage') || u.includes('teamfight')) && dist2(h, t) < (h.stats.range + 140) ** 2) { g.cast(h, i, null); return true; }
       if (u.includes('defend') && h.hp / h.maxHp < 0.6 && g.tick - h.lastHurtByHero < sec(1)) { g.cast(h, i, null); return true; }
       continue;
@@ -477,6 +481,9 @@ function castCombat(g, h, t, near, allies, killable) {
     if (ab.kind === 'dash' && enemyTowerAt(g, h.team, t, 0) && !killable) continue;
     const dmg = g.abilityDamage(h, ab, t);
     const exec = t.hp < dmg * 1.05 || (u.includes('execute') && t.hp / t.maxHp < 0.4);
+    const um = ab.ult && g.teams[h.team].ultMode;
+    if (um && um.mode === 'save' && !exec) continue;            // coach: hold ults
+    if (um && um.mode === 'go') { if (castAt(g, h, i, t)) return true; continue; } // coach: all-in, fire now
     let ok = false;
     if (u.includes('execute') && exec) ok = true;
     if (u.includes('engage')) ok = true;

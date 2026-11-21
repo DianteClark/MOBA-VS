@@ -57,7 +57,8 @@ export class Dock {
       b._id = c.id; return b;
     });
     mount(el, this.sugEl, this.sheetEl, this.cancelEl,
-      h('div', { class: 'dock' }, h('div', { class: 'handrow' }, meter, h('div', { class: 'hand' }, this.cards)), h('div', { class: 'callrow' }, this.callBtns)));
+      h('div', { class: 'dock' }, h('div', { class: 'handrow' }, meter, h('div', { class: 'hand' }, this.cards), this.ultBtn = h('button', { class: 'ultbtn', title: 'Ultimates: let heroes choose → Hold them → All-in now [U]', onclick: () => this.cycleUlt() }, h('img', { src: icon('Death') }), h('span', { class: 'ul' }, 'Ults'), h('b', {}, 'Auto'))),
+        h('div', { class: 'callrow' }, this.callBtns)));
     this.tick();
   }
 
@@ -74,6 +75,8 @@ export class Dock {
       b.classList.toggle('hot', !!this.hotCall(b._id));
     }
     for (const b of this.cards) { b.disabled = b._d.used; b.classList.toggle('used', b._d.used); b.classList.toggle('on', this.sheetId === 'card:' + b._d.id); }
+    const um = team.ultMode && team.ultMode.until > g.tick ? team.ultMode.mode : 'auto';
+    if (this.ultBtn._m !== um) { this.ultBtn._m = um; this.ultBtn.lastChild.textContent = { auto: 'Auto', save: 'Hold', go: 'ALL-IN' }[um]; this.ultBtn.className = 'ultbtn ' + um; }
     const active = this.alive().some((x) => (x.task && x.task.call) || x.pendingCall) || (team.focus && team.focus.until > g.tick);
     this.cancelEl.classList.toggle('hidden', !active);
     for (const f of this.live) f();
@@ -110,6 +113,12 @@ export class Dock {
       if (!open.length) { toast('You already hold both shrines'); return; }
     }
     this.open(id);
+  }
+  // Ult calls cycle Auto → Hold → All-in (free). All-in lasts 20s, Hold 45s.
+  cycleUlt() {
+    const t = this.team, cur = t.ultMode && t.ultMode.until > this.g.tick ? t.ultMode.mode : 'auto';
+    const next = cur === 'auto' ? 'save' : cur === 'save' ? 'go' : 'free';
+    this.send({ type: 'ult', mode: next });
   }
   playCard(id) {
     const d = this.team.deck.find((x) => x.id === id); if (!d || d.used) return;
@@ -285,6 +294,7 @@ export class Dock {
     const c = CORE.find((x) => x.key === k); if (c) { this.press(c.id); return true; }
     const i = CARD_KEYS.indexOf(k); if (i >= 0 && this.team.deck[i]) { this.playCard(this.team.deck[i].id); return true; }
     if (k === 'c') { this.send({ type: 'cancel' }); return true; }
+    if (k === 'u') { this.cycleUlt(); return true; }
     return false;
   }
 }

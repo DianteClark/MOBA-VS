@@ -37,9 +37,13 @@ export const VISION = { hero: 400, minion: 300, tower: 460, ward: 340, summon: 3
 // Range tiers (centre-to-edge attack range). Towers out-range every hero.
 export const RANGE = { melee: 55, short: 150, long: 180, tower: 255 };
 
+// Final phase ("Last Stand"): the last 3 minutes pay more and respawns get longer.
+export const FINAL = { at: 720, gold: 1.5, respawn: 1.25 };
+// Halftime (runner-level pause at 7:30) and the window for halftime-only commands.
+export const HALFTIME = { at: 450, seconds: 20, window: 8 };
 export const CMD = {
   maxCharges: 3, regen: 20, // seconds per charge
-  cost: { gank: 1, objective: 2, shrine: 1, group: 1, split: 1, focus: 1, safe: 1, reset: 1, invade: 2, herald: 0, build: 0, cancel: 0, tactic: 0 },
+  cost: { ult: 0, plan: 0, redraw: 0, gank: 1, objective: 2, shrine: 1, group: 1, split: 1, focus: 1, safe: 1, reset: 1, invade: 2, herald: 0, build: 0, cancel: 0, tactic: 0 },
 };
 
 // Internal ids keep their old names (dragon/herald/baron); these are the names players see.

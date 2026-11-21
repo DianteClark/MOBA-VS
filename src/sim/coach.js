@@ -8,7 +8,7 @@ export class Coach {
   constructor(g, team, level = 1) {
     this.g = g; this.team = team; this.level = level; // 0 easy, 1 normal, 2 hard
     this.next = sec(20) + team * 7;
-    this.cooldown = { gank: 0, objective: 0, reset: 0, group: 0, focus: 0, herald: 0, build: 0, invade: 0, shrine: 0 };
+    this.cooldown = { ult: 0, gank: 0, objective: 0, reset: 0, group: 0, focus: 0, herald: 0, build: 0, invade: 0, shrine: 0 };
   }
   issue(c) { c.team = this.team; return this.g.applyCommand(c); }
 
@@ -28,6 +28,21 @@ export class Coach {
     const deadEnemies = them.heroes.filter((h) => !h.alive && h.respawnAt - now > sec(12)).length;
 
     if (this.useTactics(me, them, alive, visibleEnemies, deadEnemies)) return;
+    // Halftime adjustments: change plan by tower score, swap a weak card
+    if (now >= g.halftimeTick && now < g.halftimeTick + sec(6) && !this.didHalftime) {
+      this.didHalftime = true;
+      const diff = g.towersStanding(this.team) - g.towersStanding(1 - this.team);
+      const plan = diff < 0 ? 'aggressive' : diff > 1 ? 'balanced' : me.plan;
+      if (plan !== me.plan) this.issue({ type: 'plan', plan });
+      const unused = me.deck.find((d) => !d.used && (d.id === 'sweep' || d.id === 'swap'));
+      if (unused) for (const to of ['rally', 'wind', 'smoke', 'siege']) if (!me.deck.some((d) => d.id === to)) { this.issue({ type: 'redraw', card: unused.id, to }); break; }
+    }
+    // Ult calls (Normal/Hard): all-in when most ults are up and a fight is brewing; else let heroes choose
+    if (this.level >= 1 && ready('ult')) {
+      const ultsUp = alive.filter((h) => h.level >= 5 && g.abilityReady(h, 2)).length;
+      const brawl = visibleEnemies.filter((e) => alive.some((a) => dist2(a, e) < 700 * 700)).length;
+      if (ultsUp >= 3 && brawl >= 3 && alive.length >= visibleEnemies.length && !me.ultMode) { this.issue({ type: 'ult', mode: 'go' }); cd('ult', 45); return; }
+    }
     // Drop herald as soon as we have it
     if (me.heraldEye > now) {
       const lane = this.pickHeraldLane();
