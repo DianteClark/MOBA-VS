@@ -4,7 +4,7 @@ import { h, mount } from './dom.js';
 import { weekEvent, EVENT_BY_ID } from '../data/events.js';
 import { audio } from '../audio.js';
 
-export function untilText(ms) {
+function untilText(ms) {
   const m = Math.max(0, Math.floor(ms / 60000)), d = Math.floor(m / 1440), hr = Math.floor((m % 1440) / 60);
   return d ? `${d}d ${hr}h` : hr ? `${hr}h ${m % 60}m` : `${m % 60 || 1}m`;
 }
@@ -23,7 +23,7 @@ export function eventCard(app) {
 }
 
 // Info sheet: what the event does, where it applies, next week's event, and the opt-out.
-export function showEventInfo(app) {
+function showEventInfo(app) {
   if (document.querySelector('.modal')) return;
   const ev = app.weekEvent(), w = weekEvent(Date.now()), next = EVENT_BY_ID[w.next.id] === ev ? null : w.next;
   const close = () => { wrap.remove(); document.removeEventListener('keydown', esc, true); app.menu(); };

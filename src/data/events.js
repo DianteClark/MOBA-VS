@@ -35,7 +35,7 @@ export const EVENT_BY_ID = Object.fromEntries(EVENTS.map((e) => [e.id, e]));
 
 const WEEK_MS = 7 * 864e5;
 // ISO week (UTC) of a timestamp: { year, week, ends } with `ends` = next Monday 00:00 UTC (ms).
-export function isoWeek(ms) {
+function isoWeek(ms) {
   const d = new Date(ms), day = (d.getUTCDay() + 6) % 7; // Monday = 0
   const monday = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - day * 864e5;
   const thu = new Date(monday + 3 * 864e5), year = thu.getUTCFullYear();
