@@ -99,7 +99,7 @@ function myPanel(app, st, act) {
   if (c.status === 'done') {
     const champ = c.champion;
     return h('div', { class: 'panel col center wcmsg' }, h('img', { class: 'bigcup', src: item(champ && me && champ.id === me.id ? 'items/GoldCup' : 'items/SilverCup'), alt: '' }),
-      h('b', { class: 'gold' }, champ ? (me && champ.id === me.id ? 'You won the Weekend Cup!' : `${champ.name} won the cup`) : 'No champion this time'),
+      h('b', { class: 'gold' }, champ ? (me && champ.id === me.id ? 'You won the Weekend Cup!' : `${champ.name} won the cup`) : 'The cup is over'),
       c.reason ? h('small', { class: 'muted' }, c.reason) : null,
       me ? h('small', {}, `Your finish: ${PLACE[me.place] || '-'}`) : null, joinBtn(app, st, act));
   }

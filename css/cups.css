@@ -28,3 +28,8 @@
 button.wcrow { cursor: pointer; } button.wcrow:hover { background: #241d30; }
 .cuptabs { display: flex; gap: 6px; justify-content: center; }
 .pcups { display: inline-flex; align-items: center; gap: 3px; color: var(--gold); margin-left: 6px; } .pcups img { width: 16px; height: 16px; }
+@media (max-height: 430px) {
+  .wcmatch, .wcmsg { gap: 3px; padding-top: 6px; padding-bottom: 6px; }
+  .wcmatch .btn.big { min-height: 40px; padding-top: 4px; padding-bottom: 4px; }
+  .wcmsg .bigcup { width: 36px; height: 44px; }
+}

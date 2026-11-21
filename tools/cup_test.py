@@ -26,7 +26,8 @@ DRAFT = """async () => { const m = await import('./src/sim/draft.js'); const s =
   if (!s || !s.draft) return 'wait'; if (s.draft.done) return 'done';
   const t = m.currentTurn(s.draft); if (t.team === s.myTeam) app.draftAct(m.autoChoice(s.draft, t.team, s.rng, 1)); return 'drafting'; }"""
 FAST = """() => { const m = app.match; if (!m) return app.session && app.session.finished ? 'over' : 'none';
-  m.runner.speed = 25; if (m.runner.ht && !m.runner.ht.me) m.runner.readyHalftime(); return m.game.over ? 'over' : String(m.game.tick); }"""
+  m.runner.speed = 25;
+  if (!(m.game.tick < (m.nextCall || 0))) { m.nextCall = m.game.tick + 500; const l = ['top', 'mid', 'bot'][(m.game.tick / 500 | 0) % 3]; m.runner.send(m.game.tick % 1000 < 500 ? { type: 'group', lane: l } : { type: 'gank', lane: l }); } if (m.runner.ht && !m.runner.ht.me) m.runner.readyHalftime(); return m.game.over ? 'over' : String(m.game.tick); }"""
 CUP = "import('./src/ui/cups.js').then((m) => m.showWeekendCup(app))"
 
 def api(path, body=None, who=None, token=None):
@@ -86,10 +87,24 @@ async def main():
         await A.wait_for_timeout(9000)
         ok(await A.locator('.wcmatch.hot .btn', has_text='Ready').count() == 1 and 'Bob' in await A.inner_text('.wcmatch'), 'Alice: quarterfinal check-in vs Bob')
         await shot(A, 'cup-checkin')
-        # the other quarterfinals: bots check in and agree on a result (no replay: just bracket traffic)
         st = api(f'/api/cup?v={V}', who=bots[0]); cup = st['cup']['id']
         seed = {p['id']: p['seed'] for p in st['cup']['players']}
         ok(seed[aA['id']] == 1 and seed[aB['id']] == 8, 'seeds: Alice 1, Bob 8')
+        # the other quarterfinals: the API coaches (seeds 2-7) check in and agree on a result right away
+        for slot in (1, 2, 3):
+            m = [x for x in st['cup']['matches'] if x['round'] == 0 and x['slot'] == slot][0]
+            ba = next(x for x in bots if x['id'] == m['a']); bb = next(x for x in bots if x['id'] == m['b'])
+            api('/api/cup/ready', {'cup': cup}, who=ba); r = api('/api/cup/ready', {'cup': cup}, who=bb)
+            mid = r['me']['match']['match']
+            for who, side, opp in ((ba, 0, bb), (bb, 1, ba)):
+                api('/api/match/report', {'match': mid, 'season': 1, 'side': side, 'opponent': opp['id'], 'winner': 0, 'checksum': '42', 'mode': 'cup'}, who=who)
+        # ...and the semifinal between two of them (it exists as soon as its two quarterfinals are decided)
+        st = api(f'/api/cup?v={V}', who=bots[0])
+        m = [x for x in st['cup']['matches'] if x['round'] == 1 and x['slot'] == 1][0]
+        ba = next(x for x in bots if x['id'] == m['a']); bb = next(x for x in bots if x['id'] == m['b'])
+        api('/api/cup/ready', {'cup': cup}, who=ba); r = api('/api/cup/ready', {'cup': cup}, who=bb)
+        for who, side, opp in ((ba, 0, bb), (bb, 1, ba)):
+            api('/api/match/report', {'match': r['me']['match']['match'], 'season': 1, 'side': side, 'opponent': opp['id'], 'winner': 1, 'checksum': '43', 'mode': 'cup'}, who=who)
         await A.locator('.wcmatch .btn', has_text='Ready').click(); await A.wait_for_timeout(800)
         ok('Waiting for Bob' in await A.inner_text('.wcmatch'), 'Alice ready, waiting for Bob')
         await B.locator('.wcmatch .btn', has_text='Ready').click()
@@ -121,21 +136,6 @@ async def main():
         alice_won = q0['winner'] == aA['id']
         ok(q0['status'] == 'done' and q0['reason'] == 'played', f"quarterfinal 1 decided ({'Alice' if alice_won else 'Bob'} advances)")
         W, Wp, L = (aA, A, B) if alice_won else (aB, B, A)
-        # ── the browser's replay is re-simulated and verified ──
-        q = api('/api/admin/replays?limit=50', token=TOKEN)
-        mine = [r for r in q['replays'] if r['match'] == sA['m']]
-        ok(len(mine) == 1 and mine[0]['enc'] == 'gz64' and len(mine[0]['data']) < 20000, f"one gzipped replay queued for the match ({len(mine[0]['data']) if mine else 0} bytes; the two clients' logs are identical)")
-        out = subprocess.run(['node', 'tools/verify.mjs', '--api', BASE, '--workers', '2'], cwd=ROOT, env={**os.environ, 'MOBAVS_ADMIN': TOKEN}, capture_output=True, text=True).stdout
-        print('\n'.join('       ' + l for l in out.strip().split('\n')))
-        ok(f"{sA['m']}: ok" in out and 'mismatched 0' in out, 'browser replay re-simulated: verified')
-        # other quarterfinals: bots (seeds 2-7) play by API
-        for slot in (1, 2, 3):
-            m = [x for x in st['cup']['matches'] if x['round'] == 0 and x['slot'] == slot][0]
-            ba = next(x for x in bots if x['id'] == m['a']); bb = next(x for x in bots if x['id'] == m['b'])
-            api('/api/cup/ready', {'cup': cup}, who=ba); r = api('/api/cup/ready', {'cup': cup}, who=bb)
-            mid = r['me']['match']['match']
-            for who, side, opp in ((ba, 0, bb), (bb, 1, ba)):
-                api('/api/match/report', {'match': mid, 'season': 1, 'side': side, 'opponent': opp['id'], 'winner': 0, 'checksum': '42', 'mode': 'cup'}, who=who)
         # back to the bracket: the winner checks in for the semifinal; the bot never does → no-show win
         await Wp.locator('.results .btn', has_text='Back to bracket').click(); await Wp.wait_for_timeout(5000)
         ok(await Wp.locator('.wcmatch .btn', has_text='Ready').count() == 1 and 'Semifinal' in await Wp.inner_text('.wcmatch'), 'back to bracket: semifinal check-in')
@@ -144,16 +144,18 @@ async def main():
         ok('Knocked out' in await L.inner_text('.wcup'), 'the loser sees they are out and can follow the bracket')
         await shot(L, 'cup-out')
         await L.set_viewport_size({'width': 667, 'height': 375}); await L.wait_for_timeout(500); await shot(L, 'cup-out-667')
-        # the other semifinal: bots
+        await Wp.locator('.wcmatch .btn', has_text='Ready').click(); await Wp.wait_for_timeout(1000)
+        await shot(Wp, 'cup-semi-ready')
+        # ── the browser's replay is re-simulated and verified ──
+        q = api('/api/admin/replays?limit=50', token=TOKEN)
+        mine = [r for r in q['replays'] if r['match'] == sA['m']]
+        ok(len(mine) == 1 and mine[0]['enc'] == 'gz64' and 300 < len(mine[0]['data']) < 20000, f"one gzipped replay queued for the match ({len(mine[0]['data']) if mine else 0} bytes; the two clients' logs are identical)")
+        out = subprocess.run(['node', 'tools/verify.mjs', '--api', BASE, '--workers', '2'], cwd=ROOT, env={**os.environ, 'MOBAVS_ADMIN': TOKEN}, capture_output=True, text=True).stdout
+        print('\n'.join('       ' + l for l in out.strip().split('\n')))
+        ok(f"{sA['m']}: ok" in out and 'mismatched 0' in out, 'browser replay re-simulated: verified')
+        # semifinal, then final: the API coach never checks in
         for rnd in (1, 2):
-            await Wp.locator('.wcmatch .btn', has_text='Ready').click(); await Wp.wait_for_timeout(1000)
-            if rnd == 1:
-                st = api(f'/api/cup?v={V}', who=bots[0])
-                m = [x for x in st['cup']['matches'] if x['round'] == 1 and x['slot'] == 1][0]
-                ba = next(x for x in bots if x['id'] == m['a']); bb = next(x for x in bots if x['id'] == m['b'])
-                api('/api/cup/ready', {'cup': cup}, who=ba); r = api('/api/cup/ready', {'cup': cup}, who=bb)
-                for who, side, opp in ((ba, 0, bb), (bb, 1, ba)):
-                    api('/api/match/report', {'match': r['me']['match']['match'], 'season': 1, 'side': side, 'opponent': opp['id'], 'winner': 1, 'checksum': '43', 'mode': 'cup'}, who=who)
+            if rnd == 2: await Wp.locator('.wcmatch .btn', has_text='Ready').click(); await Wp.wait_for_timeout(1000)
             print(f'  … waiting for the {"semifinal" if rnd == 1 else "final"} check-in deadline (90 s)', flush=True)
             for _ in range(60):
                 await Wp.wait_for_timeout(2500)
