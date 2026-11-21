@@ -8,6 +8,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { DT, sec, BLUE, MOMENTUM } from './constants.js';
 import { dist2, dist, norm } from './geom.js';
+import { isCCd } from './effects.js';
 
 const LANES = ['top', 'mid', 'bot'];
 const PLAN_RISK = { aggressive: 0.84, balanced: 1.0, scaling: 1.16 };
@@ -153,9 +154,9 @@ export function heroMacro(g, h) {
   const enemiesClose = C.enemies.filter((e) => dist2(e, h) < 900 * 900).length;
 
   // wards: supports & junglers drop wards near key spots they pass
-  if ((h.role === 'support' || h.role === 'jungle') && now >= h.wardCd) {
+  if ((h.role === 'support' || h.role === 'jungle' || h.stats.sight > 0) && now >= h.wardCd) {
     for (const s of g.wardSpots(h.team)) if (dist2(h, s) < 240 * 240 && !g.wards.some((w) => w.team === h.team && dist2(w, s) < 220 * 220 && w.until > now)) {
-      g.placeWard(h, s); h.wardCd = now + sec(h.role === 'support' ? 22 : 40); break;
+      g.placeWard(h, s); h.wardCd = now + sec((h.role === 'support' ? 22 : 40) / (h.stats.sight >= 0.2 ? 2 : 1)); break;
     }
   }
 
@@ -196,7 +197,8 @@ export function heroMacro(g, h) {
     if (h.task.kind !== 'jungle') h.task = { kind: 'jungle' };
     return;
   }
-  if (h.task.kind !== 'lane' || h.task.lane !== h.lane) h.task = { kind: 'lane', lane: h.lane };
+  const lk = wantsSplit(g, h) ? 'split' : 'lane';
+  if (h.task.kind !== lk || h.task.lane !== h.lane) h.task = { kind: lk, lane: h.lane };
 }
 
 function baseThreat(g, team) {
@@ -612,6 +614,7 @@ function castPeel(g, h, t) {
   return false;
 }
 function castAllySustain(g, h, allies) {
+  if (castAllyUtility(g, h, allies)) return true;
   for (let i = 0; i < 3; i++) {
     const ab = h.def.abilities[i];
     if ((ab.kind !== 'ally' && ab.kind !== 'allynova') || !g.abilityReady(h, i)) continue;
@@ -620,6 +623,7 @@ function castAllySustain(g, h, allies) {
       for (const a of allies) { const v = a.hp / a.maxHp - (CARRY(a) ? 0.08 : 0); if (v < bv && dist2(a, h) < (ab.range + 10) ** 2 && g.tick - a.lastCombat < sec(4)) { bv = v; best = a; } }
       if (best) { g.cast(h, i, best); return true; }
     } else {
+      if (ab.cleanse && allies.filter((a) => dist2(a, h) < ab.radius ** 2 && isCCd(g, a) && g.tick - a.lastHurtByHero < sec(2)).length >= 2) { g.cast(h, i, null); return true; }
       const inR = allies.filter((a) => dist2(a, h) < ab.radius ** 2);
       const hurt = inR.filter((a) => a.hp / a.maxHp < 0.55 && g.tick - a.lastCombat < sec(3)).length;
       if (hurt >= 2 || (inR.length >= 3 && g.tick - h.lastCombat < sec(2)) || inR.some((a) => a.hp / a.maxHp < 0.25 && g.tick - a.lastHurtByHero < sec(2))) { g.cast(h, i, null); return true; }
@@ -658,7 +662,7 @@ function farmAround(g, h, r, includeStructures) {
     } else if (includeStructures && e.structure && g.isTargetable(e)) tower = e;
   }
   if (tower && minionCover(g, h.team, tower.type === 'tower' ? tower : { ...tower, stats: { range: 280 } }) >= 1 && (!lastHit || dist2(h, tower) < (h.stats.range + 60) ** 2)) {
-    if (!(tower.type === 'tower' && tower.target === h)) { if (!g.tryAttack(h, tower)) g.moveToward(h, tower, true, h.stats.range * 0.8 + tower.radius); return true; }
+    if (!(tower.type === 'tower' && tower.target === h)) { if (castOnStructure(g, h, tower)) return true; if (!g.tryAttack(h, tower)) g.moveToward(h, tower, true, h.stats.range * 0.8 + tower.radius); return true; }
   }
   if (castClear(g, h, mobs)) return true;
   const pushing = h.task.kind !== 'lane' || g.teams[h.team].plan === 'aggressive';
@@ -813,3 +817,40 @@ function doShrine(g, h, task) {
   if (!sh || sh.owner === h.team) { h.task = { kind: 'idle' }; return; }
   if (dist2(h, sh) > 70 * 70) g.moveToward(h, sh); else { if (!farmAround(g, h, 200, false)) { h.vx = h.vy = 0; } }
 }
+
+// ─────────────────────────── v20 ability & build helpers ───────────────────────────
+// Siege builds push side lanes on their own once the laning phase is over.
+function wantsSplit(g, h) {
+  return h.build === 'siege' && h.lane !== 'mid' && h.role !== 'support' && g.time > 480 && h.hp / h.maxHp > 0.5;
+}
+// Abilities tagged 'siege' (e.g. Fortress Mode) fire when hitting a structure with no enemy hero near.
+function castOnStructure(g, h, s) {
+  if (dist2(h, s) > (h.stats.range + 120 + s.radius) ** 2) return false;
+  if (ctx(g, h.team).enemies.some((e) => dist2(e, h) < 600 * 600)) return false;
+  for (let i = 0; i < 2; i++) {
+    const ab = h.def.abilities[i];
+    if (!ab.use.includes('siege') || !g.abilityReady(h, i)) continue;
+    g.cast(h, i, null); return true;
+  }
+  return false;
+}
+// Ally spells that are not plain heals: cleanse a crowd-controlled ally first, then hand
+// pure buffs (no heal/shield) to the strongest ally who is fighting.
+function castAllyUtility(g, h, allies) {
+  for (let i = 0; i < 3; i++) {
+    const ab = h.def.abilities[i];
+    if (ab.kind !== 'ally' || !g.abilityReady(h, i)) continue;
+    const inR = allies.filter((a) => dist2(a, h) < (ab.range + 10) ** 2);
+    if (ab.cleanse) {
+      const ccd = inR.filter((a) => isCCd(g, a) && g.tick - a.lastHurtByHero < sec(2)).sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp || a.id - b.id)[0];
+      if (ccd) { g.cast(h, i, ccd); return true; }
+    }
+    if (!ab.heal && !ab.shield && (ab.buff || ab.onHitAlly)) {
+      let best = null, bv = 0;
+      for (const a of inR) { if (a === h || g.tick - a.lastHitHero > sec(1.5)) continue; const v = a.dps * (CARRY(a) ? 1.2 : 1); if (v > bv) { bv = v; best = a; } }
+      if (best) { g.cast(h, i, best); return true; }
+    }
+  }
+  return false;
+}
+

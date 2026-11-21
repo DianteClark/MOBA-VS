@@ -10,6 +10,7 @@ import { TUNE } from '../data/tuning.js';
 import { BUILDS } from '../data/items.js';
 import { heroThink, heroMacro } from './ai.js';
 import { Coach } from './coach.js';
+import * as FX from './effects.js';
 
 // Champion-vs-champion damage scale: keeps fights readable and lanes from snowballing at level 1.
 const STEER_K = +(globalThis.process?.env?.SK || 0.45);
@@ -24,7 +25,8 @@ const CAMP_DEFS = {
 };
 const ROLE_LANE = { top: 'top', mid: 'mid', bot: 'bot', support: 'bot', jungle: null };
 const STAT_KEYS = ['dmgPct', 'siegePct', 'power', 'powerMult', 'hp', 'armor', 'mr', 'asPct', 'crit', 'critDmg', 'pen', 'haste', 'msPct', 'range', 'omnivamp',
-  'antiheal', 'thorns', 'healPower', 'execute', 'slowOnHit', 'regen', 'hpPct', 'lowHpShield', 'burnAura', 'shredAura', 'censer', 'resPct', 'regenPct'];
+  'antiheal', 'thorns', 'healPower', 'execute', 'slowOnHit', 'regen', 'hpPct', 'lowHpShield', 'burnAura', 'shredAura', 'censer', 'resPct', 'regenPct',
+  'tenacity', 'sight', 'sunder', 'tankBuster', 'waveClear', 'lone', 'spellblade', 'sbSlow', 'guard', 'peelSlow', 'onHit', 'drPct'];
 
 class Grid {
   constructor(cell) { this.cell = cell; this.n = Math.ceil(MAP_SIZE / cell) + 2; this.cells = new Array(this.n * this.n); }
@@ -100,8 +102,9 @@ export class Game {
         if (tier) { active.push({ clan: c, n, text: tier.text }); for (const [k, v] of Object.entries(tier.stats)) st[k] = (st[k] || 0) + v; }
       }
       this.clanStats[t] = st; this.teams[t].clans = active;
-      for (const h of this.teams[t].heroes) { this.recalc(h); h.hp = h.maxHp; }
     }
+    FX.setupSynergy(this); // team comp bonus joins the clan stats; duo links
+    for (let t = 0; t < 2; t++) for (const h of this.teams[t].heroes) { this.recalc(h); h.hp = h.maxHp; }
     for (let t = 0; t < 2; t++) if (cfg.coach && cfg.coach[t]) this.coaches[t] = new Coach(this, t, cfg.coachLevel?.[t] ?? 1);
   }
 
@@ -320,6 +323,7 @@ export class Game {
     const p = h.def.passive;
     if (p.kind === 'spellVamp') s.omnivamp += p.pct;
     if (p.kind === 'msOutOfCombat' && now - h.lastCombat > sec(4)) s.msPct += p.pct;
+    FX.passiveStats(this, h, s);
     const pw = s.power * (1 + s.powerMult);
     if (h.def.dmgType === 'phys') s.ad = (s.ad + pw) * (1 + s.powerMult * 0.5); else s.ap = (s.ap + pw) * (1 + s.powerMult);
     s.maxHp = (s.maxHp + s.hp) * (1 + s.hpPct);
@@ -763,7 +767,7 @@ export class Game {
       for (const u of this.units) {
         if (!u.alive || u.team !== t) continue;
         const r = u.type === 'hero' ? VISION.hero : u.type === 'minion' ? VISION.minion : u.type === 'summon' ? VISION.summon : u.structure ? VISION.tower : 0;
-        if (r) src.push({ x: u.x, y: u.y, r: u.structure ? r : r * this.wx.vision });
+        if (r) src.push({ x: u.x, y: u.y, r: u.structure ? r : r * this.wx.vision * (1 + ((u.stats && u.stats.sight) || 0)) });
       }
       for (const w of this.wards) if (w.team === t && w.until > this.tick) src.push({ x: w.x, y: w.y, r: VISION.ward });
       for (const sh of this.shrines) if (sh.owner === t) src.push({ x: sh.x, y: sh.y, r: VISION.shrine });
@@ -800,6 +804,7 @@ export class Game {
   dealDamage(src, tgt, raw, type, flags = {}) {
     if (!tgt.alive || raw <= 0) return 0;
     if (tgt.type === 'nexus' || tgt.type === 'inhib' || tgt.type === 'tower') { if (!this.isTargetable(tgt)) return 0; }
+    if (FX.tryParry(this, src, tgt, flags)) return 0;
     let amt = raw;
     const ss = src && src.stats;
     if (src && src.type === 'hero') {
@@ -809,6 +814,8 @@ export class Game {
       if (tgt.structure && src.def.passive.kind === 'siege') amt *= 1 + src.def.passive.pct;
       if (ss.dmgPct) amt *= 1 + ss.dmgPct;
       amt *= src.trustMult || 1;
+      amt = FX.heroDamageMods(this, src, tgt, amt, flags);
+      if (ss.waveClear && (tgt.type === 'minion' || tgt.type === 'mob')) amt *= 1 + ss.waveClear;
       if (!flags.dot && (src.stealthUntil > this.tick || src.ambushUntil > this.tick)) { amt *= 1.25; if (src.stealthUntil > this.tick) { src.stealthUntil = 0; src.ambushUntil = this.tick + sec(3); } }
       const st = this.teams[src.team];
       if (tgt.structure && st.siegeUntil > this.tick) amt *= 1.25;
@@ -825,11 +832,12 @@ export class Game {
     if (tgt.structure && tgt.team < 2 && this.teams[tgt.team].fortifyUntil > this.tick) amt *= 0.6;
     if (type !== 'true') {
       const res = type === 'phys' ? (tgt.stats.armor || 0) : (tgt.stats.mr || 0);
-      const eff = res * (1 - ((ss && ss.pen) || 0));
+      const eff = res * (1 - FX.shredOf(this, tgt)) * (1 - ((ss && ss.pen) || 0));
       amt *= eff >= 0 ? 100 / (100 + eff) : 2 - 100 / (100 - eff);
     }
     if (tgt.type === 'hero') {
       if (tgt.def.passive.kind === 'dr') amt *= 1 - tgt.def.passive.pct;
+      if (tgt.stats.drPct) amt *= FX.drMult(tgt);
       if (src && src.type === 'minion') amt *= 0.5;
       if (src && src.type === 'hero') amt *= HERO_VS_HERO;
     }
@@ -850,6 +858,7 @@ export class Game {
         // passive shield
         const p = tgt.def.passive;
         if (p.kind === 'shieldOnHit' && this.tick >= tgt.passiveCd) { this.addShield(tgt, tgt.maxHp * p.pct, 3); tgt.passiveCd = this.tick + sec(p.cd); }
+        if (src.team !== tgt.team) FX.onHeroHurt(this, src, tgt);
       } else if (src) tgt.lastHurtBy = this.tick;
       if (tgt.hp > 0 && tgt.hp / tgt.maxHp < 0.3 && tgt.stats.lowHpShield && this.tick >= tgt.lowShieldCd) {
         this.addShield(tgt, tgt.maxHp * tgt.stats.lowHpShield, 3); tgt.lowShieldCd = this.tick + sec(60); this.fx.push({ kind: 'shield', id: tgt.id });
@@ -886,11 +895,12 @@ export class Game {
   }
   applyCC(u, cc, src) {
     if (!cc || !u.alive || u.structure || u.boss) return;
-    const now = this.tick;
-    if (cc.stun) { u.stunUntil = Math.max(u.stunUntil, now + sec(cc.stun)); }
+    const now = this.tick, ten = FX.tenacity(u);
+    if (cc.stun) { u.stunUntil = Math.max(u.stunUntil, now + sec(cc.stun * ten)); }
     if (cc.knock) { u.stunUntil = Math.max(u.stunUntil, now + sec(cc.knock)); u.knockUntil = now + sec(cc.knock); }
-    if (cc.root) u.rootUntil = Math.max(u.rootUntil, now + sec(cc.root));
-    if (cc.slow) u.slows.push({ pct: cc.slow[0], until: now + sec(cc.slow[1]) });
+    if (cc.root) u.rootUntil = Math.max(u.rootUntil, now + sec(cc.root * ten));
+    if (cc.slow) u.slows.push({ pct: cc.slow[0], until: now + sec(cc.slow[1] * ten) });
+    FX.applyExtraCC(this, u, cc, src, ten);
     if ((cc.stun || cc.knock) && u.type === 'hero') { u.recallAt = 0; if (u.dash && !u.dash.pulled) u.dash = null; }
     if (cc.stun || cc.root || cc.knock) this.fx.push({ kind: 'cc', id: u.id, cc: cc.knock ? 'knock' : cc.stun ? 'stun' : 'root' });
   }
@@ -925,6 +935,7 @@ export class Game {
         const ally = this.lowestAlly(att, 500); if (ally) this.heal(ally, this.scaleVal(att, p.heal), att);
       }
       if (att.elderUntil > this.tick && tgt.type === 'hero' && tgt.hp / tgt.maxHp < 0.2) { this.dealDamage(att, tgt, 99999, 'true', {}); return; }
+      dmg = FX.basicBonus(this, att, tgt, dmg);
     }
     if (tgt.structure && att.type === 'minion') dmg *= att.kind === 'siege' ? 3 : 2;
     if (att.type === 'tower') {
@@ -941,6 +952,7 @@ export class Game {
       return;
     }
     this.dealDamage(att, tgt, dmg, 'phys', { basic: true, crit });
+    if (att.type === 'hero') FX.onBasicHit(this, att, tgt);
   }
 
   lowestAlly(h, r) {
@@ -1171,6 +1183,7 @@ export class Game {
       if (now >= h.respawnAt) {
         h.alive = true; h.hp = h.maxHp; const f = this.world.fountain[h.team]; h.x = f.x; h.y = f.y; h.task = { kind: 'idle' };
         h.burns = []; h.slows = []; h.shields = []; h.stunUntil = h.rootUntil = 0; h.dash = null;
+        h.silenceUntil = h.fearUntil = h.shredUntil = h.grievousUntil = 0; h.mark = null;
         this.buyItems(h);
       }
       return;
@@ -1193,6 +1206,7 @@ export class Game {
     // dash in progress
     if (h.dash) { this.updateDash(h); return; }
     if (now < h.stunUntil) return;
+    if (FX.fearStep(this, h)) return;
     // recall channel
     if (h.recallAt) {
       if (now >= h.recallAt) { const f = this.world.fountain[h.team]; h.x = f.x; h.y = f.y; h.recallAt = 0; this.emit({ type: 'recalled', hero: h.id, team: h.team }); }
@@ -1219,6 +1233,7 @@ export class Game {
   abilityReady(h, i) {
     const ab = h.def.abilities[i];
     if (ab.ult && h.level < 5) return false;
+    if (h.silenceUntil > this.tick || ((ab.kind === 'dash' || ab.allyDash) && h.rootUntil > this.tick)) return false;
     return this.tick >= h.cds[i];
   }
 
@@ -1307,7 +1322,12 @@ export class Game {
       case 'self': selfBuff(); this.fx.push({ kind: 'fx', name: ab.fx || 'aura', x: h.x, y: h.y, s: 1.2, follow: h.id }); break;
       case 'ally': {
         const a = tgt && tgt.team === h.team ? tgt : h;
-        this.applyAllyEffects(h, a, ab);
+        if (ab.allyDash && a !== h) {
+          // Intercept: dash to the ally, then protect both
+          const d = norm(a.x - h.x, a.y - h.y), go = Math.min(ab.range, Math.max(0, dist(h, a) - 30));
+          const dest = this.rayEnd(h, { x: h.x + d.x * go, y: h.y + d.y * go });
+          h.dash = { x: dest.x, y: dest.y, speed: 1100, until: this.tick + sec(0.6), onArrive: () => { if (a.alive) this.applyAllyEffects(h, a, ab); this.applyAllyEffects(h, h, ab); } };
+        } else this.applyAllyEffects(h, a, ab);
         break;
       }
       case 'allynova': {
@@ -1321,19 +1341,22 @@ export class Game {
         break;
       }
     }
+    FX.onCast(this, h, ab, tgt, aim);
   }
   applyAllyEffects(h, a, ab) {
     if (ab.heal) this.heal(a, this.scaleVal(h, ab.heal), h);
     if (ab.shield) this.addShield(a, this.scaleVal(h, ab.shield), ab.shield.dur || 2, h);
     if (ab.buff) this.addBuff(a, ab.buff.stats, ab.buff.dur, 'ally' + h.id);
     if (h.stats.censer && a !== h) this.addBuff(a, { asPct: h.stats.censer }, 4, 'censer');
+    FX.onAllyEffect(this, h, a, ab);
     this.fx.push({ kind: 'fx', name: ab.fx || 'spirit', x: a.x, y: a.y, s: 1.2, follow: a.id });
   }
   isEnemyHittable(h, e) {
     return e.alive && e.team !== h.team && !e.structure && (e.type !== 'objective' || true) && e.type !== 'ward';
   }
   abilityHit(h, e, ab, type, aoe) {
-    const dmg = this.abilityDamage(h, ab, e);
+    let dmg = this.abilityDamage(h, ab, e);
+    if (dmg && h.stats.tankBuster && e.type === 'hero') dmg += e.maxHp * h.stats.tankBuster * 0.5;
     if (dmg) this.dealDamage(h, e, dmg, type, { ability: true, aoe });
     if (!e.alive) return;
     if (ab.cc) this.applyCC(e, ab.cc, h);
@@ -1341,6 +1364,7 @@ export class Game {
     if (h.def.passive.kind === 'burnAbilities' && e.type !== 'minion') this.addBurn(e, h, this.scaleVal(h, h.def.passive.burn), h.def.passive.burn.dur, 'passive');
     this.itemBurn(h, e, 1);
     if (h.stats.slowOnHit) e.slows.push({ pct: h.stats.slowOnHit, until: this.tick + sec(1) });
+    FX.onAbilityHit(this, h, e, ab);
   }
 
   updateProjectiles() {
@@ -1363,6 +1387,7 @@ export class Game {
         if (!p.pierce && done) break;
         p.hit.push(e.id);
         this.abilityHit(p.src, e, p.ab, p.type);
+        if (p.ab.splash) FX.splashHit(this, p, e);
         this.fx.push({ kind: 'fx', name: p.ab.fx || 'spark', x: e.x, y: e.y, s: p.ab.ult ? 2 : 1.2 });
         if (p.hook && e.alive && !e.boss) {
           const src = p.src, d = norm(src.x - e.x, src.y - e.y), l = dist(src, e);
@@ -1399,6 +1424,7 @@ export class Game {
         for (const e of this.grid.query(z.x, z.y, z.r + 20)) if (this.isEnemyHittable(z.src, e) && dist2(z, e) <= (z.r + e.radius) ** 2) {
           this.dealDamage(z.src, e, this.abilityDamage(z.src, z.ab, e) * 0.5, z.type, { ability: true, aoe: true });
           if (z.ab.cc && z.ab.cc.slow) e.slows.push({ pct: z.ab.cc.slow[0], until: now + sec(0.6) });
+          if (e.alive) FX.zoneTick(this, z, e);
         }
       }
     }
@@ -1406,6 +1432,7 @@ export class Game {
 
   updateStatus() {
     const now = this.tick;
+    FX.updateEffects(this);
     for (const u of this.units) {
       if (!u.alive) continue;
       if (u.burns.length) {
@@ -1490,6 +1517,7 @@ export class Game {
           this.addMomentum(killer.team, MOMENTUM.kill);
         } else if (killerTeam !== NEUTRAL && killerTeam !== u.team) this.teams[killerTeam].kills++;
         for (const a of assists) { a.assists++; this.giveGold(a, GOLD.assist / Math.max(1, assists.length) * 1.5); }
+        FX.onTakedown(this, u, killer, assists);
         const xp = XP.killBase + XP.killPerLevel * u.level;
         const near = this.grid.query(u.x, u.y, 900).filter((h) => h.type === 'hero' && h.alive && h.team !== u.team);
         for (const h of near) this.giveXp(h, xp / near.length * (near.length > 1 ? 1.3 : 1));

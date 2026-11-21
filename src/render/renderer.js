@@ -14,6 +14,9 @@ const OBJ_COL = { dragon: '#ff9a3c', herald: '#9fd0ff', baron: '#b56cff' };
 // The pixel font's space is very narrow; an en-space falls back to a wider glyph.
 const sp_ = (s) => String(s).replace(/ /g, '\u2002');
 
+// Status-effect colours (pips, cc pop text).
+const STATUS_COL = { silence: '#b48cff', fear: '#d070ff', root: '#6fdc8c', shred: '#ff9a3c', grievous: '#ff4a4a', slow: '#7fb4ff', mark: '#ff5a5a', parry: '#ffe066', stun: '#ffe066', knock: '#ffe066' };
+
 export class Renderer {
   constructor(canvas, map) {
     this.canvas = canvas;
@@ -172,7 +175,8 @@ export class Renderer {
         case 'telegraph': if (this.visiblePoint(f.x, f.y)) this.effects.push({ kind: 'tele', x: f.x, y: f.y, r: f.r, team: f.team, born: now, dur: Math.max(0.15, (f.until - g.tick) / TICK_RATE) }); break;
         case 'zone': if (this.visiblePoint(f.x, f.y)) this.effects.push({ kind: 'zone', x: f.x, y: f.y, r: f.r, team: f.team, born: now, dur: (f.until - g.tick) / TICK_RATE, name: f.name }); break;
         case 'death': this.deathFx(f); break;
-        case 'cc': if (u) this.text(u.x, u.y - 46, f.cc === 'knock' ? 'AIRBORNE' : f.cc.toUpperCase(), '#ffe066', 9, 0.9); break;
+        case 'cc': if (u) this.text(u.x, u.y - 46, f.cc === 'knock' ? 'AIRBORNE' : f.cc.toUpperCase(), STATUS_COL[f.cc] || '#ffe066', 9, 0.9); break;
+        case 'duo': if (this.visiblePoint(f.x, f.y)) { const a = byId.get(f.a); this.text(f.x, f.y - 58, 'DUO: ' + f.name.toUpperCase(), a ? TEAM_COL[a.team] : '#fff', 10, 1.3, 'pop'); this.fxSprite('boost', f.x, f.y, 1.4); } break;
         case 'swing': { const t = byId.get(f.tid); if (u && t && this.visible(t)) this.fxSprite('slash', (u.x + t.x) / 2, (u.y + t.y) / 2 - 10, 0.8); } break;
         case 'shield': if (u) this.fxSprite('shield', u.x, u.y - 14, 1.3, u.id); break;
         case 'flash': if (this.visiblePoint(f.x, f.y)) { this.fxSprite('spark', f.x, f.y - 10, 1.4); this.text(f.x, f.y - 40, 'FLASH', '#fff', 9, 0.8); } break;
@@ -560,6 +564,38 @@ export class Renderer {
     if (u.type === 'objective') return this.drawBoss(u, x, y, flashing, attacking);
   }
 
+  // Status pips (v20): tiny glyphs right of the HP bar, plus a ground ring when rooted and a
+  // reticle over marked heroes. Only for effects that change decisions; stun keeps its stars.
+  drawStatus(u, x, y, px, py) {
+    const ctx = this.ctx, t = this.game.tick, pips = [];
+    if (u.silenceUntil > t) pips.push('silence');
+    if (u.fearUntil > t) pips.push('fear');
+    if (u.rootUntil > t) pips.push('root');
+    if (u.shredUntil > t && u.shred > 0) pips.push('shred');
+    if (u.grievousUntil > t) pips.push('grievous');
+    if (u.slows.some((s) => s.until > t)) pips.push('slow');
+    if (u.rootUntil > t) { ctx.strokeStyle = STATUS_COL.root; ctx.globalAlpha = 0.8; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(x, y + 2, 15, 6, 0, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1; }
+    if (u.mark && u.mark.until > t) {
+      const my = py - 12 + Math.sin(this.time * 6) * 1.5; ctx.strokeStyle = STATUS_COL.mark; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(x, my - 5); ctx.lineTo(x + 5, my); ctx.lineTo(x, my + 5); ctx.lineTo(x - 5, my); ctx.closePath(); ctx.stroke();
+      ctx.fillStyle = STATUS_COL.mark; ctx.fillRect(x - 1, my - 1, 2, 2);
+    }
+    if (u.fearUntil > t) { ctx.globalAlpha = 0.22; ctx.fillStyle = STATUS_COL.fear; ctx.beginPath(); ctx.arc(x, y - 14, 17, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
+    for (let i = 0; i < Math.min(3, pips.length); i++) {
+      const k = pips[i], bx = Math.round(px + i * 8), by = Math.round(py);
+      ctx.fillStyle = 'rgba(0,0,0,0.75)'; ctx.fillRect(bx - 1, by - 1, 8, 8);
+      ctx.fillStyle = STATUS_COL[k];
+      switch (k) {
+        case 'silence': ctx.fillRect(bx, by, 6, 6); ctx.fillStyle = '#fff'; ctx.fillRect(bx + 1, by + 2, 4, 2); break; // muted
+        case 'fear': ctx.fillRect(bx + 2, by, 2, 4); ctx.fillRect(bx + 2, by + 5, 2, 1); break; // "!"
+        case 'root': ctx.fillRect(bx, by + 4, 6, 2); ctx.fillRect(bx + 1, by + 1, 1, 3); ctx.fillRect(bx + 4, by + 2, 1, 2); break; // vines
+        case 'shred': ctx.fillRect(bx, by, 6, 3); ctx.fillRect(bx + 1, by + 3, 4, 2); ctx.fillStyle = '#000'; ctx.fillRect(bx + 3, by, 1, 4); break; // cracked shield
+        case 'grievous': for (let q = 0; q < 6; q++) { ctx.fillRect(bx + q, by + q, 1, 1); ctx.fillRect(bx + 5 - q, by + q, 1, 1); } break; // X
+        case 'slow': ctx.fillRect(bx, by + 1, 6, 1); ctx.fillRect(bx + 1, by + 2, 4, 1); ctx.fillRect(bx + 2, by + 3, 2, 2); break; // down arrow
+      }
+    }
+  }
+
   drawStars(x, y) {
     const ctx = this.ctx;
     for (let i = 0; i < 3; i++) {
@@ -709,6 +745,7 @@ export class Renderer {
       ctx.fillStyle = '#fff'; ctx.font = '7px PixelFont, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(String(u.level), x - w / 2 - 6.5, top + 2.6);
       if (this.showNames) { ctx.font = '7px PixelFont, monospace'; ctx.fillStyle = '#000'; const nm = sp_(u.def.name); ctx.fillText(nm, x + 0.6, top - 5.4); ctx.fillStyle = u.team === this.viewTeam ? '#fff' : '#ffd0d0'; ctx.fillText(nm, x, top - 6); }
+      this.drawStatus(u, x, y, x + w / 2 + 2, top - 1);
       return;
     }
     if (u.structure) {

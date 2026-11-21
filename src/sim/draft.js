@@ -1,6 +1,7 @@
 // Draft rules (pure + deterministic, shared by vs-AI and peer-to-peer).
 import { HEROES, HERO_BY_ID, ROLES, matchupScore } from '../data/heroes.js';
 import { BLUE, RED } from './constants.js';
+import { DUOS, compOf } from '../data/synergy.js';
 
 // Tournament draft order.
 export const DRAFT_ORDER = [
@@ -61,6 +62,7 @@ export function autoChoice(d, team, rng, skill = 1) {
     let s = matchupScore(h, enemy).score * 2;
     if (t.act === 'pick') {
       if (!assignRoles([...mine, h.id])) return -Infinity;
+      s += synergyScore(mine, h.id);
       // fill a role we don't have yet with a primary pick
       const roles = assignRoles(mine) || [];
       if (!roles.includes(h.role)) s += 3;
@@ -86,17 +88,49 @@ export function defaultPrep(ids) {
 export function aiPrep(ids, enemyIds) {
   const p = defaultPrep(ids);
   const enemy = enemyIds.map((id) => HERO_BY_ID[id]);
-  const tanks = enemy.filter((e) => e.tags.includes('tank')).length;
-  const heals = enemy.filter((e) => e.tags.includes('heal') || e.tags.includes('sustain')).length;
-  const burst = enemy.filter((e) => e.tags.includes('burst')).length;
-  for (const h of p.heroes) {
-    const def = HERO_BY_ID[h.id];
-    if ((tanks >= 2 || heals >= 2) && def.builds.includes('burn')) h.build = 'burn';
-    else if (burst >= 3 && def.builds.includes('tank') && def.cls !== 'marksman') h.build = 'tank';
-  }
+  for (const h of p.heroes) h.build = chooseBuild(HERO_BY_ID[h.id], enemy).id;
   const early = ids.filter((id) => HERO_BY_ID[id].curve === 'early').length, late = ids.filter((id) => HERO_BY_ID[id].curve === 'late').length;
   p.plan = early >= 2 ? 'aggressive' : late >= 3 ? 'scaling' : 'balanced';
   // tactic deck that fits the plan
   p.deck = p.plan === 'aggressive' ? ['rally', 'ambush', 'smoke'] : p.plan === 'scaling' ? ['fortify', 'wind', 'pact'] : ['rally', 'wind', 'pact'];
   return p;
 }
+
+// Draft synergy: picking a duo partner or pushing toward a team-comp archetype.
+export function synergyScore(mine, id) {
+  let s = 0;
+  for (const d of DUOS) if ((d.a === id && mine.includes(d.b)) || (d.b === id && mine.includes(d.a))) s += 1.5;
+  if (mine.length >= 2) { const before = compOf(mine), after = compOf([...mine, id]); if (after.count > before.count && after.count <= after.need + 1) s += 0.6; }
+  return s;
+}
+
+// Situational build choice: score each of the hero's builds against the enemy team.
+// Returns { id, why } (why = short reason for the UI). Pure + deterministic.
+export function chooseBuild(def, enemy) {
+  const n = (f) => enemy.filter(f).length, tag = (t) => (e) => e.tags.includes(t);
+  const tanks = n((e) => e.cls === 'tank' || e.tags.includes('tank')), heals = n(tag('heal')) + n(tag('sustain'));
+  const burst = n(tag('burst')), dive = n(tag('dive')) + n(tag('pick')), poke = n(tag('poke'));
+  const squish = n((e) => e.cls === 'mage' || e.cls === 'marksman' || e.cls === 'support');
+  const front = def.cls === 'tank' || def.cls === 'support' || def.cls === 'bruiser';
+  const score = {
+    burst: [squish * 0.5 - tanks * 0.7, 'Squishy targets'],
+    burn: [heals * 0.9 + tanks * 0.5, 'Burns through healing and tanks'],
+    tank: [(burst * 0.7 + dive * 0.3) * (def.cls === 'marksman' ? 0 : 1), 'Soaks their burst'],
+    sustain: [poke * 0.5 - heals * 0 - n(tag('antiheal')) * 0.8 - n(tag('burn')) * 0.5, 'Outlasts their poke'],
+    crit: [squish * 0.3 - dive * 0.2, 'Out-damages a soft frontline'],
+    haste: [0.4, 'More spells, more control'],
+    guardian: [burst * 0.3 + dive * 0.3, 'Keeps the carry alive'],
+    pierce: [tanks * 1.1, 'Shreds their tanks'],
+    siege: [(enemy.length ? 0.6 - n(tag('split')) * 0.2 - dive * 0.15 : 0), 'Pressures their towers'],
+    spellblade: [0.5 - n(tag('cc')) * 0.1, 'Spell-and-hit skirmishing'],
+    warden: [(dive * 0.6 + burst * 0.2) * (front ? 1 : 0.4), 'Guards the backline from divers'],
+  };
+  let best = def.rec, bs = -Infinity, why = 'Recommended';
+  for (const b of def.builds) {
+    const [v, w] = score[b] || [0, ''];
+    const s = v + (b === def.rec ? 1.6 : 0);
+    if (s > bs) { bs = s; best = b; why = b === def.rec && v < 1.2 ? 'Recommended' : w; }
+  }
+  return { id: best, why };
+}
+
