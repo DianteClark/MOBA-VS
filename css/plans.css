@@ -106,3 +106,6 @@
   .rvrec b { font-size: 26px; } .rvrec small { font-size: 10px; }
 }
 .htplans .tile small.htedge { color: #7be07b; } .htplans .tile small.htbad { color: #ff8a8a; }
+/* Find Match row (Host / Join / Co-op): shrink inside the card on small phones instead of poking past its edge */
+.h2row .chip { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-height: 500px) { .h2row { gap: 4px; } .h2row .chip { padding-left: 2px; padding-right: 2px; } }
