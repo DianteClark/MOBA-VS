@@ -1,21 +1,7 @@
 /* Side modes, ranked tiers, hero mastery, Coach Moments, Build Guide, comps/duos and clips. */
 
-/* ── home: queue toggle, Rush chip ── */
-.maprow, .home .maprow { grid-template-columns: repeat(6, 1fr); }
-.home .mapchip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
-.mapchip.rushchip { border-color: #8a4a2a; }
-.mapchip.rushchip.on { border-color: #ff8a3a; background: #3a2010; color: #ffb37a; }
-.mode.ranked.rushm { border-color: #ff8a3a; }
-.mode.ranked.rushm .mh b { color: #ffb37a; }
-.qmh { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
-.mode .qmh b { display: inline; } .qmh small { flex-basis: 100%; }
-.qseg { flex: 1 1 100%; min-width: 0; gap: 2px; }
-@media (max-height: 500px) and (min-width: 560px) { .qseg { flex: 1 1 0; } } .qseg .chip, .home .qseg .chip { min-height: 24px; padding: 1px 3px; font-size: 10px; min-width: 0; }
-
 /* ── tier badges (pixel art canvas → img) ── */
 .tbadge { image-rendering: pixelated; flex: 0 0 auto; filter: drop-shadow(0 2px 0 #000a); }
-.rbadge2.big { filter: drop-shadow(0 0 10px var(--tc)) drop-shadow(0 2px 0 #000); animation: tbGlow 2.6s ease-in-out infinite alternate; }
-@keyframes tbGlow { from { filter: drop-shadow(0 0 4px var(--tc)) drop-shadow(0 2px 0 #000); } to { filter: drop-shadow(0 0 13px var(--tc)) drop-shadow(0 2px 0 #000); } }
 .rankrow .tbadge { margin: -4px 0; }
 .lbr { grid-template-columns: 48px 26px 1fr 130px 70px; }
 .lbtier { width: 24px; flex: 0 0 24px; display: block; }
@@ -166,6 +152,4 @@
 .clipbox { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px; overflow: auto; background: var(--panel); border: 2px solid var(--gold); max-width: 94vw; max-height: 94vh; }
 .clipbox video, .clipbox img, .clipbox canvas { max-width: min(640px, 88vw); max-height: min(62vh, calc(94vh - 150px)); border: 2px solid #000; image-rendering: pixelated; background: #000; }
 .clipbox .barw { width: 260px; height: 8px; background: #0008; border: 1px solid #000; } .clipbox .barw i { display: block; height: 100%; width: 0; background: var(--gold); transition: width 0.2s; }
-@media (max-height: 500px) and (orientation: landscape) { .home .coach .tbadge { width: 42px !important; height: 42px !important; margin: -4px 0; } }
-.htile.proft .tbadge { width: 34px !important; height: 34px !important; margin: 4px; }
 .draft .dbuilds { margin: 2px 0; }

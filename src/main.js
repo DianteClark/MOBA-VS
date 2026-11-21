@@ -56,7 +56,7 @@ class App {
   // Random favours the season's featured map (half the time).
   pickMap(seed, mode = 'classic') {
     if (mode === 'rush') return RUSH_MAPS[(seed >>> 1) % RUSH_MAPS.length].id;
-    return this.mapPref && this.mapPref !== 'random' && this.mapPref !== 'rush' ? this.mapPref : seed % 2 === 0 ? profile.season.map : MAPS[(seed >>> 1) % MAPS.length].id;
+    return this.mapPref && this.mapPref !== 'random' ? this.mapPref : seed % 2 === 0 ? profile.season.map : MAPS[(seed >>> 1) % MAPS.length].id;
   }
   setQueueMode(m) { this.queueMode = m; try { localStorage.setItem('mobavs_queue', m); } catch { /* ignore */ } }
   setName(n) { this.name = n.slice(0, 12) || 'Coach'; try { localStorage.setItem('mobavs_name', this.name); } catch { /* ignore */ } }
@@ -155,10 +155,12 @@ class App {
       } else lock();
     } catch { /* not supported */ }
   }
-  startVsAI() {
+  // mode: 'classic' (5v5 on the chosen map) or 'rush' (Lane Rush); omitted = the last one played (Play again).
+  startVsAI(mode) {
     this.immersive();
+    if (mode) this.vsMode = mode;
     try { localStorage.setItem('mobavs_ai', String(this.aiLevel)); } catch { /* ignore */ }
-    const seed = (Math.random() * 2 ** 31) >>> 0, gameMode = this.mapPref === 'rush' ? 'rush' : 'classic';
+    const seed = (Math.random() * 2 ** 31) >>> 0, gameMode = this.vsMode === 'rush' ? 'rush' : 'classic';
     this.session = { mode: 'ai', gameMode, myTeam: 0, seed, mapId: this.pickMap(seed, gameMode), aiLevel: this.aiLevel, names: [this.name, ['Easy', 'Normal', 'Hard'][this.aiLevel] + ' AI'], rng: new Rng(seed ^ 0x5eed) };
     this.startDraft();
   }
@@ -174,7 +176,7 @@ class App {
   watch() {
     this.immersive();
     stopParade(); this.dropReel();
-    const seed = (Math.random() * 2 ** 31) >>> 0, gameMode = this.mapPref === 'rush' ? 'rush' : 'classic';
+    const seed = (Math.random() * 2 ** 31) >>> 0, gameMode = 'classic';
     this.session = { mode: 'watch', gameMode, myTeam: -1, seed, mapId: this.pickMap(seed, gameMode), names: ['Blue AI', 'Red AI'], rng: new Rng(seed) };
     const d = newDraft();
     while (!d.done) { const t = currentTurn(d); draftApply(d, t.team, autoChoice(d, t.team, this.session.rng, 1)); }

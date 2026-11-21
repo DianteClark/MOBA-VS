@@ -1,7 +1,7 @@
 // Front end: home, season pass, profile (banners/titles/borders), Season Cup bracket, patch notes, and post-match progression.
 import { h, mount, face, emptyState, fmtTime, MODE_LABEL } from './dom.js';
 import { HERO_BY_ID } from '../data/heroes.js';
-import { MAPS, MAP_BY_ID, RUSH_MAPS } from '../maps/defs.js';
+import { MAPS, MAP_BY_ID } from '../maps/defs.js';
 import { CLANS } from '../sim/constants.js';
 import { daysLeft, TRACK, MAX_LEVEL, XP_PER_LEVEL, SKINS, BANNERS, TITLES, rewardName } from '../data/seasons.js';
 import { tierById, rankOf, SEASON_REWARDS } from '../data/ranks.js';
@@ -24,78 +24,77 @@ const screen = () => document.getElementById('screen');
 const item = (n) => `assets/img/${n}.png`;
 const DIFF = ['Easy', 'Normal', 'Hard'];
 
-function rankBadge(rk, big) { return tierBadge(rk, big ? 58 : 38, 'rbadge2' + (big ? ' big' : '')); }
+function rankBadge(rk) { return tierBadge(rk, 38); }
 function bar(frac, color) { return h('div', { class: 'pbar' }, h('i', { style: { width: Math.round(Math.max(0, Math.min(1, frac)) * 100) + '%', background: color || 'var(--gold)' } })); }
 function back(app) { return h('button', { class: 'btn backbtn', onclick: () => { audio.sfx('move', 0.5); app.menu(); } }, '‹ Back'); }
 
 // ───────────── home ─────────────
-// Label with a short form for the one-row nav on landscape phones (CSS picks one).
-const lbl = (full, short) => [h('span', { class: 'lf' }, full), h('span', { class: 'ls' }, short)];
+// One landscape screen: coach + season on top, three clear ways to play (vs AI, Find Match with its
+// queue toggle, Lane Rush), a "What's new" card, and one row of destinations. No scrolling for the
+// primary actions on a 667x375 phone.
+const navTile = (label, img, onclick, opts = {}) => h('button', { class: 'h2tile' + (opts.cls ? ' ' + opts.cls : ''), title: opts.title || label, onclick },
+  typeof img === 'string' ? h('img', { src: img, alt: '' }) : img, h('span', {}, label), opts.dot ? h('i', { class: 'dot' }) : null);
+// One-line highlights for the newest patch: its own `highlights` list if it has one, else the first notes, shortened.
+function patchHighlights(pt) {
+  if (Array.isArray(pt.highlights) && pt.highlights.length) return pt.highlights.slice(0, 4);
+  return pt.notes.slice(0, 3).map((n) => n.split(/[:.(]/)[0].trim()).filter(Boolean);
+}
 export function showHome(app) {
-  const p = profile, s = p.season, ss = p.ss(), rk = p.rank;
-  const nextTxt = rk.nextLabel ? `${ss.elo} · ${rk.toNext} to ${rk.nextLabel}` : `${ss.elo} · the summit`;
-  const rush = app.mapPref === 'rush', qm = app.queueMode || 'ranked';
-  const unseen = p.d.seenPatch !== PATCHES[0].version;
+  const p = profile, s = p.season, ss = p.ss(), rk = p.rank, pt = PATCHES[0];
+  const qm = app.queueMode || 'ranked', unseen = p.d.seenPatch !== pt.version, newbie = !p.d.history.length;
   const cup = p.d.cup && p.d.cup.season === s.id && !p.d.cup.done ? p.d.cup : null;
   const mm = cup ? myMatch(cup) : null;
-  mount(screen(), h('div', { class: 'home' },
-    h('div', { class: 'brand' }, h('div', { class: 'title' }, 'MOBA-VS'), h('div', { class: 'subtitle' }, 'Draft five heroes. Make the calls. Out-coach your rival.')),
-    h('button', { class: 'sstrip', style: { '--sc': s.color }, onclick: () => showSeason(app) },
-      h('div', { class: 'sname' }, h('small', {}, `SEASON ${s.id}`), h('b', {}, s.name)),
-      h('div', { class: 'sinfo' }, h('span', {}, `${daysLeft(s)} days left`), h('span', { style: { color: CLANS[s.clan].color } }, `${CLANS[s.clan].name} bonus`), h('span', {}, `${MAP_BY_ID[s.map].name}`)),
-      h('div', { class: 'slv' }, h('span', {}, `Pass Lv ${p.level}`), bar(p.levelProgress, s.color)), h('span', { class: 'chev' }, '›')),
-    h('div', { class: 'coach', style: { background: p.banner.bg } },
-      rankBadge(rk, true),
-      h('div', { class: 'cinfo' },
-        h('input', { class: 'cname', value: app.name, maxlength: 12, title: 'Tap to rename', oninput: (e) => app.setName(e.target.value) }),
-        h('div', { class: 'ctitle' }, p.title),
-        h('div', { class: 'crank', style: { color: rk.tier.color } }, rk.label),
-        bar(rk.into / rk.span, rk.tier.color), h('small', { class: 'muted' }, nextTxt)),
-      h('div', { class: 'cstats' },
-        h('div', {}, h('img', { src: item('items/GoldCup') }), ` ${p.d.trophies.gold}`), h('div', {}, h('img', { src: item('items/SilverCup') }), ` ${p.d.trophies.silver}`),
-        h('div', { class: 'muted' }, `${ss.w}W ${ss.l}L`))),
-    h('div', { class: 'modes' },
-      h('div', { class: 'mode ranked' + (rush ? ' rushm' : '') },
-        h('div', { class: 'mh' }, h('b', {}, rush ? 'Lane Rush vs AI' : 'Ranked vs AI'), h('small', {}, rush ? 'One lane, all ten heroes, ~7 minutes. Casual: no rank change.' : 'Climb the tiers. Harder AI can take you higher.')),
-        h('div', { class: 'seg3' }, ...DIFF.map((l, i) => h('button', { class: 'chip' + (app.aiLevel === i ? ' on' : ''), onclick: () => { app.aiLevel = i; showHome(app); } }, l))),
-        h('div', { class: 'maprow' }, ...[['random', 'Random'], ...MAPS.map((m) => [m.id, m.name.split(' ')[0]]), ['rush', 'Rush']].map(([id, l]) =>
-          h('button', { class: 'mapchip' + (app.mapPref === id ? ' on' : '') + (id === 'rush' ? ' rushchip' : ''), title: id === 'random' ? `Random (${MAP_BY_ID[s.map].name} is featured)` : id === 'rush' ? 'Lane Rush: a quick one-lane side mode (casual)' : MAP_BY_ID[id].blurb, onclick: () => { app.mapPref = id; showHome(app); } },
-            id === 'random' ? h('span', { class: 'q' }, '?') : mapThumb(id === 'rush' ? RUSH_MAPS[0].id : id), h('span', {}, l)))),
-        h('button', { class: 'btn big', onclick: () => app.startVsAI() }, 'Play')),
-      h('div', { class: 'mode cupm' },
-        h('div', { class: 'mh' }, h('b', {}, 'Season Cup'), h('small', {}, '8-team knockout. Win three in a row for the Golden Cup.')),
-        h('div', { class: 'cupnow' }, h('img', { src: item('items/GoldCup') }),
-          h('span', {}, mm ? `${ROUND_NAMES[mm.round]} vs ${mm.opp.name}` : 'A new bracket awaits')),
-        h('button', { class: 'btn big', onclick: () => showCup(app) }, mm ? 'Continue' : 'Enter')),
-      h('div', { class: 'mode online' },
-        h('div', { class: 'mh qmh' }, h('b', {}, 'Online'),
-          h('div', { class: 'seg3 qseg', role: 'radiogroup', 'aria-label': 'Queue' }, ...[['ranked', 'Ranked'], ['casual', 'Casual'], ['rush', 'Rush']].map(([k, l]) =>
-            h('button', { class: 'chip' + (qm === k ? ' on' : ''), role: 'radio', 'aria-checked': String(qm === k), title: k === 'ranked' ? 'Ranked: climb the tiers' : k === 'casual' ? 'Casual 5v5: no rank change' : 'Lane Rush (casual): one lane, ~7 minutes', onclick: () => { app.setQueueMode(k); showHome(app); } }, l))),
-          h('small', {}, qm === 'ranked' ? 'Ranked vs real players: climb the tiers.' : qm === 'casual' ? 'Casual 5v5 vs real players: no rank change.' : 'Lane Rush vs real players (casual).')),
-        h('div', { class: 'col', style: { gap: '6px' } },
-          h('button', { class: 'btn big', onclick: () => app.findMatch() }, qm === 'ranked' ? 'Find Match' : qm === 'casual' ? 'Find Casual' : 'Find Rush'),
-          h('div', { class: 'row', style: { gap: '6px', flexWrap: 'nowrap' } },
-            h('button', { class: 'btn', style: { flex: 1 }, onclick: () => app.hostGame() }, 'Host'),
-            h('button', { class: 'btn', style: { flex: 1 }, onclick: () => app.joinScreen() }, 'Join'))))),
-    h('div', { class: 'hometiles' },
-      h('button', { class: 'htile dojot', onclick: () => { audio.sfx('move', 0.5); showDojo(app, { tab: 'heroes', hero: null }); } },
-        ((id) => heroSprite(id, p.d.equip.skins[id], 56, 'walk'))(p.activePreset && p.activePreset.main.mid || 'kaze'),
-        h('div', { class: 'ht' }, h('b', {}, 'Dojo'), h('small', {}, 'Heroes, skins and lineups'),
-          h('span', { class: 'hsub' }, p.activePreset ? `★ ${p.activePreset.name} auto-picks in the draft` : 'No active lineup'))),
-      h('button', { class: 'htile proft', style: { background: p.banner.bg }, onclick: () => { audio.sfx('move', 0.5); showProfile(app); } },
-        rankBadge(rk), h('div', { class: 'ht' }, h('b', {}, 'Profile'), h('small', {}, 'Rank, mastery, banners and titles'), h('span', { class: 'hsub' }, p.title)))),
-    h('div', { class: 'subnav' },
-      h('button', { class: 'chip', onclick: () => app.watch() }, lbl('Watch AI', 'Watch')),
-      app.lastReplay() ? h('button', { class: 'chip', onclick: () => app.watchReplay() }, lbl('Last Replay', 'Replay')) : null,
-      (document.fullscreenEnabled || document.webkitFullscreenEnabled) ? h('button', { class: 'chip', onclick: () => window.toggleFullscreen() }, lbl('Full Screen', 'Full')) : null,
-      h('button', { class: 'chip', onclick: () => showLeaderboard(app) }, 'Ladder'),
-      h('button', { class: 'chip', onclick: () => showHistory(app) }, 'History'),
-      h('button', { class: 'chip', onclick: () => showSeason(app) }, lbl('Season Pass', 'Pass')),
-      h('button', { class: 'chip' + (unseen ? ' new' : ''), onclick: () => showPatch(app) }, lbl('Patch Notes', 'Patch')),
-      h('button', { class: 'chip', onclick: () => showHowTo(app) }, lbl('How to Play', 'Help')),
-      h('button', { class: 'chip gear', title: 'Settings', onclick: () => { audio.sfx('move', 0.5); showSettings(app); } }, h('img', { src: 'assets/img/icons/Permutation.png', alt: '' }), lbl('Settings', ''))),
+  const mapPick = app.mapPref === 'rush' ? 'random' : app.mapPref || 'random';
+  const fs = document.fullscreenEnabled || document.webkitFullscreenEnabled;
+  const QDESC = { ranked: 'Real players · climbs the ladder', casual: 'Real players · 5v5, no rank change', rush: 'Real players · Lane Rush, casual' };
+  mount(screen(), h('div', { class: 'home2' + (newbie ? ' newbie' : '') },
+    h('div', { class: 'h2top' },
+      h('div', { class: 'h2brand' }, h('div', { class: 'title' }, 'MOBA-VS'), h('small', {}, `v${pt.version}`)),
+      h('div', { class: 'h2coach', style: { background: p.banner.bg }, title: 'Your coach card: tap for rank, mastery and banners', onclick: (e) => { if (e.target.tagName !== 'INPUT') { audio.sfx('move', 0.5); showProfile(app); } } },
+        rankBadge(rk),
+        h('div', { class: 'cc' },
+          h('input', { class: 'cname', value: app.name, maxlength: 12, title: 'Tap to rename', 'aria-label': 'Coach name', oninput: (e) => app.setName(e.target.value) }),
+          h('small', { style: { color: rk.tier.color } }, `${rk.label} · ${ss.elo}`),
+          bar(rk.into / rk.span, rk.tier.color))),
+      h('button', { class: 'h2season', style: { '--sc': s.color }, onclick: () => showSeason(app) },
+        h('small', {}, `SEASON ${s.id} · ${daysLeft(s)}d left`), h('b', {}, s.name), h('div', { class: 'slv' }, h('span', {}, `Pass ${p.level}`), bar(p.levelProgress, s.color))),
+      h('div', { class: 'h2icons' },
+        fs ? h('button', { class: 'h2icon', title: 'Full screen', 'aria-label': 'Full screen', onclick: () => window.toggleFullscreen() }, h('i', { class: 'fsicon' })) : null,
+        h('button', { class: 'h2icon', title: 'Settings', 'aria-label': 'Settings', onclick: () => { audio.sfx('move', 0.5); showSettings(app); } }, h('img', { src: 'assets/img/icons/Permutation.png', alt: '' })))),
+    h('div', { class: 'h2main' },
+      h('div', { class: 'h2card h2ai' },
+        newbie ? h('span', { class: 'h2start' }, 'Start here') : null,
+        h('div', { class: 'h2h' }, h('b', {}, 'Play vs AI'), h('small', {}, 'Ranked 5v5 · 15 min · climbs your tier')),
+        h('div', { class: 'seg3', role: 'radiogroup', 'aria-label': 'AI difficulty' }, ...DIFF.map((l, i) => h('button', { class: 'chip' + (app.aiLevel === i ? ' on' : ''), role: 'radio', 'aria-checked': String(app.aiLevel === i), onclick: () => { app.aiLevel = i; showHome(app); } }, l))),
+        h('div', { class: 'maprow' }, ...[['random', 'Random'], ...MAPS.map((m) => [m.id, m.id[0].toUpperCase() + m.id.slice(1)])].map(([id, l]) =>
+          h('button', { class: 'mapchip' + (mapPick === id ? ' on' : ''), title: id === 'random' ? `Random (${MAP_BY_ID[s.map].name} is featured)` : `${MAP_BY_ID[id].name}: ${MAP_BY_ID[id].blurb}`, onclick: () => { app.mapPref = id; showHome(app); } },
+            id === 'random' ? h('span', { class: 'q' }, '?') : mapThumb(id), h('span', {}, l)))),
+        h('button', { class: 'btn big h2go', onclick: () => app.startVsAI('classic') }, 'Play')),
+      h('div', { class: 'h2card h2online' },
+        h('div', { class: 'h2h' }, h('b', {}, 'Find Match'), h('small', {}, QDESC[qm])),
+        h('div', { class: 'seg3', role: 'radiogroup', 'aria-label': 'Queue' }, ...[['ranked', 'Ranked'], ['casual', 'Casual'], ['rush', 'Rush']].map(([k, l]) =>
+          h('button', { class: 'chip' + (qm === k ? ' on' : ''), role: 'radio', 'aria-checked': String(qm === k), title: QDESC[k], onclick: () => { app.setQueueMode(k); showHome(app); } }, l))),
+        h('button', { class: 'btn big h2go', onclick: () => app.findMatch() }, 'Find Match'),
+        h('div', { class: 'h2row' },
+          h('button', { class: 'chip', title: 'Private room: share a code with a friend', onclick: () => app.hostGame() }, 'Host'),
+          h('button', { class: 'chip', title: 'Join a friend\'s room code', onclick: () => app.joinScreen() }, 'Join'))),
+      h('div', { class: 'h2side' },
+        h('button', { class: 'h2card h2rush', onclick: () => app.startVsAI('rush') },
+          h('span', { class: 'h2h' }, h('b', {}, 'Lane Rush'), h('small', {}, `One lane · ~7 min · vs ${DIFF[app.aiLevel]} AI`)),
+          h('span', { class: 'h2arrow' }, 'Play ›')),
+        h('button', { class: 'h2card h2new' + (unseen ? ' unseen' : ''), onclick: () => showPatch(app) },
+          h('span', { class: 'h2h' }, h('small', { class: 'kick' }, unseen ? 'NEW' : 'PATCH NOTES'), h('b', {}, `What's new in ${pt.version}`)),
+          h('span', { class: 'h2hl' }, ...patchHighlights(pt).map((t) => h('i', {}, t)))))),
+    h('nav', { class: 'h2nav' },
+      navTile('Dojo', heroSprite(p.activePreset && p.activePreset.main.mid || 'kaze', p.d.equip.skins[p.activePreset && p.activePreset.main.mid || 'kaze'], 28, 'walk'), () => { audio.sfx('move', 0.5); showDojo(app, { tab: 'heroes', hero: null }); }, { title: 'Dojo: heroes, builds and lineups' }),
+      navTile('Profile', rankBadge(rk), () => { audio.sfx('move', 0.5); showProfile(app); }, { title: 'Rank, mastery, banners and titles' }),
+      navTile('Cup', item('items/GoldCup'), () => showCup(app), { title: mm ? `Season Cup: ${ROUND_NAMES[mm.round]} vs ${mm.opp.name}` : 'Season Cup: 8-team knockout', dot: !!mm }),
+      navTile('Pass', item('items/BigTreasureChest'), () => showSeason(app), { title: 'Season Pass' }),
+      navTile('Ladder', item('items/BarGold'), () => showLeaderboard(app), { title: 'Online leaderboard' }),
+      navTile('History', item('items/Hourglass'), () => showHistory(app), { title: 'Match history and replays' }),
+      navTile('Watch', 'assets/img/icons/Vision.png', () => app.watch(), { title: 'Watch an AI vs AI match' }),
+      navTile('Help', item('items/Letter'), () => showHowTo(app), { title: 'How to play', cls: newbie ? 'hl' : '' })),
     seasonEndNote(p.newSeasonNote),
-    h('div', { class: 'credits' }, `MOBA-VS v${PATCHES[0].version}`),
     h('div', { class: 'credits' }, 'Art & audio: ', h('a', { href: 'https://pixel-boy.itch.io/ninja-adventure-asset-pack', target: '_blank' }, 'Ninja Adventure'), ' by Pixel-boy & AAA (CC0)'),
   ));
   p.newSeasonNote = null;
@@ -234,7 +233,9 @@ export function showHistory(app, open = 0) {
     return h('div', { class: 'hd' }, h('div', { class: 'hd-teams' }, side(0), side(1)),
       h('div', { class: 'row', style: { justifyContent: 'center' } }, h('button', { class: 'btn big', onclick: () => shareMatch(m, coach, app.lastReplay()) }, 'Share card')));
   };
-  mount(screen(), h('div', { class: 'subscreen' }, h('div', { class: 'shead' }, back(app), h('h2', {}, 'Match History'), h('div')),
+  const rep = app.lastReplay();
+  mount(screen(), h('div', { class: 'subscreen' }, h('div', { class: 'shead' }, back(app), h('h2', {}, 'Match History'),
+    rep ? h('button', { class: 'btn small', title: 'Watch your last match again', onclick: () => app.watchReplay() }, 'Last replay') : h('div')),
     !list.length ? emptyState('assets/img/emote/think.png', 'No matches yet', 'Every match you coach lands here with its picks, K/D/A and a share card.', { label: 'Play vs AI', onclick: () => app.startVsAI() })
       : h('div', { class: 'hist' }, ...list.map((m, i) => h('div', { class: 'hentry' + (m.won ? ' win' : ' loss') + (i === open ? ' open' : '') },
         h('button', { class: 'hrow2', onclick: () => showHistory(app, i === open ? -1 : i) },

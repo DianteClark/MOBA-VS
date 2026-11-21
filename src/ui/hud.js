@@ -343,7 +343,7 @@ export class Hud {
     this.closePop();
     const g = this.g, pers = PERSONALITIES[x.def.pers], mine = x.team === this.view && this.my >= 0;
     const abl = x.def.abilities.map((ab, i) => h('div', { class: 'abl', title: ab.name }, h('img', { src: icon(ab.icon) }), h('div', { class: 'cd' }), h('span', { class: 'k' }, ab.ult ? 'R' : ['Q', 'W'][i])));
-    const els = { hp: h('i'), trust: h('i'), trustL: h('small', {}), stats: h('div', { class: 'pstats' }), task: h('div', { class: 'ptask' }), items: h('div', { class: 'its' }) };
+    const els = { hp: h('i'), trust: h('i'), trustL: h('small', {}), stats: h('div', { class: 'pstats' }), task: h('div', { class: 'ptask' }), why: h('div', { class: 'pwhy' }), items: h('div', { class: 'its' }) };
     const el = h('div', { id: 'hpop', class: 'hpop' },
       h('div', { class: 'phead' }, h('img', { class: 'pface', src: face(x.heroId), style: { borderColor: `var(--team${x.team})` } }),
         h('div', { class: 'pcol' }, h('b', { style: { color: `var(--team${x.team})` } }, x.def.name), h('small', { class: 'muted' }, x.def.title),
@@ -354,7 +354,7 @@ export class Hud {
       h('div', { class: 'pdesc' }, pers.desc),
       h('div', { class: 'pbarrow' }, h('span', {}, 'HP'), h('div', { class: 'pbar hp' }, els.hp)),
       mine ? h('div', { class: 'pbarrow' }, h('span', {}, 'Trust'), h('div', { class: 'pbar tr' }, els.trust), els.trustL) : null,
-      h('div', { class: 'ablrow' }, ...abl, els.items), els.stats, els.task);
+      h('div', { class: 'ablrow' }, ...abl, els.items), els.stats, els.task, els.why);
     document.body.append(el);
     const upd = () => {
       const vis = mine || this.my < 0 || !this.r.fogOn || g.vision[this.view].has(x.id);
@@ -371,6 +371,7 @@ export class Hud {
       if (els.items.childElementCount !== x.items.length) mount(els.items, ...x.items.map((it) => h('img', { src: icon(it.icon), title: it.name })));
       els.stats.textContent = `Lv ${x.level}  ·  ${x.kills}/${x.deaths}/${x.assists}  ·  ${x.cs} CS  ·  ${Math.round(x.goldEarned / 100) / 10}k gold`;
       els.task.textContent = !x.alive ? this.taskLabel(x) : mine ? this.taskLabel(x) : vis ? this.taskLabelEnemy(x) : this.missingText(x);
+      setText(els.why, this.whyText(x));
     };
     upd();
     // place beside the card, clamped to the viewport
@@ -386,6 +387,13 @@ export class Hud {
   enableChat(send) { if (!this.chat) this.chat = new QuickChat(this, send); return this.chat; }
   disableChat() { if (this.chat) { this.chat.destroy(); this.chat = null; } }
   destroy() { if (Hud.current === this) Hud.current = null; this.closePop(); this.alerts.destroy(); this.disableChat(); clearTimeout(this._bt); document.getElementById('hud').classList.remove('bannering'); window.removeEventListener('pointerdown', this._popClose, true); }
+  // The AI's own short reason for what it is doing (hero.why, e.g. "lane: hold behind wave"), for your own
+  // heroes and spectators only: an enemy's reason would leak what the fog hides.
+  whyText(x) {
+    if (!x.alive || !x.why || (this.my >= 0 && x.team !== this.my)) return '';
+    const w = String(x.why).replace(/\bhp\b/g, 'HP');
+    return 'Why: ' + w[0].toUpperCase() + w.slice(1);
+  }
   taskLabelEnemy(x) { return this.g.tick - x.lastHitHero < TICK_RATE * 1.5 ? 'Fighting!' : `Seen ${LANE_L[this.g.world.closestLane(x)]}`; }
   missingText(x) {
     const ls = this.g.lastSeen[this.view][x.id];
@@ -402,14 +410,14 @@ export class Hud {
     if (force || !this._det || this._det.id !== x.id) {
       const pers = PERSONALITIES[x.def.pers];
       const abl = x.def.abilities.map((ab, i) => h('div', { class: 'abl', title: `${ab.name}${ab.ult ? ' (ultimate)' : ''}` }, h('img', { src: icon(ab.icon) }), h('div', { class: 'cd' }), h('span', { class: 'k' }, ['Q', 'W', 'R'][i])));
-      this._det = { id: x.id, abl, xp: h('i'), hp: h('i'), stats: h('div', { class: 'stats' }), info: h('div', { class: 'dinfo' }), items: h('div', { class: 'its' }) };
+      this._det = { id: x.id, abl, xp: h('i'), hp: h('i'), stats: h('div', { class: 'stats' }), info: h('div', { class: 'dinfo' }), why: h('div', { class: 'dwhy' }), items: h('div', { class: 'its' }) };
       mount(this.el.detail,
         h('div', { class: 'dhead' }, h('img', { class: 'dface', src: face(x.heroId) }),
           h('div', { class: 'dcol' },
             h('div', { class: 'dname' }, h('span', { style: { color: TEAM_COL[x.team] } }, x.def.name), h('span', { class: 'muted' }, ` ${x.def.title}`)),
             h('div', { class: 'dtags' }, h('span', { style: { color: CLANS[x.def.clan].color } }, CLANS[x.def.clan].name), h('span', { style: { color: pers.color } }, pers.name), h('span', { style: { color: BUILDS[x.build].color } }, BUILDS[x.build].name)),
             h('div', { class: 'dbar hp' }, this._det.hp), h('div', { class: 'dbar xp' }, this._det.xp))),
-        h('div', { class: 'ablrow' }, ...abl, this._det.items), this._det.stats, this._det.info);
+        h('div', { class: 'ablrow' }, ...abl, this._det.items), this._det.stats, this._det.info, this._det.why);
     }
     const d = this._det;
     setCss(d.hp, 'width', Math.round(x.alive ? x.hp / x.maxHp * 200 : 0) / 2 + '%');
@@ -424,6 +432,7 @@ export class Hud {
     if (d.items.childElementCount !== x.items.length) mount(d.items, ...x.items.map((it) => h('img', { src: icon(it.icon), title: it.name })));
     setText(d.stats, `AD ${Math.round(s.ad)}  AP ${Math.round(s.ap)}  AR ${Math.round(s.armor)}  MR ${Math.round(s.mr)}  AS ${s.as.toFixed(2)}  MS ${Math.round(g.moveSpeed(x))}`);
     setText(d.info, `Lv ${x.level} · ${x.kills}/${x.deaths}/${x.assists} · ${x.cs} CS · ${Math.round(x.goldEarned / 100) / 10}k` + (x.team === this.my ? ` · Trust ${Math.round(x.trust)}${x.tiltUntil > g.tick ? ' (tilted)' : ''}` : '') + ` · ${this.taskLabel(x)}`);
+    const why = this.whyText(x); setText(d.why, why); d.why.classList.toggle('hidden', !why);
   }
 
   // ───────────────────────── events → feeds / banners / audio ─────────────────────────
