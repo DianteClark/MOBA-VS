@@ -30,7 +30,8 @@ export const socialData = () => st.data;
 export function onSocial(fn) { st.subs.add(fn); return () => st.subs.delete(fn); }
 
 async function beat(force = false) {
-  if (st.busy || !menuOpen()) return;
+  if (st.busy) { if (force) st.again = true; return; } // a forced refresh during a beat runs right after it
+  if (!menuOpen()) return;
   const now = Date.now();
   if (now - st.last < (force ? 5000 : POLL)) return;
   st.busy = true; st.last = now;
@@ -39,6 +40,7 @@ async function beat(force = false) {
     if (d) { for (const i of d.invites) i.expires = Date.now() + i.left; st.data = d; } // server sends ms left (no clock skew)
   } catch { /* offline: try again next beat */ }
   st.busy = false;
+  if (st.again) { st.again = false; st.last = 0; setTimeout(() => beat(true), 0); }
   if (!st.data) return;
   for (const fn of st.subs) { try { fn(st.data); } catch (e) { console.error(e); } }
   badge();
