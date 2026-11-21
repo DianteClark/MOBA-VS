@@ -3,7 +3,11 @@ export const PATCHES = [
   {
     version: '5.0', season: 1, date: '2026-11-21', title: 'MOBA-VS 5.0',
     notes: [
-      'Built for phones first: new portrait and landscape layouts, a Menu dropdown, bigger tap targets, a wider camera, and an installable full-screen app (Add to Home Screen).',
+      'Built for phones in landscape: a full-screen installable app (Add to Home Screen), a Menu dropdown, bigger tap targets, a wider camera, and both teams always on screen with enemy respawn timers.',
+      'Matches build to a Crystal kill by about 15:00: structures take more damage over time, siege minions every wave from 8:00, Kami\'s Wrath super minions from 11:00. The tower count at 15:00 only settles close games.',
+      'Pro-level AI: calculated tower dives (dives that died for nothing fell from 25% to 8%), respect for unseen enemies, cooldown-aware fights, retreating as a team, no hopeless chases.',
+      'Scoreboard: tap the score for every hero\'s KDA, CS, gold and items. The score bar shows who took each Kami, Oni, Kraken and shrine.',
+      'Match history and share cards: show off your wins from the results screen or History.',
       'Fixed: tapping the map on phones now opens the call ring.',
       '15 new champions: 40 in total, 8 per clan.',
       'New map: Moonlit Marsh, a misty night swamp.',
