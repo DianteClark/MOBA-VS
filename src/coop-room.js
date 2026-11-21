@@ -98,13 +98,13 @@ function onLeave(app, slot) {
   const s = app.session; if (!s || s.mode !== 'coop') return;
   const p = (s.lobby ? s.room.players : s.players || []).find((x) => x.slot === slot);
   if (s.lobby) { if (p) { s.room.players = s.room.players.filter((x) => x !== p); toast(`${p.name} left the room`); } broadcast(app); return; }
-  if (s.finished) return;
-  if (app.match && !app.match.game.over && p) {
+  if (s.finished || !p) return; // (a link that never got a seat does not matter once the match is set)
+  if (app.match && !app.match.game.over) {
     // mid-match: cut that peer's input stream and hand its heroes over (to the partner or the AI coach)
     if (app.match.runner.hostDrop) app.match.runner.hostDrop(slot, [{ type: 'leave', sys: 1, team: p.team, seat: p.seat, seq: 0 }]);
     return;
   }
-  if (!app.match) closeRoom(app, `${p ? p.name : 'A coach'} left before the match: the co-op room closed.`);
+  if (!app.match) closeRoom(app, `${p.name} left before the match: the co-op room closed.`);
 }
 function closeRoom(app, why) {
   if (app.net && app.session && app.session.host) app.net.hub.send({ t: 'closed', why });
@@ -116,7 +116,10 @@ export function startRoom(app) {
   if (!s.host || !canStart(room)) return;
   const seed = (Math.random() * 2 ** 31) >>> 0;
   const start = { t: 'start', coop: 1, seed, map: app.pickMap(seed, 'classic'), room: publicRoom(room) };
-  app.net.hub.send(start);
+  const hub = app.net.hub;
+  for (const p of room.players) if (p.slot) hub.sendTo(p.slot, start);
+  // a link still connecting (no hello yet) is turned away rather than pulled into a match it never joined
+  for (const k of [1, 2, 3]) if (hub.has(k) && !room.players.some((p) => p.slot === k)) { hub.sendTo(k, { t: 'closed', why: 'The room has already started.' }); setTimeout(() => hub.kick(k), 200); }
   beginMatchFlow(app, start, 0);
 }
 
