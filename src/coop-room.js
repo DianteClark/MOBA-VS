@@ -17,7 +17,6 @@ import { DEFAULT_OWN, cleanOwn, draftActor, coopApply, coopLegal, coopAutoChoice
 import { prepFromPreset } from './presets.js';
 import { hostRoom, Hub, makeCode } from './net/peer.js';
 import { getAccount } from './net/online.js';
-import { MAPS } from './maps/defs.js';
 import { toast } from './ui/dom.js';
 import { audio } from './audio.js';
 import { showCoopLobby } from './ui/coop.js';
@@ -69,7 +68,7 @@ function broadcast(app) {
 }
 const publicRoom = (r) => ({ code: r.code, kind: r.kind, aiLevel: r.aiLevel, own: r.own, players: r.players, status: r.status });
 // Host-side lobby actions (a guest's taps arrive as messages and land here too).
-export function roomAction(app, slot, a) {
+function roomAction(app, slot, a) {
   const s = app.session, room = s && s.room; if (!s || !s.host || !s.lobby) return;
   const me = room.players.find((p) => p.slot === slot); if (!me) return;
   if (a.t === 'seat') {
@@ -313,6 +312,4 @@ export function soloFallback(app, LocalRunner) {
   s.wasOnline = true;
   toast('Lost the host: you coach on alone (the AI takes the other seats).', 3500);
 }
-export const mapName = (s) => (MAPS.find((m) => m.id === s.mapId) || MAPS[0]).name;
-export const playerName = (s, slot) => { const p = s.players && s.players.find((x) => x.slot === slot); return p ? p.name : 'Coach'; };
 export const historyCoop = (s) => ({ kind: s.kind, seat: s.mySeat, mates: (s.coop[s.myTeam] ? s.coop[s.myTeam].coaches : []).filter((c) => c.slot !== s.slot).map((c) => ({ name: c.name, pid: c.pid })) });

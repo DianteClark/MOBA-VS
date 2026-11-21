@@ -552,7 +552,7 @@ export class Hud {
           if (c.type === 'ult' && c.mode === 'go' && (c.team === this.view || this.my < 0)) this.banner('ALL-IN!', TEAM_COL[c.team], 1200);
           // co-op: your partner's calls read on the ticker in their colour (with a ping where it lands)
           if (this.coop && c.team === this.my && c.seat !== undefined && c.seat !== this.seat) {
-            this.ticker(`${this.coachName(c.seat)}: ${this.callText(c)}`, 'mate s' + (c.seat === 1 ? 1 : 0), 1);
+            this.ticker(`${this.coachName(c.seat)}: ${this.callText(c)}`, c.seat === 1 ? 'mate s1' : 'mate s0', 1);
             const pt = this.callPoint(c); this.mm.ping(pt[0], pt[1], COOP_COL[c.seat]);
             break;
           }

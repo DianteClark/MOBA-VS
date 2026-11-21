@@ -53,7 +53,7 @@
 /* ── match HUD ── */
 /* whose hero: a seat-coloured corner on each of your team's portraits; the partner's are framed in their colour */
 .hrow .pf .own { position: absolute; left: -2px; top: -2px; width: 9px; height: 9px; background: var(--sc, #888); border: 1px solid #000; pointer-events: none; }
-.hrow.mate .pf { outline: 2px solid var(--sc-mate, #6fe3c8); outline-offset: -2px; }
+.hrow.mate .pf::after { content: ''; position: absolute; inset: 0; border: 2px solid var(--sc-mate, #6fe3c8); pointer-events: none; }
 .hrow.mate .pf .fc { filter: saturate(0.75) brightness(0.92); }
 /* the lead badge (tap twice to pass the lead) */
 .coopbar { --sc: var(--gold); display: flex; align-items: center; gap: 5px; padding: 2px 6px; min-height: 24px; background: var(--panel); border: 2px solid var(--sc); color: var(--ink); font: inherit; font-size: 11px; cursor: pointer; pointer-events: auto; text-align: left; }

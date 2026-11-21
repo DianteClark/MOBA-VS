@@ -163,7 +163,7 @@ export class DraftView {
           : t.act === 'ban' ? 'Your ban: remove a hero you fear.' : `Your pick. Still needed: ${need.join(', ')}`),
         h('div', { class: 'muted small' }, myTurn && t.act === 'ban' ? (recs.length ? 'Suggested bans counter your lineup.' : 'Tap a hero to ban it.')
           : recs.length && myTurn ? 'Heroes marked REC suit your draft.' : 'Tap a hero to see abilities and matchups.'),
-        !s.preset && me >= 0 && !d.done ? h('div', { class: 'muted small' }, 'Tip: set up a lineup in the Dojo and your picks lock in automatically.') : null]);
+        !s.preset && me >= 0 && !d.done && s.mode !== 'coop' ? h('div', { class: 'muted small' }, 'Tip: set up a lineup in the Dojo and your picks lock in automatically.') : null]);
     }
     const x = HERO_BY_ID[id], pers = PERSONALITIES[x.pers], clan = CLANS[x.clan];
     const ban = t && t.act === 'ban', canAct = myTurn && this.legal(id), mu = matchupScore(x, enemyPicks);

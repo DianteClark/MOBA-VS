@@ -19,7 +19,7 @@ import { online, ping, getAccount, ensureAccount, presence, friendAction, player
   cancelInvites, friendCode, inviteUrl } from '../net/online.js';
 
 const POLL = 30000;
-const MODE_NAME = { casual: 'Casual 5v5', ranked: 'Ranked 5v5', rush: 'Lane Rush', coop: 'Co-op (shared team)' };
+const MODE_NAME = { casual: 'Casual 5v5', ranked: 'Ranked 5v5', rush: 'Lane Rush', coop: 'Co-op' };
 const PRES = { online: 'Online', match: 'In a match', offline: 'Offline' };
 const ago = (t) => { const m = Math.max(0, Math.round((Date.now() - t) / 60000)); return m < 1 ? 'just now' : m < 60 ? `${m}m ago` : m < 1440 ? `${Math.round(m / 60)}h ago` : `${Math.round(m / 1440)}d ago`; };
 
@@ -101,7 +101,7 @@ export function inviteFriend(app, friend) {
   const close = modal(`Invite ${friend.name}`,
     h('small', { class: 'muted' }, 'You host a private room; they get an invite card on their menu. Ranked counts only if they accept it as Ranked.'),
     h('div', { class: 'invmodes' }, ...['casual', 'rush', 'ranked', 'coop'].map((m) => h('button', { class: 'btn' + (m === 'ranked' ? ' ranked' : ''), onclick: () => { close(); hostInvite(app, { to: friend, mode: m }); } },
-      h('b', {}, MODE_NAME[m]), h('small', {}, m === 'ranked' ? 'Climbs the ladder' : m === 'rush' ? 'One lane, ~7 min' : m === 'coop' ? 'Coach one team together' : 'No rating change')))));
+      h('b', {}, MODE_NAME[m]), h('small', {}, m === 'ranked' ? 'Climbs the ladder' : m === 'rush' ? 'One lane, ~7 min' : m === 'coop' ? 'One team, two coaches' : 'No rating change')))));
 }
 export function hostInvite(app, { to = null, mode = 'casual' } = {}) {
   if (mode === 'coop') { app.hostCoop({ invite: { to, mode } }); return; } // a co-op room (src/coop-room.js)

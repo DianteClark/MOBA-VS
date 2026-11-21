@@ -624,7 +624,7 @@ class App {
       this.session.finished = true;
       setTimeout(() => this.endMatch(won, m), 4800);
     }
-    if (m.runner.online && m.runner.waiting && performance.now() - m.runner.lastRemote > 5000 && !m.warned) { m.warned = true; toast('Waiting for opponent…', 2500); }
+    if (m.runner.online && m.runner.waiting && performance.now() - m.runner.lastRemote > 5000 && !m.warned) { m.warned = true; toast(this.session.mode === 'coop' ? 'Waiting for the other coaches…' : 'Waiting for opponent…', 2500); }
     if (m.runner.online && !m.runner.waiting) m.warned = false;
     requestAnimationFrame((t) => this.frame(t));
   }

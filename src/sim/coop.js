@@ -78,7 +78,6 @@ function leave(g, t, seat) {
 }
 
 // ── read-only helpers for the UI ──
-export const seatOfHero = (h) => (h && h.seat === 1 ? 1 : 0);
 export function canCommand(g, team, seat, cmd) {
   const co = g.teams[team] && g.teams[team].coop;
   if (!co || co.ai) return true;
@@ -94,7 +93,7 @@ export function canCommand(g, team, seat, cmd) {
 // splits[t]: role → seat for a team with two coaches, or null. d.seats[t] records who picked each hero.
 // Bans alternate (the lead first); picks alternate between the coaches until each has filled their roles.
 // A coach may only pick a hero that fits one of their own still-open roles.
-export function ensureSeats(d) { if (!d.seats) d.seats = [[], []]; return d; }
+function ensureSeats(d) { if (!d.seats) d.seats = [[], []]; return d; }
 export function draftActor(d, team, own, lead = 0) {
   ensureSeats(d);
   const t = currentTurn(d); if (!t || t.team !== team || !own) return 0;
@@ -106,7 +105,7 @@ export function draftActor(d, team, own, lead = 0) {
   return done[(lead) % 2] <= done[(lead + 1) % 2] ? lead : 1 - lead;
 }
 // Heroes of one seat can take distinct roles among that seat's roles.
-export function fitsRoles(ids, roles) {
+function fitsRoles(ids, roles) {
   const hs = ids.map((id) => HERO_BY_ID[id]); let ok = false; const used = new Set();
   (function go(i) {
     if (ok) return; if (i === hs.length) { ok = true; return; }
@@ -115,7 +114,7 @@ export function fitsRoles(ids, roles) {
   return ok;
 }
 export const seatRoles = (own, seat) => ROLES.filter((r) => own[r] === seat);
-export function seatPicks(d, team, seat) { ensureSeats(d); return d.picks[team].filter((_, i) => d.seats[team][i] === seat); }
+function seatPicks(d, team, seat) { ensureSeats(d); return d.picks[team].filter((_, i) => d.seats[team][i] === seat); }
 export function coopLegal(d, team, seat, heroId, own) {
   const t = currentTurn(d);
   if (!t || t.team !== team || !HERO_BY_ID[heroId] || taken(d).has(heroId)) return false;

@@ -80,5 +80,5 @@ export function coopResults(app, s, g) {
       h('small', { class: 'muted' }, roles(p.seat)), h('span', { class: 'cc' }, `${calls(p.seat)} calls · ${good(p.seat)} paid off`)))),
     others.length && acct ? h('div', { class: 'cfr' }, ...others.map((p) => h('span', { class: 'cfp' }, h('button', { class: 'chip', onclick: () => showPlayer(app, p.pid, { name: p.name }) }, p.name),
       h('button', { class: 'chip', onclick: async (e) => { e.target.disabled = true; try { const r = await friendAction('add', p.pid); toast(r.state === 'friend' ? `You and ${p.name} are now friends` : 'Friend request sent'); e.target.textContent = r.state === 'friend' ? 'Friends' : 'Sent'; } catch (err) { toast(err.message); e.target.disabled = false; } } }, '+ Friend')))) : null,
-    h('small', { class: 'muted' }, 'Co-op is casual: no rank change. Mastery, career and history count your own heroes.'));
+    h('small', { class: 'muted' }, 'Co-op is casual: no rank change. Mastery counts the heroes you ran; career and history record the match.'));
 }
