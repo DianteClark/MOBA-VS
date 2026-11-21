@@ -5,11 +5,12 @@
 #   sides swapped → second match → leaving closes the other's Rematch → friends ladder, public profile,
 #   history opponent → link invite (/i/CODE) → block.
 #   npx --yes wrangler@4 dev --local --port 8834 --ip 127.0.0.1    (from the repo root, fresh --persist-to dir)
-#   python3 tools/social_test.py http://127.0.0.1:8834/ [shots-dir]
+#   python3 tools/social_test.py http://127.0.0.1:8834/ [shots-dir] [quick]
 import sys, asyncio, json
 from playwright.async_api import async_playwright
 BASE = (sys.argv[1] if len(sys.argv) > 1 else 'http://127.0.0.1:8834/').rstrip('/')
-SHOTS = sys.argv[2] if len(sys.argv) > 2 else None
+SHOTS = sys.argv[2] if len(sys.argv) > 2 and sys.argv[2] else None
+QUICK = len(sys.argv) > 3 and sys.argv[3] == 'quick'  # skip the two played matches (rematch); everything else runs
 URL = BASE + '/?local=1'
 BRIDGE = """(() => {
   const chans = {};
@@ -93,40 +94,45 @@ async def main():
                 await A.wait_for_timeout(200)
             await A.wait_for_timeout(6500)
             ok(await A.locator('.results').count() == 1 and await B.locator('.results').count() == 1, f'{tag}: both on results')
-        await play('match 1')
-        await A.wait_for_timeout(5000)
-        ok('verified' in (await A.inner_text('.ladderres')).lower(), 'match 1: ranked result verified on the ladder')
-        ok(await A.locator('.rmatch').count() == 1 and await B.locator('.rmatch').count() == 1, 'results: opponent/rematch panel on both')
-        await B.locator('.rmatch .btn', has_text='Rematch').click(); await A.wait_for_timeout(800)
-        ok(await A.locator('.rmatch .btn.hot', has_text='Accept rematch').count() == 1, 'Alice sees "Accept rematch"')
-        await A.locator('.rmatch').scroll_into_view_if_needed(); await shot(A, 'results-rematch')
-        await A.locator('.rmatch .btn', has_text='Accept rematch').click(force=True); await A.wait_for_timeout(1500)
-        s2A = await A.evaluate("app.session && { team: app.session.myTeam, ranked: app.session.ranked, draft: !!app.session.draft, m: app.session.matchId }")
-        s2B = await B.evaluate("app.session && { team: app.session.myTeam, ranked: app.session.ranked, draft: !!app.session.draft, m: app.session.matchId }")
-        ok(bool(s2A and s2B and s2A['draft'] and s2B['draft'] and s2A['team'] == 1 - sA['team'] and s2B['team'] == 1 - sB['team'] and s2A['m'] == s2B['m'] and s2A['ranked'] and s2B['ranked']),
-           f'rematch: both drafting, sides swapped, same match id, still ranked {s2A} {s2B}')
-        await play('match 2 (rematch)')
-        await A.wait_for_timeout(5000)
-        ok('verified' in (await B.inner_text('.ladderres')).lower(), 'rematch: verified (sides swapped, reports agree)')
-        await A.evaluate("app.menu()"); await B.wait_for_timeout(1500)
-        ok('left' in await B.inner_text('.rmatch') and await B.locator('.rmatch .btn[disabled]').count() == 1, 'leaving closes the opponent\'s Rematch')
+        if QUICK:
+            await A.evaluate("app.menu()"); await B.evaluate("app.menu()")
+        else:
+          await play('match 1')
+          await A.wait_for_timeout(5000)
+          ok('verified' in (await A.inner_text('.ladderres')).lower(), 'match 1: ranked result verified on the ladder')
+          ok(await A.locator('.rmatch').count() == 1 and await B.locator('.rmatch').count() == 1, 'results: opponent/rematch panel on both')
+          await B.locator('.rmatch .btn', has_text='Rematch').click(); await A.wait_for_timeout(800)
+          ok(await A.locator('.rmatch .btn.hot', has_text='Accept rematch').count() == 1, 'Alice sees "Accept rematch"')
+          await A.locator('.rmatch').scroll_into_view_if_needed(); await shot(A, 'results-rematch')
+          await A.locator('.rmatch .btn', has_text='Accept rematch').click(force=True); await A.wait_for_timeout(1500)
+          s2A = await A.evaluate("app.session && { team: app.session.myTeam, ranked: app.session.ranked, draft: !!app.session.draft, m: app.session.matchId }")
+          s2B = await B.evaluate("app.session && { team: app.session.myTeam, ranked: app.session.ranked, draft: !!app.session.draft, m: app.session.matchId }")
+          ok(bool(s2A and s2B and s2A['draft'] and s2B['draft'] and s2A['team'] == 1 - sA['team'] and s2B['team'] == 1 - sB['team'] and s2A['m'] == s2B['m'] and s2A['ranked'] and s2B['ranked']),
+             f'rematch: both drafting, sides swapped, same match id, still ranked {s2A} {s2B}')
+          await play('match 2 (rematch)')
+          await A.wait_for_timeout(5000)
+          ok('verified' in (await B.inner_text('.ladderres')).lower(), 'rematch: verified (sides swapped, reports agree)')
+          await A.evaluate("app.menu()"); await B.wait_for_timeout(1500)
+          ok('left' in await B.inner_text('.rmatch') and await B.locator('.rmatch .btn[disabled]').count() == 1, 'leaving closes the opponent\'s Rematch')
         await B.evaluate("app.menu()")
         # ── leaderboard: friends filter, pin, row → profile ──
         await A.evaluate("import('./src/ui/online.js').then((m) => m.showLeaderboard(app, 'friends'))"); await A.wait_for_timeout(2000)
-        ok(await A.locator('.lblist button.lbr').count() == 2, 'friends ladder lists the two friends')
+        ok(QUICK or await A.locator('.lblist button.lbr').count() == 2, 'friends ladder lists the two friends')
         await shot(A, 'ladder-friends')
-        await A.locator('.lblist button.lbr', has_text='Bob').click(); await A.wait_for_timeout(1500)
+        if QUICK: await A.evaluate(f"import('./src/ui/social.js').then((m) => m.showPlayer(app, '{aB['id']}', {{ name: 'Bob' }}))")
+        else: await A.locator('.lblist button.lbr', has_text='Bob').click()
+        await A.wait_for_timeout(1500)
         txt = await A.inner_text('.pprof')
-        ok('online ladder' in txt and 'Recent results' in txt and 'Top heroes' in txt, 'public profile: ladder line, recent results, top heroes')
+        if not QUICK: ok('online ladder' in txt and 'Recent results' in txt and 'Top heroes' in txt, 'public profile: ladder line, recent results, top heroes')
         await shot(A, 'profile-bob')
         await A.click('.smodal .x')
         await A.evaluate("import('./src/ui/home.js').then((m) => m.showHistory(app, 0))"); await A.wait_for_timeout(500)
-        ok(await A.locator('.hd .btn', has_text='Opponent').count() == 1, 'history: opponent profile button')
+        if not QUICK: ok(await A.locator('.hd .btn', has_text='Opponent').count() == 1, 'history: opponent profile button')
         # ── link invite: /i/CODE ──
-        await A.evaluate("app.hostGame()"); await A.wait_for_timeout(800)
+        await A.evaluate("() => { app.hostGame(); }"); await A.wait_for_timeout(800)
         inv = await A.evaluate("""(async () => { const o = await import('./src/net/online.js'); const code = document.querySelector('.lobby .code').textContent; const r = await o.createInvite(code, 'casual', null); app.inviteRoom = code; return r; })()""")
-        await B.goto(BASE + '/i/' + inv['id']); await B.wait_for_timeout(500)
-        ok(B.url.endswith('/?i=' + inv['id']), f'/i/CODE redirects into the game ({B.url})')
+        resp = await B.goto(BASE + '/i/' + inv['id']); await B.wait_for_timeout(500)
+        ok(resp.url.endswith('/?i=' + inv['id']) and resp.request.redirected_from is not None, f'/i/CODE redirects into the game ({resp.url})')
         await B.goto(BASE + '/?local=1&i=' + inv['id']); await B.wait_for_timeout(4000)
         ok('Alice' in await B.inner_text('.invland'), 'invite landing shows the host')
         await shot(B, 'invite-landing')

@@ -146,7 +146,7 @@ export function closeInvites(app) { if (app.inviteRoom) { cancelInvites(app.invi
 // ───────────── invite links (/i/CODE → ?i=CODE) ─────────────
 export async function showInviteLink(app, id) {
   try { history.replaceState(null, '', location.pathname); } catch { /* ignore */ }
-  const body = h('div', { class: 'panel col center invland' }, h('p', { class: 'muted' }, 'Opening the invite…'));
+  const body = h('div', { class: 'col center invland' }, h('p', { class: 'muted' }, 'Opening the invite…'));
   mount(document.getElementById('screen'), h('div', { class: 'lobby panel col', style: { alignItems: 'center' } }, h('h2', {}, 'Match invite'), body));
   const home = h('button', { class: 'btn', onclick: () => app.menu() }, 'Main menu');
   if (!/^[A-Z0-9]{8}$/.test(id) || !(await ping())) { mount(body, h('p', {}, 'This invite could not be opened (offline or broken link).'), home); return; }
@@ -235,14 +235,14 @@ export async function showPlayer(app, id, { name = 'Coach' } = {}) {
     h('div', { class: 'pline' },
       r.ladder ? h('span', {}, h('b', { class: 'gold' }, `#${r.ladder.rank}`), ` online ladder · ${r.ladder.rating} · ${r.ladder.wins}W ${r.ladder.losses}L`) : h('span', { class: 'muted' }, 'Not on the online ladder this season'),
       pub && (pub.trophies.gold || pub.trophies.silver) ? h('span', { class: 'muted' }, ` · ${pub.trophies.gold ? `${pub.trophies.gold} Golden Cup${pub.trophies.gold > 1 ? 's' : ''}` : ''}${pub.trophies.gold && pub.trophies.silver ? ', ' : ''}${pub.trophies.silver ? `${pub.trophies.silver} Silver` : ''}`) : null),
+    h('div', { class: 'row pact' }, ...actions),
     !pub ? h('p', { class: 'muted center' }, 'This coach has not shared a profile yet.') : [
       pub.top.length ? h('div', { class: 'ptop' }, h('small', { class: 'muted' }, 'Top heroes'), h('div', { class: 'ptopl' }, ...pub.top.map(([hid, pts]) => HERO_BY_ID[hid] ? h('div', { class: 'phero', title: `${HERO_BY_ID[hid].name} · mastery ${masteryLevel(pts)}` },
         h('img', { src: face(hid), alt: '' }), masteryBadge(masteryLevel(pts), { always: true }), h('small', {}, HERO_BY_ID[hid].name)) : null))) : null,
       pub.recent.length ? h('div', { class: 'precent' }, h('small', { class: 'muted' }, 'Recent results'), ...pub.recent.map((m) => h('div', { class: 'prow2 ' + (m.won ? 'win' : 'loss') },
         h('b', {}, m.won ? 'W' : 'L'), h('span', { class: 'pmode' }, MODE_LABEL[m.mode] || m.mode || ''), h('span', { class: 'pfaces' }, ...m.picks.filter((x) => HERO_BY_ID[x]).map((x) => h('img', { src: face(x), alt: '', class: m.mvp === x ? 'mvp' : '' }))),
         h('b', { class: 'pk' }, `${m.k[0]}-${m.k[1]}`), h('small', { class: 'muted' }, m.t ? ago(m.t) : '')))) : h('small', { class: 'muted center' }, 'No matches played yet.'),
-    ],
-    h('div', { class: 'row pact' }, ...actions));
+    ]);
 }
 
 // ───────────── results: opponent + Rematch ─────────────
