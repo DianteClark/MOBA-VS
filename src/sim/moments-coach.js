@@ -6,9 +6,9 @@ import { sec } from './constants.js';
 export const MOMENTS = {
   timeout: { name: 'Timeout', icon: 'Heal', color: '#5fe0d0', short: 'Reset basics, heal up',
     desc: 'Everyone\'s basic ability cooldowns reset, the team heals 24% HP over 4s, and anyone at base is fully healed.' },
-  rally: { name: 'Rally', icon: 'Upgrade', color: '#ffd84a', short: '+15% dmg & speed 6s',
+  rally: { name: 'Rally', icon: 'AttackUpgrade', color: '#ffd84a', short: '+15% dmg & speed 6s',
     desc: 'The whole team gets +15% damage and +15% move speed for 6s and shakes off slows.' },
-  push: { name: 'All-Out Push', icon: 'AttackUpgrade', color: '#ff8a3a', short: 'Next wave: super minions',
+  push: { name: 'All-Out Push', icon: 'Explosion', color: '#ff8a3a', short: 'Next wave: super minions',
     desc: 'Your next minion wave marches empowered: +60% HP and damage, faster, led by a super minion.' },
 };
 export const MOMENT_IDS = Object.keys(MOMENTS);

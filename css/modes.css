@@ -104,7 +104,7 @@
 .momentbtn.ready { animation: momReady 1.4s ease-in-out infinite alternate; }
 @keyframes momReady { to { box-shadow: 0 0 12px #ff8a3a; } }
 .momentbtn:disabled, .momentbtn.spent { opacity: 0.35; filter: grayscale(0.8); animation: none; cursor: default; }
-.momentbtn.lock .ml::after { content: ' ⏳'; }
+.momentbtn.lock { filter: saturate(0.5); }
 .tile.moment { border-color: var(--mc); }
 .tile.moment b { color: var(--mc); }
 .tile.moment.used { opacity: 0.35; }
@@ -167,3 +167,5 @@
 .clipbox video, .clipbox img, .clipbox canvas { max-width: min(640px, 88vw); max-height: 62vh; border: 2px solid #000; image-rendering: pixelated; background: #000; }
 .clipbox .barw { width: 260px; height: 8px; background: #0008; border: 1px solid #000; } .clipbox .barw i { display: block; height: 100%; width: 0; background: var(--gold); transition: width 0.2s; }
 @media (max-height: 500px) and (orientation: landscape) { .home .coach .tbadge { width: 42px !important; height: 42px !important; margin: -4px 0; } }
+.htile.proft .tbadge { width: 34px !important; height: 34px !important; margin: 4px; }
+.draft .dbuilds { margin: 2px 0; }

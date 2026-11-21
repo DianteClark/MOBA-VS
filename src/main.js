@@ -31,6 +31,8 @@ import { profile } from './profile.js';
 import { newCup, recordCup, myMatch } from './cup.js';
 import { findPOTG, reportCard } from './ui/moments.js';
 import { rankMoment } from './ui/ranks.js';
+import { installBuildTips } from './ui/buildguide.js';
+import { saveClip, clipSupport } from './ui/clip.js';
 
 const VERSION = 6; // bump whenever the sim or balance changes (peers must match)
 const PREP_SECONDS = 60;
@@ -60,6 +62,7 @@ class App {
 
   async boot() {
     audio.init();
+    installBuildTips();
     const bar = document.querySelector('#loading .barw i');
     await loadAssets((p) => { bar.style.width = Math.round(p * 100) + '%'; });
     try { await document.fonts.load('12px PixelFont'); } catch { /* ignore */ }
@@ -550,7 +553,7 @@ class App {
       const args = [this, m.game, s.myTeam,
         s.cup ? () => showCup(this) : s.mode === 'ai' ? () => this.startVsAI() : s.mode === 'watch' ? () => this.watch() : null,
         () => this.menu(), { progress: progressPanel(sum, cupOut), ladder, againLabel: s.cup ? 'Back to bracket' : null, potg: this.potgReel ? potg : null, report,
-          onPOTG: () => this.playPOTG(), share: sum ? () => shareMatch(profile.d.history[0], { name: this.name, rank: profile.rank.label }, this.lastReplay()) : null }];
+          onPOTG: () => this.playPOTG(), onClip: potg && src && clipSupport() ? () => saveClip(src, potg, s.names, this.mapCanvas(m.game.world)) : null, share: sum ? () => shareMatch(profile.d.history[0], { name: this.name, rank: profile.rank.label }, this.lastReplay()) : null }];
       this.lastResults = { args, session: s, src, potg };
       showResults(...args);
       if (sum) setTimeout(() => rankMoment(sum), 900);
