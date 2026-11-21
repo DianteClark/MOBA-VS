@@ -1,5 +1,5 @@
 // Wasted-time meter: how much of every hero's match has a purpose?
-//   node tools/waste.mjs [games=8] [--workers=2] [--save=file.json] [--compare=file.json] [--perf]
+//   node tools/waste.mjs [games=8] [--workers=2] [--mode=classic|rush] [--save=file.json] [--compare=file.json] [--perf]
 // Runs seeded full bot matches on all 4 maps (game i plays map i%4) and measures, per role and per team side:
 //   idle        seconds standing still, not attacking, not in combat, with nothing useful in reach
 //               (no enemy minion / monster / hero / hittable structure within 600px). Healing at base,
@@ -16,7 +16,8 @@
 //               or death on either side
 //   leash       samples (every 0.5s) of a minion > LEASH.minion+40 off its lane, or a monster /
 //               objective farther than its leash (+40) from home. Must be 0 after the leash work.
-// --perf runs 1 game per map without instrumentation and reports ms per tick (mean and p99).
+// --perf runs 1 game per map in one process without instrumentation and reports CPU ms per tick
+// (process user time: robust on a busy machine) plus wall-clock mean / p99 per tick.
 import { fork } from 'node:child_process';
 import { performance } from 'node:perf_hooks';
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -27,6 +28,7 @@ const args = process.argv.slice(2);
 const flag = (k, d) => { const a = args.find((x) => x.startsWith('--' + k)); if (!a) return d; const v = a.split('=')[1]; return v === undefined ? true : v; };
 const N = +(args.find((a) => !a.startsWith('--')) || 8);
 const WORKERS = +flag('workers', 2);
+const MODE = process.env.WASTE_MODE || flag('mode', 'classic');
 
 async function setup() {
   const { Game } = await import('../src/sim/game.js');
@@ -38,6 +40,7 @@ async function setup() {
     const rng = new Rng(9001 + i * 31), used = new Set();
     const draft = () => ROLES.map((r) => { const pool = HEROES.filter((h) => h.role === r && !used.has(h.id)); const h = pool[rng.int(pool.length)]; used.add(h.id); return h.id; });
     const a = draft(), b = draft();
+    if (MODE === 'rush') return { seed: 4200 + i, mode: 'rush', map: ['rush_sakura', 'rush_ember'][i % 2], coach: [true, true], teams: [aiPrep(a, b), aiPrep(b, a)] };
     return { seed: 4200 + i, map: MAPS[i % 4], coach: [true, true], teams: [aiPrep(a, b), aiPrep(b, a)] };
   };
   return { Game, cfgFor, C };
@@ -65,9 +68,9 @@ async function runGames(ids, perf) {
     let ev = 0;
     const towerSeen = new Map(), s0 = new Map(), leashT = new Map();
     while (!g.over && g.time < (g.rules ? g.rules.seconds : C.MATCH_SECONDS) + 1) {
-      const t0 = perf ? performance.now() : 0;
+      const t0 = perf ? performance.now() : 0, c0 = perf ? process.cpuUsage().user : 0;
       g.step([]); g.fx.length = 0;
-      if (perf) { out.tickMs.push(performance.now() - t0); continue; }
+      if (perf) { out.tickMs.push(performance.now() - t0); out.cpuUs = (out.cpuUs || 0) + process.cpuUsage().user - c0; continue; }
       const now = g.tick;
       for (const tm of g.teams) for (const h of tm.heroes) {
         let s = S.get(h.id);
@@ -191,10 +194,10 @@ if (isWorker) {
 } else {
   const perf = !!flag('perf', false);
   const ids = perf ? [0, 1, 2, 3] : Array.from({ length: N }, (_, i) => i);
-  const W = Math.min(WORKERS, ids.length);
+  const W = perf ? 1 : Math.min(WORKERS, ids.length);
   const t0 = Date.now();
   const parts = await Promise.all(Array.from({ length: W }, (_, w) => new Promise((res, rej) => {
-    const c = fork(fileURLToPath(import.meta.url), [], { env: { ...process.env, WASTE_WORKER: '1' } });
+    const c = fork(fileURLToPath(import.meta.url), [], { env: { ...process.env, WASTE_WORKER: '1', WASTE_MODE: MODE } });
     c.on('message', res); c.on('error', rej);
     c.send({ ids: ids.filter((_, i) => i % W === w), perf });
   })));
@@ -202,7 +205,7 @@ if (isWorker) {
   if (perf) {
     const t = M.tickMs.sort((a, b) => a - b);
     const mean = t.reduce((a, b) => a + b, 0) / t.length;
-    console.log(`perf: ${M.games} games, ${t.length} ticks | ms/tick mean ${mean.toFixed(3)} | p50 ${t[t.length >> 1].toFixed(3)} | p99 ${t[Math.floor(t.length * 0.99)].toFixed(3)} | max ${t[t.length - 1].toFixed(1)}`);
+    console.log(`perf: ${M.games} games, ${t.length} ticks | CPU ms/tick ${(M.cpuUs / 1000 / t.length).toFixed(3)} | wall ms/tick mean ${mean.toFixed(3)} | p50 ${t[t.length >> 1].toFixed(3)} | p99 ${t[Math.floor(t.length * 0.99)].toFixed(3)} | max ${t[t.length - 1].toFixed(1)}`);
     process.exit(0);
   }
   const rows = summarize(M);
@@ -216,7 +219,7 @@ function merge(parts) {
   const M = { games: 0, mins: 0, blue: 0, crystal: 0, endMin: [], tickMs: [], role: {}, side: [{}, {}], idleBy: {}, openLane: {} };
   const addAll = (dst, src) => { for (const k in src || {}) if (typeof src[k] === 'number') dst[k] = (dst[k] || 0) + src[k]; };
   for (const p of parts) {
-    M.games += p.games; M.mins += p.mins; M.blue += p.blue; M.crystal += p.crystal; M.endMin.push(...p.endMin); for (const x of p.tickMs) M.tickMs.push(x);
+    M.games += p.games; M.cpuUs = (M.cpuUs || 0) + (p.cpuUs || 0); M.mins += p.mins; M.blue += p.blue; M.crystal += p.crystal; M.endMin.push(...p.endMin); for (const x of p.tickMs) M.tickMs.push(x);
     for (const r in p.role) addAll(M.role[r] || (M.role[r] = {}), p.role[r]);
     addAll(M.side[0], p.side[0]); addAll(M.side[1], p.side[1]); addAll(M.idleBy, p.idleBy); addAll(M.openLane, p.openLane); addAll(M.why || (M.why = {}), p.why);
     for (const k of ['leashMinion', 'leashMob', 'leashBoss', 'minionSamples', 'mobSamples']) M[k] = (M[k] || 0) + (p[k] || 0);

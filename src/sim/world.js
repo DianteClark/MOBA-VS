@@ -285,35 +285,57 @@ export class World {
   }
 
   // ───────────── vision: shadow-casting by rays over the grid ─────────────
+  // Each source's visible cells depend only on its cell and radius (walls and brush never change),
+  // so they are cast once and cached as a cell list; a frame is then just OR-ing cached lists.
+  // Identical output to casting every ray every time, at a fraction of the cost.
   computeVision(sources, out) {
     out.fill(0);
-    const W = this.walk, B = this.brush;
+    const cache = this._vis || (this._vis = new Map());
+    const seen = this._visSeen || (this._visSeen = new Set());
+    seen.clear();
     for (const s of sources) {
       const cx = Math.floor(s.x / C), cy = Math.floor(s.y / C), rc = Math.ceil(s.r / C);
-      const brushR2 = 6 * 6;
-      const inB = B[cy * N + cx];
-      if (cx >= 0 && cy >= 0 && cx < N && cy < N) out[cy * N + cx] = 1;
-      const rays = rc * 8;
-      for (let k = 0; k < rays; k++) {
-        // ray endpoint on circle via integer-friendly octant walk (precomputed table)
-        const e = RAY[rc] ? RAY[rc][k] : null; if (!e) continue;
-        const ex = cx + e[0], ey = cy + e[1];
-        let x = cx, y = cy; const dx = Math.abs(ex - x), dy = Math.abs(ey - y), sx = x < ex ? 1 : -1, sy = y < ey ? 1 : -1;
-        let err = dx - dy;
-        for (;;) {
-          if (x === ex && y === ey) break;
-          const e2 = 2 * err; if (e2 > -dy) { err -= dy; x += sx; } if (e2 < dx) { err += dx; y += sy; }
-          if (x < 0 || y < 0 || x >= N || y >= N) break;
-          const i = y * N + x;
-          const ddx = x - cx, ddy = y - cy;
-          if (B[i] && !(inB && ddx * ddx + ddy * ddy <= 9) && ddx * ddx + ddy * ddy > brushR2) { continue; }
-          out[i] = 1;
-          if (!W[i]) break;
-        }
+      if (cx < 0 || cy < 0 || cx >= N || cy >= N || rc > 30) { this.castVision(cx, cy, rc, (i) => { out[i] = 1; }); continue; }
+      const key = (cy * N + cx) * 32 + rc;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      let list = cache.get(key);
+      if (!list) {
+        if (cache.size > 6000) cache.clear();
+        const st = this._visStamp || (this._visStamp = new Int32Array(N * N)); const run = (this._visRun = (this._visRun || 0) + 1);
+        const tmp = [];
+        this.castVision(cx, cy, rc, (i) => { if (st[i] !== run) { st[i] = run; tmp.push(i); } });
+        list = Uint16Array.from(tmp); cache.set(key, list);
       }
+      for (let k = 0; k < list.length; k++) out[list[k]] = 1;
     }
     return out;
   }
+  castVision(cx, cy, rc, mark) {
+    const W = this.walk, B = this.brush;
+    const brushR2 = 6 * 6;
+    const inB = B[cy * N + cx];
+    if (cx >= 0 && cy >= 0 && cx < N && cy < N) mark(cy * N + cx);
+    const rays = rc * 8;
+    for (let k = 0; k < rays; k++) {
+      // ray endpoint on circle via integer-friendly octant walk (precomputed table)
+      const e = RAY[rc] ? RAY[rc][k] : null; if (!e) continue;
+      const ex = cx + e[0], ey = cy + e[1];
+      let x = cx, y = cy; const dx = Math.abs(ex - x), dy = Math.abs(ey - y), sx = x < ex ? 1 : -1, sy = y < ey ? 1 : -1;
+      let err = dx - dy;
+      for (;;) {
+        if (x === ex && y === ey) break;
+        const e2 = 2 * err; if (e2 > -dy) { err -= dy; x += sx; } if (e2 < dx) { err += dx; y += sy; }
+        if (x < 0 || y < 0 || x >= N || y >= N) break;
+        const i = y * N + x;
+        const ddx = x - cx, ddy = y - cy;
+        if (B[i] && !(inB && ddx * ddx + ddy * ddy <= 9) && ddx * ddx + ddy * ddy > brushR2) { continue; }
+        mark(i);
+        if (!W[i]) break;
+      }
+    }
+  }
+
 }
 const DX = [1, -1, 0, 0, 1, 1, -1, -1], DY = [0, 0, 1, -1, 1, -1, 1, -1];
 const CLR_COST = [0, 9, 4, 1, 0, 0];
