@@ -58,20 +58,28 @@ function localJoin(code) {
 // slot `p` (never trusted from the guest) and the lockstep / draft / prep / chat ones are relayed to the
 // other guests, so every peer sees every peer. To the app the hub looks like one transport.
 const RELAY = new Set(['in', 'h', 'ht', 'qc', 'draft', 'prep', 'quit', 'sug']);
+// Team-private messages (a partner's suggestion, partner quick chat) only go to that team's coaches once the
+// app has told the hub who sits where (teamOf), so the other side of a 2v2 never receives them.
+const TEAM_ONLY = new Set(['qc', 'sug']);
 export class Hub {
-  constructor() { this.links = new Map(); this.handlers = []; this.leaveHandlers = []; this.open = true; }
+  constructor() { this.links = new Map(); this.handlers = []; this.leaveHandlers = []; this.open = true; this.teamOf = null; }
   add(slot, t) {
     this.links.set(slot, t);
     t.onMessage((m) => {
       if (this.links.get(slot) !== t || !m || typeof m !== 'object') return;
       m.p = slot;
-      if (RELAY.has(m.t)) for (const [s, o] of this.links) if (s !== slot) o.send(m);
+      if (RELAY.has(m.t)) this.route(m, slot);
+      if (this.teamOf && TEAM_ONLY.has(m.t) && m.team !== this.teamOf(0)) return; // not for the host's team
       for (const h of this.handlers) h(m);
     });
     t.onClose(() => { if (this.links.get(slot) !== t) return; this.links.delete(slot); for (const h of this.leaveHandlers) h(slot); });
   }
+  route(m, except = -1) {
+    const team = this.teamOf && TEAM_ONLY.has(m.t) ? m.team : null;
+    for (const [s, o] of this.links) if (s !== except && (team === null || this.teamOf(s) === team)) o.send(m);
+  }
   has(slot) { return this.links.has(slot); }
-  send(m) { for (const t of this.links.values()) t.send(m); }
+  send(m) { this.route(m); }
   sendTo(slot, m) { const t = this.links.get(slot); if (t) t.send(m); }
   kick(slot) { const t = this.links.get(slot); this.links.delete(slot); if (t) t.close(); }
   onMessage(h) { this.handlers.push(h); }
@@ -79,6 +87,7 @@ export class Hub {
   onClose() { /* the hub itself only closes when the host leaves */ }
   close() { this.open = false; for (const t of this.links.values()) t.close(); this.links.clear(); }
 }
+
 // Host a co-op room: resolves once the code is registered; every guest that connects is handed to
 // onGuest(transport) (the app seats it in the hub, or turns it away).
 export function hostRoom(code, { onStatus, onPeer, onGuest }) {

@@ -188,6 +188,7 @@ function beginMatchFlow(app, start, mySlot) {
   if (s.coop[s.myTeam].seats === 1) s.mySeat = 0;
   s.names = [0, 1].map((t) => s.coop[t] ? s.coop[t].coaches.map((c) => c.name).join(' & ') : `${DIFF[s.aiLevel] || 'Normal'} AI`);
   s.ai = [0, 1].map((t) => !s.coop[t]);
+  if (s.host && app.net.hub) app.net.hub.teamOf = (slot) => { const p = s.players.find((x) => x.slot === slot); return p ? p.team : -1; };
   app.startDraft();
 }
 export const coachOf = (s, team, seat) => { const c = s.coop && s.coop[team]; return c ? c.coaches.find((x) => x.seat === seat) || null : null; };

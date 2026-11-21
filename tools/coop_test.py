@@ -103,8 +103,9 @@ async def main():
         await A.click('.coopbar'); await A.click('.coopbar')
         ok(await until(B, "app.match.game.teams[0].coop.lead === 1"), 'the lead passed to the partner')
         ok(await until(B, "document.querySelector('.coopbar').textContent.includes('You')", 3000), "the partner's badge now says they lead")
+        await until(A, "app.match.runner.hashes.size >= 1", 30000)
         hs = await A.evaluate("[...app.match.runner.hashes.keys()].slice(-1)[0]")
-        await A.wait_for_timeout(800)
+        await until(B, f"app.match.runner.hashes.has({hs})", 15000)
         same = await A.evaluate(f"app.match.runner.hashes.get({hs})") == await B.evaluate(f"app.match.runner.hashes.get({hs})")
         ok(same, f'both tabs have the same checksum at tick {hs}')
         # the partner leaves mid-match: the host's coach runs all five
@@ -144,9 +145,17 @@ async def main():
         ok(okm, 'all four tabs are in the 2v2 match')
         await T[0].wait_for_timeout(5000)
         await shot(T[2], 'coop2_hud_red')
-        k = await T[0].evaluate("[...app.match.runner.hashes.keys()].slice(-2)[0]")
+        await until(T[0], "app.match.runner.hashes.size >= 1", 30000)
+        k = await T[0].evaluate("[...app.match.runner.hashes.keys()][0]")
+        for pg in T: await until(pg, f"app.match.runner.hashes.has({k})", 15000)
         hv = [await pg.evaluate(f"app.match.runner.hashes.get({k})") for pg in T]
         ok(len(set(hv)) == 1 and hv[0] is not None, f'four peers in sync at tick {k}')
+        # team-private traffic: red's quick chat reaches red's partner, and blue never even receives it
+        for pg in (T[1], T[0]): await pg.evaluate("window.__qc = 0; const o = app.onNet.bind(app); app.onNet = (m) => { if (m.t === 'qc' || m.t === 'sug') window.__qc++; o(m); }; 1")
+        await T[2].evaluate("app.match.hud.chat.say({ i: 0 })")
+        ok(await until(T[3], "(document.getElementById('qfeed') || {}).textContent?.includes('Cy')", 3000), 'red quick chat reaches the red partner')
+        await T[1].wait_for_timeout(600)
+        ok(await T[1].evaluate("window.__qc") == 0 and await T[0].evaluate("window.__qc") == 0, 'blue coaches never receive red team messages')
         # a red coach leaves: the red partner runs all five
         await T[3].evaluate("app.quitMatch()")
         ok(await until(T[2], "app.match.game.teams[1].heroes.every((x) => x.seat === 0) && app.match.game.teams[1].coop.left[1]", 6000), 'red partner left: red lead runs all five')
