@@ -6,6 +6,7 @@ import { currentTurn, taken, legal, assignRoles, TURN_SECONDS } from '../sim/dra
 import { CLANS } from '../sim/constants.js';
 import { duosOf, compOf, COMPS } from '../data/synergy.js';
 import { MAPS, MAP_BY_ID } from '../maps/defs.js';
+import { EVENT_BY_ID } from '../data/events.js';
 import { pickScore, suggestedBans, teamRoles, presetRole } from '../presets.js';
 import { describeAbility } from './herotext.js';
 import { statBars } from './heroui.js';
@@ -31,7 +32,7 @@ export class DraftView {
   recommend(d, me, t) {
     if (!t || t.team !== me || d.done) return [];
     if (t.act === 'ban') return suggestedBans(d, me, this.app.session.preset);
-    const tk = taken(d);
+    const tk = taken(d, me);
     return HEROES.filter((x) => !tk.has(x.id) && this.legal(x.id)).map((x) => [pickScore(d, me, x), x.id]).filter((q) => q[0] > 0)
       .sort((a, b) => b[0] - a[0] || (a[1] < b[1] ? -1 : 1)).slice(0, 3).map((q) => q[1]);
   }
@@ -45,7 +46,7 @@ export class DraftView {
     const app = this.app, s = app.session, d = s.draft, me = s.myTeam;
     const t = currentTurn(d), myTurn = !!t && s.mode !== 'watch' && app.myDraftTurn();
     const coop = s.mode === 'coop', who = coop ? draftWho(s) : null, mate = who && who.team === me && !myTurn ? coachOf(s, who.team, who.seat) : null;
-    const ban = !!t && t.act === 'ban', tk = taken(d);
+    const ban = !!t && t.act === 'ban', tk = taken(d, me), pool = d.pool ? new Set(d.pool) : null, ev = s.event && EVENT_BY_ID[s.event];
     const enemyPicks = d.picks[1 - Math.max(0, me)].map((id) => HERO_BY_ID[id]);
     const recs = myTurn ? this.recommend(d, me, t) : [];
     // a prompt for one role opens the grid on that role (once per turn)
@@ -83,16 +84,18 @@ export class DraftView {
       h('div', { class: 'what' }, d.done ? 'Draft complete!' : myTurn ? `YOUR ${ban ? 'BAN' : 'PICK'}` : `${mate ? mate.name : s.names[t.team]} ${ban ? 'bans' : 'picks'}`),
       d.done ? null : h('div', { class: 'timer', id: 'dtimer' }, String(left)),
       d.done ? null : h('div', { class: 'tbar' }, h('i', { id: 'dtbar', style: { width: Math.max(0, left / TURN_SECONDS * 100) + '%' } })),
-      h('div', { class: 'mapname' }, (MAP_BY_ID[s.mapId] || MAPS[0]).name));
+      h('div', { class: 'mapname' }, (MAP_BY_ID[s.mapId] || MAPS[0]).name),
+      ev ? h('div', { class: 'evname', style: { '--ec': ev.color }, title: ev.blurb }, ev.name) : null);
 
-    const counts = { all: HEROES.length }; for (const r of ROLES) counts[r] = HEROES.filter((x) => x.roles.includes(r)).length;
+    const POOL = pool ? HEROES.filter((x) => pool.has(x.id)) : HEROES; // Mirror Draft: only the shared pool is shown
+    const counts = { all: POOL.length }; for (const r of ROLES) counts[r] = POOL.filter((x) => x.roles.includes(r)).length;
     const hadFocus = this.searchEl && document.activeElement === this.searchEl.input;
     this.searchEl = searchBox(this.query, (q) => { this.query = q; this.filterGrid(); });
     const tabs = h('div', { class: 'rtabs', role: 'tablist' }, ...['all', ...ROLES].map((r) => h('button', { class: 'rtab' + (this.filter === r ? ' on' : ''), role: 'tab',
       onclick: () => { this.filter = r; this.scroll = 0; this.render(); } }, r === 'all' ? 'All' : ROLE_LABEL[r], h('small', {}, counts[r]))), this.searchEl);
     const banChips = myTurn && ban && recs.length ? h('div', { class: 'sugbans' }, h('span', { class: 'lab' }, 'Suggested bans'),
       ...recs.map((id) => h('button', { class: 'sugban' + (this.sel === id ? ' on' : ''), onclick: () => this.select(id) }, h('img', { src: face(id) }), HERO_BY_ID[id].name))) : null;
-    const list = HEROES.filter((x) => this.filter === 'all' || x.roles.includes(this.filter));
+    const list = POOL.filter((x) => this.filter === 'all' || x.roles.includes(this.filter));
     list.sort((a, b) => (tk.has(a.id) ? 1 : 0) - (tk.has(b.id) ? 1 : 0) || (recs.includes(b.id) ? 1 : 0) - (recs.includes(a.id) ? 1 : 0));
     const grid = h('div', { class: 'grid' }, ...list.map((x) => {
       const off = tk.has(x.id), bad = !off && myTurn && !ban && !this.legal(x.id);
@@ -173,7 +176,7 @@ export class DraftView {
         h('div', { class: 'icol' }, h('h2', {}, x.name), h('div', { class: 't' }, `${x.roles.map((r) => ROLE_LABEL[r]).join(' / ')} · ${x.ranged ? 'Ranged' : 'Melee'}`),
           h('div', { class: 'chips' }, h('span', { class: 'chipx', style: { '--cc': clan.color } }, clan.name), h('span', { class: 'chipx', style: { '--cc': pers.color }, title: pers.desc }, pers.name)))),
       myTurn && ban && inLineup ? h('div', { class: 'warnline' }, `${x.name} is in your lineup (${ROLE_LABEL[inLineup]}).`) : null,
-      myTurn && !canAct ? h('div', { class: 'warnline' }, taken(d).has(id) ? 'Already banned or picked.' : s.mode === 'coop' ? 'Doesn\'t fit your open roles.' : 'Your team already covers this hero\'s roles.') : null,
+      myTurn && !canAct ? h('div', { class: 'warnline' }, taken(d, me).has(id) ? 'Already banned or picked.' : s.mode === 'coop' ? 'Doesn\'t fit your open roles.' : 'Your team already covers this hero\'s roles.') : null,
       statBars(id, true),
       h('div', { class: 'chips dbuilds' }, ...x.builds.map((b) => h('span', { class: 'chipx', style: { '--cc': BUILDS[b].color }, title: buildLine(b), 'data-build': b, 'data-build-info': true }, BUILDS[b].name + (b === x.rec ? ' ★' : '')))),
       h('div', { class: 'abl' },

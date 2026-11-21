@@ -1,9 +1,11 @@
 // Detect units that stop making progress outside of combat (pathing bugs).
 import { Game } from '../src/sim/game.js';
+import { MAPS as CLASSIC } from '../src/maps/defs.js';
+const CLASSIC_IDS = CLASSIC.map((m) => m.id); // every classic map (MAPS=id,id env var: only those)
 import { HEROES, ROLES } from '../src/data/heroes.js';
 import { Rng } from '../src/sim/rng.js';
 let total = 0;
-for (const map of ['sakura', 'frost', 'ember', 'marsh']) {
+for (const map of (process.env.MAPS || CLASSIC_IDS.join(',')).split(',')) {
   const rng = new Rng(map.length * 77); const used = new Set();
   const draft = () => ROLES.map((r) => { const pool = HEROES.filter((h) => h.role === r && !used.has(h.id)); const h = pool[rng.int(pool.length)]; used.add(h.id); return { id: h.id, role: r, build: h.rec }; });
   const g = new Game({ seed: 99, map, coach: [true, true], teams: [{ heroes: draft() }, { heroes: draft() }] });

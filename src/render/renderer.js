@@ -9,6 +9,7 @@ import { Particles, P_SQUARE, P_SPARK, P_SPRITE, P_COIN, P_WISP, P_DEBRIS, P_RIN
 import { Chatter } from './chatter.js';
 import { Vfx } from './vfx.js';
 import { Ambient } from './ambient.js';
+import { EventFx } from './eventfx.js';
 import { settings, textScale, renderDpr } from '../ui/settings.js';
 
 export { TEAM_COL, TEAM_DARK };
@@ -51,6 +52,7 @@ export class Renderer {
     this.labelAll = false;
     this.vfx = new Vfx(this);
     this.amb = new Ambient(this);
+    this.evfx = new EventFx(this); // weekly map event veil / motes
     this.detail = 2; // 2 high, 1 medium (Auto, after a slow spell), 0 low
     this.castT = new Map(); this.corpses = []; this.wasAlive = new Map(); this.spawnT = new Map(); this.knock = new Map(); this.bossSeen = new Map();
     this.grad = this.makeGrad();
@@ -98,7 +100,7 @@ export class Renderer {
     this.game = game; this.viewTeam = viewTeam; this.map = map || paintMap(game.world); this.theme = THEMES[game.world.def.theme] || THEMES.spring;
     this.fogSmooth.fill(0); this.prev.clear(); this.effects = []; this.texts = []; this.lines = []; this.fxp.clear(); this.focus = null;
     this.dprCap = 0; this.slowT = 0; this.detail = settings.quality === 'battery' ? 0 : 2;
-    this.vfx.reset(); this.amb.attach(game.world, this.theme);
+    this.vfx.reset(); this.amb.attach(game.world, this.theme); this.evfx.attach(game);
     this.castT.clear(); this.corpses = []; this.wasAlive.clear(); this.spawnT.clear(); this.knock.clear(); this.bossSeen.clear();
     for (const u of game.units) if (u.type === 'hero') this.wasAlive.set(u.id, u.alive);
     this.chatter.reset(); this.hpT.clear(); this.heroPos.clear(); this.callouts = []; this.trauma = 0; this.hitStop = 0; this.tint = null; this.panTo = null; this.visSlow = null;
@@ -455,6 +457,7 @@ export class Renderer {
     // fog
     if (this.fogOn && this.viewTeam >= 0) this.drawFog(s, shx, shy);
     this.drawWeather(dt);
+    this.evfx.draw(this.ctx, this.W, this.H, dt);
     // texts (above fog)
     ctx.setTransform(s, 0, 0, s, this.W / 2 - this.cam.x * s + shx, this.H / 2 - this.cam.y * s + shy);
     this.drawTexts();

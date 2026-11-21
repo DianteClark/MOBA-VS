@@ -56,5 +56,8 @@ function runCoop() {
   return ok;
 }
 const okCo = runCoop();
-console.log(okC && okR && okCo ? 'REPLAY MATCHES ✔' : 'REPLAY DIVERGED ✘');
-process.exit(okC && okR && okCo ? 0 : 1);
+// a weekly event on a v22 map: Blood Moon on Mossgate Ruins
+const okE = run('event', { seed: 4244, map: 'ruins', event: 'bloodmoon', coach: [false, true], teams }, 600,
+  [{ type: 'gank', lane: 'top' }, { type: 'objective', obj: 'dragon' }, { type: 'moment', id: 'rally' }, { type: 'group', lane: 'mid' }, { type: 'shrine' }, { type: 'safe' }]);
+console.log(okC && okR && okCo && okE ? 'REPLAY MATCHES ✔' : 'REPLAY DIVERGED ✘');
+process.exit(okC && okR && okCo && okE ? 0 : 1);

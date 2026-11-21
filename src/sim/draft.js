@@ -12,9 +12,20 @@ export const DRAFT_ORDER = [
 ];
 export const TURN_SECONDS = 30;
 
-export function newDraft() { return { turn: 0, bans: [[], []], picks: [[], []], done: false }; }
+// opts.mirror (Mirror Draft event): both teams draft from opts.pool, and a pick only locks the hero for the
+// team that picked it (bans still lock it for both), so mirror matches can happen.
+export function newDraft(opts) {
+  const d = { turn: 0, bans: [[], []], picks: [[], []], done: false };
+  if (opts && opts.mirror) { d.mirror = true; d.pool = opts.pool.slice(); }
+  return d;
+}
 export function currentTurn(d) { return DRAFT_ORDER[d.turn] || null; }
-export function taken(d) { return new Set([...d.bans[0], ...d.bans[1], ...d.picks[0], ...d.picks[1]]); }
+// Heroes `team` can no longer pick (no team: anyone; a spectator's view).
+export function taken(d, team) {
+  const s = new Set([...d.bans[0], ...d.bans[1], ...(d.mirror && team >= 0 ? d.picks[team] : [...d.picks[0], ...d.picks[1]])]);
+  if (d.pool) { const p = new Set(d.pool); for (const h of HEROES) if (!p.has(h.id)) s.add(h.id); }
+  return s;
+}
 
 // Can `ids` be assigned to 5 distinct roles (partial teams: each hero to a distinct role)?
 export function assignRoles(ids) {
@@ -39,7 +50,7 @@ export function assignRolesLoose(ids) {
 
 export function legal(d, team, heroId) {
   const t = currentTurn(d);
-  if (!t || t.team !== team || !HERO_BY_ID[heroId] || taken(d).has(heroId)) return false;
+  if (!t || t.team !== team || !HERO_BY_ID[heroId] || taken(d, team).has(heroId)) return false;
   if (t.act === 'pick') return !!assignRoles([...d.picks[team], heroId]);
   return true;
 }
@@ -55,7 +66,7 @@ export function apply(d, team, heroId) {
 // AI / timeout pick. Deterministic given state (+ optional rng).
 export function autoChoice(d, team, rng, skill = 1) {
   const t = currentTurn(d); if (!t) return null;
-  const avail = HEROES.filter((h) => !taken(d).has(h.id));
+  const tk = taken(d, team), avail = HEROES.filter((h) => !tk.has(h.id));
   const enemy = d.picks[1 - team].map((id) => HERO_BY_ID[id]);
   const mine = d.picks[team];
   const score = (h) => {
@@ -67,7 +78,8 @@ export function autoChoice(d, team, rng, skill = 1) {
       const roles = assignRoles(mine) || [];
       if (!roles.includes(h.role)) s += 3;
     } else {
-      // ban: strong into my picks / popular
+      // ban: strong into my picks / popular (Mirror Draft: a hero they already have is not worth a ban)
+      if (d.mirror && d.picks[1 - team].includes(h.id)) return -Infinity;
       const myHeroes = mine.map((id) => HERO_BY_ID[id]);
       s = matchupScore(h, myHeroes).score * 2 + (h.tags.includes('scaling') ? 1 : 0) + (h.tags.includes('burst') ? 0.5 : 0);
       if (!assignRoles([...d.picks[1 - team], h.id])) s -= 4; // they can't use it anyway
