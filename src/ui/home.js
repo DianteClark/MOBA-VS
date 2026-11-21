@@ -82,7 +82,8 @@ export function showHome(app) {
         h('button', { class: 'btn big h2go', onclick: () => app.findMatch() }, 'Find Match'),
         h('div', { class: 'h2row' },
           h('button', { class: 'chip', title: 'Private room: share a code with a friend', onclick: () => app.hostGame() }, 'Host'),
-          h('button', { class: 'chip', title: 'Join a friend\'s room code', onclick: () => app.joinScreen() }, 'Join'))),
+          h('button', { class: 'chip', title: 'Join a friend\'s room code', onclick: () => app.joinScreen() }, 'Join'),
+          h('button', { class: 'chip coopchip', title: 'Co-op: coach one team with a friend, vs the AI or 2v2', onclick: () => app.hostCoop() }, 'Co-op'))),
       h('div', { class: 'h2side' },
         h('button', { class: 'h2card h2rush', onclick: () => app.startVsAI('rush') },
           h('span', { class: 'h2h' }, h('b', {}, 'Lane Rush'), h('small', {}, `One lane · ~7 min · vs ${DIFF[app.aiLevel]} AI`)),
@@ -239,7 +240,7 @@ export function showHistory(app, open = 0) {
       : h('div', { class: 'hist' }, ...list.map((m, i) => h('div', { class: 'hentry' + (m.won ? ' win' : ' loss') + (i === open ? ' open' : '') },
         h('button', { class: 'hrow2', onclick: () => showHistory(app, i === open ? -1 : i) },
           h('b', { class: 'res' }, m.won ? 'WIN' : 'LOSS'),
-          h('div', { class: 'hmeta' }, h('span', {}, `${MODE_LABEL[m.mode] || m.mode}${m.cup ? ' · ' + m.cup : ''} · ${(MAP_BY_ID[m.map] || {}).name || m.map}`), h('small', {}, `${ago(m.t)} · ${fmtTime(m.len)}${m.crystal === false ? ' · on towers' : ''}${m.rpDelta ? ` · ${m.rpDelta > 0 ? '+' : ''}${m.rpDelta} rating` : ''}`)),
+          h('div', { class: 'hmeta' }, h('span', {}, `${MODE_LABEL[m.mode] || m.mode}${m.cup ? ' · ' + m.cup : ''}${m.coop && m.coop.mates && m.coop.mates.length ? ' with ' + m.coop.mates.map((x) => x.name).join(', ') : ''} · ${(MAP_BY_ID[m.map] || {}).name || m.map}`), h('small', {}, `${ago(m.t)} · ${fmtTime(m.len)}${m.crystal === false ? ' · on towers' : ''}${m.rpDelta ? ` · ${m.rpDelta > 0 ? '+' : ''}${m.rpDelta} rating` : ''}`)),
           h('div', { class: 'hfaces' }, ...m.picks[m.side].map((id) => h('img', { src: face(id) }))),
           h('b', { class: 'hk' }, `${m.kills[m.side]}-${m.kills[1 - m.side]}`), lib.some((x) => x.id === m.t) ? h('i', { class: 'hrep', title: 'Analysis and replay saved on this device' }, '▶') : null),
         i === open ? detail(m) : null)))));

@@ -98,12 +98,14 @@ export class Profile {
   // Record a finished match; returns a summary for the results screen.
   //   mode: 'ai' | 'online'; ranked: online ranked queue; oppElo: the online opponent's season rating;
   //   potgHero: hero id of the Play of the Game (mastery points); analytics: the match's analytics record (career stats).
-  record({ game, myTeam, mode, aiLevel, cup, ranked, oppElo, potgHero, analytics }) {
+  //   coop: { kind: 'ai' | '2v2', heroes: the hero ids this coach ran, info } for co-op rooms (casual: no rating;
+  //   hero stats and mastery count for this coach's own heroes).
+  record({ game, myTeam, mode, aiLevel, cup, ranked, oppElo, potgHero, analytics, coop = null }) {
     if (myTeam < 0) return null;
     const s = this.ss(), season = this.season;
     const won = game.winner === myTeam;
     const rush = game.mode === 'rush';
-    const key = cup ? 'cup' : mode === 'ai' ? (rush ? 'rush' : 'ai' + aiLevel) : ranked && !rush ? 'online' : rush ? 'rushOnline' : 'casual';
+    const key = coop ? (coop.kind === '2v2' ? 'coop2' : 'coop') : cup ? 'cup' : mode === 'ai' ? (rush ? 'rush' : 'ai' + aiLevel) : ranked && !rush ? 'online' : rush ? 'rushOnline' : 'casual';
     const rated = !!RATED[key];
     const before = s.elo, rankBefore = rankOf(before);
     let elo = before;
@@ -131,6 +133,7 @@ export class Profile {
     // hero stats + mastery
     const mvp = mvpOf(game), mastery = [];
     for (const x of team.heroes) {
+      if (coop && !coop.heroes.includes(x.heroId)) continue; // your partner's heroes count for them
       const hs = this.d.heroStats[x.heroId] || (this.d.heroStats[x.heroId] = { g: 0, w: 0 }); hs.g++; if (won) hs.w++;
       const pts = matchPoints(game, x, myTeam, { mvp, potgHero });
       const m = this.d.mastery[x.heroId] || (this.d.mastery[x.heroId] = { pts: 0 });
@@ -155,6 +158,7 @@ export class Profile {
       names: (this.lastNames || ['You', 'Rival']).slice(), mvp, crystal: !game.events.some((e) => e.type === 'victory' && e.timeout),
       rank: rankOf(s.elo).label, rpDelta: elo - before, cup: cup ? (profile_cupRound(this.d.cup)) : null,
       calls: game.callLog.filter((c) => c.team === myTeam && c.result === 'success').length,
+      ...(coop ? { coop: coop.info } : {}),
       emote: this.emote, sk: this.skinsFor(team.heroes.map((x) => x.heroId)), // share card: signature emote + skinned portraits
     });
     this.d.history.length = Math.min(this.d.history.length, 50);

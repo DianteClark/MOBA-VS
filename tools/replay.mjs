@@ -31,5 +31,30 @@ const okC = run('classic', { seed: 4242, map: 'frost', coach: [false, true], tea
   [{ type: 'gank', lane: 'mid' }, { type: 'group', lane: 'bot' }, { type: 'objective', obj: 'dragon' }, { type: 'moment', id: 'rally' }, { type: 'ult', mode: 'go' }, { type: 'safe' }, { type: 'plan', plan: 'aggressive' }, { type: 'moment', id: 'timeout' }]);
 const okR = run('rush', { seed: 4243, map: 'rush_sakura', mode: 'rush', coach: [false, true], teams }, 480,
   [{ type: 'moment', id: 'rally' }, { type: 'group', lane: 'mid' }, { type: 'objective', obj: 'dragon' }, { type: 'moment', id: 'push' }, { type: 'ult', mode: 'go' }, { type: 'objective', obj: 'baron' }, { type: 'moment', id: 'timeout' }]);
-console.log(okC && okR ? 'REPLAY MATCHES ✔' : 'REPLAY DIVERGED ✘');
-process.exit(okC && okR ? 0 : 1);
+// Co-op vs AI: two coaches' seat-stamped commands in one log (some rejected by the ownership rules),
+// a lead pass and the partner leaving (a system command), then the whole match replayed from the log.
+function runCoop() {
+  const cfg = { seed: 4244, map: 'sakura', coach: [false, true], teams, coop: [{ seats: 2, own: { top: 0, jungle: 0, mid: 0, bot: 1, support: 1 }, lead: 0 }, null] };
+  const g1 = new Game(JSON.parse(JSON.stringify(cfg))), r1 = new LocalRunner(g1, 0, { noHalftime: true, seat: 0 });
+  const as = (seat, c) => { const keep = r1.seat; r1.seat = seat; r1.send(c); r1.seat = keep; };
+  const hero = (role) => g1.teams[0].heroes.find((x) => x.role === role);
+  let k = 0;
+  while (g1.time < 540 && !g1.over) {
+    if (g1.tick % 300 === 11) as(0, [{ type: 'gank', lane: 'mid' }, { type: 'objective', obj: 'dragon' }, { type: 'group', lane: 'top' }, { type: 'moment', id: 'rally' }][k++ % 4]);
+    if (g1.tick % 340 === 17) as(1, [{ type: 'objective', obj: 'dragon' }, { type: 'build', hero: hero('bot').id, build: hero('bot').def.builds[1] }, { type: 'gank', lane: 'bot', hero: hero('support').id }, { type: 'cancel' }][k % 4]);
+    if (g1.tick === 3000) as(0, { type: 'lead' });
+    if (g1.tick === 6000) r1.send({ type: 'leave', sys: 1, team: 0, seat: 1 });
+    r1.update(0.05);
+  }
+  const log = JSON.parse(JSON.stringify(r1.log));
+  const g2 = new Game(JSON.parse(JSON.stringify(cfg))), r2 = new LocalRunner(g2, -1, { noHalftime: true, script: log });
+  while (g2.tick < g1.tick && !g2.over) r2.update(0.05);
+  const seats = new Set(log.flatMap((e) => e[1].map((c) => c.seat))), co = g1.teams[0].coop;
+  console.log(`[coop] commands ${log.reduce((a, b) => a + b[1].length, 0)} from seats ${[...seats].join('/')}, calls ${g1.callLog.length}, lead ${co.lead}, partner left ${co.left[1]}, ticks ${g1.tick}`);
+  const ok = g1.tick === g2.tick && g1.checksum() === g2.checksum() && seats.has(0) && seats.has(1) && co.left[1] && g1.teams[0].heroes.every((x) => x.seat === 0);
+  console.log('[coop] ' + (ok ? 'replay matches' : 'replay DIVERGED'));
+  return ok;
+}
+const okCo = runCoop();
+console.log(okC && okR && okCo ? 'REPLAY MATCHES ✔' : 'REPLAY DIVERGED ✘');
+process.exit(okC && okR && okCo ? 0 : 1);

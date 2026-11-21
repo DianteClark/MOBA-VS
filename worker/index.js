@@ -127,7 +127,7 @@ function pubOf(d) {
 
 // ── social: friends, presence, invites, public profiles ──
 const PAGE = 50, MAX_FRIENDS = 100;
-const MODES = ['casual', 'ranked', 'rush'];
+const MODES = ['casual', 'ranked', 'rush', 'coop']; // invite modes (coop: a co-op room, src/coop-room.js)
 const INVITE_TTL = 3 * 60000, LINK_TTL = 30 * 60000, ONLINE_MS = 120000, MATCH_MS = 25 * 60000;
 const presenceOf = (r, now) => (r.status === 'match' && now - (r.seen || 0) < MATCH_MS ? 'match' : now - (r.seen || 0) < ONLINE_MS ? 'online' : 'offline');
 // Friend codes are player ids (shown as XXXXX-XXXXX); they are public (already on the leaderboard), unlike the secret.

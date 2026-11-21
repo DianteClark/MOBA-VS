@@ -27,8 +27,9 @@ function validMsg(m) {
 }
 
 export class QuickChat {
-  constructor(hud, send) {
-    this.hud = hud; this.send = send; this.out = new RateLimit(); this.inn = new RateLimit();
+  // opts (co-op): extra fields on every message, accept(m) to filter what we show, who(m) / me = { name, color }, mute label.
+  constructor(hud, send, opts = {}) {
+    this.hud = hud; this.send = send; this.opts = opts; this.out = new RateLimit(); this.inn = new RateLimit();
     this.btn = h('button', { id: 'qchatbtn', class: 'btn small', title: 'Quick chat', onclick: (e) => { e.stopPropagation(); this.toggle(); } }, h('img', { src: 'assets/img/emote/ok.png', alt: '' }), h('span', {}, 'Chat'));
     this.feed = h('div', { id: 'qfeed', class: 'hud' });
     this.panel = null;
@@ -45,8 +46,8 @@ export class QuickChat {
     this.panel = h('div', { id: 'qchat', class: 'hud' },
       h('div', { class: 'qlines' }, ...LINES.map((l, i) => h('button', { class: 'chip', onclick: pick({ i }) }, l))),
       h('div', { class: 'qemotes' }, ...EMOTE_IDS.filter((e) => profile.hasEmote(e)).map((e) => h('button', { class: 'qemo', title: EMOTES[e].name, 'aria-label': EMOTES[e].name, onclick: pick({ e }) }, h('img', { src: emoteSrc(e), alt: e })))),
-      h('button', { class: 'chip qmute' + (settings.chatMute ? ' on' : ''), onclick: () => { setSetting('chatMute', !settings.chatMute); this.close(); toast(settings.chatMute ? 'Opponent quick chat muted' : 'Opponent quick chat on', 1400); } },
-        settings.chatMute ? 'Muted: tap to unmute' : 'Mute opponent'));
+      h('button', { class: 'chip qmute' + (settings.chatMute ? ' on' : ''), onclick: () => { setSetting('chatMute', !settings.chatMute); this.close(); toast(settings.chatMute ? `${this.who} quick chat muted` : `${this.who} quick chat on`, 1400); } },
+        settings.chatMute ? 'Muted: tap to unmute' : `Mute ${this.opts.mute || 'opponent'}`));
     document.getElementById('hud').append(this.panel);
     // beside the button: below it if there is room, else above; clamped inside the safe area
     const b = this.btn.getBoundingClientRect(), pw = this.panel.offsetWidth, ph = this.panel.offsetHeight, W = innerWidth, H = innerHeight;
@@ -57,19 +58,21 @@ export class QuickChat {
   say(m) {
     if (!this.out.ok()) { toast('Easy there: one message at a time', 1200); return; }
     this.close();
-    this.send({ t: 'qc', ...m });
-    this.show(this.hud.my, m);
+    this.send({ t: 'qc', ...(this.opts.extra || {}), ...m });
+    this.show(this.hud.my, m, this.opts.me);
   }
+  get who() { return this.opts.mute === 'partner' ? 'Partner' : 'Opponent'; }
   // Incoming from the network (already known to be { t: 'qc' }).
   receive(m) {
-    if (!validMsg(m) || !this.inn.ok() || settings.chatMute) return;
+    if (!validMsg(m) || (this.opts.accept && !this.opts.accept(m)) || !this.inn.ok() || settings.chatMute) return;
     audio.sfx('move', 0.5);
-    this.show(1 - this.hud.my, m);
+    this.show(1 - this.hud.my, m, this.opts.who && this.opts.who(m));
   }
-  show(team, m) {
-    const mine = team === this.hud.my;
-    const el = h('div', { class: 'qmsg ' + (mine ? 'me' : 'them'), style: { borderColor: `var(--team${team})` } },
-      h('b', { style: { color: `var(--team${team})` } }, mine ? 'You' : (this.hud.app.session && this.hud.app.session.names[team]) || 'Rival'),
+  // who: { name, color } for co-op coaches (a partner shares your team colour, so their seat colour tells them apart)
+  show(team, m, who) {
+    const mine = team === this.hud.my && !(who && who !== this.opts.me), col = who ? who.color : `var(--team${team})`;
+    const el = h('div', { class: 'qmsg ' + (mine ? 'me' : 'them'), style: { borderColor: col } },
+      h('b', { style: { color: col } }, who ? who.name : mine ? 'You' : (this.hud.app.session && this.hud.app.session.names[team]) || 'Rival'),
       m.e ? h('img', { src: emoteSrc(m.e), alt: EMOTES[m.e].name }) : h('span', {}, LINES[m.i]));
     this.place();
     this.feed.prepend(el);
