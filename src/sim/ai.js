@@ -753,7 +753,7 @@ function doJungle(g, h) {
   }
   if (best) { g.moveToward(h, best); return; }
   // nothing up: hover the lane most likely to need help
-  doLane(g, h, g.time > 540 ? 'mid' : (h.team === BLUE ? 'bot' : 'top'), false);
+  doLane(g, h, h.lane || (g.time > 540 ? 'mid' : (h.team === BLUE ? 'bot' : 'top')), false);
 }
 
 function doGank(g, h, task, C) {
@@ -821,7 +821,7 @@ function doShrine(g, h, task) {
 // ─────────────────────────── v20 ability & build helpers ───────────────────────────
 // Siege builds push side lanes on their own once the laning phase is over.
 function wantsSplit(g, h) {
-  return h.build === 'siege' && h.lane !== 'mid' && h.role !== 'support' && g.time > 480 && h.hp / h.maxHp > 0.5;
+  return h.build === 'siege' && h.lane !== 'mid' && g.world.laneNames.length > 1 && h.role !== 'support' && g.gameMinute >= 8 && h.hp / h.maxHp > 0.5;
 }
 // Abilities tagged 'siege' (e.g. Fortress Mode) fire when hitting a structure with no enemy hero near.
 function castOnStructure(g, h, s) {

@@ -6,12 +6,12 @@
 import { h, mount, face, icon, fmtTime, toast } from './dom.js';
 import { BUILDS } from '../data/items.js';
 import { TACTICS } from '../data/tactics.js';
-import { CMD, DRAGON_INFO, TICK_RATE, T, OBJ_NAME, MOMENTUM } from '../sim/constants.js';
+import { CMD, DRAGON_INFO, TICK_RATE, OBJ_NAME, MOMENTUM } from '../sim/constants.js';
 import { Tray, PRIO } from './tray.js';
+import { MOMENTS, MOMENT_IDS, MOMENT, momentReady } from '../sim/moments-coach.js';
 import { TEAM_COL } from '../render/renderer.js';
 import { audio } from '../audio.js';
 
-const LANES = ['top', 'mid', 'bot'];
 const LANE_L = { top: 'Top', mid: 'Mid', bot: 'Bot' };
 const BOSS_FACE = { dragon: 'boss/dragon_green_faceset', herald: 'boss/herald_faceset', baron: 'boss/baron_faceset' };
 export const CORE = [
@@ -64,8 +64,11 @@ export class Dock {
         h('img', { src: icon(c.icon) }), h('span', { class: 'l' }, c.label), h('span', { class: 'cost' }, ...Array.from({ length: n }, () => h('i'))));
       b._id = c.id; return b;
     });
+    // Coach Moments: one compact button; the sheet lists the three once-per-match calls.
+    this.momentBtn = h('button', { class: 'momentbtn', title: 'Coach Moments: Timeout, Rally, All-Out Push. Each once per match [M]', onclick: () => { audio.sfx('move', 0.5); this.open('moments'); } },
+      h('img', { src: icon('BookThunder') }), h('span', { class: 'ml' }, 'Moments'), this.momentN = h('b', { class: 'mn' }, '3'));
     mount(el, this.trayEl, this.sheetEl, this.cancelEl,
-      h('div', { class: 'dock' }, h('div', { class: 'handrow' }, this.meterEl, h('div', { class: 'hand' }, this.cards), this.ultBtn = h('button', { class: 'ultbtn', title: 'Ultimates: let heroes choose → Hold them → All-in now [U]', onclick: () => this.cycleUlt() }, h('img', { src: icon('Death') }), h('span', { class: 'ul' }, 'Ults'), h('b', {}, 'Auto'))),
+      h('div', { class: 'dock' }, h('div', { class: 'handrow' }, this.meterEl, h('div', { class: 'hand' }, this.cards), this.momentBtn, this.ultBtn = h('button', { class: 'ultbtn', title: 'Ultimates: let heroes choose → Hold them → All-in now [U]', onclick: () => this.cycleUlt() }, h('img', { src: icon('Death') }), h('span', { class: 'ul' }, 'Ults'), h('b', {}, 'Auto'))),
         h('div', { class: 'callrow' }, this.callBtns)));
     this.tick();
   }
@@ -87,6 +90,9 @@ export class Dock {
       b.classList.toggle('hot', rel === 'hot'); b.classList.toggle('danger', rel === 'danger'); b.classList.toggle('dim', rel === 'dim');
     }
     for (const b of this.cards) { b.disabled = b._d.used; b.classList.toggle('used', b._d.used); b.classList.toggle('on', this.sheetId === 'card:' + b._d.id); }
+    const left = MOMENT_IDS.filter((k) => !team.moments[k]).length, anyReady = MOMENT_IDS.some((k) => momentReady(g, this.my, k));
+    if (this.momentN.textContent !== String(left)) this.momentN.textContent = String(left);
+    this.momentBtn.classList.toggle('spent', !left); this.momentBtn.classList.toggle('ready', anyReady); this.momentBtn.classList.toggle('lock', !!left && !anyReady);
     const um = team.ultMode && team.ultMode.until > g.tick ? team.ultMode.mode : 'auto';
     if (this.ultBtn._m !== um) { this.ultBtn._m = um; this.ultBtn.lastChild.textContent = { auto: 'Auto', save: 'Hold', go: 'ALL-IN' }[um]; this.ultBtn.className = 'ultbtn ' + um; }
     const active = this.alive().some((x) => (x.task && x.task.call) || x.pendingCall) || (team.focus && team.focus.until > g.tick);
@@ -102,11 +108,11 @@ export class Dock {
       if (['dragon', 'herald', 'baron'].some((k) => g.objectives[k] && g.objectives[k].alive)) return 'hot';
       return ['dragon', 'herald', 'baron'].some((k) => g.objAvailable(k)) ? '' : 'dim';
     }
-    if (id === 'shrine') return g.time < T.shrineUnlock || !g.shrines.some((s) => s.owner !== me) ? 'dim' : 'hot';
+    if (id === 'shrine') return g.time < g.T.shrineUnlock || !g.shrines.some((s) => s.owner !== me) ? 'dim' : 'hot';
     if (id === 'gank') {
       const jg = alive.find((x) => x.role === 'jungle');
       if (!jg) return 'dim';
-      return LANES.some((l) => this.laneInfo(l).deep) ? 'hot' : '';
+      return g.world.laneNames.some((l) => this.laneInfo(l).deep) ? 'hot' : '';
     }
     if (id === 'safe') {
       const hit = g.units.some((u) => u.structure && u.alive && u.team === me && u.lastHurt > now - TICK_RATE * 2 && g.grid.query(u.x, u.y, 500).some((e) => e.type === 'hero' && e.alive && e.team !== me));
@@ -145,7 +151,7 @@ export class Dock {
     if (id === 'safe' || id === 'reset') { this.send({ type: id }); return; }
     if (id === 'shrine') {
       const open = this.g.shrines.filter((s) => s.owner !== this.my);
-      if (this.g.time < T.shrineUnlock) { toast(`Shrines open at ${fmtTime(T.shrineUnlock)}`); return; }
+      if (this.g.time < this.g.T.shrineUnlock) { toast(`Shrines open at ${fmtTime(this.g.T.shrineUnlock)}`); return; }
       if (open.length === 1) { this.send({ type: 'shrine', shrine: open[0].id }); return; }
       if (!open.length) { toast('You already hold both shrines'); return; }
     }
@@ -201,6 +207,7 @@ export class Dock {
   }
   sheetBody(id) {
     const g = this.g, mine = this.team.heroes;
+    const LANES = g.world.laneNames;
     const lanes = (fn, sub, state) => h('div', { class: 'tiles' }, ...LANES.map((l) => this.tile({ title: LANE_L[l], sub: () => sub(l), state: () => state ? state(l) : {}, onclick: () => fn(l) })));
     if (id === 'gank') {
       const jg = mine.find((x) => x.role === 'jungle');
@@ -222,14 +229,14 @@ export class Dock {
         state: () => ({ off: !g.objAvailable(k) || !this.afford('objective'), rec: !!(g.objectives[k] && g.objectives[k].alive) }),
         onclick: () => this.send({ type: 'objective', obj: k }),
       });
-      const list = ['dragon', 'herald', 'baron'].filter((k) => !(k === 'herald' && g.time > T.heraldDespawn) && !(k === 'baron' && g.time < T.heraldDespawn - 90 && !g.objectives.baron));
+      const list = ['dragon', 'herald', 'baron'].filter((k) => !(k === 'herald' && g.time > g.T.heraldDespawn) && !(k === 'baron' && g.time < g.T.heraldDespawn - 90 && !g.objectives.baron));
       return { title: 'Take which objective?', els: [h('div', { class: 'tiles' }, ...list.map(obj),
-        this.tile({ ico: 'Camouflage', title: 'Invade', sub: () => `Steal a camp · ${this.cost('invade')} charges`, state: () => ({ off: !this.afford('invade') }), onclick: () => this.send({ type: 'invade' }) }))] };
+        !g.camps.length ? null : this.tile({ ico: 'Camouflage', title: 'Invade', sub: () => `Steal a camp · ${this.cost('invade')} charges`, state: () => ({ off: !this.afford('invade') }), onclick: () => this.send({ type: 'invade' }) }))] };
     }
     if (id === 'push') {
       const els = [lanes((l) => this.send({ type: 'group', lane: l }), (l) => { const i = this.laneInfo(l); return i.n ? `${i.n} enemy defending` : 'Whole team'; }, () => ({ off: !this.afford('group') }))];
       const splitter = this.splitter();
-      if (splitter) els.push(h('div', { class: 'sh-row' }, h('span', { class: 'muted' }, `Solo split (${splitter.def.name})`),
+      if (splitter && LANES.length > 1) els.push(h('div', { class: 'sh-row' }, h('span', { class: 'muted' }, `Solo split (${splitter.def.name})`),
         ...['top', 'bot'].map((l) => h('button', { class: 'chip', onclick: () => this.send({ type: 'split', hero: splitter.id, lane: l }) }, LANE_L[l]))));
       if (this.team.heraldEye > g.tick) els.push(h('div', { class: 'sh-row oni' }, h('span', {}, 'Unleash the Oni'), ...LANES.map((l) => h('button', { class: 'chip gold', onclick: () => this.send({ type: 'herald', lane: l }) }, LANE_L[l]))));
       return { title: 'Push which lane?', els };
@@ -237,6 +244,16 @@ export class Dock {
     if (id === 'shrine') {
       return { title: 'Take which shrine?', els: [h('div', { class: 'tiles' }, ...g.shrines.map((s) => this.tile({ ico: 'OrbLight', title: s.id === this.my ? 'Home shrine' : 'Far shrine',
         sub: () => (s.owner === this.my ? 'Ours' : s.owner < 0 ? 'Neutral' : 'Theirs'), state: () => ({ off: s.owner === this.my || !this.afford('shrine') }), onclick: () => this.send({ type: 'shrine', shrine: s.id }) })))] };
+    }
+    if (id === 'moments') {
+      const team = this.team;
+      return { title: 'Coach Moments · once per match', els: [h('div', { class: 'tiles' }, ...MOMENT_IDS.map((k) => {
+        const m = MOMENTS[k];
+        const b = this.tile({ ico: m.icon, title: m.name, cls: 'moment', sub: () => (team.moments[k] ? 'Used' : g.time < MOMENT.openAt * g.rules.k ? `Opens at ${fmtTime(MOMENT.openAt * g.rules.k)}` : team.momentCd > g.tick ? `Ready in ${Math.ceil((team.momentCd - g.tick) / TICK_RATE)}s` : m.short),
+          state: () => ({ off: !momentReady(g, this.my, k), rec: momentReady(g, this.my, k) }), onclick: () => this.send({ type: 'moment', id: k }) });
+        b.style.setProperty('--mc', m.color); b.title = m.desc;
+        return b;
+      }))] };
     }
     if (id.startsWith('card:')) {
       const cid = id.slice(5), t = TACTICS[cid];
@@ -246,14 +263,14 @@ export class Dock {
     if (id.startsWith('hero:')) {
       const x = g.byId(+id.slice(5)); if (!x) return null;
       if (x.team !== this.my) return { title: `${x.def.name}`, els: [h('div', { class: 'tiles' }, this.tile({ img: face(x.heroId), title: `Focus ${x.def.name}`, sub: 'Everyone targets them 20s', state: () => ({ off: !x.alive || !this.afford('focus') }), onclick: () => this.send({ type: 'focus', target: x.id }) }))] };
-      return { title: `${x.def.name}: build path`, els: [h('div', { class: 'tiles' }, ...x.def.builds.map((b) => this.tile({ ico: BUILDS[b].icon || 'Alchemy', title: BUILDS[b].name, sub: () => (x.build === b ? 'Current' : 'Free'), state: () => ({ off: x.build === b }), onclick: () => this.send({ type: 'build', hero: x.id, build: b }) })))] };
+      return { title: `${x.def.name}: build path`, els: [h('div', { class: 'tiles' }, ...x.def.builds.map((b) => { const t = this.tile({ ico: BUILDS[b].icon || 'Alchemy', title: BUILDS[b].name, sub: () => (x.build === b ? 'Current' : 'Free'), state: () => ({ off: x.build === b }), onclick: () => this.send({ type: 'build', hero: x.id, build: b }) }); t.setAttribute('data-build', b); t.title = BUILDS[b].desc; return t; }))] };
     }
     return null;
   }
   objStatus(k) {
     const g = this.g, o = g.objectives[k], t = g.objTimers[k];
     if (o && o.alive) return o.hp < o.maxHp * 0.98 ? `Under attack ${Math.round(o.hp / o.maxHp * 100)}%` : 'Awake now';
-    if (k === 'herald' && g.time > T.heraldDespawn) return 'Gone';
+    if (k === 'herald' && g.time > g.T.heraldDespawn) return 'Gone';
     if (!t) return '—';
     const left = Math.max(0, (t - g.tick) / TICK_RATE);
     return left <= 25 ? `Wakes in ${Math.ceil(left)}s` : `Wakes ${fmtTime(left)}`;
@@ -319,11 +336,11 @@ export class Dock {
     else {
       for (const [k, pit] of [['dragon', W.pits.kami], ['baron', W.pits.kraken]]) {
         if (d2(pit, w) > 260 * 260) continue;
-        const kk = k === 'baron' && g.time < T.heraldDespawn ? 'herald' : k;
+        const kk = k === 'baron' && g.time < g.T.heraldDespawn ? 'herald' : k;
         title = OBJ_NAME[kk];
         opts.push({ ico: 'OrbFire', label: 'Take it', type: 'objective', cmd: { type: 'objective', obj: kk }, off: !g.objAvailable(kk), sub: this.objStatus(kk) });
       }
-      for (const s of g.shrines) if (d2(s, w) < 220 * 220) { title = 'Shrine'; opts.push({ ico: 'OrbLight', label: 'Capture', type: 'shrine', cmd: { type: 'shrine', shrine: s.id }, off: s.owner === me || g.time < T.shrineUnlock }); }
+      for (const s of g.shrines) if (d2(s, w) < 220 * 220) { title = 'Shrine'; opts.push({ ico: 'OrbLight', label: 'Capture', type: 'shrine', cmd: { type: 'shrine', shrine: s.id }, off: s.owner === me || g.time < g.T.shrineUnlock }); }
       if (!opts.length) {
         const lane = W.closestLane(w);
         if (W.distToLane(lane, w) < 320) {
@@ -331,7 +348,7 @@ export class Dock {
           const jg = this.team.heroes.find((x) => x.role === 'jungle' && x.alive) || this.alive()[0];
           if (jg) opts.push({ ico: 'Cut', label: 'Gank', type: 'gank', cmd: { type: 'gank', lane, hero: jg.id } });
           opts.push({ ico: 'Upgrade', label: 'Push', type: 'group', cmd: { type: 'group', lane } });
-          const sp = this.splitter(); if (sp && lane !== 'mid') opts.push({ ico: 'BookWind', label: 'Split', type: 'split', cmd: { type: 'split', hero: sp.id, lane } });
+          const sp = this.splitter(); if (sp && lane !== 'mid' && W.laneNames.length > 1) opts.push({ ico: 'BookWind', label: 'Split', type: 'split', cmd: { type: 'split', hero: sp.id, lane } });
           if (this.team.heraldEye > g.tick) opts.push({ ico: 'Counter', label: 'Oni', type: 'herald', cmd: { type: 'herald', lane } });
         } else {
           const camp = g.camps.filter((c) => c.side !== me && c.mobs.length).sort((a, b) => d2(a, w) - d2(b, w))[0];
@@ -365,6 +382,7 @@ export class Dock {
     if (k === 'c') { this.send({ type: 'cancel' }); return true; }
     if (k === 'u') { this.cycleUlt(); return true; }
     if (k === 'v') { this.surge(); return true; }
+    if (k === 'm') { this.open('moments'); return true; }
     return false;
   }
 }

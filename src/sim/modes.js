@@ -1,0 +1,30 @@
+// Match rules per game mode. The classic 5v5 uses the global constants unchanged; side modes
+// override pacing, economy and timers. Everything here is plain data read by the deterministic sim
+// (cfg.mode travels inside the match config, so lockstep peers and replays agree on it).
+import { T, FINAL, HALFTIME, PACE, MATCH_SECONDS } from './constants.js';
+
+export const MODE_INFO = {
+  classic: { name: '5v5 Classic', short: '5v5', blurb: 'Three lanes, the full jungle and every objective. 15 minutes.' },
+  rush: { name: 'Lane Rush', short: 'Rush', blurb: 'One lane, all ten heroes, fast gold. First Crystal in about 7 minutes.' },
+};
+
+const CLASSIC = {
+  id: 'classic', seconds: MATCH_SECONDS, halftime: HALFTIME.at, final: FINAL, pace: PACE, T,
+  gold: 1, xp: 1, startGold: null, startLevel: 1, respawn: 1, towerHp: 1, minionSiege: 1, timeScale: 1, k: 1,
+};
+
+// Single Lane Rush: 5v5 in one short lane. Faster economy, short respawns, an early Kami and a
+// Kraken at 3:00 so games end at a Crystal around 6-8 minutes (tower count decides at 8:00).
+const RUSH = {
+  id: 'rush', seconds: 480, halftime: null,
+  final: { at: 360, gold: 1.5, respawn: 1.25 },
+  pace: { rampFrom: 90, rampPer: 110, siegeAllFrom: 150, wrathFrom: 240, backdoorOffFrom: 300 },
+  T: { ...T, firstWave: 5, waveEvery: 16, siegeEvery: 2, dragonFirst: 60, dragonRespawn: 75, elderRespawn: 90, heraldFirst: 0, heraldDespawn: 0,
+    baronFirst: 180, baronRespawn: 90, baronBuff: 60, shrineUnlock: 30, inhibRespawn: 120, weatherPhase: 120, campFirst: 20 },
+  gold: 1.7, xp: 1.6, startGold: 1400, startLevel: 3, respawn: 0.55, towerHp: 0.6, minionSiege: 2, timeScale: 1.9,
+  // k: scale for "game clock" thresholds written for a 15-minute match (AI coach timings)
+  k: 480 / 900,
+};
+
+export const RULES = { classic: CLASSIC, rush: RUSH };
+export const rulesFor = (mode) => RULES[mode] || CLASSIC;

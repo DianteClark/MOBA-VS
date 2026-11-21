@@ -41,7 +41,7 @@ export async function drawShareCard(m, coach) {
   T(`${m.towers[me]} towers standing`, 800, 236, 18, MUTED, 'center');
   // coach line
   T(coach.name, 40, 300, 30, INK);
-  T(`${m.rank || coach.rank}${m.rpDelta ? `  ${m.rpDelta > 0 ? '+' : ''}${m.rpDelta} RP` : ''}${m.calls ? `  ·  ${m.calls} calls paid off` : ''}`, 40, 334, 20, GOLD);
+  T(`${m.rank || coach.rank}${m.rpDelta ? `  ${m.rpDelta > 0 ? '+' : ''}${m.rpDelta} rating` : ''}${m.calls ? `  ·  ${m.calls} calls paid off` : ''}`, 40, 334, 20, GOLD);
   if (m.potg) T(`POTG: ${m.potg}`, 40, 368, 20, '#ffe3a3');
   // your five heroes
   const picks = m.picks[me], kda = (m.kda && m.kda[me]) || [];

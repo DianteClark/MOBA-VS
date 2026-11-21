@@ -10,6 +10,9 @@
 //   shrine   Blue's river shrine (Red's is the mirror)
 //   brush    tall-grass blobs [x, y, r]; rocks: blocking boulders [x, y, r]; clear: extra open areas [x, y, r]
 //   theme    painter palette; weather: cycle used on this map
+//   Lane Rush maps live in rush.js (single lane, smaller base); they are looked up by id like any map.
+import { RUSH_MAPS } from './rush.js';
+export { RUSH_MAPS };
 
 export const MAPS = [
   {
@@ -108,4 +111,4 @@ export const MAPS = [
     clear: [[1200, 1200, 170]],
   },
 ];
-export const MAP_BY_ID = Object.fromEntries(MAPS.map((m) => [m.id, m]));
+export const MAP_BY_ID = Object.fromEntries([...MAPS, ...RUSH_MAPS].map((m) => [m.id, m]));

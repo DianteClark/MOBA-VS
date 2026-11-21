@@ -2,7 +2,7 @@
 // It only uses information its own team can see.
 import { sec } from './constants.js';
 import { dist2 } from './geom.js';
-const LANE_NAMES = ['top', 'mid', 'bot'];
+import { aiMoment } from './moments-coach.js';
 
 export class Coach {
   constructor(g, team, level = 1) {
@@ -25,12 +25,14 @@ export class Coach {
     const ready = (k) => now >= this.cooldown[k];
     const cd = (k, s) => { this.cooldown[k] = now + sec(s); };
     const near = (p, r, list) => list.filter((h) => dist2(h, p) < r * r).length;
-    const deadEnemies = them.heroes.filter((h) => !h.alive && h.respawnAt - now > sec(12)).length;
+    const deadEnemies = them.heroes.filter((h) => !h.alive && h.respawnAt - now > sec(12 * Math.max(0.6, g.rules.respawn))).length;
+    const k = g.rules.k, LANE_NAMES = g.world.laneNames; // k: clock scale for short modes (thresholds below are for a 15-minute match)
 
     if (this.useTactics(me, them, alive, visibleEnemies, deadEnemies)) return;
     if (me.momentum >= 100 && ready('surge') && this.useSurge(me, alive, visibleEnemies)) { cd('surge', 10); return; }
+    if (aiMoment(this, { alive, visibleEnemies, deadEnemies })) return;
     // Halftime adjustments: change plan by tower score, swap a weak card
-    if (now >= g.halftimeTick && now < g.halftimeTick + sec(6) && !this.didHalftime) {
+    if (g.halftimeTick >= 0 && now >= g.halftimeTick && now < g.halftimeTick + sec(6) && !this.didHalftime) {
       this.didHalftime = true;
       const diff = g.towersStanding(this.team) - g.towersStanding(1 - this.team);
       const plan = diff < 0 ? 'aggressive' : diff > 1 ? 'balanced' : me.plan;
@@ -50,7 +52,7 @@ export class Coach {
       if (lane && this.issue({ type: 'herald', lane })) return;
     }
     // Build pivots vs comp (once per hero)
-    if (ready('build') && g.time > 240) {
+    if (ready('build') && g.time > 240 * k) {
       cd('build', 60);
       const tanks = them.heroes.filter((h) => h.items.filter((i) => i.stats.armor || i.stats.mr).length >= 2).length;
       const healers = them.heroes.filter((h) => h.healed > 800 || h.items.some((i) => i.stats.omnivamp || i.stats.healPower)).length;
@@ -70,14 +72,14 @@ export class Coach {
       if (!(o && o.alive) && !spawnSoon) return false;
       if (charges < 2 || !ready('objective')) return false;
       const pit = obj === 'dragon' ? g.world.pits.kami : g.world.pits.kraken;
-      const enemiesNearPit = near(pit, 1100, visibleEnemies);
+      const enemiesNearPit = near(pit, LANE_NAMES.length === 1 ? 650 : 1100, visibleEnemies);
       if (alive.length < minAlive) return false;
       if (enemiesNearPit > 1 && deadEnemies === 0) return false;
       if (!extra) return false;
       if (this.issue({ type: 'objective', obj })) { cd('objective', 40); return true; }
       return false;
     };
-    if (takeObj('baron', 4, deadEnemies >= 2 || (g.time > 1050 && alive.length >= enemyAlive.length + 1))) return;
+    if (takeObj('baron', 4, deadEnemies >= 2 || (g.time > 1050 * k && alive.length >= enemyAlive.length + 1) || (LANE_NAMES.length === 1 && alive.length >= enemyAlive.length + 1))) return;
     const jg = me.heroes.find((h) => h.role === 'jungle');
     const enemyJgVisibleTop = them.heroes.some((h) => h.role === 'jungle' && vis.has(h.id) && h.x + h.y < 2400 && h.alive);
     const botAlive = me.heroes.filter((h) => (h.role === 'bot' || h.role === 'support') && h.alive).length;
@@ -85,7 +87,7 @@ export class Coach {
     if (takeObj('herald', 3, jg && jg.alive && (deadEnemies >= 1 || g.rng.chance(0.2)))) return;
 
     // Shrines: grab one when it's quiet
-    if (ready('shrine') && charges >= 1 && g.time > 70) {
+    if (ready('shrine') && charges >= 1 && g.time > g.T.shrineUnlock + 10) {
       const sh = g.shrines.filter((x) => x.owner !== this.team).sort((a, b) => (a.id === this.team ? -1 : 1) - (b.id === this.team ? -1 : 1))[0];
       if (sh && near(sh, 900, visibleEnemies) === 0 && alive.length >= 4) { if (this.issue({ type: 'shrine', shrine: sh.id })) { cd('shrine', 50); return; } }
     }
@@ -117,13 +119,13 @@ export class Coach {
     }
     // Mid/late: group to push where the enemy is missing
     // Late game: close it out. Group on the lane where the enemy base is most open.
-    const late = g.time > 600;
-    if (ready('group') && late && charges >= 1 && alive.length >= 3 && (deadEnemies >= 1 || alive.length >= enemyAlive.length || g.time > 780)) {
+    const late = g.time > 600 * k || (LANE_NAMES.length === 1 && deadEnemies >= 2); // one lane: every won fight is a push
+    if (ready('group') && late && charges >= 1 && alive.length >= 3 && (deadEnemies >= 1 || alive.length >= enemyAlive.length || g.time > 780 * k)) {
       const lane = this.weakestLane();
-      if (this.issue({ type: 'group', lane })) { cd('group', g.time > 780 ? 25 : 40); return; }
+      if (this.issue({ type: 'group', lane })) { cd('group', g.time > 780 * k ? 25 : 40); return; }
     }
     // Invade when enemy jungler seen far away
-    if (this.level >= 1 && ready('invade') && charges >= 2 && g.time > 200 && g.time < 900) {
+    if (this.level >= 1 && ready('invade') && charges >= 2 && g.camps.length && g.time > 200 * k && g.time < 900 * k) {
       const ej = them.heroes.find((h) => h.role === 'jungle');
       if (ej && (!ej.alive || (vis.has(ej.id) && jg && dist2(ej, jg) > 1600 * 1600))) { if (this.issue({ type: 'invade' })) { cd('invade', 120); return; } }
     }
@@ -143,16 +145,17 @@ export class Coach {
     if (obj && has('sweep') && me.call && me.call.type === 'objective') return play({ card: 'sweep' });
     const sieged = g.units.some((u) => u.type === 'tower' && u.team === this.team && u.alive && u.hp < u.maxHp * 0.6 && g.grid.query(u.x, u.y, 400).some((e) => e.type === 'hero' && e.team !== this.team && e.alive));
     if (has('fortify') && sieged) return play({ card: 'fortify' });
-    if (has('siege') && g.time > 480 && alive.length >= 4 && dead >= 1) return play({ card: 'siege', lane: 'mid' });
-    if (has('ambush') && g.time > 200 && g.time < 700 && g.rng.chance(0.02)) return play({ card: 'ambush', lane: ['top', 'mid', 'bot'][g.rng.int(3)] });
-    if (has('swap') && g.time > 240 && g.time < 600) {
+    const k = g.rules.k;
+    if (has('siege') && g.time > 480 * k && alive.length >= 4 && dead >= 1) return play({ card: 'siege', lane: 'mid' });
+    if (has('ambush') && g.time > 200 * k && g.time < 700 * k && g.rng.chance(0.02)) return play({ card: 'ambush', lane: g.world.laneNames[g.rng.int(g.world.laneNames.length)] });
+    if (has('swap') && g.world.laneNames.length > 1 && g.time > 240 && g.time < 600) {
       const top = me.heroes.find((h) => h.homeLane === 'top');
       if (top && top.deaths >= 3 && top.kills === 0) return play({ card: 'swap' });
     }
     if (has('barrier') && fighting >= 3 && avgHp < 0.6) return play({ card: 'barrier' });
-    if (has('council') && me.charges < 0.5 && g.time > 300) return play({ card: 'council' });
+    if (has('council') && me.charges < 0.5 && g.time > 300 * k) return play({ card: 'council' });
     if (has('eyes') && obj && !fighting) return play({ card: 'eyes' });
-    if (has('gate') && avgHp < 0.45 && !fighting && g.time > 300) return play({ card: 'gate' });
+    if (has('gate') && avgHp < 0.45 && !fighting && g.time > 300 * k) return play({ card: 'gate' });
     if (has('bait') && fighting >= 2) { const tank = alive.find((h) => h.def.cls === 'tank' && h.hp / h.maxHp > 0.6); if (tank) return play({ card: 'bait', hero: tank.id }); }
     return false;
   }
@@ -170,7 +173,7 @@ export class Coach {
     const brawl = fighters.length >= 3 && close.length >= 2 && fighters.length >= close.length && hp > 0.45 && !underTower;
     const objRace = ['dragon', 'baron', 'herald'].some((k) => { const o = g.objectives[k]; return o && o.alive && o.hp < o.maxHp * 0.7 && close.length >= 1 && alive.filter((a) => (a.x - o.x) ** 2 + (a.y - o.y) ** 2 < 600 * 600).length >= 3; });
     // late close-out: grouped on their base (gate / base towers / Crystal) with at most one defender in sight
-    const closeOut = g.time > 660 && me.call && me.call.type === 'group' && close.length <= 1 && g.units.some((u) => u.alive && u.team !== this.team && (u.type === 'inhib' || u.type === 'nexus' || (u.type === 'tower' && u.tier >= 3))
+    const closeOut = g.time > 660 * g.rules.k && me.call && me.call.type === 'group' && close.length <= 1 && g.units.some((u) => u.alive && u.team !== this.team && (u.type === 'inhib' || u.type === 'nexus' || (u.type === 'tower' && u.tier >= 3))
       && g.isTargetable(u) && alive.filter((a) => (a.x - u.x) ** 2 + (a.y - u.y) ** 2 < 600 * 600).length >= 3);
     if (!brawl && !objRace && !closeOut) return false;
     return this.issue({ type: 'surge' });
@@ -179,7 +182,7 @@ export class Coach {
   // The enemy lane with the fewest structures left standing (ties: mid).
   weakestLane() {
     const g = this.g; let best = 'mid', bs = Infinity;
-    for (const ln of ['mid', 'top', 'bot']) {
+    for (const ln of ['mid', 'top', 'bot'].filter((x) => g.world.laneNames.includes(x))) {
       let n = 0; for (const u of g.units) if (u.alive && u.team !== this.team && (u.type === 'tower' || u.type === 'inhib') && u.lane === ln) n += u.type === 'inhib' ? 2 : 1;
       if (n < bs) { bs = n; best = ln; }
     }
@@ -188,7 +191,7 @@ export class Coach {
   pickHeraldLane() {
     const g = this.g;
     let best = null, bs = -1;
-    for (const lane of LANE_NAMES) {
+    for (const lane of g.world.laneNames) {
       const towers = g.units.filter((u) => u.type === 'tower' && u.team !== this.team && u.lane === lane && u.alive).length;
       if (towers > bs) { bs = towers; best = lane; }
     }

@@ -10,6 +10,11 @@ import { pickScore, suggestedBans, teamRoles, presetRole } from '../presets.js';
 import { describeAbility } from './herotext.js';
 import { statBars } from './heroui.js';
 import { audio } from '../audio.js';
+import { BUILDS } from '../data/items.js';
+import { profile } from '../profile.js';
+import { masteryBadge } from './badges.js';
+import { compLine } from './comp.js';
+import { buildLine } from './buildguide.js';
 
 const screen = () => document.getElementById('screen');
 export const AUTO_GRACE = 1.2; // seconds before a preset auto-pick locks in
@@ -60,7 +65,8 @@ export class DraftView {
       });
       return h('div', { class: 'dteam t' + team + (acting ? ' acting' : '') },
         h('div', { class: 'tname' }, h('span', { class: 'tdot' }), h('span', { class: 'tn' }, s.names[team]), team === me ? h('small', {}, 'you') : null,
-          team === me && s.preset ? h('span', { class: 'lineup', title: 'Active lineup: picks lock in automatically' }, '★ ' + s.preset.name) : null),
+          team === me && s.preset && !picks.length ? h('span', { class: 'lineup', title: 'Active lineup: picks lock in automatically' }, '★ ' + s.preset.name) : null,
+          compLine(picks, tk)),
         h('div', { class: 'slots' }, h('div', { class: 'picks' }, pickSlots), h('div', { class: 'bans' }, banSlots)));
     };
     const left = Math.ceil(s.turnLeft ?? TURN_SECONDS);
@@ -84,7 +90,7 @@ export class DraftView {
       return h('button', { class: 'hcard' + (off ? ' off' : '') + (bad ? ' bad' : '') + (this.sel === x.id ? ' sel' : '') + (rec ? ' rec' : ''), disabled: off,
         style: { '--cc': CLANS[x.clan].color }, title: `${x.name} · ${CLANS[x.clan].name} · ${pers.name}`, onclick: () => { if (!off) this.select(x.id); } },
         h('div', { class: 'fwrap' }, h('img', { src: face(x.id) }), ms ? h('span', { class: 'score ' + (ms > 0 ? 'pos' : 'neg') }, (ms > 0 ? '+' : '') + ms) : null,
-          mine ? h('span', { class: 'mine', title: 'In your lineup' }, '★') : null),
+          mine ? h('span', { class: 'mine', title: 'In your lineup' }, '★') : null, me >= 0 ? masteryBadge(profile.mastery(x.id).lv) : null),
         rec ? h('span', { class: 'recb' + (ban ? ' banb' : '') }, ban ? 'BAN?' : 'REC') : null,
         h('div', { class: 'n' }, x.name));
     }));
@@ -130,8 +136,7 @@ export class DraftView {
           : t.act === 'ban' ? 'Your ban: remove a hero you fear.' : `Your pick. Still needed: ${need.join(', ')}`),
         h('div', { class: 'muted small' }, myTurn && t.act === 'ban' ? (recs.length ? 'Suggested bans counter your lineup.' : 'Tap a hero to ban it.')
           : recs.length && myTurn ? 'Heroes marked REC suit your draft.' : 'Tap a hero to see abilities and matchups.'),
-        !s.preset && me >= 0 && !d.done ? h('div', { class: 'muted small' }, 'Tip: set up a lineup in the Dojo and your picks lock in automatically.') : null,
-        me >= 0 && d.picks[me].length ? compLine(d.picks[me]) : null]);
+        !s.preset && me >= 0 && !d.done ? h('div', { class: 'muted small' }, 'Tip: set up a lineup in the Dojo and your picks lock in automatically.') : null]);
     }
     const x = HERO_BY_ID[id], pers = PERSONALITIES[x.pers], clan = CLANS[x.clan];
     const ban = t && t.act === 'ban', canAct = myTurn && legal(d, me, id), mu = matchupScore(x, enemyPicks);
@@ -143,6 +148,7 @@ export class DraftView {
       myTurn && ban && inLineup ? h('div', { class: 'warnline' }, `${x.name} is in your lineup (${ROLE_LABEL[inLineup]}).`) : null,
       myTurn && !canAct ? h('div', { class: 'warnline' }, taken(d).has(id) ? 'Already banned or picked.' : 'Your team already covers this hero\'s roles.') : null,
       statBars(id, true),
+      h('div', { class: 'chips dbuilds' }, ...x.builds.map((b) => h('span', { class: 'chipx', style: { '--cc': BUILDS[b].color }, title: buildLine(b), 'data-build': b, 'data-build-info': true }, BUILDS[b].name + (b === x.rec ? ' ★' : '')))),
       h('div', { class: 'abl' },
         h('div', { class: 'ab' }, h('img', { src: icon('LuckUpgrade') }), h('div', {}, h('b', {}, x.passive.name), h('div', { class: 'd' }, x.passive.desc))),
         ...x.abilities.map((a) => h('div', { class: 'ab' + (a.ult ? ' ult' : '') }, h('img', { src: icon(a.icon) }), h('div', {}, h('b', {}, (a.ult ? 'Ult: ' : '') + a.name), h('div', { class: 'd' }, describeAbility(a)))))),
@@ -165,9 +171,5 @@ function synergyNotes(id, mine) {
   const rows = duosOf(id).map((q) => h('div', { class: mine.includes(q.partner) ? 'pos' : 'muted' }, `Duo ${q.name} with ${HERO_BY_ID[q.partner].name}${mine.includes(q.partner) ? ' (ready)' : ''}`));
   if (mine.length && !mine.includes(id)) { const c = compOf([...mine, id]); rows.push(h('div', { class: c.active ? 'pos' : 'muted' }, `Comp: ${c.name} ${Math.min(c.count, c.need)}/${c.need}${c.active ? ` · ${COMPS[c.id].bonus}` : ''}`)); }
   return rows.length ? h('div', { class: 'notes' }, ...rows) : null;
-}
-function compLine(ids) {
-  const c = compOf(ids);
-  return h('div', { class: 'muted small' }, `Team comp: ${c.name} ${Math.min(c.count, c.need)}/${c.need}${c.active ? ` active (${COMPS[c.id].bonus})` : ''}`);
 }
 

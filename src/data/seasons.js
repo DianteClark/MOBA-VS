@@ -21,25 +21,8 @@ export function seasonAt(now = Date.now()) {
 }
 export function daysLeft(s, now = Date.now()) { return Math.max(0, Math.ceil((day(s.end) + 86400000 - now) / 86400000)); }
 
-// Ranks (Ranked Points). Each tier has three divisions except the top one.
-export const TIERS = [
-  { id: 'ronin', name: 'Ronin', min: 0, icon: 'items/BarIron', color: '#b9b2c4' },
-  { id: 'samurai', name: 'Samurai', min: 300, icon: 'items/BarSilver', color: '#cfe3ff' },
-  { id: 'daimyo', name: 'Daimyo', min: 700, icon: 'items/BarGold', color: '#ffd84a' },
-  { id: 'shogun', name: 'Shogun', min: 1200, icon: 'items/GemRed', color: '#ff6b6b' },
-  { id: 'kami', name: 'Kami-touched', min: 1800, icon: 'items/GemPurple', color: '#c99bff' },
-];
-export function rankOf(rp) {
-  let i = 0; for (let k = 0; k < TIERS.length; k++) if (rp >= TIERS[k].min) i = k;
-  const t = TIERS[i], next = TIERS[i + 1];
-  if (!next) return { tier: t, idx: i, div: '', label: t.name, into: rp - t.min, span: 0, next: null };
-  const span = next.min - t.min, d = Math.min(2, Math.floor((rp - t.min) / (span / 3)));
-  return { tier: t, idx: i, div: ['III', 'II', 'I'][d], label: `${t.name} ${['III', 'II', 'I'][d]}`, into: rp - t.min, span, next };
-}
-// RP per result: [win, loss]
-export const RP = { ai0: [8, -14], ai1: [18, -14], ai2: [26, -12], online: [24, -18], cup: [20, -10] };
-// Easy AI can only carry you so far.
-export const RP_CAP = { ai0: 299, ai1: 1199 };
+// Ranked tiers (Bronze → Kami) are derived from the season Elo rating: see ranks.js.
+export { TIERS, rankOf } from './ranks.js';
 
 // Season pass: XP per match and the reward track.
 export const XP_PER_LEVEL = 300;
@@ -55,6 +38,13 @@ export const SKINS = {
   frost: { name: 'Frostbitten', recolor: { hue: 195, sat: 0.45, light: 0.12 }, swatch: '#a8dcf0' },
   crimson: { name: 'Crimson', recolor: { hue: -25, sat: 1.5, light: -0.04 }, swatch: '#d8404a' },
   sakura: { name: 'Sakura', recolor: { hue: 300, sat: 0.9, light: 0.1 }, swatch: '#f4a6d0' },
+  // ranked season rewards
+  platinum: { name: 'Platinum', recolor: { hue: 150, sat: 0.7, light: 0.08 }, swatch: '#5fe0c8' },
+  master: { name: 'Master', recolor: { hue: 260, sat: 1.2, light: 0.02 }, swatch: '#b48cff' },
+  kami: { name: 'Kami Radiance', recolor: { hue: -15, sat: 1.25, light: 0.14 }, swatch: '#ff9ab0' },
+  // hero mastery tints (per hero: Mastery 6 and 10, see src/mastery.js)
+  mastery: { name: 'Mastery Jade', recolor: { hue: 120, sat: 1.15, light: 0.04 }, swatch: '#6fdc8c', mastery: 6 },
+  sensei: { name: 'Sensei Gold', recolor: { hue: 45, sat: 1.5, light: 0.12 }, swatch: '#ffe08a', mastery: 10 },
 };
 export const BANNERS = {
   plain: { name: 'Wanderer', bg: 'linear-gradient(135deg, #2a2236, #1a1522)' },
@@ -63,10 +53,14 @@ export const BANNERS = {
   night: { name: 'Night Sky', bg: 'radial-gradient(circle at 70% 20%, #3a4a8a, #12142a 60%)' },
   jade: { name: 'Jade', bg: 'linear-gradient(135deg, #1a5a44, #0e2a22 60%, #1a3a2a)' },
   gold: { name: 'Golden Cup', bg: 'linear-gradient(135deg, #8a6a1a, #3a2a08 55%, #6a4a10)' },
+  rankGold: { name: 'Gold Ascent', bg: 'linear-gradient(160deg, #6a4a10, #2a1d06 50%, #8a6a1a 90%)' },
+  rankDiamond: { name: 'Diamond Sky', bg: 'linear-gradient(160deg, #1c3a7a, #0c1430 55%, #3a6ac0)' },
+  rankKami: { name: 'Kami Ascendant', bg: 'radial-gradient(circle at 30% 20%, #ff9ab0, #6a1030 45%, #1a0610 80%)' },
 };
 export const TITLES = {
   rookie: 'Rookie Coach', shotcaller: 'Shotcaller', whisperer: 'Kami Whisperer', tamer: 'Oni Tamer', tactician: 'Grand Tactician',
   legend1: 'Legend of Blossom Rising', champ: 'Cup Champion', tripleChamp: 'Three-Cup Dynasty',
+  rankSilver: 'Silver Strategist', rankDiamond: 'Diamond Mind', rankMaster: 'Master Coach', rankKami: 'Kami Ascendant',
 };
 // Season 1 track: level → reward.
 export const TRACK = {
@@ -89,6 +83,7 @@ export function rewardName(r) {
   if (!r) return '';
   if (r.kind === 'skin') return `${SKINS[r.id].name} skin`;
   if (r.kind === 'banner') return `${BANNERS[r.id].name} banner`;
-  if (r.kind === 'title') return `Title: ${TITLES[r.id]}`;
+  if (r.kind === 'title') return `Title: ${TITLES[r.id] || r.name || r.id}`;
+  if (r.kind === 'border') return `${r.id[0].toUpperCase() + r.id.slice(1)} border`;
   return '';
 }
