@@ -66,7 +66,11 @@ Objectives are **only started by your calls**. Junglers auto-smite to secure (or
 ## 6. Coaching
 
 ### Calls (command charges: max 3, +1 every 20s)
-Gank, Objective (2), Shrine, Group, Split, Focus, Safe, Reset, Invade (2), Oni (free), Build pivot (free), Cancel.
+Six big buttons: **Gank · Objective · Push · Shrine · Defend · Regroup**. Each opens one sheet of big target tiles (lanes show live hints like "Overextended!"; objectives show live timers) or fires instantly.
+* **Tap the map:** a call ring appears where you tapped, with only the calls that fit (lane → Gank/Push/Split/Oni, pit → Take it, shrine → Capture, enemy → Focus, enemy jungle → Invade).
+* **One-tap suggestions:** the analyst offers the right call at the right moment ("Mid overextended: Gank"), with a 12-second timer.
+* Tap your hero's portrait to change its build; tap an enemy portrait to Focus them. A Cancel pill appears while calls are active.
+* Keys: G O R K X B (calls), Q E T (cards), C (cancel), Esc.
 
 ### Trust
 Each hero has trust 0–100. Successful calls raise it; deaths on your calls, stolen objectives and wasted calls lower it.
@@ -75,18 +79,27 @@ Each hero has trust 0–100. Successful calls raise it; deaths on your calls, st
 * Hotheads tilt for 60s after dying. Emotes over heroes show reactions.
 
 ### Tactic cards (pick 3, each usable once)
-Smoke Bomb · Ambush · Rally Cry · Second Wind · Siege Formation · Ward Sweep · Bait · Lane Swap · Fortify · Ancient Pact.
+Shown as a hand of big cards above the calls. Smoke Bomb · Ambush · Rally Cry · Second Wind · Siege Formation · Ward Sweep · Bait · Lane Swap · Fortify · Ancient Pact.
 
 ### Analyst feed
 Only what your team can see: overextended laners (one-tap Gank), open shrines, enemy on an objective (Contest), missing enemies, numbers advantage.
 
-## 7. AI
+## 7. Seasons, ranks and the Cup
+
+* **Seasons** (~10 weeks): a theme, a featured map (comes up most in Random) and a featured clan (bonus pass XP). Calendar in `src/data/seasons.js`.
+* **Ranked ladder:** Ronin → Samurai → Daimyo → Shogun → Kami-touched (divisions III–I). RP per win: Easy 8, Normal 18, Hard 26, Online 24, Cup 20. Easy AI caps at Samurai, Normal at Shogun. Soft reset each season; peak Samurai+ earns a border.
+* **Season Pass:** 20 levels of XP (win 120, loss 70, +15 per successful call, +10 per featured-clan hero, +50 in the Cup). Rewards are cosmetic only: hero skins (palette variants), banners, titles.
+* **Season Cup:** 8-team knockout vs AI teams (★ to ★★★). Final on the featured map. Champion: Golden Cup, "Cup Champion" title and banner. Finalist: Silver Cup.
+* **Auto-balance:** when a season starts, a GitHub Action plays hundreds of self-play matches and moves each legend toward 50% win rate (max ±5% per season), then publishes the patch notes and bumps the netcode version. Real match reports can be added later through `data/matches/`.
+* Profiles live in the browser for now; every match is saved in a compact, backend-ready format.
+
+## 8. AI
 
 * **Macro (2×/s):** lane / jungle routing / recall / defend / contest / help a fighting ally / shrines / call tasks.
 * **Micro (every tick):** dodge skillshots and telegraphs, fight-or-flight via Lanchester strength (towers count only when they can shoot), sticky target choice (killable, focus calls, carries, peel), role positioning (kiting, divers, supports escorting the carry), lane trading discipline, Flash + escapes.
 * Vision-limited: AI only reacts to what its team sees.
 
-## 8. Technology
+## 9. Technology
 
 * Static ES-module web app (GitHub Pages). Canvas 2D renderer.
 * Deterministic sim at 20 Hz, seeded PRNG, IEEE-exact math only, integer A*.
