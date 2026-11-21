@@ -1,0 +1,158 @@
+// Draft screen (landscape-first): both teams' slots across the top, the hero grid with role tabs,
+// and a side panel with the selected hero, the preset auto-pick, or the "pick for this role" prompt.
+import { h, mount, face, icon } from './dom.js';
+import { HEROES, HERO_BY_ID, ROLES, ROLE_LABEL, matchupScore, PERSONALITIES } from '../data/heroes.js';
+import { currentTurn, taken, legal, assignRoles, TURN_SECONDS } from '../sim/draft.js';
+import { CLANS } from '../sim/constants.js';
+import { MAPS, MAP_BY_ID } from '../maps/defs.js';
+import { pickScore, suggestedBans, teamRoles, presetRole } from '../presets.js';
+import { describeAbility } from './herotext.js';
+import { statBars } from './heroui.js';
+import { audio } from '../audio.js';
+
+const screen = () => document.getElementById('screen');
+export const AUTO_GRACE = 1.2; // seconds before a preset auto-pick locks in
+
+export class DraftView {
+  constructor(app) { this.app = app; this.sel = null; this.filter = 'all'; this.scroll = 0; this.promptTurn = -1; }
+
+  // REC / BAN? badges: best picks for the team, or the suggested bans.
+  recommend(d, me, t) {
+    if (!t || t.team !== me || d.done) return [];
+    if (t.act === 'ban') return suggestedBans(d, me, this.app.session.preset);
+    const tk = taken(d);
+    return HEROES.filter((x) => !tk.has(x.id) && legal(d, me, x.id)).map((x) => [pickScore(d, me, x), x.id]).filter((q) => q[0] > 0)
+      .sort((a, b) => b[0] - a[0] || (a[1] < b[1] ? -1 : 1)).slice(0, 3).map((q) => q[1]);
+  }
+  select(id) {
+    const s = this.app.session;
+    if (s.autoPick) this.app.cancelAutoPick();
+    this.sel = id; audio.sfx('move', 0.4); this.render();
+  }
+
+  render() {
+    const app = this.app, s = app.session, d = s.draft, me = s.myTeam;
+    const t = currentTurn(d), myTurn = !!t && t.team === me && s.mode !== 'watch';
+    const ban = !!t && t.act === 'ban', tk = taken(d);
+    const enemyPicks = d.picks[1 - Math.max(0, me)].map((id) => HERO_BY_ID[id]);
+    const recs = myTurn ? this.recommend(d, me, t) : [];
+    // a prompt for one role opens the grid on that role (once per turn)
+    if (s.pickPrompt && this.promptTurn !== d.turn) { this.promptTurn = d.turn; this.filter = s.pickPrompt.prompt; this.scroll = 0; this.sel = null; this.promptFilter = true; }
+    else if (!s.pickPrompt && this.promptFilter && this.promptTurn !== d.turn) { this.filter = 'all'; this.scroll = 0; this.promptFilter = false; }
+    const prevGrid = document.querySelector('.draft .grid'); if (prevGrid) this.scroll = prevGrid.scrollTop;
+
+    const teamBar = (team) => {
+      const picks = d.picks[team], bans = d.bans[team];
+      const roles = (team === me ? teamRoles(picks, s.preset) : assignRoles(picks)) || [];
+      const acting = t && t.team === team;
+      const pickSlots = Array.from({ length: 5 }, (_, i) => {
+        const id = picks[i], active = acting && t.act === 'pick' && i === picks.length;
+        const auto = active && team === me && s.autoPick;
+        return h('div', { class: 'slot' + (active ? ' active' : '') + (id ? ' filled' : '') + (auto ? ' auto' : '') },
+          id ? h('img', { src: face(id) }) : auto ? h('img', { class: 'ghost', src: face(s.autoPick.id) }) : null,
+          auto ? h('b', { class: 'acd', id: 'autocd' }, '') : null,
+          id ? h('span', { class: 'role' }, ROLE_LABEL[roles[i]] || '') : null);
+      });
+      const banSlots = Array.from({ length: 3 }, (_, i) => {
+        const id = bans[i], active = acting && t.act === 'ban' && i === bans.length;
+        return h('div', { class: 'slot ban' + (active ? ' active' : '') + (id ? ' filled' : '') }, id ? h('img', { src: face(id) }) : null);
+      });
+      return h('div', { class: 'dteam t' + team + (acting ? ' acting' : '') },
+        h('div', { class: 'tname' }, h('span', { class: 'tdot' }), h('span', { class: 'tn' }, s.names[team]), team === me ? h('small', {}, 'you') : null,
+          team === me && s.preset ? h('span', { class: 'lineup', title: 'Active lineup: picks lock in automatically' }, '★ ' + s.preset.name) : null),
+        h('div', { class: 'slots' }, h('div', { class: 'picks' }, pickSlots), h('div', { class: 'bans' }, banSlots)));
+    };
+    const left = Math.ceil(s.turnLeft ?? TURN_SECONDS);
+    const turnBox = h('div', { class: 'dturn' + (t ? ' t' + t.team : '') + (myTurn ? ' mine' : '') + (ban ? ' isban' : '') },
+      h('div', { class: 'what' }, d.done ? 'Draft complete!' : myTurn ? `YOUR ${ban ? 'BAN' : 'PICK'}` : `${s.names[t.team]} ${ban ? 'bans' : 'picks'}`),
+      d.done ? null : h('div', { class: 'timer', id: 'dtimer' }, String(left)),
+      d.done ? null : h('div', { class: 'tbar' }, h('i', { id: 'dtbar', style: { width: Math.max(0, left / TURN_SECONDS * 100) + '%' } })),
+      h('div', { class: 'mapname' }, (MAP_BY_ID[s.mapId] || MAPS[0]).name));
+
+    const counts = { all: HEROES.length }; for (const r of ROLES) counts[r] = HEROES.filter((x) => x.roles.includes(r)).length;
+    const tabs = h('div', { class: 'rtabs', role: 'tablist' }, ...['all', ...ROLES].map((r) => h('button', { class: 'rtab' + (this.filter === r ? ' on' : ''), role: 'tab',
+      onclick: () => { this.filter = r; this.scroll = 0; this.render(); } }, r === 'all' ? 'All' : ROLE_LABEL[r], h('small', {}, counts[r]))));
+    const banChips = myTurn && ban && recs.length ? h('div', { class: 'sugbans' }, h('span', { class: 'lab' }, 'Suggested bans'),
+      ...recs.map((id) => h('button', { class: 'sugban' + (this.sel === id ? ' on' : ''), onclick: () => this.select(id) }, h('img', { src: face(id) }), HERO_BY_ID[id].name))) : null;
+    const list = HEROES.filter((x) => this.filter === 'all' || x.roles.includes(this.filter));
+    list.sort((a, b) => (tk.has(a.id) ? 1 : 0) - (tk.has(b.id) ? 1 : 0) || (recs.includes(b.id) ? 1 : 0) - (recs.includes(a.id) ? 1 : 0));
+    const grid = h('div', { class: 'grid' }, ...list.map((x) => {
+      const off = tk.has(x.id), bad = !off && myTurn && !ban && !legal(d, me, x.id);
+      const ms = enemyPicks.length && !off ? matchupScore(x, enemyPicks).score : 0;
+      const pers = PERSONALITIES[x.pers], rec = recs.includes(x.id), mine = presetRole(s.preset, x.id);
+      return h('button', { class: 'hcard' + (off ? ' off' : '') + (bad ? ' bad' : '') + (this.sel === x.id ? ' sel' : '') + (rec ? ' rec' : ''), disabled: off,
+        style: { '--cc': CLANS[x.clan].color }, title: `${x.name} · ${CLANS[x.clan].name} · ${pers.name}`, onclick: () => { if (!off) this.select(x.id); } },
+        h('div', { class: 'fwrap' }, h('img', { src: face(x.id) }), ms ? h('span', { class: 'score ' + (ms > 0 ? 'pos' : 'neg') }, (ms > 0 ? '+' : '') + ms) : null,
+          mine ? h('span', { class: 'mine', title: 'In your lineup' }, '★') : null),
+        rec ? h('span', { class: 'recb' + (ban ? ' banb' : '') }, ban ? 'BAN?' : 'REC') : null,
+        h('div', { class: 'n' }, x.name));
+    }));
+    mount(screen(), h('div', { class: 'draft' + (ban && !d.done ? ' banphase' : '') + (myTurn ? ' myturn' : '') },
+      h('div', { class: 'dtop' }, teamBar(0), turnBox, teamBar(1)),
+      h('div', { class: 'dmain' },
+        h('div', { class: 'dpool' }, h('div', { class: 'dphead' }, tabs, banChips), grid),
+        this.side(enemyPicks, myTurn, t, recs))));
+    grid.scrollTop = this.scroll;
+    this.tickTimer(s.turnLeft ?? TURN_SECONDS);
+  }
+
+  side(enemyPicks, myTurn, t, recs) {
+    const app = this.app, s = app.session, d = s.draft, me = s.myTeam;
+    const wrap = (cls, body, foot) => h('div', { class: 'dside ' + cls }, h('div', { class: 'dsbody' }, body), foot ? h('div', { class: 'dsfoot' }, foot) : null);
+    // 1) preset auto-pick about to land
+    if (myTurn && s.autoPick && !this.sel) {
+      const a = s.autoPick, x = HERO_BY_ID[a.id];
+      return wrap('autop', [
+        h('div', { class: 'sidek' }, a.backup ? `Backup for ${ROLE_LABEL[a.role]}` : `Lineup pick · ${ROLE_LABEL[a.role]}`),
+        h('div', { class: 'ihead' }, h('div', { class: 'face' }, h('img', { src: face(a.id) })), h('div', { class: 'icol' }, h('h2', {}, x.name), h('div', { class: 't' }, x.title))),
+        a.backup ? h('div', { class: 'muted small' }, `${HERO_BY_ID[s.preset.main[a.role]].name} is gone, so your backup steps in.`) : null,
+        h('div', { class: 'autoline' }, 'Locking in ', h('b', { id: 'autocd2' }, ''), ' · tap any hero to choose yourself')],
+      [h('button', { class: 'btn big lockbtn', onclick: () => app.lockAutoPick() }, 'Lock now')]);
+    }
+    // 2) preset hero + backup gone: focused prompt for that role
+    if (myTurn && s.pickPrompt && !this.sel) {
+      const p = s.pickPrompt, role = p.prompt, pr = s.preset;
+      const gone = [pr.main[role], pr.backup[role]].filter(Boolean).map((id) => HERO_BY_ID[id].name);
+      return wrap('prompt', [
+        h('div', { class: 'sidek' }, `Pick your ${ROLE_LABEL[role]}`),
+        h('div', { class: 'muted small' }, gone.length ? `${gone.join(' and ')} ${gone.length > 1 ? 'are' : 'is'} gone. Recommended:` : 'Recommended:'),
+        h('div', { class: 'precs' }, ...p.recs.map((id) => { const x = HERO_BY_ID[id], ms = matchupScore(x, enemyPicks).score;
+          return h('button', { class: 'prec', onclick: () => app.draftAct(id) }, h('img', { src: face(id) }), h('span', { class: 'pn' }, x.name, h('small', {}, x.title)),
+            ms ? h('b', { class: ms > 0 ? 'pos' : 'neg' }, (ms > 0 ? '+' : '') + ms) : null, h('span', { class: 'go' }, 'Lock')); })),
+        h('div', { class: 'muted small' }, 'Or tap any hero in the grid.')]);
+    }
+    const id = this.sel;
+    if (!id) {
+      const need = ROLES.filter((r) => !(teamRoles(d.picks[Math.max(0, me)], s.preset) || []).includes(r)).map((r) => ROLE_LABEL[r]);
+      return wrap('empty', [
+        h('div', { class: 'hint' }, d.done ? 'Locked in. Prep starts soon...' : !myTurn ? 'Waiting for the other side...'
+          : t.act === 'ban' ? 'Your ban: remove a hero you fear.' : `Your pick. Still needed: ${need.join(', ')}`),
+        h('div', { class: 'muted small' }, myTurn && t.act === 'ban' ? (recs.length ? 'Suggested bans counter your lineup.' : 'Tap a hero to ban it.')
+          : recs.length && myTurn ? 'Heroes marked REC suit your draft.' : 'Tap a hero to see abilities and matchups.'),
+        !s.preset && me >= 0 && !d.done ? h('div', { class: 'muted small' }, 'Tip: set up a lineup in the Dojo and your picks lock in automatically.') : null]);
+    }
+    const x = HERO_BY_ID[id], pers = PERSONALITIES[x.pers], clan = CLANS[x.clan];
+    const ban = t && t.act === 'ban', canAct = myTurn && legal(d, me, id), mu = matchupScore(x, enemyPicks);
+    const inLineup = presetRole(s.preset, id);
+    return wrap('info' + (ban ? ' isban' : ''), [
+      h('div', { class: 'ihead' }, h('div', { class: 'face' }, h('img', { src: face(id) })),
+        h('div', { class: 'icol' }, h('h2', {}, x.name), h('div', { class: 't' }, `${x.roles.map((r) => ROLE_LABEL[r]).join(' / ')} · ${x.ranged ? 'Ranged' : 'Melee'}`),
+          h('div', { class: 'chips' }, h('span', { class: 'chipx', style: { '--cc': clan.color } }, clan.name), h('span', { class: 'chipx', style: { '--cc': pers.color }, title: pers.desc }, pers.name)))),
+      myTurn && ban && inLineup ? h('div', { class: 'warnline' }, `${x.name} is in your lineup (${ROLE_LABEL[inLineup]}).`) : null,
+      myTurn && !canAct ? h('div', { class: 'warnline' }, taken(d).has(id) ? 'Already banned or picked.' : 'Your team already covers this hero\'s roles.') : null,
+      statBars(id, true),
+      h('div', { class: 'abl' },
+        h('div', { class: 'ab' }, h('img', { src: icon('LuckUpgrade') }), h('div', {}, h('b', {}, x.passive.name), h('div', { class: 'd' }, x.passive.desc))),
+        ...x.abilities.map((a) => h('div', { class: 'ab' + (a.ult ? ' ult' : '') }, h('img', { src: icon(a.icon) }), h('div', {}, h('b', {}, (a.ult ? 'Ult: ' : '') + a.name), h('div', { class: 'd' }, describeAbility(a)))))),
+      enemyPicks.length ? h('div', { class: 'notes' }, ...(mu.notes.length ? mu.notes.map((n) => h('div', { class: /struggles|countered|into heavy/i.test(n) ? 'neg' : 'pos' }, n)) : [h('div', { class: 'muted' }, 'Neutral into their picks')])) : null],
+    myTurn ? [h('button', { class: 'btn big lockbtn' + (ban ? ' banbtn' : ''), disabled: !canAct, onclick: () => app.draftAct(id) }, (ban ? 'Ban ' : 'Lock ') + x.name)] : null);
+  }
+
+  tickTimer(left) {
+    const el = document.getElementById('dtimer');
+    if (el) { const v = String(Math.max(0, Math.ceil(left))); if (el.textContent !== v) { el.textContent = v; if (left < 6) { el.classList.remove('tick'); void el.offsetWidth; el.classList.add('tick'); } } }
+    const b = document.getElementById('dtbar'); if (b) b.style.width = Math.max(0, left / TURN_SECONDS * 100) + '%';
+    const a = this.app.session.autoPick;
+    if (a) { const v = Math.max(0, (a.at - performance.now()) / 1000).toFixed(1) + 's'; for (const k of ['autocd', 'autocd2']) { const e = document.getElementById(k); if (e) e.textContent = v; } }
+  }
+}

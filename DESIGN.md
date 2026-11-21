@@ -20,8 +20,8 @@
 | Phase | What you do |
 |---|---|
 | Lobby | Host gets a 5-letter room code (or play vs AI / watch AI vs AI). Pick a map or Random. |
-| **Draft** | Tournament bans/picks from 40 heroes, 5 roles. Clans and matchups are shown live. Any unbanned hero can be picked. |
-| **Prep** | Lanes, build path per hero, team plan, and **3 tactic cards** for your deck. |
+| **Draft** | Tournament bans/picks from 40 heroes, 5 roles. Bans are always manual (with suggested bans). With an active **lineup**, your picks lock in automatically (backup if the main is gone, a 3-hero prompt if both are). |
+| **Prep** | A quick confirm: lanes, builds, team plan and **3 tactic cards** come prefilled from your lineup; *Adjust* opens the editors. |
 | **Match** | 15:00 countdown. Make calls with your command charges; play your tactic cards. |
 | Results | MVP, stats, gold-lead graph, call log with outcomes. |
 
@@ -63,6 +63,10 @@ Objectives are **only started by your calls**. Junglers auto-smite to secure (or
 * **Clans:** Shinobi, Beast, Spirit, Iron, Wild. 2+ and 3+ of a clan give team bonuses.
 * **Personalities:** Reckless, Cautious, Greedy, Loyal, Hothead, Calm. These shape aggression, discipline, dodging, reaction time, greed, peel, and how fast they trust you.
 * **Builds:** Burst, Burn, Tank, Sustain, Crit, Haste, Guardian (5 items each). Pivot mid-game with a call.
+
+### Dojo
+Browse every hero: animated sprite, abilities in plain English, 0-10 ratings (Damage, Toughness, Control, Mobility, Range, Sustain, Difficulty; computed from hero data in `src/data/herostats.js` and spread across the roster), Strong vs / Weak vs, your own record, and skins.
+**Lineups:** 5 presets (`src/presets.js`), each with a hero + backup per role, builds, a team plan and 3 tactic cards. The starred lineup drives draft auto-picks and prep.
 
 ## 6. Coaching
 
