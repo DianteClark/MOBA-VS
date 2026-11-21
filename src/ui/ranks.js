@@ -5,6 +5,7 @@ import { SKINS, BANNERS, TITLES, rewardName } from '../data/seasons.js';
 import { profile } from '../profile.js';
 import { tierBadge } from './badges.js';
 import { audio } from '../audio.js';
+import { tweenNumber } from './juice.js';
 
 const bar = (frac, color) => h('div', { class: 'pbar' }, h('i', { style: { width: Math.round(Math.max(0, Math.min(1, frac)) * 100) + '%', background: color } }));
 const MODE_NOTE = { casual: 'Casual match: your rank is untouched.', rush: 'Lane Rush is casual: your rank is untouched.', rushOnline: 'Lane Rush is casual: your rank is untouched.' };
@@ -15,12 +16,21 @@ export function rankRow(sum) {
   return h('div', { class: 'prow rankrow' }, tierBadge(rk, 44),
     h('div', { class: 'col', style: { gap: '3px', flex: 1 } },
       h('div', { class: 'row', style: { justifyContent: 'space-between' } }, h('b', { style: { color: rk.tier.color } }, rk.label),
-        sum.rated ? h('b', { class: sum.delta >= 0 ? 'up' : 'down' }, `${sum.delta >= 0 ? '+' : ''}${sum.delta} (${sum.elo})`) : h('small', { class: 'muted' }, 'unranked')),
+        sum.rated ? delta(sum) : h('small', { class: 'muted' }, 'unranked')),
       bar(rk.into / rk.span, rk.tier.color),
       !sum.rated ? h('small', { class: 'muted' }, MODE_NOTE[sum.key] || 'This match did not count for rank.')
         : sum.promoted ? h('small', { class: 'gold' }, `Promoted to ${rk.label}!`) : sum.demoted ? h('small', { class: 'down' }, `Dropped to ${rk.label}`)
           : sum.capped ? h('small', { class: 'muted' }, 'This AI cannot take you higher: try a harder one or online ranked.')
             : h('small', { class: 'muted' }, rk.nextLabel ? `${rk.toNext} to ${rk.nextLabel}` : 'Top of the ladder')));
+}
+
+// "+18 (1018)": counts up from the old rating.
+function delta(sum) {
+  const el = h('b', { class: sum.delta >= 0 ? 'up' : 'down' });
+  const fmt = (v) => `${v >= 0 ? '+' : ''}${Math.round(v)} (${Math.round(sum.elo - sum.delta + v)})`;
+  el.textContent = fmt(sum.delta);
+  setTimeout(() => tweenNumber(el, 0, sum.delta, 900, fmt), 450);
+  return el;
 }
 
 // The promotion / demotion moment: a full-width card over the results with the badge swap.

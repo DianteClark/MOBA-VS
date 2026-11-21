@@ -18,6 +18,8 @@ import { settings, openSettingsModal, isTouch } from './settings.js';
 import { Caster } from './caster.js';
 import { buzz } from './haptics.js';
 import { QuickChat } from './quickchat.js';
+import { tweenNumber, pop } from './juice.js';
+import { CoachTips, tipsLeft } from './coachtips.js';
 
 const LANE_L = { top: 'Top', mid: 'Mid', bot: 'Bot' };
 const OBJ_L = OBJ_NAME;
@@ -47,6 +49,8 @@ export class Hud {
       for (const e of game.events) { if (e.type === 'kill') this.firstBlood = true; if (e.type === 'objective' && e.team >= 0 && e.team < 2) this.objTaken[e.team][e.obj]++; }
     }
     this.alerts = new Alerts(this);
+    // first matches: a few one-time coach tips in the tray (not for spectators or the Play of the Game)
+    if (myTeam >= 0 && mode !== 'watch' && tipsLeft()) this.tips = new CoachTips(this);
     if (runner.online && myTeam >= 0) this.enableChat((m) => app.net && app.net.t.send(m));
     this._popClose = (e) => { if (this.pop && !this.pop.el.contains(e.target)) this.closePop(); };
     window.addEventListener('pointerdown', this._popClose, true);
@@ -163,6 +167,7 @@ export class Hud {
     if (this.pop) this.pop.upd();
     if (now - this.lastAnalyst > 1000) { this.lastAnalyst = now; this.analyst(); }
     this.tickTicker();
+    if (this.tips) this.tips.tick();
     // halftime: decisions wait until play resumes
     if (this.holding() && this.my >= 0) { this.dock.tray.clear((it) => it.prio >= PRIO.request); this.unslow('call'); }
     this.kfItems = this.kfItems.filter((f) => { if (now - f.t > 9000) { f.el.classList.add('out'); setTimeout(() => f.el.remove(), 300); return false; } return true; });
@@ -190,7 +195,11 @@ export class Hud {
     set(c.kk, `${g.teams[0].kills} - ${g.teams[1].kills}`);
     for (let t = 0; t < 2; t++) {
       const sd = c.sides[t], team = g.teams[t];
-      set(sd.tw, g.towersStanding(t)); set(sd.kills, team.kills);
+      // a changed tally counts over and pops (juice; Reduced effects: plain update)
+      const tw = g.towersStanding(t);
+      if (sd.twV !== undefined && sd.twV !== tw) { tweenNumber(sd.tw, sd.twV, tw, 350); pop(sd.tw); } else if (sd.twV === undefined) set(sd.tw, tw);
+      if (sd.kV !== undefined && sd.kV !== team.kills) { tweenNumber(sd.kills, sd.kV, team.kills, 350); pop(sd.kills); pop(c.kk); } else if (sd.kV === undefined) set(sd.kills, team.kills);
+      sd.twV = tw; sd.kV = team.kills;
       // objective marks only change when something is taken: rebuild just this row, and only then
       const sig = team.dragons.join() + '|' + ot[t].herald + '|' + ot[t].baron + '|' + g.shrines.map((x) => x.owner === t ? 1 : 0).join('');
       if (sig === sd.sig) continue;
@@ -386,7 +395,7 @@ export class Hud {
   // Online quick chat (non-sim messages; see quickchat.js).
   enableChat(send) { if (!this.chat) this.chat = new QuickChat(this, send); return this.chat; }
   disableChat() { if (this.chat) { this.chat.destroy(); this.chat = null; } }
-  destroy() { if (Hud.current === this) Hud.current = null; this.closePop(); this.alerts.destroy(); this.disableChat(); clearTimeout(this._bt); document.getElementById('hud').classList.remove('bannering'); window.removeEventListener('pointerdown', this._popClose, true); }
+  destroy() { if (Hud.current === this) Hud.current = null; this.closePop(); if (this.tips) this.tips.destroy(); this.alerts.destroy(); this.disableChat(); clearTimeout(this._bt); document.getElementById('hud').classList.remove('bannering'); window.removeEventListener('pointerdown', this._popClose, true); }
   // The AI's own short reason for what it is doing (hero.why, e.g. "lane: hold behind wave"), for your own
   // heroes and spectators only: an enemy's reason would leak what the fog hides.
   whyText(x) {
@@ -518,6 +527,8 @@ export class Hud {
   // Caster line for a big moment (one ticker line; a multi-kill of 3+ also gets a banner).
   cast(e, team) {
     const l = this.caster.line(e); if (!l) return;
+    // a big kill (multi-kill, shutdown, ace) on screen: a beat of hit-stop and a camera punch
+    if (e.type === 'kill' && l.prio >= 4 && this.r.onScreen(e.x, e.y, 60) && this.r.visiblePoint(e.x, e.y)) this.r.impact(l.prio >= 6 ? 0.2 : 0.14, l.prio >= 6 ? 0.06 : 0.04);
     this.ticker(l.text, 'cast', l.prio);
     if (l.big) this.banner(l.big + '!', TEAM_COL[team] || '#ffd84a', 1500);
   }
@@ -579,12 +590,14 @@ export class Hud {
     while (this.el.kf.childElementCount > 5) this.el.kf.lastChild.remove();
   }
   // Banners queue up so a new one never cuts an old one off mid-animation.
-  banner(text, color, ms = 2200, img, urgent) {
+  // node: a custom card (Coach Moments) that jumps the queue without dropping the others.
+  banner(text, color, ms = 2200, img, urgent, node) {
     this.bq = this.bq || [];
     if (urgent) this.bq.length = 0;
-    this.bq.push({ text, color, ms, img });
-    if (this.bq.length > 3) this.bq.splice(0, this.bq.length - 3);
-    if (!this._bannerBusy || urgent) this.nextBanner();
+    const it = { text, color, ms, img, node };
+    if (node) this.bq.unshift(it); else this.bq.push(it);
+    if (this.bq.length > 3) { if (node) this.bq.splice(3); else this.bq.splice(0, this.bq.length - 3); }
+    if (!this._bannerBusy || urgent || node) this.nextBanner();
   }
   nextBanner() {
     clearTimeout(this._bt);
@@ -596,7 +609,8 @@ export class Hud {
     const ob = this.el.obj.getBoundingClientRect();
     if (ob.height) hud.style.setProperty('--banner-top', Math.round(ob.bottom + 3) + 'px');
     hud.classList.add('bannering');
-    const b = h('div', { class: 'big', style: { color: n.color } }, n.img ? h('img', { src: n.img }) : null, h('span', {}, n.text));
+    const b = n.node ? h('div', { class: 'big mfxb', style: { '--mc': n.color } }, n.node)
+      : h('div', { class: 'big', style: { color: n.color } }, n.img ? h('img', { src: n.img }) : null, h('span', {}, n.text));
     mount(this.el.banner, b);
     const ms = this.bq.length ? Math.min(n.ms, 1300) : n.ms;
     this._bt = setTimeout(() => { b.classList.add('out'); this._bt = setTimeout(() => this.nextBanner(), 380); }, ms);

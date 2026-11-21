@@ -97,16 +97,7 @@
 .tile.moment { border-color: var(--mc); }
 .tile.moment b { color: var(--mc); }
 .tile.moment.used { opacity: 0.35; }
-#momentfx { position: fixed; inset: 0; pointer-events: none; z-index: 40; display: grid; place-items: center; }
-#momentfx .mfx { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 46px; background: linear-gradient(90deg, transparent, #000c 15% 85%, transparent); animation: mfxIn 1.9s cubic-bezier(.2,1.4,.4,1) forwards; }
-#momentfx .mfx small { font-size: 11px; letter-spacing: 6px; color: #fff; opacity: 0.85; }
-#momentfx .mfx b { font-weight: normal; font-size: 40px; color: var(--mc); text-shadow: 0 3px 0 #000, 0 0 18px var(--mc); letter-spacing: 2px; }
-#momentfx .mfx span { font-size: 11px; color: var(--ink); }
-#momentfx .mring { position: absolute; width: 60px; height: 60px; border: 4px solid var(--mc); border-radius: 50%; animation: mRing 0.9s ease-out forwards; }
-@keyframes mfxIn { 0% { transform: scale(2.2); opacity: 0; } 14% { transform: scale(0.95); opacity: 1; } 22% { transform: scale(1); } 82% { opacity: 1; } 100% { opacity: 0; transform: scale(1.04); } }
-@keyframes mRing { to { width: 120vmax; height: 120vmax; opacity: 0; border-width: 1px; } }
-@media (max-height: 450px) { #momentfx .mfx b { font-size: 26px; } #momentfx .mfx { padding: 6px 30px; } .momentbtn { min-width: 38px; padding: 1px 4px; } .momentbtn img { width: 16px; height: 16px; } .momentbtn .ml { font-size: 7px; } }
-@media (prefers-reduced-motion: reduce) { #momentfx .mring { display: none; } #momentfx .mfx { animation-duration: 1.6s; } }
+@media (max-height: 450px) { .momentbtn { min-width: 38px; padding: 1px 4px; } .momentbtn img { width: 16px; height: 16px; } .momentbtn .ml { font-size: 7px; } }
 
 /* ── build chips: one-line description popover ── */
 .bdesc-pop { position: fixed; z-index: 95; max-width: min(320px, 86vw); padding: 6px 10px; font-size: 11px; line-height: 1.35; color: var(--ink); background: #120d1af2; border: 2px solid var(--bc, var(--gold)); box-shadow: 0 4px 0 #000a; pointer-events: none; animation: bdIn 0.12s ease-out; }

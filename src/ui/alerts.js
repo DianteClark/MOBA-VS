@@ -8,7 +8,7 @@ import { settings } from './settings.js';
 import { placeName } from './moments.js';
 import { onViewport } from '../render/viewport.js';
 
-const PANEL_IDS = ['banner', 'myteam', 'topcenter', 'rightcol', 'foestrip', 'brcol', 'cmdbar', 'detail'];
+const PANEL_IDS = ['banner', 'myteam', 'topcenter', 'rightcol', 'foestrip', 'brcol', 'cmdbar', 'detail', 'qfeed'];
 const SIZE = 46, EDGE = 8;
 
 export class Alerts {
@@ -99,7 +99,7 @@ export class Alerts {
     this.rectsAt = now; const rs = [];
     for (const id of PANEL_IDS) {
       const e = document.getElementById(id); if (!e || !e.offsetParent) continue;
-      const kids = ['cmdbar', 'topcenter', 'brcol', 'banner'].includes(id) ? [...e.children].filter((k) => k.offsetParent) : [e];
+      const kids = ['cmdbar', 'topcenter', 'brcol', 'banner', 'qfeed'].includes(id) ? [...e.children].filter((k) => k.offsetParent) : [e];
       for (const k of kids) { const b = k.getBoundingClientRect(); if (b.width > 0 && b.height > 0) rs.push({ l: b.left - 4, t: b.top - 4, r: b.right + 4, b: b.bottom + 4 }); }
     }
     this.rects = rs; return rs;

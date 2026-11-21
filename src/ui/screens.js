@@ -13,6 +13,7 @@ import { IMG } from '../render/assets.js';
 import { ladderPanel } from './online.js';
 import { TEAM_COL } from '../render/palette.js';
 import { audio } from '../audio.js';
+import { tweenNumber, growBars } from './juice.js';
 
 // Tiny map previews from the terrain grid (cheap: 100x100 pixels).
 const thumbs = {};
@@ -213,9 +214,9 @@ export function showResults(app, g, myTeam, onAgain, onMenu, extra = {}) {
   mount(screen(), h('div', { class: 'results' },
     h('div', { class: 'verdict ' + vcls }, verdict),
     h('div', { class: 'vsub muted' }, timeout ? `Decided on time: ${timeTiebreak(g)} · ` : '', `Game length ${fmtTime(g.time)}`),
+    extra.progress || null,
     potgEl || repEl ? h('div', { class: 'rrow' }, potgEl, repEl) : null,
     mvpCard,
-    extra.progress || null,
     extra.ladder ? ladderPanel(extra.ladder) : null,
     table(0), table(1),
     h('div', { class: 'panel' }, h('div', { class: 'rth' }, h('b', {}, 'Gold lead'), h('span', { class: 'rstats' }, 'Blue above / Red below')), graph),
@@ -223,6 +224,9 @@ export function showResults(app, g, myTeam, onAgain, onMenu, extra = {}) {
     h('div', { class: 'rbtns' }, extra.share ? h('button', { class: 'btn big sharebtn', onclick: extra.share }, 'Share') : null, onAgain ? h('button', { class: 'btn big', onclick: onAgain }, extra.againLabel || 'Play again') : null, app.lastReplay && app.lastReplay() && !app.session.replay ? h('button', { class: 'btn big', onclick: () => app.watchReplay() }, 'Watch replay') : null, h('button', { class: 'btn big', onclick: onMenu }, 'Main menu')),
   ));
   requestAnimationFrame(() => drawGoldGraph(graph, g));
+  growBars(screen().querySelector('.results .prog'), 300);
+  // the MVP's numbers count up
+  for (const b of screen().querySelectorAll('.mvpstats b')) { const m = /^(\d+)$/.exec(b.textContent); if (m) tweenNumber(b, 0, +m[1], 900); }
 }
 function drawGoldGraph(c, g) {
   const r = c.getBoundingClientRect(); c.width = r.width; c.height = r.height;

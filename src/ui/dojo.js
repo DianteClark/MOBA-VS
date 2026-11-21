@@ -17,11 +17,12 @@ import { masteryPanel } from './mastery.js';
 import { masteryBadge } from './badges.js';
 import { duoSection } from './comp.js';
 import { SEASON_REWARDS, tierById } from '../data/ranks.js';
+import { searchBox, applySearch } from './herosearch.js';
 
 const screen = () => document.getElementById('screen');
 const tap = () => audio.sfx('move', 0.4);
 const CURVE = { early: 'Strong early', mid: 'Mid-game peak', late: 'Scales late' };
-let state = { tab: 'heroes', role: 'all', clan: 'all', hero: null, slot: 0 };
+let state = { tab: 'heroes', role: 'all', clan: 'all', q: '', hero: null, slot: 0 };
 
 export function showDojo(app, patch = {}) {
   state = { ...state, ...patch };
@@ -43,18 +44,23 @@ function heroList(app) {
   const lineup = profile.activePreset;
   const list = HEROES.filter((x) => (state.role === 'all' || x.roles.includes(state.role)) && (state.clan === 'all' || x.clan === state.clan))
     .sort((a, b) => (state.role === 'all' ? 0 : (a.role === state.role ? 0 : 1) - (b.role === state.role ? 0 : 1)));
-  return h('div', { class: 'col' },
+  const grid = h('div', { class: 'dgrid' }, ...list.map((x) => {
+    const r = record(x.id), mine = presetRole(lineup, x.id);
+    return h('button', { class: 'dcard', 'data-hero': x.id, style: { '--cc': CLANS[x.clan].color }, onclick: () => { tap(); showDojo(app, { hero: x.id }); } },
+      h('img', { src: face(x.id) }), h('b', {}, x.name), h('small', {}, x.roles.map((q) => ROLE_LABEL[q]).join(' / ')),
+      masteryBadge(profile.mastery(x.id).lv), r ? h('span', { class: 'drec' }, `${r.w}-${r.g - r.w}`) : null, mine ? h('span', { class: 'mine', title: 'In your active lineup' }, '★') : null);
+  }));
+  const none = emptyState('assets/img/emote/doubt.png', 'No heroes match', 'Try another role, clan or search.');
+  const filter = () => { none.classList.toggle('hidden', applySearch(grid, (id) => HERO_BY_ID[id], state.q) > 0); };
+  const out = h('div', { class: 'col' },
     h('div', { class: 'dfilters' },
-      h('div', { class: 'rtabs' }, ...['all', ...ROLES].map((r) => h('button', { class: 'rtab' + (state.role === r ? ' on' : ''), onclick: () => { tap(); showDojo(app, { role: r }); } }, r === 'all' ? 'All' : ROLE_LABEL[r]))),
+      h('div', { class: 'rtabs' }, ...['all', ...ROLES].map((r) => h('button', { class: 'rtab' + (state.role === r ? ' on' : ''), onclick: () => { tap(); showDojo(app, { role: r }); } }, r === 'all' ? 'All' : ROLE_LABEL[r])),
+        searchBox(state.q, (q) => { state.q = q; filter(); })),
       h('div', { class: 'clanf' }, h('button', { class: 'cf' + (state.clan === 'all' ? ' on' : ''), onclick: () => showDojo(app, { clan: 'all' }) }, 'All clans'),
         ...Object.entries(CLANS).map(([k, c]) => h('button', { class: 'cf' + (state.clan === k ? ' on' : ''), style: { '--cc': c.color }, onclick: () => { tap(); showDojo(app, { clan: k }); } }, c.name)))),
-    h('div', { class: 'dgrid' }, ...list.map((x) => {
-      const r = record(x.id), mine = presetRole(lineup, x.id);
-      return h('button', { class: 'dcard', style: { '--cc': CLANS[x.clan].color }, onclick: () => { tap(); showDojo(app, { hero: x.id }); } },
-        h('img', { src: face(x.id) }), h('b', {}, x.name), h('small', {}, x.roles.map((q) => ROLE_LABEL[q]).join(' / ')),
-        masteryBadge(profile.mastery(x.id).lv), r ? h('span', { class: 'drec' }, `${r.w}-${r.g - r.w}`) : null, mine ? h('span', { class: 'mine', title: 'In your active lineup' }, '★') : null);
-    })),
-    list.length ? null : emptyState('assets/img/emote/doubt.png', 'No heroes match', 'Try another role or clan filter.'));
+    grid, none);
+  filter();
+  return out;
 }
 
 // ───────────── hero page ─────────────

@@ -4,7 +4,7 @@
 // Visual language: gold = act now, red = danger, team colour = one of your heroes.
 import { h, mount } from './dom.js';
 
-export const PRIO = { call: 50, request: 40, surge: 30, payoff: 20, danger: 15, sug: 10 };
+export const PRIO = { call: 50, request: 40, surge: 30, tip: 25, payoff: 20, danger: 15, sug: 10 };
 
 export class Tray {
   constructor(el) { this.el = el; this.items = []; this.cur = null; this.seq = 0; }

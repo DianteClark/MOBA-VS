@@ -34,6 +34,7 @@ import { findPOTG, reportCard } from './ui/moments.js';
 import { rankMoment } from './ui/ranks.js';
 import { installBuildTips } from './ui/buildguide.js';
 import { saveClip, clipSupport } from './ui/clip.js';
+import { installPressSounds, tokRecent, confetti } from './ui/juice.js';
 
 const VERSION = 10; // bump whenever the sim or balance changes (peers must match)
 const PREP_SECONDS = 60;
@@ -63,6 +64,8 @@ class App {
 
   async boot() {
     audio.init();
+    audio.pressed = tokRecent;
+    installPressSounds();
     installBuildTips();
     const bar = document.querySelector('#loading .barw i');
     await loadAssets((p) => { bar.style.width = Math.round(p * 100) + '%'; }, true);
@@ -590,6 +593,8 @@ class App {
       this.lastResults = { args, session: s, src, potg };
       showResults(...args);
       if (sum) setTimeout(() => rankMoment(sum), 900);
+      // confetti only for a real win of your own (a promotion brings its own with the rank card)
+      if (won && s.myTeam >= 0 && !s.replay && !(sum && sum.promoted)) setTimeout(() => confetti(), 350);
     });
   }
   // ───────────── Play of the Game ─────────────
