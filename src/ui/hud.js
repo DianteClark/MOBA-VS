@@ -8,32 +8,19 @@ import { TACTICS } from '../data/tactics.js';
 import { CMD, DRAGON_INFO, TEAM_NAME, TICK_RATE, T, OBJ_NAME, WEATHER, CLANS, xpNeeded } from '../sim/constants.js';
 import { TEAM_COL } from '../render/renderer.js';
 import { audio } from '../audio.js';
+import { Dock } from './commands.js';
 
 const LANES = ['top', 'mid', 'bot'];
 const LANE_L = { top: 'Top', mid: 'Mid', bot: 'Bot' };
 const OBJ_L = OBJ_NAME;
 const BOSS_FACE = { dragon: 'boss/dragon_green_faceset', herald: 'boss/herald_faceset', baron: 'boss/baron_faceset' };
-const CALLS = [
-  { type: 'gank', label: 'Gank', icon: 'Cut', key: 'g', tip: 'Send a hero (default: jungler) to gank a lane' },
-  { type: 'objective', label: 'Objective', icon: 'OrbFire', key: 'o', tip: 'Team groups to take Kami, Oni or Kraken' },
-  { type: 'shrine', label: 'Shrine', icon: 'OrbLight', key: 'k', tip: 'Capture a river shrine' },
-  { type: 'group', label: 'Group', icon: 'Upgrade', key: 'r', tip: 'Group up and push a lane' },
-  { type: 'split', label: 'Split', icon: 'BookWind', key: 'p', tip: 'One hero split-pushes a lane' },
-  { type: 'focus', label: 'Focus', icon: 'Death', key: 'f', tip: 'Everyone targets one enemy for 20s' },
-  { type: 'safe', label: 'Safe', icon: 'DefenseUpgrade', key: 'x', tip: 'Hold under towers for 22s' },
-  { type: 'reset', label: 'Reset', icon: 'Heal', key: 'b', tip: 'Everyone recalls and shops' },
-  { type: 'invade', label: 'Invade', icon: 'Camouflage', key: 'i', tip: 'Jungler + 1 steal an enemy camp' },
-  { type: 'herald', label: 'Oni', icon: 'Counter', key: 'h', tip: 'Unleash the Oni in a lane' },
-  { type: 'build', label: 'Build', icon: 'Alchemy', key: 'u', tip: 'Change a hero\'s future items' },
-  { type: 'cancel', label: 'Cancel', icon: 'Downgrade', key: 'c', tip: 'Cancel active calls' },
-];
 const byId = (id) => document.getElementById(id);
 
 export class Hud {
   constructor(app, game, runner, renderer, minimap, myTeam, mode) {
     this.app = app; this.g = game; this.runner = runner; this.r = renderer; this.mm = minimap;
     this.my = myTeam; this.view = myTeam < 0 ? 0 : myTeam; this.mode = mode;
-    this.evIdx = 0; this.picker = null; this.director = false; this.sel = null;
+    this.evIdx = 0; this.director = false; this.sel = null;
     this.lastDom = 0; this.lastAnalyst = 0; this.cool = {}; this.missing = {}; this.feedItems = []; this.kfItems = [];
     this.firstBlood = false;
     this.el = { score: byId('scorebar'), obj: byId('objtimers'), mine: byId('myteam'), enemy: byId('enemyteam'), feed: byId('feed'), kf: byId('killfeed'),
@@ -48,7 +35,7 @@ export class Hud {
     const g = this.g;
     const card = (hero, mine) => {
       const pers = PERSONALITIES[hero.def.pers];
-      const row = h('div', { class: 'hrow' + (mine ? ' mine' : ''), onclick: () => this.selectHero(hero), title: `${hero.def.name} · ${pers.name}` },
+      const row = h('div', { class: 'hrow' + (mine ? ' mine' : ''), onclick: () => { this.selectHero(hero); if (this.my >= 0) { if (this.r.follow === hero.id) this.dock.open('hero:' + hero.id); else this.dock.close(); } }, title: `${hero.def.name} · ${pers.name}` },
         h('div', { class: 'pf' }, h('img', { src: face(hero.heroId) }), h('div', { class: 'lv' }, '1'), h('div', { class: 'dead hidden' }, ''), h('div', { class: 'ultdot hidden', title: 'Ultimate ready' })),
         h('div', { class: 'info2' },
           h('div', { class: 'nm' }, h('span', { style: { color: TEAM_COL[hero.team] } }, hero.def.name), h('span', { class: 'kda' }, '0/0/0')),
@@ -82,7 +69,8 @@ export class Hud {
       h('button', { class: 'btn small', onclick: () => this.app.quitMatch() }, 'Quit')));
     mount(this.el.ctrl, ctrl);
     this.refreshCtrl();
-    this.renderCmd();
+    this.dock = new Dock(this);
+    this.buildObjBar();
   }
   refreshCtrl() {
     for (const b of this.el.ctrl.querySelectorAll('.spd')) b.classList.toggle('on', b._s === 0 ? this.runner.paused : (!this.runner.paused && this.runner.speed === b._s));
@@ -97,125 +85,25 @@ export class Hud {
     this.director = false; this.refreshCtrl(); this.renderDetail(true);
   }
 
-  // ───────────────────────── commands ─────────────────────────
-  canAfford(type) { return this.my >= 0 && this.g.teams[this.my].charges + 1e-9 >= (CMD.cost[type] ?? 1); }
-  send(cmd) {
-    if (this.my < 0) return;
-    if (!this.canAfford(cmd.type)) { toast('Not enough command charges'); audio.sfx('cancel', 0.6); return; }
-    this.runner.send(cmd);
-    this.picker = null; this.renderCmd();
-    audio.sfx('call', 0.8);
-    const p = this.callPoint(cmd); this.mm.ping(p[0], p[1], TEAM_COL[this.my]);
-  }
+  // ───────────────────────── commands (see commands.js) ─────────────────────────
+  send(cmd) { return this.dock.send(cmd); }
   callPoint(c) {
     const W = this.g.world;
     if (c.obj) { const p = c.obj === 'dragon' ? W.pits.kami : W.pits.kraken; return [p.x, p.y]; }
-    if (c.type === 'shrine' && c.shrine !== undefined) { const s = W.shrines[c.shrine]; return [s.x, s.y]; }
+    if (c.type === 'shrine' && c.shrine !== undefined) { const s = this.g.shrines[c.shrine]; return [s.x, s.y]; }
+    if (c.type === 'focus') { const u = this.g.byId(c.target); if (u) return [u.x, u.y]; }
     if (c.lane) { const p = W.lanePoint(c.lane, 0.5); return [p.x, p.y]; }
     return [this.r.cam.x, this.r.cam.y];
-  }
-  openPicker(type) {
-    if (this.my < 0) return;
-    if (['safe', 'reset', 'invade', 'cancel'].includes(type)) { this.send({ type }); return; }
-    this.picker = this.picker && this.picker.type === type ? null : { type, hero: null };
-    audio.sfx('move', 0.5);
-    this.renderCmd();
-  }
-  renderCmd() {
-    const g = this.g;
-    if (this.my < 0) { mount(this.el.cmd, h('div', { class: 'cmdrow spectate' }, 'Spectating — drag to look around, tap a portrait to follow.')); return; }
-    const team = g.teams[this.my];
-    const pips = h('div', { class: 'pips' }, ...Array.from({ length: CMD.maxCharges }, () => h('div', { class: 'pip' }, h('i'))));
-    this.pips = pips;
-    const btns = CALLS.filter((c) => c.type !== 'herald' || team.heraldEye > g.tick).map((c) => {
-      const cost = CMD.cost[c.type];
-      const b = h('button', { class: 'btn cbtn' + (this.picker && this.picker.type === c.type ? ' on' : ''), onclick: () => this.openPicker(c.type), title: `${c.tip} [${c.key.toUpperCase()}]` },
-        h('img', { src: icon(c.icon) }), h('span', { class: 'l' }, c.label), h('span', { class: 'cost' }, ...Array.from({ length: cost }, () => h('i'))));
-      b._type = c.type; return b;
-    });
-    this.cmdBtns = btns;
-    const cards = h('div', { class: 'cardrow' }, ...team.deck.map((d) => {
-      const t = TACTICS[d.id];
-      return h('button', { class: 'tcard' + (d.used ? ' used' : '') + (this.picker && this.picker.type === 'tactic' && this.picker.card === d.id ? ' on' : ''), disabled: d.used, title: t.desc,
-        onclick: () => { if (t.target === 'none') this.send({ type: 'tactic', card: d.id }); else { this.picker = { type: 'tactic', card: d.id }; this.renderCmd(); } } },
-        h('img', { src: icon(t.icon) }), h('span', {}, t.name));
-    }));
-    this._deckSig = team.deck.map((d) => d.used ? 1 : 0).join('');
-    this._hasEye = team.heraldEye > g.tick;
-    const row = h('div', { class: 'cmdrow' }, h('div', { class: 'meter', title: '+1 charge every 20s' }, pips, h('span', {}, 'CALLS')), ...btns);
-    mount(this.el.cmd, this.picker ? this.pickerEl() : null, cards, row);
-    this.updatePips();
-  }
-  heroPick(list, onPick, selId, disabled) {
-    return h('div', { class: 'opts' }, ...list.map((x) => h('div', { class: 'pf-btn' + (selId === x.id ? ' sel' : '') + (disabled && disabled(x) ? ' dis' : ''), onclick: () => { if (!(disabled && disabled(x))) onPick(x); } },
-      h('img', { src: face(x.heroId) }), x.def.name)));
-  }
-  pickerEl() {
-    const g = this.g, p = this.picker, mine = g.teams[this.my].heroes, enemy = g.teams[1 - this.my].heroes;
-    const laneBtns = (fn) => h('div', { class: 'opts' }, ...LANES.map((l) => h('button', { class: 'btn', onclick: () => fn(l) }, LANE_L[l])));
-    const box = (q, ...kids) => h('div', { class: 'picker' }, h('div', { class: 'q' }, h('span', {}, q), h('button', { class: 'x', title: 'Close', onclick: () => { this.picker = null; this.renderCmd(); } }, 'x')), ...kids);
-    switch (p.type) {
-      case 'gank': {
-        const jg = mine.find((x) => x.role === 'jungle');
-        const who = p.hero || (jg && jg.alive ? jg : mine.find((x) => x.alive));
-        return box('Who ganks, and which lane?', this.heroPick(mine, (x) => { p.hero = x; this.renderCmd(); }, who && who.id, (x) => !x.alive), laneBtns((l) => this.send({ type: 'gank', lane: l, hero: who && who.id })));
-      }
-      case 'objective': {
-        const opt = (k) => {
-          const o = g.objectives[k]; const tmr = g.objTimers[k];
-          let st = o && o.alive ? 'UP' : tmr ? fmtTime(Math.max(0, (tmr - g.tick) / TICK_RATE)) : '—';
-          if (k === 'herald' && g.time > T.heraldDespawn) st = 'gone';
-          if (k === 'baron' && !o && g.time < T.baronFirst) st = fmtTime(T.baronFirst - g.time);
-          const name = k === 'dragon' && o ? DRAGON_INFO[o.element].name : OBJ_L[k];
-          return h('button', { class: 'btn objbtn', disabled: st === 'gone' || st === '—' || !g.objAvailable(k), title: g.objAvailable(k) ? '' : 'Available 0:25 before it spawns', onclick: () => this.send({ type: 'objective', obj: k }) }, h('img', { src: `assets/img/${BOSS_FACE[k]}.png` }), h('span', {}, `${name} · ${st}`));
-        };
-        return box('Take which objective? (team groups up · 2 charges)', h('div', { class: 'opts' }, opt('dragon'), opt('herald'), opt('baron')));
-      }
-      case 'shrine': {
-        const opt = (sh) => h('button', { class: 'btn', disabled: sh.owner === this.my || g.time < T.shrineUnlock, onclick: () => this.send({ type: 'shrine', shrine: sh.id }) },
-          `${sh.id === this.my ? 'Home' : 'Far'} shrine · ${sh.owner === this.my ? 'ours' : sh.owner < 0 ? 'neutral' : 'theirs'}`);
-        return box('Capture which shrine? (+5% team damage, vision, healing)', h('div', { class: 'opts' }, ...g.shrines.map(opt)));
-      }
-      case 'group': return box('Group up and push which lane?', laneBtns((l) => this.send({ type: 'group', lane: l })));
-      case 'herald': return box('Unleash the Oni in which lane?', laneBtns((l) => this.send({ type: 'herald', lane: l })));
-      case 'split': {
-        if (!p.hero) return box('Who split-pushes?', this.heroPick(mine, (x) => { p.hero = x; this.renderCmd(); }, null, (x) => !x.alive));
-        return box(`${p.hero.def.name} splits which lane?`, laneBtns((l) => this.send({ type: 'split', hero: p.hero.id, lane: l })));
-      }
-      case 'tactic': {
-        const t = TACTICS[p.card];
-        if (t.target === 'lane') return box(`${t.name}: which lane?`, laneBtns((l) => this.send({ type: 'tactic', card: p.card, lane: l })));
-        return box(`${t.name}: which hero?`, this.heroPick(mine, (x) => this.send({ type: 'tactic', card: p.card, hero: x.id }), null, (x) => !x.alive));
-      }
-      case 'focus': return box('Focus which enemy? (20s)', this.heroPick(enemy, (x) => this.send({ type: 'focus', target: x.id }), null, (x) => !x.alive));
-      case 'build': {
-        if (!p.hero) return box('Change whose build path?', this.heroPick(mine, (x) => { p.hero = x; this.renderCmd(); }));
-        const x = p.hero;
-        return box(`${x.def.name}: future items follow…`, h('div', { class: 'opts' }, ...x.def.builds.map((b) => h('button', { class: 'btn' + (x.build === b ? ' on' : ''), disabled: x.build === b, onclick: () => this.send({ type: 'build', hero: x.id, build: b }) }, BUILDS[b].name))));
-      }
-    }
-    return null;
-  }
-  updatePips() {
-    if (!this.pips || this.my < 0) return;
-    const c = this.g.teams[this.my].charges;
-    [...this.pips.children].forEach((p, i) => { const f = Math.max(0, Math.min(1, c - i)); p.firstChild.style.height = f * 100 + '%'; p.classList.toggle('full', f >= 1); });
-    if (this.cmdBtns) for (const b of this.cmdBtns) b.disabled = !this.canAfford(b._type);
   }
 
   // ───────────────────────── per frame ─────────────────────────
   update(dt) {
     const g = this.g, now = performance.now();
     this.processEvents();
-    this.updatePips();
     if (this.director) this.directorCam(dt);
     if (now - this.lastDom < 120) return;
     this.lastDom = now;
-    if (this.my >= 0) {
-      const team = g.teams[this.my];
-      if ((team.heraldEye > g.tick) !== this._hasEye || team.deck.map((d) => d.used ? 1 : 0).join('') !== this._deckSig) this.renderCmd();
-      if (this.picker && this.picker.type === 'objective' && g.tick % 20 < 3) this.renderCmd();
-    }
+    this.dock.tick();
     this.updateScore();
     this.updateRows(this.mineRows, true);
     this.updateRows(this.enemyRows, false);
@@ -239,17 +127,37 @@ export class Hud {
         h('div', { class: 'mid' }, h('div', { class: 'clock' + (late ? ' late' : '') }, fmtTime(left)), h('div', { class: 'wx', title: WEATHER[wx].desc || '' }, WEATHER[wx].name)),
         h('div', { class: 'side red' }, h('div', { class: 'tw', title: 'Towers standing' }, g.towersStanding(1), h('i', { class: 'ticon' })), h('div', { class: 'meta' }, pips(t1), h('span', {}, 'kills'), h('b', {}, t1.kills))));
     }
-    const ot = (k) => {
-      const o = g.objectives[k]; const tmr = g.objTimers[k];
-      if (k === 'herald' && (g.time > T.heraldDespawn || g.objectives.baron)) return null;
-      if (k === 'baron' && g.time < T.heraldDespawn - 60 && !o) return null;
-      const up = o && o.alive;
-      const label = k === 'dragon' ? (up ? DRAGON_INFO[o.element].short : DRAGON_INFO[g.teams.some((t) => t.soul) ? 'elder' : g.nextDragon].short) : OBJ_L[k];
-      const st = up ? 'UP' : tmr ? fmtTime(Math.max(0, (tmr - g.tick) / TICK_RATE)) : '—';
-      return h('div', { class: 'ot' + (up ? ' up' : '') }, h('img', { src: `assets/img/${BOSS_FACE[k]}.png` }), h('span', {}, label), h('b', {}, st));
-    };
-    const shr = g.shrines.map((sh) => h('div', { class: 'ot', title: 'River shrine' }, h('span', { class: 'shr', style: { background: sh.owner >= 0 ? TEAM_COL[sh.owner] : '#ffe9a8' } }), h('b', {}, sh.owner < 0 ? '—' : sh.owner === this.view ? 'Ours' : 'Theirs')));
-    mount(this.el.obj, ot('dragon'), ot('herald'), ot('baron'), ...shr);
+    this.updateObjBar();
+  }
+
+  // Objective / shrine timers: built once, updated in place (no image reloads, no flicker).
+  buildObjBar() {
+    const g = this.g;
+    this.objCells = ['dragon', 'herald', 'baron'].map((k) => {
+      const img = h('img', { src: `assets/img/${BOSS_FACE[k]}.png` }), lab = h('span', {}), val = h('b', {});
+      const el = h('div', { class: 'ot', title: OBJ_L[k], onclick: () => this.my >= 0 && this.dock.open('objective') }, img, lab, val);
+      return { k, el, lab, val };
+    });
+    this.shrCells = g.shrines.map((sh) => { const dot = h('span', { class: 'shr' }), val = h('b', {}); return { sh, dot, val, el: h('div', { class: 'ot', title: 'River shrine', onclick: () => this.my >= 0 && this.dock.press('shrine') }, dot, val) }; });
+    mount(this.el.obj, this.objCells.map((c) => c.el), this.shrCells.map((c) => c.el));
+  }
+  updateObjBar() {
+    const g = this.g, set = (el, v) => { if (el.textContent !== v) el.textContent = v; };
+    for (const c of this.objCells) {
+      const k = c.k, o = g.objectives[k], tmr = g.objTimers[k];
+      const hide = (k === 'herald' && (g.time > T.heraldDespawn || g.objectives.baron)) || (k === 'baron' && g.time < T.heraldDespawn - 60 && !o);
+      c.el.classList.toggle('hidden', !!hide); if (hide) continue;
+      const up = !!(o && o.alive);
+      set(c.lab, k === 'dragon' ? (up ? DRAGON_INFO[o.element].short : DRAGON_INFO[g.teams.some((t) => t.soul) ? 'elder' : g.nextDragon].short) : OBJ_L[k]);
+      set(c.val, up ? 'UP' : tmr ? fmtTime(Math.max(0, (tmr - g.tick) / TICK_RATE)) : '—');
+      c.el.classList.toggle('up', up);
+      c.el.classList.toggle('soon', !up && !!tmr && tmr - g.tick < 30 * TICK_RATE);
+    }
+    for (const c of this.shrCells) {
+      const bg = c.sh.owner >= 0 ? TEAM_COL[c.sh.owner] : '#ffe9a8';
+      if (c.dot.style.background !== bg) c.dot.style.background = bg;
+      set(c.val, c.sh.owner < 0 ? '—' : c.sh.owner === this.view ? 'Ours' : 'Theirs');
+    }
   }
 
   taskLabel(x) {
@@ -379,8 +287,8 @@ export class Hud {
           break;
         }
         case 'victory':
-          if (e.timeout) this.banner(`TIME!  ${e.towers[0]} - ${e.towers[1]} TOWERS`, '#ffd84a', 1500);
-          setTimeout(() => this.banner(this.my < 0 ? `${TEAM_NAME[e.team].toUpperCase()} WINS` : e.team === this.my ? 'VICTORY' : 'DEFEAT', e.team === this.my || this.my < 0 ? TEAM_COL[e.team] : '#ff5a5a', 4000), e.timeout ? 1600 : 0);
+          if (e.timeout) this.banner(`TIME!  ${e.towers[0]} - ${e.towers[1]} TOWERS`, '#ffd84a', 1500, null, true);
+          this.banner(this.my < 0 ? `${TEAM_NAME[e.team].toUpperCase()} WINS` : e.team === this.my ? 'VICTORY' : 'DEFEAT', e.team === this.my || this.my < 0 ? TEAM_COL[e.team] : '#ff5a5a', 4000, null, !e.timeout);
           audio.sfx(e.team === this.my || this.my < 0 ? 'objective' : 'death');
           break;
         case 'ultCast': if (e.team === this.view || this.my < 0) audio.sfx('magic', 0.5, 300); break;
@@ -404,10 +312,23 @@ export class Hud {
     this.el.kf.prepend(el); this.kfItems.push({ el, t: performance.now() });
     while (this.el.kf.childElementCount > 5) this.el.kf.lastChild.remove();
   }
-  banner(text, color, ms = 2200, img) {
-    const b = h('div', { class: 'big', style: { color } }, img ? h('img', { src: img }) : null, h('span', {}, text));
+  // Banners queue up so a new one never cuts an old one off mid-animation.
+  banner(text, color, ms = 2200, img, urgent) {
+    this.bq = this.bq || [];
+    if (urgent) this.bq.length = 0;
+    this.bq.push({ text, color, ms, img });
+    if (this.bq.length > 3) this.bq.splice(0, this.bq.length - 3);
+    if (!this._bannerBusy || urgent) this.nextBanner();
+  }
+  nextBanner() {
+    clearTimeout(this._bt);
+    const n = this.bq.shift();
+    if (!n) { this._bannerBusy = false; return; }
+    this._bannerBusy = true;
+    const b = h('div', { class: 'big', style: { color: n.color } }, n.img ? h('img', { src: n.img }) : null, h('span', {}, n.text));
     mount(this.el.banner, b);
-    clearTimeout(this._bt); this._bt = setTimeout(() => b.classList.add('out'), ms);
+    const ms = this.bq.length ? Math.min(n.ms, 1300) : n.ms;
+    this._bt = setTimeout(() => { b.classList.add('out'); this._bt = setTimeout(() => this.nextBanner(), 380); }, ms);
   }
 
   // ───────────────────────── analyst ─────────────────────────
@@ -424,14 +345,14 @@ export class Hud {
     }
     if (deadEnemies.length >= 2) {
       const best = ['baron', 'dragon', 'herald'].find((k) => g.objectives[k] && g.objectives[k].alive);
-      if (best && ready('numbers', 30)) this.feed(`${deadEnemies.length} enemies dead for 15s+`, 's', true, { label: `Take ${OBJ_L[best]}`, fn: () => this.send({ type: 'objective', obj: best }) });
-      else if (!best && ready('numbers2', 30)) this.feed(`${deadEnemies.length} enemies dead — push!`, 's', true, { label: 'Group Mid', fn: () => this.send({ type: 'group', lane: 'mid' }) });
+      if (best && ready('numbers', 30)) this.dock.suggest('numbers', `${deadEnemies.length} enemies down`, `Take ${OBJ_L[best]}`, { type: 'objective', obj: best }, { cls: 'good', valid: () => !!(g.objectives[best] && g.objectives[best].alive) });
+      else if (!best && ready('numbers2', 30)) this.dock.suggest('numbers2', `${deadEnemies.length} enemies down`, 'Push Mid', { type: 'group', lane: 'mid' }, { cls: 'good' });
     }
     const ej = enemy.find((x) => x.role === 'jungle');
     if (ej && ej.alive && vis.has(ej.id)) {
       const W = g.world, nearKraken = (ej.x - W.pits.kraken.x) ** 2 + (ej.y - W.pits.kraken.y) ** 2 < (ej.x - W.pits.kami.x) ** 2 + (ej.y - W.pits.kami.y) ** 2;
       const o = nearKraken ? g.objectives.dragon : (g.objectives.baron || g.objectives.herald);
-      if (o && o.alive && ready('ejspot', 40)) this.feed(`Enemy jungler is far from ${OBJ_L[o.kind]}`, 's', true, { label: `Take ${OBJ_L[o.kind]}`, fn: () => this.send({ type: 'objective', obj: o.kind }) });
+      if (o && o.alive && ready('ejspot', 40)) this.dock.suggest('ejspot', `Their jungler is far from ${OBJ_L[o.kind]}`, `Take ${OBJ_L[o.kind]}`, { type: 'objective', obj: o.kind }, { valid: () => o.alive });
     }
     if (jg && jg.alive && jg.task.kind === 'jungle') {
       for (const e of enemy) {
@@ -439,7 +360,7 @@ export class Hud {
         for (const lane of LANES) {
           if (g.world.distToLane(lane, e) > 260) continue;
           const pr = g.world.laneProgress(lane, e), deep = me === 0 ? pr : 1 - pr;
-          if (deep < 0.47 && ready('gank' + lane, 30)) this.feed(`${e.def.name} is overextended ${LANE_L[lane]}`, 's', true, { label: `Gank ${LANE_L[lane]}`, fn: () => this.send({ type: 'gank', lane, hero: jg.id }) });
+          if (deep < 0.47 && ready('gank' + lane, 30)) this.dock.suggest('gank' + lane, `${e.def.name} overextended ${LANE_L[lane]}`, 'Gank', { type: 'gank', lane, hero: jg.id }, { valid: () => e.alive && jg.alive });
         }
       }
     }
@@ -453,10 +374,10 @@ export class Hud {
       const o = g.objectives[k];
       if (!o || !o.alive || o.hp > o.maxHp * 0.95 || !vis.has(o.id)) continue;
       const on = enemy.filter((e) => e.alive && vis.has(e.id) && (e.x - o.x) ** 2 + (e.y - o.y) ** 2 < 500 * 500);
-      if (on.length && ready('contest' + k, 25)) this.feed(`Enemy is taking ${OBJ_L[k]}!`, 'r', true, { label: 'Contest', fn: () => this.send({ type: 'objective', obj: k }) });
+      if (on.length && ready('contest' + k, 25)) this.dock.suggest('contest' + k, `Enemy is taking ${OBJ_L[k]}!`, 'Contest', { type: 'objective', obj: k }, { cls: 'bad', valid: () => o.alive });
     }
     for (const sh of g.shrines) if (sh.owner !== me && g.time > T.shrineUnlock && !enemy.some((e) => e.alive && vis.has(e.id) && (e.x - sh.x) ** 2 + (e.y - sh.y) ** 2 < 800 * 800) && ready('shr' + sh.id, 70))
-      this.feed(`${sh.id === me ? 'Home' : 'Far'} shrine is open`, 's', true, { label: 'Take it', fn: () => this.send({ type: 'shrine', shrine: sh.id }) });
+      this.dock.suggest('shr' + sh.id, `${sh.id === me ? 'Home' : 'Far'} shrine is open`, 'Capture', { type: 'shrine', shrine: sh.id }, { valid: () => sh.owner !== me });
   }
 
   directorCam(dt) {
@@ -480,8 +401,6 @@ export class Hud {
     const k = e.key.toLowerCase();
     if (k >= '1' && k <= '5') { const x = this.g.teams[this.view].heroes[+k - 1]; if (x) this.selectHero(x); return; }
     if (k === ' ') { e.preventDefault(); this.toggleDirector(); return; }
-    if (k === 'escape') { this.picker = null; this.renderCmd(); return; }
-    const c = CALLS.find((x) => x.key === k);
-    if (c && this.my >= 0) this.openPicker(c.type);
+    this.dock.onKey(k);
   }
 }

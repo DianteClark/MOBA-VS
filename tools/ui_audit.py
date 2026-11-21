@@ -31,7 +31,7 @@ async def main():
             await pg.wait_for_timeout(5000)
             await pg.evaluate("app.match.runner.speed = 0.0001")
             # worst case: open a picker, follow a hero (detail panel), fill the feeds
-            await pg.evaluate("const H = app.match.hud; H.selectHero(app.match.game.teams[0].heroes[1]); H.openPicker('gank'); for (let i = 0; i < 6; i++) H.feed('Test feed line number ' + i + ' with some text', 's', true, { label: 'Act', fn: () => {} }); for (let i = 0; i < 5; i++) H.killfeed(app.match.game.teams[0].heroes[i], app.match.game.teams[1].heroes[i], 1)")
+            await pg.evaluate("const H = app.match.hud; H.selectHero(app.match.game.teams[0].heroes[1]); H.dock.suggest('t1', 'Mid overextended', 'Gank', { type: 'gank', lane: 'mid' }); H.dock.suggest('t2', 'Shrine is open', 'Capture', { type: 'shrine', shrine: 0 }); H.dock.open('gank'); for (let i = 0; i < 6; i++) H.feed('Test feed line number ' + i + ' with some text', 's', true, { label: 'Act', fn: () => {} }); for (let i = 0; i < 5; i++) H.killfeed(app.match.game.teams[0].heroes[i], app.match.game.teams[1].heroes[i], 1)")
             await pg.wait_for_timeout(600)
             rects = dict(await pg.evaluate(JS, IDS))
             issues = []

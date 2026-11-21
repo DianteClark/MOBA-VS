@@ -310,7 +310,7 @@ class App {
       this.minimap = new Minimap(mmc, this.renderer);
       this.camCtl = bindCamera(this.renderer, canvas, this.minimap, mmc, {
         onKey: (e) => this.match && this.match.hud.onKey(e),
-        onClick: (w) => this.clickWorld(w),
+        onClick: (w, sx, sy) => this.clickWorld(w, sx, sy),
       });
       window.addEventListener('resize', () => { this.renderer.resize(); this.minimap.resize(); });
     }
@@ -337,12 +337,18 @@ class App {
       m.runner.update(dt, () => this.renderer.snapshot(), () => { this.renderer.game.fx.length = 0; });
     }, 100);
   }
-  clickWorld(w) {
-    // Tap a hero on the map to follow it.
+  clickWorld(w, sx, sy) {
+    // Tap your own hero to follow it; tap anything else for the call ring.
     if (!this.match) return;
-    const g = this.match.game; let best = null, bd = 40 * 40;
-    for (const t of g.teams) for (const x of t.heroes) if (x.alive && this.renderer.visible(x)) { const d = (x.x - w.x) ** 2 + (x.y - 14 - w.y) ** 2; if (d < bd) { bd = d; best = x; } }
-    if (best) this.match.hud.selectHero(best);
+    const m = this.match, g = m.game, dock = m.hud.dock;
+    if (dock && dock.ring) { dock.closeRing(); return; }
+    let best = null, bd = 40 * 40;
+    for (const t of g.teams) for (const x of t.heroes) {
+      if (!x.alive || !this.renderer.visible(x) || (this.session.myTeam >= 0 && x.team !== this.session.myTeam)) continue;
+      const d = (x.x - w.x) ** 2 + (x.y - 14 - w.y) ** 2; if (d < bd) { bd = d; best = x; }
+    }
+    if (best) { m.hud.selectHero(best); return; }
+    if (dock) dock.ringAt(w, sx, sy);
   }
   frame(now) {
     const m = this.match; if (!m) return;

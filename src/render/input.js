@@ -12,7 +12,7 @@ export function bindCamera(r, canvas, minimap, mmCanvas, hooks = {}) {
     r.cam.x -= dx / r.cam.zoom; r.cam.y -= dy / r.cam.zoom; drag = { x: e.clientX, y: e.clientY };
   });
   window.addEventListener('mouseup', (e) => {
-    if (drag && moved < 5 && hooks.onClick) hooks.onClick(r.s2w(e.clientX - canvas.getBoundingClientRect().left, e.clientY - canvas.getBoundingClientRect().top), e);
+    if (drag && moved < 5 && hooks.onClick && e.target === canvas) hooks.onClick(r.s2w(e.clientX - canvas.getBoundingClientRect().left, e.clientY - canvas.getBoundingClientRect().top), e.clientX, e.clientY);
     drag = null;
   });
   canvas.addEventListener('wheel', (e) => {
@@ -43,7 +43,7 @@ export function bindCamera(r, canvas, minimap, mmCanvas, hooks = {}) {
   canvas.addEventListener('touchend', (e) => {
     if (drag && moved < 8 && hooks.onClick && e.changedTouches[0]) {
       const t = e.changedTouches[0], rect = canvas.getBoundingClientRect();
-      hooks.onClick(r.s2w(t.clientX - rect.left, t.clientY - rect.top), e);
+      hooks.onClick(r.s2w(t.clientX - rect.left, t.clientY - rect.top), t.clientX, t.clientY);
     }
     if (e.touches.length === 0) { drag = null; pinch = null; }
   });
