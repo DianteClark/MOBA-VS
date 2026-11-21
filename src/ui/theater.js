@@ -159,7 +159,7 @@ export class Theater {
   }
   frameWork(dt, now) {
     if (this.seeking) { this.runScout(36); this.seekProgress(); return; }
-    if (this.pending) { this.stepPending(30); if (this.pending) this.refresh(); return; }
+    if (this.pending) { this.stepPending(60); if (this.pending) this.refresh(); return; }
     // the scout gets a small slice each frame, and backs off on a slow device (frame time over ~22 ms)
     this.slowFrames = dt > 0.022 ? Math.min(30, this.slowFrames + 1) : Math.max(0, this.slowFrames - 1);
     if (!this.scout.done) this.runScout(this.slowFrames > 10 ? 1.5 : this.m.runner.paused ? 8 : 4);
@@ -167,7 +167,7 @@ export class Theater {
     if (now - this.lastBar > 150) { this.lastBar = now; this.refresh(); }
   }
   runScout(budget) {
-    const S = this.scout, g = S.g, t0 = performance.now();
+    const S = this.scout, g = S.g, t0 = performance.now(), k0 = g.tick;
     while (!S.done && performance.now() - t0 < budget) {
       S.r.skipTo(g.tick + 1);
       if (S.rec) S.rec.step();
@@ -177,6 +177,7 @@ export class Theater {
         if (S.rec) { this.A = S.rec.finish({ my: this.rep.myTeam ?? -1 }); this.len = this.A.len || this.len; if (this.rep.id) addAnalytics(this.rep.id, this.A); }
       }
     }
+    if (g.tick > k0) this.msTick = (this.msTick || 2) * 0.8 + (performance.now() - t0) / (g.tick - k0) * 0.2; // sim cost on this device
     if (S.rec && (S.done || performance.now() - (this.lastMk || 0) > 1500)) {
       this.lastMk = performance.now();
       const A = S.done ? this.A : S.rec.finish({ my: this.rep.myTeam ?? -1 });
@@ -219,7 +220,8 @@ export class Theater {
     while (r.si < this.log.length && this.log[r.si][0] < g.tick) r.si++;
     this.m.runner.paused = true;
     this.pending = { g, r, tick, play, t0: performance.now() };
-    this.stepPending(14);
+    // a hop this device can do in under ~0.25 s happens at once; a longer one is sliced across frames
+    this.stepPending(Math.max(14, Math.min(250, (tick - g.tick) * (this.msTick || 2) * 1.2)));
   }
   stepPending(budget) {
     const p = this.pending, t0 = performance.now();
