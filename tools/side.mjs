@@ -4,6 +4,7 @@
 //   --mirror  both teams field the SAME five heroes and builds: any edge left is pure side (map / sim order).
 //   --swap    every seed is played twice with the teams swapped (cancels draft luck; pairs share a seed).
 //   --mins=M  stop each game at M minutes (fast early-game read: gold / kills / towers per side).
+//   --pace='{"rampPer":240}' / --final='{...}' / --T='{...}'  try pacing rules without editing them.
 // Prints, overall and per map: blue win %, how and when games end (Crystal / clock, 12-15 min share),
 // and per side at 5 / 10 min: team gold, kills, towers taken; first tower / first Kami / Kraken by side;
 // towers lost per lane per side (spots a lopsided lane).
@@ -22,6 +23,9 @@ async function play(ids) {
   const { HEROES, ROLES } = await import('../src/data/heroes.js');
   const { Rng } = await import('../src/sim/rng.js');
   const { aiPrep } = await import('../src/sim/draft.js');
+  // pacing experiments: --pace='{"rampPer":240}' merges into this mode's pace rules (also --final, --T)
+  const { rulesFor } = await import('../src/sim/modes.js'), R = rulesFor(MODE);
+  for (const [k, o] of [['pace', R.pace], ['final', R.final], ['T', R.T]]) { const v = flag(k, null); if (v) Object.assign(o, JSON.parse(v)); }
   const rows = [];
   for (const id of ids) {
     const i = SWAP ? id >> 1 : id, flip = SWAP && (id & 1);

@@ -118,7 +118,7 @@ export class Game {
 
   get time() { return this.tick * DT; }
   get timeLeft() { return Math.max(0, this.rules.seconds - this.time); }
-  get siegeRamp() { return 1 + Math.max(0, this.time - this.rules.pace.rampFrom) / this.rules.pace.rampPer; }
+  get siegeRamp() { const p = this.rules.pace; return 1 + Math.max(0, this.time - p.rampFrom) / p.rampPer + (p.lateFrom ? Math.max(0, this.time - p.lateFrom) / p.latePer : 0); }
   get finalPhase() { return this.time >= this.rules.final.at; }
   get finalMult() { return this.time >= this.rules.final.at ? this.rules.final.gold : 1; }
   get halftimeTick() { return this.rules.halftime ? sec(this.rules.halftime) : -1; }
@@ -300,6 +300,12 @@ export class Game {
     this.updateMods(h);
   }
   // Calls reach heroes after a delay that depends on trust and personality.
+  // A hero back from the fountain (respawn / gate) walks to the team's live group call instead of
+  // its old lane, so a won fight can turn into a 5-man push.
+  rejoinCall(h) {
+    const c = this.teams[h.team].call;
+    if (c && c.type === 'group' && c.until > this.tick + sec(8)) h.task = { kind: 'group', lane: c.lane, until: c.until, call: true };
+  }
   setCallTask(h, task) {
     if (this._callHeroes) this._callHeroes.push(h.id);
     const base = h.trust >= 70 ? 0 : h.trust >= 45 ? 6 : h.trust >= 25 ? 20 : 34;
@@ -1258,12 +1264,13 @@ export class Game {
         h.burns = []; h.slows = []; h.shields = []; h.stunUntil = h.rootUntil = 0; h.dash = null;
         h.silenceUntil = h.fearUntil = h.shredUntil = h.grievousUntil = 0; h.mark = null;
         this.buyItems(h);
+        this.rejoinCall(h);
       }
       return;
     }
     if (h.gateAt) {
       if (now < h.stunUntil) h.gateAt = 0; // interrupted
-      else if (now >= h.gateAt) { const f = this.world.fountain[h.team]; h.x = f.x; h.y = f.y; h.hp = h.maxHp; h.gateAt = 0; h.path = null; h.task = { kind: 'idle' }; this.fx.push({ kind: 'fx', name: 'spirit', x: f.x, y: f.y, s: 1.6 }); }
+      else if (now >= h.gateAt) { const f = this.world.fountain[h.team]; h.x = f.x; h.y = f.y; h.hp = h.maxHp; h.gateAt = 0; h.path = null; h.task = { kind: 'idle' }; this.rejoinCall(h); this.fx.push({ kind: 'fx', name: 'spirit', x: f.x, y: f.y, s: 1.6 }); }
     }
     if (h.pendingCall && now >= h.pendingCall.at) { h.task = h.pendingCall.task; h.task.since = now; h.pendingCall = null; }
     if (h.tiltUntil && now >= h.tiltUntil) { h.tiltUntil = 0; this.updateMods(h); }
