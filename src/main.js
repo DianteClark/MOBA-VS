@@ -37,6 +37,7 @@ import { rankMoment } from './ui/ranks.js';
 import { installBuildTips } from './ui/buildguide.js';
 import { saveClip, clipSupport } from './ui/clip.js';
 import { installPressSounds, confetti } from './ui/juice.js';
+import { keepAwake } from './ui/awake.js';
 import { MatchRecorder, showAnalysis } from './ui/analytics.js';
 import { Theater } from './ui/theater.js';
 import { loadLib, storeMatch } from './ui/replays.js';
@@ -125,6 +126,7 @@ class App {
   }
 
   menu() {
+    keepAwake(false);
     this.lobbyId = (this.lobbyId || 0) + 1;
     this.dropReel();
     clearInterval(this.prepTimer); clearInterval(this.draftTimer);
@@ -362,6 +364,7 @@ class App {
 
   // ───────────── draft ─────────────
   startDraft() {
+    keepAwake(true);
     stopParade(); this.dropReel(); closeInvites(this);
     const s = this.session;
     s.draft = newDraft(); s.turnStart = performance.now(); s.turnLeft = TURN_SECONDS;
@@ -477,6 +480,7 @@ class App {
 
   // ───────────── match ─────────────
   startMatch() {
+    keepAwake(true);
     // the match art finishes loading in the background after first paint; on a slow link wait for it here
     if (!assetsDone) { const s0 = this.session; toast('Loading the battlefield…', 1500); assetsAll.then(() => { if (this.session === s0 && !this.match) this.startMatch(); }); return; }
     const s = this.session;

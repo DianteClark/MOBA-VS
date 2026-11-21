@@ -1,6 +1,14 @@
 // Patch notes, newest first. tools/season.mjs prepends an entry at each season rollover.
 export const PATCHES = [
   {
+    version: '21.1', season: 1, date: '2026-11-21', title: 'Stay Awake',
+    notes: [
+      'Your phone no longer dims or locks during drafts, matches and replays. It sleeps normally again on the menu.',
+      'The Moments button keeps its own space in the command row.',
+    ],
+    heroes: [],
+  },
+  {
     version: '21.0', season: 1, date: '2026-11-21', title: 'Sight & Sound',
     highlights: ['New ability effects', 'Dynamic music', 'Match analysis', 'Friends & rematch'],
     notes: [
