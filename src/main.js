@@ -21,6 +21,8 @@ import { fpsCap } from './ui/settings.js';
 import { showHalftime, hideHalftime } from './ui/halftime.js';
 import { showHome, showCup, progressPanel } from './ui/home.js';
 import { shareMatch } from './ui/share.js';
+import { ping, ensureAccount, fetchMe, getAccount, reportMatch, matchStatus, newMatchId, findQueue, cancelQueue } from './net/online.js';
+import { showShared, showSearch } from './ui/online.js';
 import { profile } from './profile.js';
 import { newCup, recordCup, myMatch } from './cup.js';
 
@@ -52,8 +54,22 @@ class App {
     this.map = this.mapCanvas(new World(MAPS[0]));
     document.getElementById('loading').remove();
     this.startBg();
-    const code = new URLSearchParams(location.search).get('join');
-    if (code) this.joinScreen(code); else this.menu();
+    const q = new URLSearchParams(location.search), code = q.get('join'), shared = q.get('s');
+    if (code) this.joinScreen(code); else if (shared) showShared(this, shared); else this.menu();
+    this.connectOnline();
+  }
+  // Online services: create/restore the account, then sync the profile (newest copy wins).
+  async connectOnline() {
+    if (!(await ping())) return;
+    try {
+      await ensureAccount(this.name);
+      const me = await fetchMe();
+      if (me && me.profile && (me.profileAt || 0) > (profile.d.savedAt || 0)) {
+        profile.adopt(me.profile);
+        if (me.name && me.name !== this.name) this.setName(me.name);
+        if (this.session === null && !this.match) this.menu();
+      } else profile.save({ keepTime: true });
+    } catch (e) { console.warn('online', e); }
   }
   // Slowly panning painted map behind the menus.
   startBg() {
@@ -135,50 +151,83 @@ class App {
     this.session.preps = [aiPrep(d.picks[0], d.picks[1]), aiPrep(d.picks[1], d.picks[0])];
     this.startMatch();
   }
-  async hostGame() {
+  // Host a room. opts.code/lobbyId/quiet are used by matchmaking (Find Match), which shows its own screen.
+  async hostGame(opts = {}) {
     this.immersive();
-    const code = makeCode();
+    const code = opts.code || makeCode();
     const cancel = () => this.menu();
-    const id = this.lobbyId = (this.lobbyId || 0) + 1;
+    const id = opts.lobbyId || (this.lobbyId = (this.lobbyId || 0) + 1);
     const live = () => this.lobbyId === id;
-    showLobby(this, { code, status: 'Opening room…', onCancel: cancel });
+    if (!opts.quiet) showLobby(this, { code, status: 'Opening room…', onCancel: cancel });
     try {
-      const { peer, transport } = await host(code, (s) => live() && showLobby(this, { code, status: s === 'waiting' ? 'Waiting for opponent… (share the code or this link: ' + location.origin + location.pathname + '?join=' + code + ')' : s, onCancel: cancel }), (p) => { this.pendingPeer = p; });
+      const { peer, transport } = await host(code, (s) => live() && !opts.quiet && showLobby(this, { code, status: s === 'waiting' ? 'Waiting for opponent… (share the code or this link: ' + location.origin + location.pathname + '?join=' + code + ')' : s, onCancel: cancel }), (p) => { this.pendingPeer = p; });
       if (!live()) { try { transport.close(); } catch { /* ignore */ } try { peer.destroy(); } catch { /* ignore */ } return; }
       this.pendingPeer = null;
       this.net = { peer, t: transport };
       const seed = (Math.random() * 2 ** 31) >>> 0;
-      this.session = { mode: 'host', myTeam: 0, seed, mapId: this.pickMap(seed), names: [this.name, 'Guest'], rng: new Rng(seed) };
+      this.session = { mode: 'host', myTeam: 0, seed, mapId: this.pickMap(seed), names: [this.name, 'Guest'], rng: new Rng(seed), ranked: !!opts.ranked };
       this.wireNet();
-      transport.send({ t: 'hello', v: VERSION, name: this.name, seed });
+      transport.send({ t: 'hello', v: VERSION, name: this.name, seed, pid: getAccount() && getAccount().id });
     } catch (e) {
-      if (!live()) return;
+      if (!live() || opts.quiet) return;
       showLobby(this, { code, status: 'Could not open room: ' + (e.message || e.type || e), onCancel: cancel });
     }
   }
-  joinScreen(prefill) {
+  joinScreen(prefill, opts = {}) {
     const cancel = () => this.menu();
     const go = async (code) => {
       if (!/^[A-Z]{5}$/.test(code)) { toast('Room codes are 5 letters'); return; }
       this.immersive();
-      showLobby(this, { joining: true, code, status: 'Connecting…', onJoin: go, onCancel: cancel });
-      const id = this.lobbyId = (this.lobbyId || 0) + 1;
+      if (!opts.quiet) showLobby(this, { joining: true, code, status: 'Connecting…', onJoin: go, onCancel: cancel });
+      const id = opts.lobbyId || (this.lobbyId = (this.lobbyId || 0) + 1);
       try {
         const { peer, transport } = await join(code, null, (p) => { this.pendingPeer = p; });
         if (this.lobbyId !== id) { try { transport.close(); } catch { /* ignore */ } try { peer.destroy(); } catch { /* ignore */ } return; }
         this.pendingPeer = null;
         this.net = { peer, t: transport };
-        this.session = { mode: 'join', myTeam: 1, seed: 0, names: ['Host', this.name], rng: null };
+        this.session = { mode: 'join', myTeam: 1, seed: 0, names: ['Host', this.name], rng: null, ranked: !!opts.ranked };
         this.wireNet();
-        transport.send({ t: 'hello', v: VERSION, name: this.name });
+        transport.send({ t: 'hello', v: VERSION, name: this.name, pid: getAccount() && getAccount().id });
         showLobby(this, { joining: true, code, status: 'Connected! Waiting for host…', onJoin: go, onCancel: cancel });
       } catch (e) {
         if (this.lobbyId !== id) return;
+        if (opts.onFail) { opts.onFail(e); return; }
         showLobby(this, { joining: true, code, status: 'Failed: ' + (e.message || e.type || e), onJoin: go, onCancel: cancel });
       }
     };
-    showLobby(this, { joining: true, code: prefill, status: '', onJoin: go, onCancel: cancel });
+    if (!opts.quiet) showLobby(this, { joining: true, code: prefill, status: '', onJoin: go, onCancel: cancel });
     if (prefill) go(prefill.toUpperCase());
+  }
+  // Ranked matchmaking: pair with a real player or give up after 60s (no bots fill in).
+  async findMatch() {
+    this.immersive(); stopParade();
+    const id = this.lobbyId = (this.lobbyId || 0) + 1;
+    const live = () => this.lobbyId === id && !this.net;
+    const t0 = performance.now(), LIMIT = 60000;
+    let ticket = null, hosting = false, joined = false;
+    const leave = () => { if (ticket) cancelQueue(ticket); };
+    const ui = (status) => showSearch(this, { elapsed: performance.now() - t0, limit: LIMIT, status, onCancel: () => { leave(); this.menu(); } });
+    ui('Connecting to the matchmaker…');
+    if (!(await ping())) { if (live()) { toast('Online play is unavailable right now.'); this.menu(); } return; }
+    try { await ensureAccount(this.name); } catch { if (live()) { toast('Could not reach the matchmaker.'); this.menu(); } return; }
+    const tick = setInterval(() => { if (live()) ui(hosting ? 'Waiting for an opponent…' : 'Searching…'); else clearInterval(tick); }, 1000);
+    try {
+      while (live()) {
+        if (performance.now() - t0 > LIMIT) { leave(); toast('No one is online right now. Try again soon!', 3500); this.menu(); return; }
+        const r = await findQueue({ version: VERSION, ticket, rating: profile.ss().rp });
+        if (!live()) return;
+        if (r.status === 'matched' && r.role === 'join' && !joined) {
+          joined = true; if (this.pendingPeer) { try { this.pendingPeer.destroy(); } catch { /* ignore */ } this.pendingPeer = null; }
+          ticket = null; ui('Opponent found! Connecting…');
+          this.joinScreen(r.code, { quiet: true, lobbyId: id, ranked: true, onFail: () => { joined = false; } });
+        } else if (r.status === 'waiting' && !hosting) {
+          ticket = r.ticket; hosting = true;
+          this.hostGame({ code: r.code, lobbyId: id, quiet: true, ranked: true });
+        } else if (r.status === 'expired') { ticket = null; hosting = false; if (this.pendingPeer) { try { this.pendingPeer.destroy(); } catch { /* ignore */ } this.pendingPeer = null; } }
+        await new Promise((res) => setTimeout(res, 3000));
+      }
+    } catch (e) { if (live()) { leave(); toast('Matchmaking failed: ' + (e.message || e)); this.menu(); } }
+    finally { clearInterval(tick); if (this.net) leave(); }
   }
 
   wireNet() {
@@ -191,11 +240,15 @@ class App {
     switch (m.t) {
       case 'hello':
         if (m.v !== VERSION) { toast('Version mismatch — both players should refresh.'); return; }
-        if (s.mode === 'host') { s.names[1] = m.name || 'Guest'; this.net.t.send({ t: 'start', seed: s.seed, names: s.names, map: s.mapId }); this.startDraft(); }
+        if (s.mode === 'host') {
+          s.names[1] = m.name || 'Guest'; s.oppId = m.pid || null; s.matchId = newMatchId();
+          this.net.t.send({ t: 'start', seed: s.seed, names: s.names, map: s.mapId, match: s.matchId, pid: getAccount() && getAccount().id });
+          this.startDraft();
+        }
         else if (s.mode === 'join' && m.seed !== undefined) { s.seed = m.seed; }
         break;
       case 'start':
-        if (s.mode === 'join') { s.seed = m.seed; s.mapId = m.map; s.names = m.names; s.names[1] = this.name; s.rng = new Rng(s.seed); this.startDraft(); }
+        if (s.mode === 'join') { s.seed = m.seed; s.mapId = m.map; s.names = m.names; s.names[1] = this.name; s.rng = new Rng(s.seed); s.matchId = m.match || null; s.oppId = m.pid || null; this.startDraft(); }
         break;
       case 'draft':
         if (s.draft && s.draft.turn === m.turn) { draftApply(s.draft, m.team, m.hero); this.afterDraftAct(); }
@@ -225,7 +278,7 @@ class App {
       const old = this.match.runner, r = new LocalRunner(g, this.session.myTeam); r.acc = old.acc;
       r.log = old.log; r.htDone = old.htDone; r.ht = old.ht; if (r.ht) r.ht.them = true; r.onHalftime = old.onHalftime; r.onHalftimeEnd = old.onHalftimeEnd;
       this.match.runner = r; this.match.hud.runner = r;
-      this.session.mode = 'ai';
+      this.session.mode = 'ai'; this.session.wasOnline = true;
       this.cleanupNet();
       return;
     }
@@ -428,6 +481,7 @@ class App {
       audio.music(won ? 'victory' : 'defeat');
       const s = this.session;
       if (!s.replay && m.cfg) this.saveReplay(m, s);
+      const ladder = s.ranked && s.matchId && s.oppId && getAccount() ? this.reportOnline(m, s) : null;
       let sum = null, cupOut = null;
       try {
         profile.lastNames = s.names;
@@ -437,9 +491,20 @@ class App {
       if (sum && (sum.promoted || sum.unlocks.length)) setTimeout(() => audio.sfx('powerup', 0.8), 700);
       showResults(this, m.game, s.myTeam,
         s.cup ? () => showCup(this) : s.mode === 'ai' ? () => this.startVsAI() : s.mode === 'watch' ? () => this.watch() : null,
-        () => this.menu(), { progress: progressPanel(sum, cupOut), againLabel: s.cup ? 'Back to bracket' : null,
-          share: sum ? () => shareMatch(profile.d.history[0], { name: this.name, rank: profile.rank.label }) : null });
+        () => this.menu(), { progress: progressPanel(sum, cupOut), ladder, againLabel: s.cup ? 'Back to bracket' : null,
+          share: sum ? () => shareMatch(profile.d.history[0], { name: this.name, rank: profile.rank.label }, this.lastReplay()) : null });
     });
+  }
+  // Online ladder: both players report; the server counts the match when the reports agree.
+  async reportOnline(m, s) {
+    const g = m.game, season = profile.season.id;
+    const body = { match: s.matchId, season, side: s.myTeam, opponent: s.oppId, winner: g.winner, checksum: String(g.checksum()),
+      summary: { picks: [0, 1].map((t) => g.teams[t].heroes.map((x) => x.heroId)), kills: [g.teams[0].kills, g.teams[1].kills], len: Math.round(g.time) } };
+    try {
+      let r = await reportMatch(body);
+      for (let i = 0; i < 6 && r && r.status === 'pending'; i++) { await new Promise((res) => setTimeout(res, 2500)); const st = await matchStatus(s.matchId); if (st.status !== 'pending') r = { ...r, ...st }; }
+      return r && { ...r, mySide: s.myTeam };
+    } catch (e) { return { status: 'offline', error: String(e.message || e) }; }
   }
   // Replays: config + command log is enough to re-run the whole match deterministically.
   saveReplay(m, s) {
@@ -449,8 +514,9 @@ class App {
     } catch { /* storage full or unavailable */ }
   }
   lastReplay() { try { const r = JSON.parse(localStorage.getItem('mobavs_replay') || 'null'); return r && r.v === VERSION ? r : null; } catch { return null; } }
-  watchReplay() {
-    const r = this.lastReplay(); if (!r) { toast('No replay saved yet (or it is from an older version).'); return; }
+  watchReplay(shared) {
+    const r = shared ? (shared.v === VERSION ? shared : null) : this.lastReplay();
+    if (!r) { toast(shared ? 'That replay is from an older version of the game.' : 'No replay saved yet (or it is from an older version).'); return; }
     stopParade();
     this.session = { mode: 'watch', replay: r, myTeam: -1, seed: r.cfg.seed, mapId: r.mapId || r.cfg.map, names: r.names, rng: new Rng(1) };
     this.fade(() => this.startMatch());

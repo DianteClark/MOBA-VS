@@ -3,6 +3,7 @@
 // format so a future shared backend can feed real results into the season balancer.
 import { seasonAt, rankOf, RP, RP_CAP, XP_PER_LEVEL, MAX_LEVEL, MATCH_XP, TRACK, SKINS, BANNERS, TITLES } from './data/seasons.js';
 import { HERO_BY_ID } from './data/heroes.js';
+import { queueCloudSave } from './net/online.js';
 
 const KEY = 'mobavs_profile_v1';
 const fresh = () => ({
@@ -24,7 +25,14 @@ export class Profile {
     try { const raw = localStorage.getItem(KEY); if (raw) this.d = Object.assign(fresh(), JSON.parse(raw)); } catch { /* private mode: in-memory */ }
     this.rollover();
   }
-  save() { try { localStorage.setItem(KEY, JSON.stringify(this.d)); } catch { /* ignore */ } }
+  // Saves locally and (when signed in) queues a cloud save of the whole profile.
+  save(opts = {}) {
+    if (!opts.keepTime) this.d.savedAt = Date.now();
+    try { localStorage.setItem(KEY, JSON.stringify(this.d)); } catch { /* ignore */ }
+    if (!opts.local) { let name = 'Coach'; try { name = localStorage.getItem('mobavs_name') || 'Coach'; } catch { /* ignore */ } queueCloudSave(name, this.d, this.d.savedAt); }
+  }
+  // Replace the local profile with a cloud copy (sign-in on a new device, or a newer save elsewhere).
+  adopt(d) { this.d = Object.assign(fresh(), d); this.rollover(); this.save({ keepTime: true, local: true }); }
   get season() { return seasonAt(); }
   ss(id = this.season.id) { return this.d.seasons[id] || (this.d.seasons[id] = { rp: 0, peak: 0, xp: 0, w: 0, l: 0, claimed: [] }); }
   get rank() { return rankOf(this.ss().rp); }

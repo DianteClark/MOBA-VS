@@ -9,6 +9,7 @@ import { MAPS, MAP_BY_ID } from '../maps/defs.js';
 import { World, N as GN } from '../sim/world.js';
 import { THEMES } from '../render/mapgen.js';
 import { IMG } from '../render/assets.js';
+import { ladderPanel } from './online.js';
 import { TEAM_COL } from '../render/palette.js';
 import { audio } from '../audio.js';
 
@@ -298,6 +299,7 @@ export function showResults(app, g, myTeam, onAgain, onMenu, extra = {}) {
     h('div', { class: 'vsub muted' }, timeout ? `Decided on time: towers ${g.towersStanding(0)} - ${g.towersStanding(1)} · ` : '', `Game length ${fmtTime(g.time)}`),
     mvpCard,
     extra.progress || null,
+    extra.ladder ? ladderPanel(extra.ladder) : null,
     table(0), table(1),
     h('div', { class: 'panel' }, h('div', { class: 'rth' }, h('b', {}, 'Gold lead'), h('span', { class: 'rstats' }, 'Blue above / Red below')), graph),
     callEl,

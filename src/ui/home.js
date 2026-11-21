@@ -11,6 +11,7 @@ import { IMG, recolor } from '../render/assets.js';
 import { mapThumb, showHowTo } from './screens.js';
 import { audio } from '../audio.js';
 import { shareMatch } from './share.js';
+import { showLeaderboard } from './online.js';
 import { fmtTime } from './dom.js';
 import { showSettings } from './settings.js';
 
@@ -61,14 +62,17 @@ export function showHome(app) {
           h('span', {}, mm ? `${ROUND_NAMES[mm.round]} vs ${mm.opp.name}` : 'A new bracket awaits')),
         h('button', { class: 'btn big', onclick: () => showCup(app) }, mm ? 'Continue' : 'Enter')),
       h('div', { class: 'mode online' },
-        h('div', { class: 'mh' }, h('b', {}, 'Online'), h('small', {}, 'Play a friend peer-to-peer. Ranked.')),
+        h('div', { class: 'mh' }, h('b', {}, 'Online'), h('small', {}, 'Ranked vs real players, or a private game with a friend.')),
         h('div', { class: 'col', style: { gap: '6px' } },
-          h('button', { class: 'btn big', onclick: () => app.hostGame() }, 'Host'),
-          h('button', { class: 'btn big', onclick: () => app.joinScreen() }, 'Join')))),
+          h('button', { class: 'btn big', onclick: () => app.findMatch() }, 'Find Match'),
+          h('div', { class: 'row', style: { gap: '6px', flexWrap: 'nowrap' } },
+            h('button', { class: 'btn', style: { flex: 1 }, onclick: () => app.hostGame() }, 'Host'),
+            h('button', { class: 'btn', style: { flex: 1 }, onclick: () => app.joinScreen() }, 'Join'))))),
     h('div', { class: 'subnav' },
       h('button', { class: 'chip', onclick: () => app.watch() }, 'Watch AI'),
       app.lastReplay() ? h('button', { class: 'chip', onclick: () => app.watchReplay() }, 'Last Replay') : null,
       (document.fullscreenEnabled || document.webkitFullscreenEnabled) ? h('button', { class: 'chip', onclick: () => window.toggleFullscreen() }, 'Full Screen') : null,
+      h('button', { class: 'chip', onclick: () => showLeaderboard(app) }, 'Ladder'),
       h('button', { class: 'chip', onclick: () => showHistory(app) }, 'History'),
       h('button', { class: 'chip', onclick: () => showLocker(app) }, 'Locker'),
       h('button', { class: 'chip', onclick: () => showSeason(app) }, 'Season Pass'),
@@ -76,7 +80,7 @@ export function showHome(app) {
       h('button', { class: 'chip', onclick: () => showHowTo(app) }, 'How to Play'),
       h('button', { class: 'chip gear', onclick: () => { audio.sfx('move', 0.5); showSettings(app); } }, h('img', { src: 'assets/img/icons/Permutation.png' }), 'Settings')),
     p.newSeasonNote ? h('div', { class: 'panel note' }, `Season ${p.newSeasonNote.from} is over. You peaked at ${p.newSeasonNote.peak}. Your rank was soft-reset; your border is in the Locker.`) : null,
-    h('div', { class: 'credits' }, h('a', { href: 'https://dianteclark.github.io/MOBA-VS/', target: '_blank' }, 'dianteclark.github.io/MOBA-VS'), ' · ', h('a', { href: 'https://github.com/DianteClark/MOBA-VS', target: '_blank' }, 'GitHub'), ` · v${PATCHES[0].version}`),
+    h('div', { class: 'credits' }, `MOBA-VS v${PATCHES[0].version}`),
     h('div', { class: 'credits' }, 'Art & audio: ', h('a', { href: 'https://pixel-boy.itch.io/ninja-adventure-asset-pack', target: '_blank' }, 'Ninja Adventure'), ' by Pixel-boy & AAA (CC0)'),
   ));
   p.newSeasonNote = null;
@@ -237,7 +241,7 @@ export function showHistory(app, open = 0) {
       ...m.picks[t].map((id, i) => { const k = (m.kda && m.kda[t] && m.kda[t][i]) || []; const mvp = m.mvp && m.mvp.id === id && m.mvp.team === t;
         return h('div', { class: 'hd-row' + (mvp ? ' hmvp' : '') }, h('img', { src: face(id) }), h('span', {}, HERO_BY_ID[id] ? HERO_BY_ID[id].name : id), h('span', { class: 'k' }, k.length ? `${k[0]}/${k[1]}/${k[2]}` : ''), h('small', {}, k.length ? `${k[3]} CS · ${(k[5] / 1000).toFixed(1)}k` : ''), mvp ? h('b', { class: 'mvpt' }, 'MVP') : null); }));
     return h('div', { class: 'hd' }, h('div', { class: 'hd-teams' }, side(0), side(1)),
-      h('div', { class: 'row', style: { justifyContent: 'center' } }, h('button', { class: 'btn big', onclick: () => shareMatch(m, coach) }, 'Share card')));
+      h('div', { class: 'row', style: { justifyContent: 'center' } }, h('button', { class: 'btn big', onclick: () => shareMatch(m, coach, app.lastReplay()) }, 'Share card')));
   };
   mount(screen(), h('div', { class: 'subscreen' }, h('div', { class: 'shead' }, back(app), h('h2', {}, 'Match History'), h('div')),
     !list.length ? h('p', { class: 'muted center' }, 'Play a match and it will show up here.')

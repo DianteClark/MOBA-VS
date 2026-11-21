@@ -1,0 +1,105 @@
+// Online screens: global ladder, account (recovery code / sign in), shared-match links,
+// and the post-match ladder result panel.
+import { h, mount, toast } from './dom.js';
+import { HERO_BY_ID } from '../data/heroes.js';
+import { profile } from '../profile.js';
+import { online, ping, getAccount, recover, leaderboard, getShare, ensureAccount } from '../net/online.js';
+import { drawShareCard } from './share.js';
+import { audio } from '../audio.js';
+
+const screen = () => document.getElementById('screen');
+const back = (app) => h('button', { class: 'btn backbtn', onclick: () => { audio.sfx('move', 0.5); app.menu(); } }, '‹ Back');
+
+// ── Global ladder ──
+export async function showLeaderboard(app) {
+  const season = profile.season;
+  const body = h('div', { class: 'panel col lb' }, h('p', { class: 'muted center' }, 'Loading the ladder…'));
+  mount(screen(), h('div', { class: 'subscreen' },
+    h('div', { class: 'shead' }, back(app), h('div', {}, h('small', {}, `SEASON ${season.id} · ONLINE LADDER`), h('h2', {}, 'Leaderboard')), h('div')),
+    h('p', { class: 'muted center small' }, 'Only verified online matches count: both players’ games must agree on the result.'),
+    body, accountPanel(app)));
+  if (!(await ping())) { mount(body, h('p', { class: 'muted center' }, 'The ladder is offline right now. Your matches still count locally.')); return; }
+  try {
+    if (!getAccount()) await ensureAccount(app.name);
+    const lb = await leaderboard(season.id);
+    const me = getAccount();
+    const row = (r) => h('div', { class: 'lbr' + (me && r.id === me.id ? ' me' : '') + (r.rank <= 3 ? ' top' + r.rank : '') },
+      h('b', { class: 'lbrank' }, `#${r.rank}`), h('span', { class: 'lbname' }, r.name), h('span', { class: 'lbrat' }, r.rating), h('small', {}, `${r.wins}W ${r.losses}L`));
+    mount(body,
+      lb.me ? h('div', { class: 'lbme' }, h('span', {}, 'You'), h('b', {}, `#${lb.me.rank}`), h('span', {}, `${lb.me.rating} rating`), h('small', {}, `${lb.me.wins}W ${lb.me.losses}L · peak ${lb.me.peak}`)) : h('div', { class: 'lbme muted' }, 'Win an online match to join the ladder.'),
+      lb.top.length ? h('div', { class: 'lblist' }, h('div', { class: 'lbr head' }, h('b', { class: 'lbrank' }, 'Rank'), h('span', { class: 'lbname' }, 'Coach'), h('span', { class: 'lbrat' }, 'Rating'), h('small', {}, 'Record')), ...lb.top.map(row))
+        : h('p', { class: 'muted center' }, 'No verified matches yet this season. Be the first: Host a match and send your friend the link.'));
+  } catch (e) { mount(body, h('p', { class: 'muted center' }, `Could not load the ladder (${e.message}).`)); }
+}
+
+// ── Account: recovery code + sign in on another device ──
+export function accountPanel(app) {
+  const el = h('div', { class: 'panel col acct' });
+  const render = () => {
+    const a = getAccount();
+    let input;
+    mount(el, h('b', {}, 'Online account'),
+      a ? h('div', { class: 'col', style: { gap: '6px' } },
+        h('small', { class: 'muted' }, 'Your progress is saved to the cloud. To play on another device, sign in there with this recovery code. Keep it private.'),
+        h('div', { class: 'acode' }, h('code', {}, a.code), h('button', { class: 'chip', onclick: async () => { try { await navigator.clipboard.writeText(a.code); toast('Recovery code copied'); } catch { toast(a.code, 6000); } } }, 'Copy')))
+        : h('small', { class: 'muted' }, online.ok ? 'Creating your account…' : 'Offline: progress is saved on this device only.'),
+      h('div', { class: 'row', style: { gap: '6px', flexWrap: 'nowrap' } },
+        input = h('input', { class: 'acin', placeholder: 'MOBA-XXXXX-…', maxlength: 48, autocapitalize: 'characters', spellcheck: 'false' }),
+        h('button', { class: 'chip', onclick: async () => {
+          const code = input.value.trim(); if (!code) { toast('Paste a recovery code first'); return; }
+          if (!confirm('Sign in with this code? This device will switch to that account’s progress.')) return;
+          try { const r = await recover(code); if (r.profile) profile.adopt(r.profile); if (r.name) app.setName(r.name); toast(`Signed in as ${r.name}`); app.menu(); }
+          catch (e) { toast(e.message || 'Sign in failed'); }
+        } }, 'Sign in')));
+  };
+  render();
+  if (!getAccount() && online.ok) ensureAccount(app.name).then(render, () => {});
+  return el;
+}
+
+// ── Post-match: ladder result for online games ──
+export function ladderPanel(promise) {
+  if (!promise) return null;
+  const el = h('div', { class: 'panel ladderres' }, h('span', { class: 'muted' }, 'Reporting to the online ladder…'));
+  promise.then((r) => {
+    if (!r) { el.remove(); return; }
+    if (r.status === 'verified') {
+      const me = r.delta ? (r.mySide === 1 ? r.delta.red : r.delta.blue) : null;
+      mount(el, h('b', { class: 'gold' }, 'Ladder match verified'), me !== null && me !== undefined ? h('span', { class: me >= 0 ? 'up' : 'down' }, ` ${me >= 0 ? '+' : ''}${me} rating`) : null);
+    } else if (r.status === 'pending') mount(el, h('span', { class: 'muted' }, 'Waiting for your opponent’s report. The ladder updates when both games agree.'));
+    else if (r.status === 'disputed') mount(el, h('span', { class: 'down' }, 'The two games disagreed on the result, so this match does not count.'));
+    else mount(el, h('span', { class: 'muted' }, 'Ladder offline: this match was not reported.'));
+  });
+  return el;
+}
+
+// ── Shared match links (/s/CODE → ?s=CODE) ──
+export async function showShared(app, code) {
+  const body = h('div', { class: 'panel col center sharedv' }, h('p', { class: 'muted' }, 'Loading shared match…'));
+  mount(screen(), h('div', { class: 'subscreen' }, h('div', { class: 'shead' }, back(app), h('h2', {}, 'Shared match'), h('div')), body));
+  try { history.replaceState(null, '', location.pathname); } catch { /* ignore */ }
+  try {
+    const s = await getShare(code);
+    const m = s.data && s.data.match, coach = (s.data && s.data.coach) || { name: 'A coach', rank: '' };
+    if (!m) throw new Error('empty');
+    const card = await drawShareCard(m, coach); card.className = 'sharedcard';
+    const replay = s.data.replay;
+    mount(body, card,
+      h('div', { class: 'row', style: { justifyContent: 'center' } },
+        replay ? h('button', { class: 'btn big', onclick: () => app.watchReplay(replay) }, 'Watch the replay') : null,
+        h('button', { class: 'btn big', onclick: () => app.menu() }, 'Play MOBA-VS')),
+      h('small', { class: 'muted' }, `${coach.name}${coach.rank ? ' · ' + coach.rank : ''} · your five: ${m.picks[m.side].map((id) => (HERO_BY_ID[id] || { name: id }).name).join(', ')}`));
+  } catch { mount(body, h('p', { class: 'muted' }, 'This shared match could not be found.'), h('button', { class: 'btn big', onclick: () => app.menu() }, 'Play MOBA-VS')); }
+}
+
+// ── Matchmaking search screen ──
+export function showSearch(app, { elapsed, limit, status, onCancel }) {
+  const left = Math.max(0, Math.ceil((limit - elapsed) / 1000)), frac = Math.min(1, elapsed / limit);
+  const el = document.getElementById('mmsearch');
+  if (el) { el.querySelector('.mm-st').textContent = status; el.querySelector('.mm-t').textContent = `${left}s`; el.querySelector('.pbar i').style.width = `${Math.round(frac * 100)}%`; return; }
+  mount(screen(), h('div', { class: 'panel col center mmsearch', id: 'mmsearch' },
+    h('div', { class: 'mm-spin' }), h('h2', { class: 'gold' }, 'Finding a match'),
+    h('b', { class: 'mm-st' }, status), h('div', { class: 'pbar' }, h('i', { style: { width: `${Math.round(frac * 100)}%`, background: 'var(--gold)' } })),
+    h('small', { class: 'muted' }, 'Ranked · real players only · gives up in ', h('span', { class: 'mm-t' }, `${left}s`)),
+    h('button', { class: 'btn big', onclick: onCancel }, 'Cancel')));
+}

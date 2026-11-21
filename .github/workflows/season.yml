@@ -24,6 +24,8 @@ jobs:
         with:
           node-version: 22
       - name: Balance
+        env:
+          MOBAVS_API: https://moba-vs.chesscomplex.workers.dev
         run: node tools/season.mjs ${{ github.event.inputs.force == 'true' && '--force' || '' }} --rounds 2 --games 160 --workers 4
       - name: Sanity checks
         run: |

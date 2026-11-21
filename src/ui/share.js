@@ -4,6 +4,7 @@ import { HERO_BY_ID } from '../data/heroes.js';
 import { MAP_BY_ID } from '../maps/defs.js';
 import { mapThumb } from './screens.js';
 import { toast, fmtTime } from './dom.js';
+import { createShare, shareUrl } from '../net/online.js';
 
 const MODE = { ai0: 'vs Easy AI', ai1: 'vs Normal AI', ai2: 'vs Hard AI', online: 'Online match', cup: 'Season Cup' };
 const BLUE = '#4aa3ff', RED = '#ff5a5a', GOLD = '#ffd84a', INK = '#f3ead8', MUTED = '#a99fb3';
@@ -53,22 +54,30 @@ export async function drawShareCard(m, coach) {
     T((HERO_BY_ID[id] || { name: id }).name, px + sz / 2, y0 + sz + 34, 20, INK, 'center');
     const k = kda[i]; if (k) T(`${k[0]}/${k[1]}/${k[2]}`, px + sz / 2, y0 + sz + 62, 22, GOLD, 'center');
   });
-  T('dianteclark.github.io/MOBA-VS', W / 2, H - 18, 16, MUTED, 'center');
+  T('MOBA-VS · coach your team · play free in your browser', W / 2, H - 18, 16, MUTED, 'center');
   return c;
 }
 
-// Share via the system sheet (phones), otherwise download the PNG.
-export async function shareMatch(m, coach) {
+// Share: upload a short link (card + replay when available) and hand it to the system share
+// sheet together with the image; offline, fall back to just the image.
+export async function shareMatch(m, coach, replay) {
   const c = await drawShareCard(m, coach);
   const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
   if (!blob) { toast('Could not make the share card.'); return; }
+  let link = location.origin + location.pathname;
+  try {
+    const okReplay = replay && replay.cfg && replay.t && Math.abs(replay.t - m.t) < 120000 ? replay : null;
+    const r = await createShare('card', { match: m, coach, replay: okReplay });
+    link = shareUrl(r.code);
+  } catch { /* offline: image only */ }
   const name = `moba-vs-${m.won ? 'victory' : 'match'}-${new Date(m.t).toISOString().slice(0, 10)}.png`;
-  const text = `${m.won ? 'VICTORY' : 'GG'} in MOBA-VS: ${m.kills[m.side]}-${m.kills[1 - m.side]}${m.crystal ? `, Crystal down at ${fmtTime(m.len)}` : ''}! https://dianteclark.github.io/MOBA-VS/`;
+  const text = `${m.won ? 'VICTORY' : 'GG'} in MOBA-VS: ${m.kills[m.side]}-${m.kills[1 - m.side]}${m.crystal ? `, Crystal down at ${fmtTime(m.len)}` : ''}! ${link}`;
   try {
     const file = new File([blob], name, { type: 'image/png' });
     if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], text, title: 'MOBA-VS' }); return; }
+    if (navigator.share) { await navigator.share({ text, url: link, title: 'MOBA-VS' }); return; }
   } catch (e) { if (e && e.name === 'AbortError') return; }
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.append(a); a.click();
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
-  toast('Share card saved');
+  try { await navigator.clipboard.writeText(link); toast('Card saved · link copied'); } catch { toast('Share card saved'); }
 }

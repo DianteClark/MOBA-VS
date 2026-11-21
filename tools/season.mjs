@@ -46,6 +46,15 @@ if (existsSync(dir)) for (const f of readdirSync(dir).filter((x) => x.endsWith('
   } catch (e) { console.warn('skip', f, e.message); }
 }
 
+// Real online matches from the live API (verified ladder games), weighted 3x a self-play game.
+const api = process.env.MOBAVS_API;
+if (api) {
+  try {
+    const r = await fetch(`${api}/api/balance?season=${season.id - 1}`); const d = await r.json();
+    for (const x of d.heroes || []) { const s = wr[x.hero] || (wr[x.hero] = { g: 0, w: 0 }); s.g += x.games * 3; s.w += x.wins * 3; }
+    console.log(`Online results: ${(d.heroes || []).reduce((a, x) => a + x.games, 0)} hero-games from season ${season.id - 1}`);
+  } catch (e) { console.warn('online results unavailable:', e.message); }
+}
 // New multipliers: tuner result, clamped to ±5% of last season.
 const { TUNE: NEW } = await import(P('src/data/tuning.js') + '?new');
 const final = {}, changes = [];
