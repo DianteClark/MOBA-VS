@@ -31,8 +31,9 @@ export function planSwitch(hud, e) {
   const P = PLAN_INFO[e.plan]; if (!P) return;
   const mine = e.team === hud.my;
   if (mine) { hud.ticker(`New plan: ${P.name}. ${P.desc}`, 'act', 2); return; }
-  hud.banner(null, P.color, 2200, null, false, [h('small', {}, hud.my >= 0 ? 'THEY SWITCHED PLANS' : `${TEAM_NAME[e.team].toUpperCase()} SWITCHED PLANS`),
-    h('div', { class: 'prvrow' }, chip(e.plan, planName(e.from).toUpperCase() + ' →', TEAM_COL[e.team]))]);
+  const from = PLAN_INFO[e.from] ? PLAN_INFO[e.from].short.toUpperCase() : 'PLAN';
+  hud.banner(null, P.color, 2200, null, false, [h('small', {}, `${hud.my >= 0 ? 'THEY' : TEAM_NAME[e.team].toUpperCase()} SWITCHED FROM ${from}`), h('b', {}, P.name.toUpperCase()), h('span', {}, `${P.strong} · ${P.weak.toLowerCase()}`)]);
+  if (hud.my >= 0) hud.ticker(`They switched to ${P.name}: ${P.desc}`, 'danger', 2);
 }
 
 // ── verdict (analytics) ──
@@ -47,19 +48,21 @@ export function planVerdict(A, T) {
   const lead = (s) => { const i = Math.max(0, Math.min(G.length - 1, Math.round(s / st))); return (G[i] || 0) * sg; };
   const end = lead(A.len), mid = Math.min(A.len, 480 * k);
   let ok = null, text = '';
-  if (plan === 'aggro') {
+  if (A.len < 300 * k) text = 'The match ended before it could play out.';
+  else if (plan === 'aggro') {
     const l = lead(mid), early = A.ev.filter((e) => e[2] === T && e[0] <= mid && (e[1] === 'tw' || e[1] === 'ob')).length;
     ok = l >= 800 || (l >= 0 && early >= 3);
-    text = ok ? `It worked: ${l >= 0 ? '+' : ''}${kg(l)} gold and ${early} tower${early === 1 ? '' : 's'}/objective${early === 1 ? '' : 's'} by ${fmt(mid)}.` : `It stalled: ${l >= 0 ? `only +${kg(l)}` : `${kg(-l)} behind`} at ${fmt(mid)}, and early leads fade.`;
+    text = ok ? `It worked: ${l >= 0 ? '+' : ''}${kg(l)} gold and ${early} tower${early === 1 ? '' : 's'}/objective${early === 1 ? '' : 's'} by ${fmt(mid)}.` : `It stalled: ${l >= 0 ? `only +${kg(l)}` : `${kg(-l)} gold behind`} at ${fmt(mid)}.`;
   } else if (plan === 'scale') {
     // the last time the gold lead turned our way and stayed there
     let from = -1; for (let i = G.length - 1; i > 0 && G[i] * sg > 0; i--) if (G[i - 1] * sg <= 0) { from = i * st; break; }
     if (from < 0 && G.length && G.every((v, i) => i === 0 || v * sg > 0)) from = 0;
     ok = end > 0;
-    text = ok ? (from > 0 ? `It worked: ${W} out-scaled ${them} from ${fmt(from)}.` : `It worked: ${W} led all game and finished +${kg(end)}.`) : `It never came online: ${kg(-end)} gold behind at the end.`;
+    text = !ok ? `It never came online: ${kg(-end)} gold behind at the end.` : from > mid * 0.6 ? `It worked: ${W} out-scaled ${them} from ${fmt(from)}.`
+      : `It worked: ${W} led from ${from > 0 ? fmt(from) : 'the start'} and finished +${kg(end)}.`;
   } else if (plan === 'objective') {
     const ob = (t) => A.ev.filter((e) => e[1] === 'ob' && e[2] === t).length, a = ob(T), b = ob(1 - T);
-    ok = a > b;
+    ok = a + b ? a > b : null;
     text = a + b === 0 ? 'No objective was taken all game.' : ok ? `It worked: ${W} took ${a} of ${a + b} objectives.` : `It slipped: ${W} took ${a} of ${a + b} objectives.`;
   } else if (plan === 'split') {
     const side = (t) => A.ev.filter((e) => e[1] === 'tw' && e[2] === t && (e[3] === 'top' || e[3] === 'bot')).length, a = side(T), b = side(1 - T);

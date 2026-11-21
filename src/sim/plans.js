@@ -63,7 +63,7 @@ export function planSplitters(g, team) {
 export function planRisk(g, h) {
   const plan = g.teams[h.team].plan, m = g.gameMinute;
   switch (plan) {
-    case 'aggro': return m < EARLY ? 0.84 : m < SPIKE + 1 ? 0.95 : 1.04;
+    case 'aggro': return m < EARLY ? 0.88 : m < SPIKE + 1 ? 0.97 : 1.02;
     case 'scale': return m < EARLY + 1 ? 1.17 : m < SPIKE + 1 ? 1 : 0.9;
     case 'objective': {
       // brave around a live (or waking) objective, normal elsewhere
@@ -85,11 +85,11 @@ export function planRisk(g, h) {
   }
 }
 // Tower-dive safety margin multiplier (Early Aggression dives deeper while it is early).
-export function diveMul(g, team) { return g.teams[team].plan === 'aggro' && g.gameMinute < SPIKE ? 0.7 : 1; }
+export function diveMul(g, team) { return g.teams[team].plan === 'aggro' && g.gameMinute < SPIKE ? 0.8 : 1; }
 // Jungler gank appetite: [score threshold, chance multiplier].
 export function gankWeights(g, team) {
   const plan = g.teams[team].plan, m = g.gameMinute;
-  if (plan === 'aggro' && m < SPIKE) return [0.7, 1.45];
+  if (plan === 'aggro' && m < SPIKE) return [0.75, 1.35];
   if (plan === 'scale' && m < EARLY + 1) return [1.0, 0.55];
   return [0.85, 1];
 }
@@ -131,7 +131,7 @@ export function coachWeights(g, team) {
   const plan = g.teams[team].plan, m = g.gameMinute;
   const w = { invadeFrom: 200, invadeCd: 120, invadeFree: false, objFree: false, objCd: 40, objWait: false, gankCd: 35, lateAt: 600, groupCd: 40, groupLane: null };
   if (plan === 'aggro') {
-    if (m < SPIKE) { w.invadeFrom = 120; w.invadeCd = 75; w.invadeFree = true; w.gankCd = 24; w.objFree = true; }
+    if (m < SPIKE) { w.invadeFrom = 150; w.invadeCd = 90; w.invadeFree = true; w.gankCd = 26; w.objFree = true; }
     else w.lateAt = 720;
   } else if (plan === 'scale') {
     if (m < EARLY + 1) { w.invadeFrom = 9999; w.gankCd = 60; w.objWait = true; }

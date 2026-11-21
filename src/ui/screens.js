@@ -144,7 +144,7 @@ export function showPrep(app, prep, enemyIds, left, onChange, onReady, ready) {
     sec('Game plan', h('small', { class: 'muted' }, 'Hidden from them until kickoff · one change at halftime'), h('div', { class: 'plans' }, ...PLAN_IDS.map((k) => { const P = PLAN_INFO[k];
       return h('button', { class: 'plan' + (prep.plan === k ? ' on' : '') + (rec.id === k ? ' rec' : ''), style: { '--pc': P.color }, onclick: () => { prep.plan = k; audio.sfx('move', 0.4); onChange(); } },
         h('b', {}, h('img', { src: icon(P.icon), alt: '' }), P.name), h('small', {}, P.desc), h('small', { class: 'pvs' }, planLine(k)),
-        rec.id === k ? h('span', { class: 'prec' }, '★ ' + rec.why) : null); }))),
+        rec.id === k ? h('span', { class: 'precw' }, '★ ' + rec.why) : null); }))),
     sec('Tactic deck', h('span', { class: 'dcount' + (prep.deck.length === 3 ? ' full' : '') }, `${prep.deck.length}/3`),
       h('div', { class: 'deck' }, ...TACTIC_IDS.map((id) => {
         const t = TACTICS[id], on = prep.deck.includes(id);

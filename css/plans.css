@@ -3,7 +3,7 @@
 /* prep: plan picker and summary */
 .plan b { display: flex; align-items: center; gap: 4px; } .plan b img { width: 16px; height: 16px; image-rendering: pixelated; }
 .plan { border-left: 4px solid var(--pc, var(--line)); } .plan small.pvs { color: #b7aec2; }
-.plan.rec { box-shadow: inset 0 0 0 1px #8a6a2a; } .plan .prec { font-size: 9px; color: var(--gold); line-height: 1.3; }
+.plan.rec { box-shadow: inset 0 0 0 1px #8a6a2a; } .plan .precw { font-size: 9px; color: var(--gold); line-height: 1.3; }
 .pplan .pp { background: none; border: 0; border-left: 3px solid var(--pc, var(--gold)); padding: 0 0 0 6px; font-family: inherit; text-align: left; cursor: pointer; color: var(--ink); }
 .pplan .pp b { display: flex; align-items: center; gap: 4px; } .pplan .pp b img { width: 16px; height: 16px; image-rendering: pixelated; }
 /* Dojo lineup: Auto + five plans in a 3x2 grid */
@@ -40,11 +40,12 @@
 @media (max-height: 500px) { .h2rival { min-height: 30px; padding: 1px 4px 1px 1px; } .h2rival .rvface { width: 22px !important; height: 22px !important; } .h2rival .rvn b { font-size: 10px; } }
 
 /* draft: the rival's opening line in the side panel */
-.rvquote { display: flex; gap: 8px; align-items: flex-start; border-left: 3px solid var(--team1, #ff5a5a); background: rgba(255,90,90,0.06); padding: 4px 6px; font-size: 11px; line-height: 1.35; }
+.rvquote { display: flex; gap: 8px; align-items: flex-start; text-align: left; border-left: 3px solid var(--team1, #ff5a5a); background: rgba(255,90,90,0.06); padding: 4px 6px; font-size: 11px; line-height: 1.35; }
 .rvquote b { font-weight: normal; color: #ff9a9a; display: block; } .rvquote span { color: var(--ink); }
 
 /* results: the rival's line and your record */
-.rvres { display: flex; align-items: center; gap: 10px; border-color: #7a3a4a; }
+.rvres { display: flex; align-items: center; gap: 10px; border-color: #7a3a4a; width: min(560px, 100%); align-self: center; animation: rise 0.5s 0.1s both; }
+.reduce-motion .rvres { animation: none; }
 .rvres.nem { border-color: #ff5a5a; box-shadow: 0 0 10px #ff5a5a44; }
 .rvres .rvtxt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .rvres .rvtxt > b { font-weight: normal; color: #ff9a9a; font-size: 14px; } .rvres .rvtxt > b small { color: var(--muted); font-size: 10px; }

@@ -140,7 +140,7 @@ export class Coach {
     // (Early Aggression invades sooner, more often, and also blind when their jungler is not seen nearby.)
     if ((this.level >= 1 || W.invadeFree) && ready('invade') && charges >= 2 && g.camps.length && g.time > W.invadeFrom * k && g.time < 900 * k) {
       const ej = them.heroes.find((h) => h.role === 'jungle');
-      const blind = W.invadeFree && ej && !vis.has(ej.id) && jg && jg.alive && jg.hp / jg.maxHp > 0.6;
+      const blind = W.invadeFree && ej && !vis.has(ej.id) && jg && jg.alive && jg.hp / jg.maxHp > 0.7 && alive.length >= enemyAlive.length;
       if (ej && (!ej.alive || blind || (vis.has(ej.id) && jg && dist2(ej, jg) > 1600 * 1600))) { if (this.issue({ type: 'invade' })) { cd('invade', W.invadeCd); return; } }
     }
   }

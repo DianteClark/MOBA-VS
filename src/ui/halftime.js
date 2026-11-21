@@ -26,7 +26,7 @@ export function showHalftime(app, g, my, runner, ht) {
     const team = g.teams[my];
     // one plan change per match, here: the last pick before play resumes stands (both sides see it at the restart)
     const enemyPlan = g.teams[1 - my].plan;
-    const plan = h('div', { class: 'ht-sec' }, h('div', { class: 'ht-h' }, `Game plan · now ${planName(pick.plan)} · theirs ${planName(enemyPlan)}`),
+    const plan = h('div', { class: 'ht-sec' }, h('div', { class: 'ht-h' }, `Game plan · yours ${PLAN_INFO[pick.plan] ? PLAN_INFO[pick.plan].short : planName(pick.plan)} · theirs ${PLAN_INFO[enemyPlan] ? PLAN_INFO[enemyPlan].short : planName(enemyPlan)}`),
       h('div', { class: 'ht-row htplans' }, ...PLAN_IDS.map((id) => { const P = PLAN_INFO[id];
         return h('button', { class: 'tile' + (pick.plan === id ? ' rec' : ''), title: `${P.desc} Strong: ${P.strong}. Weak: ${P.weak}.`, style: { '--pc': P.color },
           onclick: () => { if (pick.plan === id) return; pick.plan = id; runner.send({ type: 'plan', plan: id }); audio.sfx('move', 0.5); render(); } },
