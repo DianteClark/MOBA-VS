@@ -1,6 +1,6 @@
 // Wasted-time meter: how much of every hero's match has a purpose?
 //   node tools/waste.mjs [games=8] [--workers=2] [--mode=classic|rush] [--save=file.json] [--compare=file.json] [--perf]
-// Runs seeded full bot matches on all 4 maps (game i plays map i%4) and measures, per role and per team side:
+// Runs seeded full bot matches on every classic map (game i plays map i % maps) and measures, per role and per team side:
 //   idle        seconds standing still, not attacking, not in combat, with nothing useful in reach
 //               (no enemy minion / monster / hero / hittable structure within 600px). Healing at base,
 //               recall channels and ambush waits are not idle.
@@ -24,7 +24,7 @@ import { performance } from 'node:perf_hooks';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-const MAPS = ['sakura', 'frost', 'ember', 'marsh'];
+const MAPS = (await import('../src/maps/defs.js')).MAPS.map((m) => m.id);
 const args = process.argv.slice(2);
 const flag = (k, d) => { const a = args.find((x) => x.startsWith('--' + k)); if (!a) return d; const v = a.split('=')[1]; return v === undefined ? true : v; };
 const N = +(args.find((a) => !a.startsWith('--')) || 8);
@@ -42,7 +42,7 @@ async function setup() {
     const draft = () => ROLES.map((r) => { const pool = HEROES.filter((h) => h.role === r && !used.has(h.id)); const h = pool[rng.int(pool.length)]; used.add(h.id); return h.id; });
     const a = draft(), b = draft();
     if (MODE === 'rush') return { seed: 4200 + i, mode: 'rush', map: ['rush_sakura', 'rush_ember'][i % 2], coach: [true, true], teams: [aiPrep(a, b), aiPrep(b, a)] };
-    return { seed: 4200 + i, map: MAPS[i % 4], coach: [true, true], teams: [aiPrep(a, b), aiPrep(b, a)] };
+    return { seed: 4200 + i, map: MAPS[i % MAPS.length], coach: [true, true], teams: [aiPrep(a, b), aiPrep(b, a)] };
   };
   return { Game, cfgFor, C };
 }

@@ -22,6 +22,14 @@ const SPR = {
   fernO: [0, 224, 16, 16], fernB: [16, 224, 16, 16], fernP: [32, 224, 16, 16], fernG: [48, 224, 16, 16], berry1: [64, 224, 16, 16], berry2: [80, 224, 16, 16],
   mossRock: [96, 224, 16, 16], berryBush: [112, 224, 32, 32], oreRock: [144, 224, 32, 32], stumpS: [64, 128, 16, 16], twig: [64, 144, 16, 16], pumpkin: [144, 128, 16, 16],
   spikes: [96, 192, 16, 16], blueStone: [112, 192, 16, 16], snowMound: [128, 192, 16, 16], snowball: [144, 192, 16, 16], sprout: [192, 160, 16, 16], leafO: [192, 176, 16, 16],
+  // other sheets: [x, y, w, h, image key]
+  palm1: [160, 160, 32, 32, 'TilesetDesert'], palm2: [192, 160, 32, 32, 'TilesetDesert'], palmG: [160, 64, 64, 48, 'TilesetDesert'], palmG2: [160, 112, 64, 48, 'TilesetDesert'],
+  dome: [0, 0, 48, 48, 'TilesetDesert'], sandHouse: [96, 0, 64, 48, 'TilesetDesert'], lion: [0, 96, 32, 48, 'TilesetDesert'], well: [0, 48, 32, 32, 'TilesetDesert'],
+  shrubD: [224, 160, 16, 16, 'TilesetDesert'], shrubD2: [224, 176, 16, 16, 'TilesetDesert'], skull: [256, 176, 16, 16, 'TilesetDesert'], bone: [272, 176, 16, 16, 'TilesetDesert'],
+  mossTree: [0, 96, 64, 48, 'TilesetVillageAbandoned'], mossTree2: [0, 144, 64, 48, 'TilesetVillageAbandoned'], mossBush: [64, 96, 32, 32, 'TilesetVillageAbandoned'], mossBush2: [64, 144, 32, 32, 'TilesetVillageAbandoned'],
+  statue: [0, 48, 32, 48, 'TilesetVillageAbandoned'], pillar: [32, 48, 16, 48, 'TilesetVillageAbandoned'], stoneBits: [48, 64, 16, 32, 'TilesetVillageAbandoned'], urn: [64, 48, 32, 32, 'TilesetVillageAbandoned'],
+  vBush: [64, 80, 16, 16, 'TilesetVillageAbandoned'], vBush2: [80, 80, 16, 16, 'TilesetVillageAbandoned'], vStump: [96, 128, 16, 16, 'TilesetVillageAbandoned'],
+  ruinHut: [0, 0, 64, 48, 'TilesetVillageAbandoned'], ruinGrave: [128, 0, 48, 48, 'TilesetVillageAbandoned'], frogIdol: [144, 80, 32, 32, 'TilesetVillageAbandoned'],
 };
 
 export const THEMES = {
@@ -64,6 +72,28 @@ export const THEMES = {
     rocks: ['rockBig', 'rockTri', 'rockTall'], tall: ['grass1', 'grass3', 'reed'], decor: ['pebble', 'pebble2', 'flowerO', 'bush2', 'stump', 'fernO', 'leafO', 'pumpkin', 'twig'],
     edge: ['oreRock', 'fernO', 'twig', 'pumpkin', 'leafO'],
     sky: '#2a1d14', fog: [26, 16, 10], wood: ['#8a5a36', '#9b6840', '#76492b'],
+  },
+  // Sunscar Oasis: sand dunes, clay roads, palms and sandstone houses (TilesetDesert)
+  desert: {
+    ground: pal(['#e0bf7a', '#d8b46c', '#e6c886', '#d0aa62']), accent: pal(['#efd596', '#c99f58', '#e9cf8c']), forestFloor: pal(['#9c6c40', '#a77548']),
+    lane: pal(['#b6805a', '#ad7752', '#c08a62', '#a8714c']), laneEdge: hex('#7f5233'), path: pal(['#d4ae6c', '#dab676', '#ceaa66']), pathEdge: hex('#b08a52'),
+    water: pal(['#45b4c6', '#57c0d0', '#4cb8c9']), waterHi: hex('#b4eef4'), deep: hex('#3394aa'), shore: hex('#f2e2ac'),
+    base: [pal(['#8f9cb0', '#97a4b8', '#8a97ab']), pal(['#b8968a', '#bf9d90', '#b29084'])], pit: pal(['#a07a55', '#aa845e', '#b48e68']), shrine: pal(['#f2d98e', '#fbe39c', '#e6cc80']),
+    trees: ['palm1', 'palm2', 'dead', 'palm1', 'rockTall', 'palm2'], big: ['palmG', 'palmG2', 'rockBig', 'palmG', 'rockTri'],
+    rocks: ['dome', 'sandHouse', 'lion', 'rockBig'], rockScale: 1.5, tall: ['grass3', 'grass1', 'reed'], decor: ['shrubD', 'shrubD2', 'skull', 'bone', 'pebble', 'pebble2', 'twig'],
+    edge: ['shrubD', 'shrubD2', 'pebble2', 'rockTall', 'bone'],
+    sky: '#2b2114', fog: [34, 22, 10], dunes: true, wood: ['#9a6a3e', '#b07a48', '#875c35'],
+  },
+  // Mossgate Ruins: overgrown temple city, cobbled streets, moss trees, broken huts and statues (TilesetVillageAbandoned)
+  ruins: {
+    ground: pal(['#6f9a48', '#78a24e', '#678f43', '#7fa853']), accent: pal(['#9cbf5c', '#a8c766', '#8db34f']), forestFloor: pal(['#34452a', '#3a4b2e']),
+    lane: pal(['#a39a86', '#998f7b', '#ada490', '#928875']), laneEdge: hex('#6c6556'), path: pal(['#8e9a68', '#96a270', '#869262']), pathEdge: hex('#69774a'),
+    water: pal(['#4f9aa8', '#5ca6b3', '#4892a0']), waterHi: hex('#a8e0e6'), deep: hex('#3b7f8e'), shore: hex('#b9b19b'),
+    base: [pal(['#7d8ea6', '#8394ab', '#7889a1']), pal(['#a88480', '#ad8985', '#a37f7b'])], pit: pal(['#7a7262', '#847c6b', '#8e8674']), shrine: pal(['#e6d49a', '#f0dea6', '#d8c68c']),
+    trees: ['mossBush', 'mossBush2', 'g1', 'mossBush', 'roots'], big: ['mossTree', 'mossTree2', 'statue', 'mossTree'],
+    rocks: ['ruinHut', 'ruinGrave', 'pillar', 'frogIdol', 'statue'], rockScale: 1.5, tall: ['grass1', 'grass2', 'grass3'], decor: ['vBush', 'vBush2', 'vStump', 'stoneBits', 'clover', 'flowerW', 'mossRock', 'fernG'],
+    edge: ['vBush', 'vBush2', 'urn', 'fernG', 'stoneBits'],
+    sky: '#18200f', fog: [10, 16, 8], cobble: true, wood: ['#7d6a4c', '#8e7a58', '#6c5a40'],
   },
 };
 
@@ -145,6 +175,7 @@ export function paintMap(world) {
         const centre = !edge && typeAt(px + 30, py) === T_LANE && typeAt(px - 30, py) === T_LANE && typeAt(px, py + 30) === T_LANE && typeAt(px, py - 30) === T_LANE;
         col = edge && j < 0.7 ? th.laneEdge : th.lane[Math.floor(nz * 3 + j * 0.9) % th.lane.length];
         if (centre) col = mul(col, 1.06);
+        if (th.cobble && !edge) { const tx = Math.floor(px / 18), oy = (tx & 1) * 9; if (px % 18 < 2 || (py + oy) % 18 < 2) col = mul(col, 0.8); else col = mul(col, 0.96 + ((tx * 5 + Math.floor((py + oy) / 18) * 3) % 4) * 0.025); }
         if (!edge && j > 0.992) col = mul(col, 1.22); else if (!edge && j < 0.006) col = mul(col, 0.78);
         break;
       }
@@ -182,6 +213,7 @@ export function paintMap(world) {
         const gi = Math.min(th.ground.length - 1, Math.floor(nz * th.ground.length));
         col = th.ground[gi];
         if (n3(px / 40, py / 40) > 0.72 && j < 0.5) col = th.accent[Math.floor(j * 6) % th.accent.length];
+        if (th.dunes) { const r = Math.sin((px * 0.55 + py) / 15 + n2(px / 60, py / 60) * 7); if (r > 0.9) col = mul(col, 0.9); else if (r < -0.96) col = mul(col, 1.05); }
       }
     }
     if (world.brush[world.idx(px, py)] && tc !== T_FOREST) col = col.map((v) => v * 0.8);
@@ -217,7 +249,7 @@ export function paintMap(world) {
   }
   for (const r of world.rocks) {
     const n = Math.max(1, Math.round(r.r / 22));
-    for (let k = 0; k < n; k++) items.push({ x: r.x + (k ? rng.range(-r.r * 0.5, r.r * 0.5) : 0), y: r.y + (k ? rng.range(-r.r * 0.5, r.r * 0.5) : 0), key: th.rocks[rng.int(th.rocks.length)], s: 2 });
+    for (let k = 0; k < n; k++) items.push({ x: r.x + (k ? rng.range(-r.r * 0.5, r.r * 0.5) : 0), y: r.y + (k ? rng.range(-r.r * 0.5, r.r * 0.5) : 0), key: th.rocks[rng.int(th.rocks.length)], s: th.rockScale || 2 });
   }
   // pit rims: a ring of stones around Kami / Kraken pits
   for (const k of ['kami', 'kraken']) {
@@ -266,10 +298,11 @@ export function paintMap(world) {
   }
   items.sort((u, v) => u.y - v.y);
   for (const it of items) {
-    const [sx, sy, sw, sh] = SPR[it.key];
+    const [sx, sy, sw, sh, sheet] = SPR[it.key], img = sheet ? IMG[sheet] : nat;
+    if (!img) continue;
     const w = sw * it.s, h = sh * it.s;
     if (!it.decor) { ctx.fillStyle = 'rgba(10,20,10,0.22)'; ctx.beginPath(); ctx.ellipse(it.x, it.y + h * 0.3, w * 0.4, h * 0.13, 0, 0, Math.PI * 2); ctx.fill(); }
-    ctx.drawImage(nat, sx, sy, sw, sh, Math.round(it.x - w / 2), Math.round(it.y - h * 0.62), w, h);
+    ctx.drawImage(img, sx, sy, sw, sh, Math.round(it.x - w / 2), Math.round(it.y - h * 0.62), w, h);
   }
   const tw = IMG.TilesetTowers;
   if (tw) for (let t = 0; t < 2; t++) {

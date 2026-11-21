@@ -23,6 +23,7 @@ import { careerTab } from './career.js';
 import { showAnalysis } from './analytics.js';
 import { loadLib } from './replays.js';
 import { friendsTab, socialBadge, showPlayer } from './social.js';
+import { eventCard } from './events.js';
 
 const screen = () => document.getElementById('screen');
 const item = (n) => `assets/img/${n}.png`;
@@ -86,6 +87,7 @@ export function showHome(app) {
         h('button', { class: 'h2card h2rush', onclick: () => app.startVsAI('rush') },
           h('span', { class: 'h2h' }, h('b', {}, 'Lane Rush'), h('small', {}, `One lane · ~7 min · vs ${DIFF[app.aiLevel]} AI`)),
           h('span', { class: 'h2arrow' }, 'Play ›')),
+        eventCard(app),
         h('button', { class: 'h2card h2new' + (unseen ? ' unseen' : ''), onclick: () => showPatch(app) },
           h('span', { class: 'h2h' }, h('small', { class: 'kick' }, unseen ? 'NEW' : 'PATCH NOTES'), h('b', {}, `What's new in ${pt.version}`)),
           h('span', { class: 'h2hl' }, ...patchHighlights(pt).map((t) => h('i', {}, t)))))),

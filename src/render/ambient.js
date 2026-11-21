@@ -9,7 +9,7 @@ import { S, C, N, T_RIVER, T_GRASS } from '../sim/world.js';
 import { settings } from '../ui/settings.js';
 
 const B = 240, NB = Math.ceil(S / B); // bucket size for static spots
-const LEAVES = { spring: ['leafpink', 'leafpink', 'leaf'], autumn: ['leafgold', 'leafgold', 'leaf'], winter: ['snow'], marsh: [] };
+const LEAVES = { spring: ['leafpink', 'leafpink', 'leaf'], autumn: ['leafgold', 'leafgold', 'leaf'], winter: ['snow'], marsh: [], desert: [], ruins: ['leaf', 'leaf', 'leafgold'] };
 
 export class Ambient {
   constructor(r) { this.r = r; this.world = null; }
@@ -25,7 +25,7 @@ export class Ambient {
         const inner = isRiver(cx + 1, cy) && isRiver(cx - 1, cy) && isRiver(cx, cy + 1) && isRiver(cx, cy - 1);
         if (inner) for (let k = 0; k < 2; k++) { const p = { x: x + rnd() * C, y: y + rnd() * C, ph: rnd() * 6.28, sp: 0.8 + rnd() }; this.water[((p.y / B) | 0) * NB + ((p.x / B) | 0)].push(p); this.waterAll.push(p); }
         else if (this.key === 'marsh' && rnd() < 0.05 && world.walk[i]) this.frogs.push({ x: x + C / 2, y: y + C / 2, ph: rnd() * 10 });
-      } else if (t === T_GRASS && world.walk[i] && !world.brush[i] && (this.key === 'spring' || this.key === 'marsh' || this.key === 'autumn') && rnd() < 0.02) {
+      } else if (t === T_GRASS && world.walk[i] && !world.brush[i] && (this.key === 'spring' || this.key === 'marsh' || this.key === 'autumn' || this.key === 'ruins') && rnd() < 0.02) {
         const p = { x: x + rnd() * C, y: y + rnd() * C, ph: rnd() * 4 }; this.flowers[((p.y / B) | 0) * NB + ((p.x / B) | 0)].push(p);
       }
     }

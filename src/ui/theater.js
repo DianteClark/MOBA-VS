@@ -239,7 +239,7 @@ export class Theater {
   swap(g, r) {
     const app = this.app, m = this.m, rr = app.renderer, hud = m.hud;
     const dir = hud.director, follow = rr.follow;
-    rr.attach(g, -1, app.mapCanvas(g.world)); this.applyFog();
+    rr.attach(g, -1, app.mapCanvas(g.world, g.event)); this.applyFog();
     m.game = g; m.runner = r;
     m.hud = new Hud(app, g, r, rr, app.minimap, -1, 'watch');
     if (dir) m.hud.toggleDirector();
