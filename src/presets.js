@@ -119,13 +119,13 @@ export function presetChoice(d, team, preset) {
 
 // ── prep ──
 // Builds, lanes, plan and deck from the preset for heroes that came from it; recommended defaults otherwise.
-export function prepFromPreset(ids, enemyIds, preset) {
-  const rec = aiPrep(ids, enemyIds), roles = teamRoles(ids, preset);
+export function prepFromPreset(ids, enemyIds, preset, mode) {
+  const rec = aiPrep(ids, enemyIds, mode), roles = teamRoles(ids, preset);
   const fromPreset = ids.filter((id) => presetRole(preset, id));
   const prep = { plan: rec.plan, deck: DEFAULT_DECK.slice(), heroes: rec.heroes.map((hp, i) => {
     const b = preset && preset.builds[hp.id];
     return { id: hp.id, role: roles ? roles[i] : hp.role, build: presetRole(preset, hp.id) && HERO_BY_ID[hp.id].builds.includes(b) ? b : hp.build };
   }) };
-  if (preset) { if (PLAN_INFO[preset.plan]) prep.plan = preset.plan; prep.deck = preset.deck.slice(0, 3); } else prep.deck = rec.deck.slice(0, 3);
+  if (preset) { if (PLAN_INFO[preset.plan] && !(mode === 'rush' && preset.plan === 'split')) prep.plan = preset.plan; prep.deck = preset.deck.slice(0, 3); } else prep.deck = rec.deck.slice(0, 3);
   return { prep, fromPreset };
 }

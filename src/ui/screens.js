@@ -99,7 +99,7 @@ export function showPrep(app, prep, enemyIds, left, onChange, onReady, ready) {
   const adjust = !!s.prepAdjust && !ready;
   const autoSetup = () => {
     if (ready) return;
-    const ai = aiPrep(myIds, enemyIds);
+    const ai = aiPrep(myIds, enemyIds, s.gameMode);
     for (const hp of prep.heroes) { const a = ai.heroes.find((q) => q.id === hp.id); if (a) hp.build = a.build; }
     prep.plan = ai.plan; prep.deck = ai.deck.slice(0, 3);
     audio.sfx('accept', 0.6); onChange();
@@ -131,7 +131,7 @@ export function showPrep(app, prep, enemyIds, left, onChange, onReady, ready) {
   })();
   const sec = (title, extra, ...kids) => h('div', { class: 'panel psec' }, h('div', { class: 'psh' }, h('span', {}, title), extra || null), ...kids);
   // game plan: the recommended one (your comp vs theirs) is marked; the enemy only sees yours at kickoff
-  const rec = recommendPlan(myIds, enemyIds), plan = PLAN_INFO[prep.plan] || PLAN_INFO[rec.id];
+  const rush = s.gameMode === 'rush', rec = recommendPlan(myIds, enemyIds, s.gameMode), plan = PLAN_INFO[prep.plan] || PLAN_INFO[rec.id];
   const summary = h('div', { class: 'psum' },
     h('div', { class: 'pminis' }, ...byRole.map(mini)),
     h('div', { class: 'pplan' },
@@ -141,7 +141,7 @@ export function showPrep(app, prep, enemyIds, left, onChange, onReady, ready) {
       h('div', { class: 'pclans' }, clans)));
   const editors = adjust ? [
     sec('Lanes & builds', h('button', { class: 'btn small', onclick: autoSetup, title: 'Counter-builds, plan and deck picked for you' }, 'Auto counter-build'), h('div', { class: 'prep-cards' }, ...byRole.map(card))),
-    sec('Game plan', h('small', { class: 'muted' }, 'Hidden from them until kickoff · one change at halftime'), h('div', { class: 'plans' }, ...PLAN_IDS.map((k) => { const P = PLAN_INFO[k];
+    sec('Game plan', h('small', { class: 'muted' }, rush ? 'Hidden from them until kickoff · one lane: no Split Push' : 'Hidden from them until kickoff · one change at halftime'), h('div', { class: 'plans' }, ...PLAN_IDS.filter((k) => !(rush && k === 'split')).map((k) => { const P = PLAN_INFO[k];
       return h('button', { class: 'plan' + (prep.plan === k ? ' on' : '') + (rec.id === k ? ' rec' : ''), style: { '--pc': P.color }, onclick: () => { prep.plan = k; audio.sfx('move', 0.4); onChange(); } },
         h('b', {}, h('img', { src: icon(P.icon), alt: '' }), P.name), h('small', {}, P.desc), h('small', { class: 'pvs' }, planLine(k)),
         rec.id === k ? h('span', { class: 'precw' }, '★ ' + rec.why) : null); }))),

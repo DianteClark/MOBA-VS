@@ -49,9 +49,9 @@ function yourBest() {
 }
 // The rival's prep: counter-builds as usual, then their game plan (signature most of the time, else the recommended
 // one for the matchup) and a deck that fits it. rng: the session's seeded Rng.
-export function rivalPrep(r, ids, enemyIds, rng) {
-  const p = aiPrep(ids, enemyIds);
-  p.plan = rng.next() < r.stick ? r.plans[0] : recommendPlan(ids, enemyIds).id;
+export function rivalPrep(r, ids, enemyIds, rng, mode) {
+  const p = aiPrep(ids, enemyIds, mode), sig = r.plans.find((x) => !(mode === 'rush' && x === 'split'));
+  p.plan = rng.next() < r.stick ? sig : recommendPlan(ids, enemyIds, mode).id;
   p.deck = PLAN_DECK[p.plan].slice();
   return p;
 }

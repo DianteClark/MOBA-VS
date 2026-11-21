@@ -86,12 +86,12 @@ export function defaultPrep(ids) {
   const roles = assignRolesLoose(ids);
   return { plan: 'balanced', deck: ['rally', 'smoke', 'wind'], heroes: ids.map((id, i) => ({ id, role: roles[i], build: HERO_BY_ID[id].rec })) };
 }
-// AI prep: counter-build vs the enemy picks.
-export function aiPrep(ids, enemyIds) {
+// AI prep: counter-build vs the enemy picks. mode 'rush' (one lane) never picks Split Push.
+export function aiPrep(ids, enemyIds, mode) {
   const p = defaultPrep(ids);
   const enemy = enemyIds.map((id) => HERO_BY_ID[id]);
   for (const h of p.heroes) h.build = chooseBuild(HERO_BY_ID[h.id], enemy).id;
-  p.plan = recommendPlan(ids, enemyIds).id;
+  p.plan = recommendPlan(ids, enemyIds, mode).id;
   p.deck = PLAN_DECK[p.plan].slice();
   return p;
 }
@@ -100,7 +100,8 @@ export const PLAN_DECK = { aggro: ['rally', 'ambush', 'smoke'], scale: ['fortify
 
 // Recommended game plan for a comp vs the enemy comp: { id, why, scores }. Pure + deterministic.
 // Reads hero curves (early/late), tags and classes on both sides; the reason names what drove the pick.
-export function recommendPlan(ids, enemyIds) {
+// Lane Rush (mode 'rush', one lane) has no side lanes: Split Push is never recommended there.
+export function recommendPlan(ids, enemyIds, mode) {
   const mine = ids.map((id) => HERO_BY_ID[id]).filter(Boolean), foe = (enemyIds || []).map((id) => HERO_BY_ID[id]).filter(Boolean);
   const n = (list, f) => list.filter(f).length, tag = (t) => (x) => x.tags.includes(t);
   const early = n(mine, (x) => x.curve === 'early' || x.tags.includes('early')), late = n(mine, (x) => x.curve === 'late') + n(mine, tag('scaling')) * 0.5;
@@ -118,7 +119,7 @@ export function recommendPlan(ids, enemyIds) {
     protect: [carry * 0.6 + peel * 0.45 + fDive * 0.3 - 0.45, fDive >= 2 ? 'They dive: peel for your carry' : 'One hero carries late: keep them alive'],
   };
   let id = 'objective', bs = -Infinity;
-  for (const k of Object.keys(sc)) if (sc[k][0] > bs) { bs = sc[k][0]; id = k; }
+  for (const k of Object.keys(sc)) if (sc[k][0] > bs && !(mode === 'rush' && k === 'split')) { bs = sc[k][0]; id = k; }
   return { id, why: sc[id][1], scores: Object.fromEntries(Object.entries(sc).map(([k, v]) => [k, Math.round(v[0] * 10) / 10])) };
 }
 

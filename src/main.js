@@ -450,10 +450,10 @@ class App {
   startPrep() {
     const s = this.session, me = s.myTeam, d = s.draft;
     s.preps = [null, null]; s.ready = [false, false];
-    const pp = prepFromPreset(d.picks[me], d.picks[1 - me], s.preset);
+    const pp = prepFromPreset(d.picks[me], d.picks[1 - me], s.preset, s.gameMode);
     s.myPrep = pp.prep; s.prepFromPreset = pp.fromPreset; s.prepAdjust = false;
     s.myPrep.skins = profile.skinsFor(d.picks[me]);
-    if (s.mode === 'ai') { const rv = s.rival && RIVAL_BY_ID[s.rival]; s.preps[1 - me] = rv ? rivalPrep(rv, d.picks[1 - me], d.picks[me], s.rng) : aiPrep(d.picks[1 - me], d.picks[me]); s.ready[1 - me] = true; }
+    if (s.mode === 'ai') { const rv = s.rival && RIVAL_BY_ID[s.rival]; s.preps[1 - me] = rv ? rivalPrep(rv, d.picks[1 - me], d.picks[me], s.rng, s.gameMode) : aiPrep(d.picks[1 - me], d.picks[me], s.gameMode); s.ready[1 - me] = true; }
     if (s.pendingPrep) { s.preps[s.pendingPrep.team] = s.pendingPrep.prep; s.ready[s.pendingPrep.team] = true; s.pendingPrep = null; }
     s.prepEnd = performance.now() + PREP_SECONDS * 1000;
     const render = () => showPrep(this, s.myPrep, d.picks[1 - me], (s.prepEnd - performance.now()) / 1000, render, () => this.prepReady(), s.ready[me]);
