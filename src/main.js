@@ -49,7 +49,7 @@ import { hostCoop, onCoopNet, enterAsGuest, myDraftTurn, applyDraft, draftAuto, 
   coopCfg, runnerOpts, startedRunner, soloFallback, historyCoop } from './coop-room.js';
 import { coopResults } from './ui/coop.js';
 
-const VERSION = 21; // bump whenever the sim or balance changes (peers must match)
+const VERSION = 22; // bump whenever the sim or balance changes (peers must match)
 const PREP_SECONDS = 60;
 
 class App {
