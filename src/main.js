@@ -34,7 +34,7 @@ import { rankMoment } from './ui/ranks.js';
 import { installBuildTips } from './ui/buildguide.js';
 import { saveClip, clipSupport } from './ui/clip.js';
 
-const VERSION = 6; // bump whenever the sim or balance changes (peers must match)
+const VERSION = 7; // bump whenever the sim or balance changes (peers must match)
 const PREP_SECONDS = 60;
 
 class App {
