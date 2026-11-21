@@ -294,6 +294,7 @@ export class Hud {
       case 'heal': return 'At base';
       case 'group': return `Grouping ${L(t.lane)}`;
       case 'split': return `Split-pushing ${L(t.lane)}`;
+      case 'cover': return `Covering ${L(t.lane)}`;
       case 'safe': return 'Playing safe';
       case 'invade': return 'Invading';
       case 'defend': return 'Defending base';

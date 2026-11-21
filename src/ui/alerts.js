@@ -1,6 +1,6 @@
 // Off-screen alert arrows (the one arrow system): fights involving your heroes, big fights
 // anywhere you can see ("FIGHT AT KAMI - tap to watch": the fight cam), your structures under
-// attack, objectives being attacked. Arrows sit on the screen edge (never over HUD panels);
+// attack, objectives being attacked, a lane left open to a minion wave (tap sends a hero). Arrows sit on the screen edge (never over HUD panels);
 // tap one to look there (big fights cut the camera straight in). Read-only on the game.
 import { h, face, bossFace } from './dom.js';
 import { TICK_RATE } from '../sim/constants.js';
@@ -54,7 +54,17 @@ export class Alerts {
       if (my >= 0 && !g.vision[view].has(o.id)) continue;
       out.push({ key: 'obj' + k, kind: 'obj', x: o.x, y: o.y, img: bossFace(k, o.element), label: Math.round(o.hp / o.maxHp * 100) + '%' });
     }
-    const rank = { bigfight: 0, fight: 1, tower: 2, obj: 3 };
+    // a lane left open: an enemy wave is hitting our structure and nobody is there (sim: team.laneOpen).
+    // Tap: send the hero the lane brain suggests (a split call to that lane), and look there.
+    if (my >= 0) for (const [lane, o] of Object.entries(g.teams[my].laneOpen || {})) {
+      const tw = o && g.byId(o.tower), x = o && g.byId(o.hero);
+      if (!tw || !tw.alive) continue;
+      const L = lane[0].toUpperCase() + lane.slice(1);
+      out.push({ key: 'open' + lane, kind: 'laneopen', x: tw.x, y: tw.y - 30, img: x ? face(x.heroId) : null, label: `${L} lane open: wave hitting tower`, sub: x && x.alive ? `tap: send ${x.def.name}` : 'tap to look',
+        cmd: x && x.alive ? { type: 'split', hero: x.id, lane } : null });
+    }
+    const rank = { bigfight: 0, laneopen: 1, fight: 2, tower: 3, obj: 4 };
+    for (const a of out.slice()) if (a.kind === 'laneopen') { const i = out.findIndex((b) => b.kind === 'tower' && b.x === a.x); if (i >= 0) out.splice(i, 1); }
     out.sort((a, b) => rank[a.kind] - rank[b.kind]);
     this.sync(out.slice(0, 5));
   }
@@ -65,19 +75,21 @@ export class Alerts {
       let it = this.items.get(a.key);
       if (!it) {
         const img = h('img', { src: a.img || 'assets/img/icons/DefenseUpgrade.png' }), lab = h('b', {});
-        const big = a.kind === 'bigfight';
+        const big = a.kind === 'bigfight' || a.kind === 'laneopen';
         const el = h('button', { class: 'alert fresh ' + a.kind, title: big ? 'Big fight! Tap to watch' : a.kind === 'fight' ? 'Fight! Tap to look' : a.kind === 'tower' ? 'Tower under attack' : 'Objective under attack',
-          onclick: (e) => { e.stopPropagation(); this.go(it); } }, h('i', { class: 'arw' }), h('span', { class: 'ic' }, img), big ? h('span', { class: 'bl' }, lab, h('small', {}, 'tap to watch')) : lab);
+          onclick: (e) => { e.stopPropagation(); this.go(it); } }, h('i', { class: 'arw' }), h('span', { class: 'ic' }, img), big ? h('span', { class: 'bl' }, lab, h('small', {}, a.sub || 'tap to watch')) : lab);
+        if (a.kind === 'laneopen') { el.classList.add('bigfight'); el.style.setProperty('--ac', '#ff3b3b'); el.style.borderColor = '#ff3b3b'; el.title = a.label; }
         this.el.append(el);
         it = { el, lab, img, born: performance.now(), w: 0, hh: 0 };
         this.items.set(a.key, it);
       }
-      it.x = a.x; it.y = a.y; it.kind = a.kind;
+      it.x = a.x; it.y = a.y; it.kind = a.kind; it.cmd = a.cmd;
       if (it.lab.textContent !== a.label) it.lab.textContent = a.label;
     }
     for (const [k, it] of this.items) if (!keep.has(k)) { it.el.remove(); this.items.delete(k); }
   }
   go(it) {
+    if (it.kind === 'laneopen' && it.cmd) this.hud.send(it.cmd);
     if (it.kind === 'bigfight') this.hud.watchFight(it.x, it.y);
     else { const r = this.r; r.follow = null; r.panTo = { x: it.x, y: it.y }; this.hud.director = false; this.hud.refreshCtrl(); }
     it.el.classList.add('hidden');
@@ -114,7 +126,7 @@ export class Alerts {
         if (!hit) { ok = true; break; }
         k *= 0.94; x = cx + dx * k; y = cy + dy * k;
       }
-      if (!ok || k < k0 * (it.kind === 'bigfight' ? 0.12 : 0.35)) { it.el.classList.add('hidden'); continue; } // wide prompts may sit further in
+      if (!ok || k < k0 * (it.kind === 'bigfight' || it.kind === 'laneopen' ? 0.12 : 0.35)) { it.el.classList.add('hidden'); continue; } // wide prompts may sit further in
       it.el.classList.remove('hidden', 'fresh');
       rects.push({ l: x - half - 3, t: y - halfH - 3, r: x + half + 3, b: y + halfH + 3 }); // later prompts keep clear of this one
       const ang = Math.atan2(dy, dx), ca = Math.abs(Math.cos(ang)), sa = Math.abs(Math.sin(ang));
