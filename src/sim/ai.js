@@ -177,6 +177,9 @@ export function laneBrain(g, team) {
     const eta = deep ? Math.max(0, towerLen - SIEGE_RANGE) / 72 : 99; // seconds until the wave reaches the tower
     // need: 2 = hitting a structure now, 1 = a winning enemy wave will get there soon with nobody to meet it
     st.need = hitting ? 2 : deep && ehp > ahp * 1.25 + 250 && eta < 14 ? 1 : 0;
+    // Last Stand: the game is decided by grouping and Crystals, so only real sieges pull a hero
+    // (an inner tower, an inhibitor, or a wave with an enemy hero behind it), not every side wave.
+    if (g.finalPhase && st.need && !(hitting && tw && (tw.type === 'inhib' || tw.tier >= 2))) st.need = 0;
     st.crash = deep ? { x: deep.x, y: deep.y } : null;
     if (!st.need) { if (!st.quietAt) st.quietAt = now; if (open[lane] && now - st.quietAt > sec(3)) open[lane] = null; continue; }
     st.quietAt = 0;
@@ -206,7 +209,7 @@ export function laneBrain(g, team) {
       if (hp < 0.4 || now - a.lastHurtByHero < sec(3) || a.task.kind === 'heal' && hp < 0.85) continue;
       const k = a.task.kind;
       let c = Math.max(0, t);
-      if (a.task.call) { if (k === 'group' && grouped >= 4) c += 8; else continue; }
+      if (a.task.call) { if (k === 'group' && grouped >= 4 && !g.finalPhase) c += 8; else continue; }
       else if (k === 'objective' || k === 'contest' || k === 'defend' || k === 'gank' || k === 'ambush' || k === 'permit' || k === 'invade' || k === 'cover') continue;
       else if (k === 'lane') { const own = L[a.task.lane]; if (own && own.need) continue; c += 6; }
       else if (k === 'jungle') c += 3;
