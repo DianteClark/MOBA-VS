@@ -237,7 +237,9 @@ export async function showPlayer(app, id, { name = 'Coach' } = {}) {
       border ? h('span', { class: 'pborder', style: { borderColor: border.color, color: border.color }, title: `Season ${pub.border.season} border` }, border.name) : null),
     h('div', { class: 'pline' },
       r.ladder ? h('span', {}, h('b', { class: 'gold' }, `#${r.ladder.rank}`), ` online ladder · ${r.ladder.rating} · ${r.ladder.wins}W ${r.ladder.losses}L`) : h('span', { class: 'muted' }, 'Not on the online ladder this season'),
-      pub && (pub.trophies.gold || pub.trophies.silver) ? h('span', { class: 'muted' }, ` · ${pub.trophies.gold ? `${pub.trophies.gold} Golden Cup${pub.trophies.gold > 1 ? 's' : ''}` : ''}${pub.trophies.gold && pub.trophies.silver ? ', ' : ''}${pub.trophies.silver ? `${pub.trophies.silver} Silver` : ''}`) : null),
+      pub && (pub.trophies.gold || pub.trophies.silver) ? h('span', { class: 'muted' }, ` · ${pub.trophies.gold ? `${pub.trophies.gold} Golden Cup${pub.trophies.gold > 1 ? 's' : ''}` : ''}${pub.trophies.gold && pub.trophies.silver ? ', ' : ''}${pub.trophies.silver ? `${pub.trophies.silver} Silver` : ''}`) : null,
+      r.cups && r.cups.played ? h('span', { class: 'pcups', title: `Weekend Cups: ${r.cups.wins} won, ${r.cups.finals} finals, ${r.cups.played} played` }, h('img', { src: 'assets/img/items/GoldCup.png', alt: '' }),
+        ` ${r.cups.wins} Weekend Cup${r.cups.wins === 1 ? '' : 's'}${r.cups.finals ? ` · ${r.cups.finals} final${r.cups.finals === 1 ? '' : 's'}` : ''}`) : null),
     h('div', { class: 'row pact' }, ...actions),
     !pub ? h('p', { class: 'muted center' }, 'This coach has not shared a profile yet.') : [
       pub.top.length ? h('div', { class: 'ptop' }, h('small', { class: 'muted' }, 'Top heroes'), h('div', { class: 'ptopl' }, ...pub.top.map(([hid, pts]) => HERO_BY_ID[hid] ? h('div', { class: 'phero', title: `${HERO_BY_ID[hid].name} · mastery ${masteryLevel(pts)}` },

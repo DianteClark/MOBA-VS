@@ -65,13 +65,18 @@ export class LocalRunner {
 }
 Object.assign(LocalRunner.prototype, Halftime);
 
+const asPeer = (x, who) => {
+  const y = { ...x, team: who.team }; delete y.sys;
+  if (who.seat !== undefined) y.seat = who.seat; else delete y.seat;
+  return y;
+};
 const DELAY = 5; // ticks of input delay (250ms)
 export class LockstepRunner {
   // opts.slot / opts.slots: this peer's slot and the number of peers (1v1: slot = team, 2 slots).
   // opts.seat: co-op seat stamped on our commands. opts.coop: messages carry `p` (the sender's slot).
   constructor(game, myTeam, transport, opts = {}) {
     this.game = game; this.myTeam = myTeam; this.t = transport; this.online = true;
-    this.slot = opts.slot ?? myTeam; this.slots = opts.slots || 2; this.seat = opts.seat; this.coop = !!opts.coop;
+    this.slot = opts.slot ?? myTeam; this.slots = opts.slots || 2; this.seat = opts.seat; this.coop = !!opts.coop; this.seatsOf = opts.seatsOf || null;
     this.speed = opts.speed || 1; this.paused = false;
     this.queue = []; this.seq = 0; this.acc = 0;
     this.inputs = Array.from({ length: this.slots }, () => new Map());
@@ -86,11 +91,16 @@ export class LockstepRunner {
   send(cmd) { this.queue.push(stamp(this, cmd)); }
   // Slot a message came from: co-op messages carry it; 1v1 messages come from the one other peer.
   from(msg) { return this.coop ? msg.p : 1 - this.slot; }
+  // Who a peer slot coaches: co-op rooms pass opts.seats (slot → { team, seat }); 1v1: the other team.
+  who(p) { return this.coop && this.seatsOf && this.seatsOf[p] ? this.seatsOf[p] : { team: 1 - this.myTeam }; }
   receive(msg) {
     this.lastRemote = performance.now();
     const p = this.from(msg);
     if (!(p >= 0 && p < this.slots) || p === this.slot) return;
-    if (msg.t === 'in') { const d = this.dropped.get(p); for (const [k, c] of msg.b) if (!d || k < d.at) this.inputs[p].set(k, c); }
+    // Remote commands always act for the sender's own team (and co-op seat): a tampered client cannot issue
+    // calls for our heroes or for another coach's seat (its own sim would then disagree, and reports would not
+    // match); system commands never come from a peer's input stream (only the host's 'drop' carries a 'leave').
+    if (msg.t === 'in') { const d = this.dropped.get(p), who = this.who(p); for (const [k, c] of msg.b) if (!d || k < d.at) this.inputs[p].set(k, Array.isArray(c) ? c.slice(0, 16).map((x) => asPeer(x, who)) : []); }
     else if (msg.t === 'h') { const l = this.remoteHashes.get(msg.k) || []; l.push(msg.v); this.remoteHashes.set(msg.k, l); this.checkHash(msg.k); }
     else if (msg.t === 'ht') { this.htReady.add(p); this.remoteHt = this.othersReady(); }
     else if (msg.t === 'drop' && p === 0) this.drop(msg.slot, msg.at, msg.cmds); // only the host decides

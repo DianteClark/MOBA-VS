@@ -72,3 +72,6 @@
 .tline.mate { color: #f2eee8; } .tline.mate.s0 { border-left-color: #ffd84a; } .tline.mate.s1 { border-left-color: #6fe3c8; }
 /* a partner's suggestion in the lead's tray */
 .titem.mate .sl { margin-right: 2px; }
+/* looks: each coach's signature emote, and their banner behind their seat */
+.cemo { width: 18px; height: 18px; flex: 0 0 18px; image-rendering: pixelated; }
+.cseat.hasbg { background: linear-gradient(90deg, #201a2af2 45%, #201a2a99), var(--cbg); }

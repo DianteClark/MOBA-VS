@@ -4,9 +4,10 @@
 import { h, mount, toast } from './dom.js';
 import { settings, setSetting } from './settings.js';
 import { audio } from '../audio.js';
+import { EMOTE_IDS, EMOTES, emoteSrc } from '../data/cosmetics.js';
+import { profile } from '../profile.js';
 
 export const LINES = ['GG', 'Nice call', 'Watch Oni', 'Push now', 'Well played', 'Oops', 'Thanks', 'Hold up'];
-const EMOTES = ['up', 'ok', 'think', 'doubt', 'down', 'tilt'];
 const SHOW_MS = 3500, GAP_MS = 1500, BURST = 4, BURST_MS = 12000;
 
 // Allows one message per GAP_MS and BURST per BURST_MS (the same rule guards what we receive).
@@ -19,9 +20,10 @@ class RateLimit {
     this.t.push(now); return true;
   }
 }
-// A message is only ever an index into LINES or a key from EMOTES: nothing free-form crosses the wire.
+// A message is only ever an index into LINES or a known emote key (src/data/cosmetics.js): nothing free-form crosses the wire.
+// You send the emotes you own; you see any known emote the opponent owns.
 function validMsg(m) {
-  return m && m.t === 'qc' && ((Number.isInteger(m.i) && m.i >= 0 && m.i < LINES.length && m.e === undefined) || (m.i === undefined && EMOTES.includes(m.e)));
+  return m && m.t === 'qc' && ((Number.isInteger(m.i) && m.i >= 0 && m.i < LINES.length && m.e === undefined) || (m.i === undefined && EMOTE_IDS.includes(m.e)));
 }
 
 export class QuickChat {
@@ -43,7 +45,7 @@ export class QuickChat {
     const pick = (m) => () => this.say(m);
     this.panel = h('div', { id: 'qchat', class: 'hud' },
       h('div', { class: 'qlines' }, ...LINES.map((l, i) => h('button', { class: 'chip', onclick: pick({ i }) }, l))),
-      h('div', { class: 'qemotes' }, ...EMOTES.map((e) => h('button', { class: 'qemo', title: e, onclick: pick({ e }) }, h('img', { src: `assets/img/emote/${e}.png`, alt: e })))),
+      h('div', { class: 'qemotes' }, ...EMOTE_IDS.filter((e) => profile.hasEmote(e)).map((e) => h('button', { class: 'qemo', title: EMOTES[e].name, 'aria-label': EMOTES[e].name, onclick: pick({ e }) }, h('img', { src: emoteSrc(e), alt: e })))),
       h('button', { class: 'chip qmute' + (settings.chatMute ? ' on' : ''), onclick: () => { setSetting('chatMute', !settings.chatMute); this.close(); toast(settings.chatMute ? `${this.who} quick chat muted` : `${this.who} quick chat on`, 1400); } },
         settings.chatMute ? 'Muted: tap to unmute' : `Mute ${this.opts.mute || 'opponent'}`));
     document.getElementById('hud').append(this.panel);
@@ -71,7 +73,7 @@ export class QuickChat {
     const mine = team === this.hud.my && !(who && who !== this.opts.me), col = who ? who.color : `var(--team${team})`;
     const el = h('div', { class: 'qmsg ' + (mine ? 'me' : 'them'), style: { borderColor: col } },
       h('b', { style: { color: col } }, who ? who.name : mine ? 'You' : (this.hud.app.session && this.hud.app.session.names[team]) || 'Rival'),
-      m.e ? h('img', { src: `assets/img/emote/${m.e}.png`, alt: m.e }) : h('span', {}, LINES[m.i]));
+      m.e ? h('img', { src: emoteSrc(m.e), alt: EMOTES[m.e].name }) : h('span', {}, LINES[m.i]));
     this.place();
     this.feed.prepend(el);
     while (this.feed.childElementCount > 2) this.feed.lastChild.remove();

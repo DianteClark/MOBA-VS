@@ -5,11 +5,16 @@ import { ROLES, ROLE_LABEL } from '../data/heroes.js';
 import { getAccount, friendAction } from '../net/online.js';
 import { lobbyInvite, showPlayer } from './social.js';
 import { audio } from '../audio.js';
+import { EMOTES, emoteSrc } from '../data/cosmetics.js';
+import { BANNERS } from '../data/seasons.js';
 import { COOP_COL, lobbyAct, canStart, startRoom, maxPlayers } from '../coop-room.js';
 
 const screen = () => document.getElementById('screen');
 const DIFF = ['Easy', 'Normal', 'Hard'];
 const SEAT = ['A', 'B'];
+// A coach's signature emote (their looks), or nothing.
+const emo = (p) => (p && p.looks && p.looks.emote && EMOTES[p.looks.emote] ? h('img', { class: 'cemo', src: emoteSrc(p.looks.emote), alt: '', title: EMOTES[p.looks.emote].name }) : null);
+const banner = (p) => { const b = p && p.looks && p.looks.banner && BANNERS[p.looks.banner]; return b ? { '--cbg': b.bg } : {}; };
 
 export function showCoopLobby(app) {
   const s = app.session; if (!s || s.mode !== 'coop' || !s.lobby) return;
@@ -18,10 +23,10 @@ export function showCoopLobby(app) {
   const seatCard = (team, seat) => {
     const p = room.players.find((x) => x.team === team && x.seat === seat), mine = p && p.slot === s.slot;
     const lead = seat === 0 && room.players.filter((x) => x.team === team).length === 2;
-    return h('button', { class: 'cseat' + (p ? ' taken' : ' open') + (mine ? ' me' : ''), style: { '--sc': COOP_COL[seat] }, disabled: !!p,
+    return h('button', { class: 'cseat' + (p ? ' taken' : ' open') + (mine ? ' me' : '') + (p && banner(p)['--cbg'] ? ' hasbg' : ''), style: { '--sc': COOP_COL[seat], ...banner(p) }, disabled: !!p,
       title: p ? p.name : 'Tap to sit here', onclick: () => act({ t: 'seat', team, seat }) },
       h('i', { class: 'sl' }, SEAT[seat]),
-      h('span', { class: 'sn' }, p ? p.name : 'Open seat'),
+      h('span', { class: 'sn' }, p ? p.name : 'Open seat'), emo(p),
       mine ? h('small', { class: 'you' }, 'you') : null, lead ? h('small', { class: 'lead', title: 'The lead makes team-wide calls; the partner suggests them' }, 'lead') : null);
   };
   const teamBox = (team) => {
@@ -76,7 +81,7 @@ export function coopResults(app, s, g) {
   return h('div', { class: 'panel coopres' },
     h('b', {}, c.seats === 2 ? 'Coached together' : 'Co-op room'),
     h('div', { class: 'crows' }, ...c.coaches.map((p) => h('div', { class: 'crow', style: { '--sc': COOP_COL[p.seat] } },
-      h('i', { class: 'sl' }, SEAT[p.seat]), h('span', { class: 'sn' }, p.slot === s.slot ? `${p.name} (you)` : p.name),
+      h('i', { class: 'sl' }, SEAT[p.seat]), emo(s.players.find((x) => x.slot === p.slot) || p), h('span', { class: 'sn' }, p.slot === s.slot ? `${p.name} (you)` : p.name),
       h('small', { class: 'muted' }, roles(p.seat)), h('span', { class: 'cc' }, `${calls(p.seat)} calls · ${good(p.seat)} paid off`)))),
     others.length && acct ? h('div', { class: 'cfr' }, ...others.map((p) => h('span', { class: 'cfp' }, h('button', { class: 'chip', onclick: () => showPlayer(app, p.pid, { name: p.name }) }, p.name),
       h('button', { class: 'chip', onclick: async (e) => { e.target.disabled = true; try { const r = await friendAction('add', p.pid); toast(r.state === 'friend' ? `You and ${p.name} are now friends` : 'Friend request sent'); e.target.textContent = r.state === 'friend' ? 'Friends' : 'Sent'; } catch (err) { toast(err.message); e.target.disabled = false; } } }, '+ Friend')))) : null,

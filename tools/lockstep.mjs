@@ -52,7 +52,7 @@ async function runRoom(name, seats, cfgx, plan) {
   const hub = new Hub(), links = [hub];
   for (let p = 1; p < n; p++) { const [a, b] = loopbackPair(lat); hub.add(p, a); links.push(b); }
   const games = seats.map(() => new Game({ ...cfg('classic'), ...cfgx }));
-  const runners = seats.map((s, p) => new LockstepRunner(games[p], s.team, links[p], { slot: p, slots: n, seat: s.seat, coop: true }));
+  const runners = seats.map((s, p) => new LockstepRunner(games[p], s.team, links[p], { slot: p, slots: n, seat: s.seat, coop: true, seatsOf: seats }));
   hub.onMessage((m) => runners[0].receive(m));
   for (let p = 1; p < n; p++) links[p].onMessage((m) => runners[p].receive(m));
   hub.onLeave((p) => runners[0].hostDrop(p, [{ type: 'leave', sys: 1, team: seats[p].team, seat: seats[p].seat, seq: 0 }]));
@@ -113,6 +113,19 @@ const rules2 = [
   ['both red coaches left: the AI coach runs red', red.coop.ai && !!rg.coaches[1]],
 ];
 for (const [k, ok] of rules2) console.log(`[coop-2v2] ${ok ? 'ok ' : 'BAD'} ${k}`);
+// A tampered peer cannot act for another seat or team, nor slip a system command into its input stream:
+// its commands are re-stamped with the sender's own team and seat on every other peer.
+{
+  const r = new LockstepRunner(new Game({ ...cfg('classic'), coach: [false, true], coop: [{ seats: 2, own: DEFAULT_OWN, lead: 0 }, null] }), 0, { send() {} },
+    { slot: 0, slots: 2, seat: 0, coop: true, seatsOf: [{ team: 0, seat: 0 }, { team: 0, seat: 1 }] });
+  r.receive({ t: 'in', p: 1, b: [[9, [{ type: 'objective', obj: 'dragon', team: 1, seat: 0, seq: 1 }, { type: 'leave', sys: 1, team: 0, seat: 0, seq: 2 }]]] });
+  const got = r.inputs[1].get(9);
+  rules2.push(['forged team/seat/system commands re-stamped as the sender', got.every((c) => c.team === 0 && c.seat === 1 && !c.sys)]);
+  const one = new LockstepRunner(new Game(cfg('classic')), 0, { send() {} });
+  one.receive({ t: 'in', b: [[9, [{ type: 'safe', team: 0, seq: 1 }]]] });
+  rules2.push(['1v1: remote commands act for the remote team', one.inputs[1].get(9)[0].team === 1 && one.inputs[1].get(9)[0].seat === undefined]);
+  for (const [k, ok] of rules2.slice(-2)) console.log(`[tamper] ${ok ? 'ok ' : 'BAD'} ${k}`);
+}
 const okCoop = coopAi.ok && room.ok && rules.every((x) => x[1]) && rules2.every((x) => x[1]);
 
 const okC = process.env.COOP_ONLY ? true : await run('classic'), okR = process.env.COOP_ONLY ? true : await run('rush');

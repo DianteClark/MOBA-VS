@@ -9,6 +9,10 @@ import sys, asyncio, os
 from playwright.async_api import async_playwright
 URL = (sys.argv[1] if len(sys.argv) > 1 else 'http://127.0.0.1:8831/').rstrip('/') + '/index.html?local=1'
 SHOTS = sys.argv[2] if len(sys.argv) > 2 else None
+# Mia (the partner) owns and equips skins on every hero and a signature emote (as in looks_test.py)
+EQUIP = """async () => { const P = (await import('./src/profile.js')).profile; const { HEROES } = await import('./src/data/heroes.js'); const { SKINS } = await import('./src/data/seasons.js');
+  for (const h of HEROES) { if (SKINS['leg_' + h.id]) { P.d.unlocked.skins.push('leg_' + h.id); P.d.equip.skins[h.id] = 'leg_' + h.id; } else { P.d.mastery[h.id] = { pts: 800 }; P.d.equip.skins[h.id] = 'sig_' + h.id; } }
+  P.d.unlocked.emotes.push('smug'); P.d.equip.emote = 'smug'; P.save({ local: true }); }"""
 DRAFT = """async () => { const m = await import('./src/coop-room.js'); const s = app.session;
   if (!s || !s.draft) return 'wait'; if (s.draft.done) return 'done';
   if (app.myDraftTurn()) app.draftAct(m.draftAuto(s)); return 'drafting'; }"""
@@ -44,10 +48,12 @@ async def main():
         print('— co-op vs AI —')
         ctx = await b.new_context(viewport={'width': 844, 'height': 390})
         A = await tab(ctx, 'Ana'); B = await tab(ctx, 'Mia')
+        await B.evaluate(EQUIP)
         await A.evaluate("app.hostCoop({ code: 'COOPA' })"); await A.wait_for_timeout(400)
         await B.evaluate("app.joinScreen('COOPA')")
         ok(await until(A, "app.session.room.players.length === 2"), 'partner joined the room by code')
         ok(await until(B, "!!document.querySelector('.coop .cseat.me')"), 'the guest sees the co-op lobby with their seat')
+        ok(await until(A, "!!document.querySelector('.cseat .cemo[src*=smug]')"), "the host's lobby shows the partner's signature emote (looks)")
         await shot(A, 'coop_lobby_host'); await shot(B, 'coop_lobby_guest')
         # the guest moves Mid to themselves (role chips), the host sees it
         await B.click(".crole:nth-child(3)")
@@ -73,6 +79,10 @@ async def main():
         ok(await until(A, "!!(app.match && app.match.runner.online)") and await until(B, "!!(app.match && app.match.runner.online)"), 'both tabs are in the co-op match')
         own = await B.evaluate("JSON.stringify(app.match.game.teams[0].heroes.map((x) => x.seat))")
         ok(own == await A.evaluate("JSON.stringify(app.match.game.teams[0].heroes.map((x) => x.seat))") and own.count('1') == 3, f'hero ownership in the sim ({own})')
+        sk = await A.evaluate("""() => { const g = app.match.game, k = app.renderer.skins[0]; return JSON.stringify({ mate: g.teams[0].heroes.filter((x) => x.seat === 1).every((x) => !!k[x.heroId]), mine: g.teams[0].heroes.filter((x) => x.seat === 0).some((x) => !!k[x.heroId]) }); }""")
+        ok(sk == '{"mate":true,"mine":false}', f"the lead sees the partner's skins on the partner's heroes only ({sk})")
+        ok(await A.evaluate("JSON.stringify(app.renderer.skins)") == await B.evaluate("JSON.stringify(app.renderer.skins)"), 'both coaches see the same skins')
+        ok(await B.evaluate("JSON.stringify(app.match.cfg).indexOf('leg_') < 0 && JSON.stringify(app.match.cfg).indexOf('sig_') < 0"), 'skins stay out of the sim config')
         ok(await B.evaluate("document.querySelectorAll('#myteam .hrow .own').length === 5 && document.querySelectorAll('#myteam .hrow.mate').length === 2"), "HUD marks your heroes and your partner's")
         ok(await B.evaluate("document.querySelector('.coopbar').textContent.includes('Ana')"), 'the lead badge names the lead')
         await A.wait_for_timeout(4000)

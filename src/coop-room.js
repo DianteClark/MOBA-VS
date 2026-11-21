@@ -18,6 +18,7 @@ import { prepFromPreset } from './presets.js';
 import { hostRoom, Hub, makeCode } from './net/peer.js';
 import { getAccount } from './net/online.js';
 import { toast } from './ui/dom.js';
+import { myLooks, cleanLooks } from './looks.js';
 import { audio } from './audio.js';
 import { showCoopLobby } from './ui/coop.js';
 
@@ -33,7 +34,7 @@ export async function hostCoop(app, opts = {}) {
   const live = () => app.lobbyId === id;
   const hub = new Hub();
   const room = { code, kind: opts.kind === '2v2' ? '2v2' : 'ai', aiLevel: app.aiLevel ?? 1, own: [{ ...DEFAULT_OWN }, { ...DEFAULT_OWN }],
-    players: [{ slot: 0, name: app.name, pid: getAccount() && getAccount().id, team: 0, seat: 0 }], status: 'Opening room…', invite: opts.invite || null };
+    players: [{ slot: 0, name: app.name, pid: getAccount() && getAccount().id, team: 0, seat: 0, looks: myLooks() }], status: 'Opening room…', invite: opts.invite || null };
   app.session = { mode: 'coop', lobby: true, host: true, slot: 0, room };
   app.net = { peer: { destroy() {} }, t: hub, hub };
   hub.onMessage((m) => app.onNet(m));
@@ -65,6 +66,12 @@ function broadcast(app) {
   const s = app.session, room = s.room;
   if (s.host) for (const p of room.players) if (p.slot) app.net.hub.sendTo(p.slot, { t: 'room', room: publicRoom(room), you: p.slot, v: app.version });
   showCoopLobby(app);
+}
+// Everything a guest receives about the room is re-validated (names, seats, looks).
+function cleanRoom(r) {
+  const players = (Array.isArray(r && r.players) ? r.players : []).slice(0, 4).map((p) => ({ slot: p.slot | 0, name: String(p.name || 'Coach').slice(0, 12), pid: typeof p.pid === 'string' ? p.pid : null,
+    team: p.team === 1 ? 1 : 0, seat: p.seat === 1 ? 1 : 0, looks: cleanLooks(p.looks) }));
+  return { code: String(r.code || ''), kind: r.kind === '2v2' ? '2v2' : 'ai', aiLevel: Math.max(0, Math.min(2, r.aiLevel | 0)), own: [0, 1].map((t) => cleanOwn(r.own && r.own[t])), players, status: String(r.status || '') };
 }
 const publicRoom = (r) => ({ code: r.code, kind: r.kind, aiLevel: r.aiLevel, own: r.own, players: r.players, status: r.status });
 // Host-side lobby actions (a guest's taps arrive as messages and land here too).
@@ -127,7 +134,7 @@ export function startRoom(app) {
 // First 'room' message on a plain Join: this is a co-op room.
 export function enterAsGuest(app, m) {
   if (m.v !== app.version) { toast('Version mismatch: both players should refresh.'); app.menu(); return; }
-  app.session = { mode: 'coop', lobby: true, host: false, slot: m.you, room: m.room };
+  app.session = { mode: 'coop', lobby: true, host: false, slot: m.you, room: cleanRoom(m.room) };
   audio.sfx('accept', 0.5);
   showCoopLobby(app);
 }
@@ -146,13 +153,13 @@ export function onCoopNet(app, m) {
       if (!s.host || !s.lobby) return;
       if (m.v !== app.version) { app.net.hub.sendTo(m.p, { t: 'closed', why: 'Version mismatch: refresh the game.' }); setTimeout(() => app.net.hub.kick(m.p), 200); return; }
       const f = freeSeat(s.room); if (!f || s.room.players.some((p) => p.slot === m.p)) return;
-      s.room.players.push({ slot: m.p, name: String(m.name || 'Coach').slice(0, 12), pid: m.pid || null, team: f[0], seat: f[1] });
+      s.room.players.push({ slot: m.p, name: String(m.name || 'Coach').slice(0, 12), pid: m.pid || null, team: f[0], seat: f[1], looks: cleanLooks(m.looks) });
       audio.sfx('accept', 0.5);
       broadcast(app);
       return;
     }
     case 'seat': case 'own': case 'kind': case 'ai': if (s.host) roomAction(app, m.p, m); return;
-    case 'room': if (!s.host && s.lobby) { s.room = m.room; s.slot = m.you; showCoopLobby(app); } return;
+    case 'room': if (!s.host && s.lobby) { s.room = cleanRoom(m.room); s.slot = m.you; showCoopLobby(app); } return;
     case 'start': if (!s.host && s.lobby) beginMatchFlow(app, m, s.slot); return;
     case 'closed': if (!s.host) { app.cleanupNet(); toast(m.why || 'The co-op room closed.', 3500); app.menu(); } return;
     case 'draft': {
@@ -175,7 +182,7 @@ export function onCoopNet(app, m) {
 // ───────────── session ─────────────
 // From the start message: teams, seats, names; then the shared draft.
 function beginMatchFlow(app, start, mySlot) {
-  const room = start.room, me = room.players.find((p) => p.slot === mySlot);
+  const room = mySlot ? cleanRoom(start.room) : start.room, me = room.players.find((p) => p.slot === mySlot);
   const s = app.session = {
     mode: 'coop', host: mySlot === 0, slot: mySlot, kind: room.kind, gameMode: 'classic', seed: start.seed, mapId: start.map,
     myTeam: me.team, mySeat: me.seat, aiLevel: room.aiLevel, rng: new Rng(start.seed), players: room.players.slice(),
@@ -191,6 +198,8 @@ function beginMatchFlow(app, start, mySlot) {
   if (s.coop[s.myTeam].seats === 1) s.mySeat = 0;
   s.names = [0, 1].map((t) => s.coop[t] ? s.coop[t].coaches.map((c) => c.name).join(' & ') : `${DIFF[s.aiLevel] || 'Normal'} AI`);
   s.ai = [0, 1].map((t) => !s.coop[t]);
+  // the other side's lead (2v2): their looks stand for that side (results emote), as in a 1v1
+  const foe = s.coop[1 - s.myTeam]; s.oppLooks = foe ? foe.coaches[0].looks || null : null;
   if (s.host && app.net.hub) app.net.hub.teamOf = (slot) => { const p = s.players.find((x) => x.slot === slot); return p ? p.team : -1; };
   app.startDraft();
 }
@@ -298,7 +307,9 @@ export const seatReady = (s, team, seat) => !!(s.seatPreps && s.seatPreps[team][
 // ───────────── match ─────────────
 export const coopCfg = (s) => s.coop.map((c) => (c ? { seats: c.seats, own: c.own, lead: c.lead } : null));
 export function runnerOpts(s) {
-  return { slot: s.slot, slots: s.slots, seat: s.mySeat, coop: true };
+  // seatsOf: what each peer's commands act for (the sender's own team and seat, whatever the message says)
+  const seatsOf = Array.from({ length: s.slots }, (_, k) => { const p = s.players.find((x) => x.slot === k); return p ? { team: p.team, seat: p.seat } : null; });
+  return { slot: s.slot, slots: s.slots, seat: s.mySeat, coop: true, seatsOf };
 }
 export function startedRunner(app, runner) {
   // slots that never joined (a guest left the lobby and nobody took the seat) are empty from tick 0
