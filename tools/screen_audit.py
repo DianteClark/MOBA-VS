@@ -6,7 +6,9 @@
 #   python3 tools/screen_audit.py URL [outdir] [viewports]
 # viewports: as tools/ui_audit.py (WxH, WxH@L/R/T/B, or the presets iphones / desktop / all).
 # Default: 844x390 and 1366x768 plus the notched iPhone sizes.
-import sys, asyncio
+# API=<base> (e.g. API= for a same-origin `wrangler dev`) sets localStorage.mobavs_api, so the online screens
+# (ladder, Friends tab, public profile) are audited with real data: two friends are seeded through the API.
+import sys, os, asyncio
 from playwright.async_api import async_playwright
 URL = sys.argv[1] if len(sys.argv) > 1 else 'http://localhost:8765/'
 OUT = sys.argv[2] if len(sys.argv) > 2 and sys.argv[2] else None
@@ -29,7 +31,14 @@ def parse(specs):
     return out
 VIEWS = parse(sys.argv[3] if len(sys.argv) > 3 else '844x390,1366x768,844x390@47/47/0/21,956x440@62/62/0/21,667x313')
 
-M = "const H = await import('./src/ui/home.js'), S = await import('./src/ui/screens.js'), O = await import('./src/ui/online.js'), D = await import('./src/ui/dojo.js'), ST = await import('./src/ui/settings.js');"
+M = "const H = await import('./src/ui/home.js'), S = await import('./src/ui/screens.js'), O = await import('./src/ui/online.js'), D = await import('./src/ui/dojo.js'), ST = await import('./src/ui/settings.js'), SO = await import('./src/ui/social.js'), N = await import('./src/net/online.js');"
+# Friends tab data (API mode only): one friend online, one pending request. Offline it is a no-op.
+SEED = """if (!window.__seeded) { window.__seeded = 1; try {
+  await N.ensureAccount(app.name); const me = N.getAccount(), post = (a, path, body) => fetch(N.API + path, { method: 'POST', headers: a ? { authorization: `Bearer ${a.id}.${a.secret}` } : {}, body: JSON.stringify(body) }).then((r) => r.json());
+  const x = await post(null, '/api/account', { name: 'Kenji' }), y = await post(null, '/api/account', { name: 'Yumiko Takeda' });
+  await post(x, '/api/social/friend', { action: 'add', id: me.id }); await post(y, '/api/social/friend', { action: 'add', id: me.id });
+  await N.friendAction('accept', x.id); await post(x, '/api/social/presence', { status: 'menu' });
+} catch (e) { /* offline */ } }"""
 SCREENS = [
     ('home', 'app.menu()'),
     ('season', 'H.showSeason(app)'),
@@ -41,6 +50,8 @@ SCREENS = [
     ('patch', 'H.showPatch(app)'),
     ('history-empty', 'H.showHistory(app)'),
     ('ladder', 'await O.showLeaderboard(app)'),
+    ('ladder-friends', "await O.showLeaderboard(app, 'friends')"),
+    ('profile-friends', SEED + "; H.showProfile(app, 'friends'); await new Promise((r) => setTimeout(r, 1500))"),
     ('settings', 'ST.showSettings(app)'),
     ('howto', 'S.showHowTo(app)'),
     ('dojo', "D.showDojo(app, { tab: 'heroes', hero: null })"),
@@ -48,6 +59,7 @@ SCREENS = [
     ('dojo-lineups', "D.showDojo(app, { tab: 'lineups' })"),
     ('dojo-builds', "D.showDojo(app, { tab: 'builds' })"),
     ('lobby-host', "S.showLobby(app, { code: 'KAZEX', status: 'Waiting for opponent…', onCancel: () => app.menu() })"),
+    ('lobby-invite', "S.showLobby(app, { code: 'KAZEX', status: 'Waiting for opponent…', onCancel: () => app.menu(), extra: SO.lobbyInvite(app, 'KAZEX', { gameMode: 'classic' }) })"),
     ('lobby-join', "S.showLobby(app, { joining: true, code: '', status: '', onJoin() {}, onCancel: () => app.menu() })"),
     ('matchmaking', "app.menu(); O.showSearch(app, { elapsed: 12000, limit: 60000, status: 'Searching…', onCancel: () => app.menu() })"),
     ('draft', "app.queueMode = 'ranked'; app.mapPref = 'random'; app.startVsAI('classic'); await new Promise((r) => setTimeout(r, 2500))"),
@@ -59,6 +71,7 @@ SCREENS = [
     ('analysis-calls', "document.querySelector('.astabs .chip:nth-child(3)').click()"),
     ('history', "document.getElementById('anasheet')?.remove(); H.showHistory(app)"),
     ('profile-career', "H.showProfile(app, 'career')"),
+    ('public-profile', "app.menu(); await new Promise((r) => setTimeout(r, 300)); await SO.showPlayer(app, (N.getAccount() || { id: 'AAAAAAAAAA' }).id, { name: app.name })"),
 ]
 CHECK = """([sl, sr]) => {
   const W = innerWidth, sc = document.getElementById('screen');
@@ -67,7 +80,7 @@ CHECK = """([sl, sr]) => {
   if (sc.scrollWidth > sc.clientWidth + 1) out.push(`horizontal overflow ${sc.scrollWidth - sc.clientWidth}px`);
   // the Analysis sheet covers the screen when it is open: audit it instead
   const sheet = document.querySelector('#anasheet .asbody'); if (sheet && sheet.scrollWidth > sheet.clientWidth + 1) out.push(`analysis overflow ${sheet.scrollWidth - sheet.clientWidth}px`);
-  const els = [...document.querySelectorAll(sheet ? '#anasheet button' : '#screen button, #screen input, #screen a, #screen select')].filter(vis);
+  const els = [...document.querySelectorAll(sheet ? '#anasheet button' : '#screen button, #screen input, #screen a, #screen select, .smodal button')].filter(vis);
   for (const e of els) {
     const r = e.getBoundingClientRect(), name = (e.textContent || e.value || e.className || e.tagName).trim().slice(0, 24);
     if (r.left < sl - 1 || r.right > W - sr + 1) out.push(`outside safe area: ${name} (${Math.round(r.left)}-${Math.round(r.right)})`);
@@ -91,6 +104,7 @@ async def main():
         b = await p.chromium.launch(executable_path='/usr/bin/google-chrome')
         for (w, h, sl, sr, st, sb, name) in VIEWS:
             ctx = await b.new_context(viewport={'width': w, 'height': h}, has_touch=w < 1000, is_mobile=w < 1000, device_scale_factor=2 if w < 1000 else 1)
+            if os.environ.get('API') is not None: await ctx.add_init_script(f"localStorage.setItem('mobavs_api', {os.environ['API']!r})")
             pg = await ctx.new_page()
             errs = []
             pg.on('pageerror', lambda e: errs.append(str(e)))

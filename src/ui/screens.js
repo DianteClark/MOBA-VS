@@ -78,12 +78,13 @@ export function showHowTo(app) {
   )));
 }
 
-export function showLobby(app, { code, status, joining, onJoin, onCancel }) {
+export function showLobby(app, { code, status, joining, onJoin, onCancel, extra }) {
   let input;
   mount(screen(), h('div', { class: 'lobby panel col', style: { alignItems: 'center' } },
     joining ? h('h2', {}, 'Join a match') : h('h2', {}, 'Your room code'),
     joining ? (input = h('input', { maxlength: 5, placeholder: 'CODE', value: code || '' })) : h('div', { class: 'code' }, code),
     h('div', { class: 'status muted' }, status || ''),
+    extra || null,
     joining ? h('button', { class: 'btn big', onclick: () => onJoin(input.value.trim().toUpperCase()) }, 'Connect') : h('div', { class: 'muted', style: { fontSize: '12px' } }, 'Share this code with your opponent. You play Blue.'),
     h('button', { class: 'btn', onclick: onCancel }, 'Back'),
   ));
@@ -213,6 +214,7 @@ export function showResults(app, g, myTeam, onAgain, onMenu, extra = {}) {
     potgEl || repEl ? h('div', { class: 'rrow' }, potgEl, repEl) : null,
     mvpCard,
     extra.ladder ? ladderPanel(extra.ladder) : null,
+    extra.social || null,
     table(0), table(1),
     extra.analytics ? analysisCard(extra.analytics, extra.onAnalysis) : null,
     h('div', { class: 'rbtns' }, extra.share ? h('button', { class: 'btn big sharebtn', onclick: extra.share }, 'Share') : null, onAgain ? h('button', { class: 'btn big', onclick: onAgain }, extra.againLabel || 'Play again') : null, extra.onReplay && app.lastReplay() && !app.session.replay ? h('button', { class: 'btn big', title: 'Replay Theater: timeline, speeds, jumps to fights', onclick: extra.onReplay }, 'Watch replay') : null, h('button', { class: 'btn big', onclick: onMenu }, 'Main menu')),

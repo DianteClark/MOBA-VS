@@ -1,4 +1,4 @@
-// Online services client: account, cloud save, ladder reports, leaderboards, share links.
+// Online services client: account, cloud save, ladder reports, leaderboards, share links, friends and invites.
 // Everything degrades gracefully: if the API is unreachable the game keeps working offline.
 const WORKER = 'https://moba-vs.chesscomplex.workers.dev';
 // Same-origin when served by the Worker; the GitHub Pages mirror talks to the Worker cross-origin.
@@ -52,7 +52,11 @@ export function queueCloudSave(name, profile, at) {
 // ── ladder ──
 export async function reportMatch(r) { return account ? call('/api/match/report', { method: 'POST', auth: true, body: r }) : null; }
 export async function matchStatus(id) { return call(`/api/match/status?id=${encodeURIComponent(id)}`); }
-export async function leaderboard(season) { return call(`/api/leaderboard?season=${season | 0}`, { auth: !!account }); }
+// Pages of 50: pass the previous page's `next` cursor and how many rows are already shown. friends: rank among friends.
+export async function leaderboard(season, { after = null, from = 0, friends = false } = {}) {
+  const q = `season=${season | 0}${after ? `&after=${encodeURIComponent(after)}&from=${from | 0}` : ''}${friends ? '&friends=1' : ''}`;
+  return call(`/api/leaderboard?${q}`, { auth: !!account });
+}
 
 // ── share links ──
 export async function createShare(kind, data) { return call('/api/share', { method: 'POST', body: { kind, data } }); }
@@ -63,3 +67,18 @@ export const newMatchId = () => { let s = 'M'; const a = 'ABCDEFGHJKMNPQRSTUVWXY
 // ── matchmaking ──
 export async function findQueue(body) { return call('/api/queue/find', { method: 'POST', auth: true, body }); }
 export async function cancelQueue(ticket) { try { await call('/api/queue/cancel', { method: 'POST', auth: true, body: { ticket } }); } catch { /* best effort */ } }
+
+// ── social: friends, presence, invites, public profiles ──
+// Friend codes are the public player id shown as XXXXX-XXXXX (never the secret).
+export const friendCode = (id) => (id ? `${id.slice(0, 5)}-${id.slice(5)}` : '');
+// Heartbeat + inbox (friends with presence, requests, blocks, live invites). status: 'menu' | 'match'.
+export async function presence(status = 'menu') { return account ? call('/api/social/presence', { method: 'POST', auth: true, body: { status } }) : null; }
+// action: add | accept | decline | remove | block | unblock; id: player id or friend code.
+export async function friendAction(action, id) { return call('/api/social/friend', { method: 'POST', auth: true, body: { action, id } }); }
+export async function playerProfile(id, season) { return call(`/api/player/${encodeURIComponent(id)}?season=${season | 0}`, { auth: !!account }); }
+// to: a friend's id, or null for a shareable link invite. mode: casual | ranked | rush.
+export async function createInvite(room, mode, to = null) { return call('/api/invite', { method: 'POST', auth: true, body: { room, mode, to } }); }
+export async function getInvite(id) { return call(`/api/invite/${encodeURIComponent(id)}`); }
+export async function respondInvite(id, accept) { return call('/api/invite/respond', { method: 'POST', auth: true, body: { id, accept } }); }
+export async function cancelInvites(room) { if (!account) return; try { await call('/api/invite/cancel', { method: 'POST', auth: true, body: { room } }); } catch { /* best effort */ } }
+export const inviteUrl = (id) => `${API || loc.origin}/i/${id}`;

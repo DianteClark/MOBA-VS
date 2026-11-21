@@ -22,6 +22,7 @@ import { showSettings } from './settings.js';
 import { careerTab } from './career.js';
 import { showAnalysis } from './analytics.js';
 import { loadLib } from './replays.js';
+import { friendsTab, socialBadge, showPlayer } from './social.js';
 
 const screen = () => document.getElementById('screen');
 const item = (n) => `assets/img/${n}.png`;
@@ -90,7 +91,7 @@ export function showHome(app) {
           h('span', { class: 'h2hl' }, ...patchHighlights(pt).map((t) => h('i', {}, t)))))),
     h('nav', { class: 'h2nav' },
       navTile('Dojo', heroSprite(p.activePreset && p.activePreset.main.mid || 'kaze', p.d.equip.skins[p.activePreset && p.activePreset.main.mid || 'kaze'], 28, 'walk'), () => { audio.sfx('move', 0.5); showDojo(app, { tab: 'heroes', hero: null }); }, { title: 'Dojo: heroes, builds and lineups' }),
-      navTile('Profile', rankBadge(rk), () => { audio.sfx('move', 0.5); showProfile(app); }, { title: 'Rank, mastery, banners and titles' }),
+      navTile('Profile', rankBadge(rk), () => { audio.sfx('move', 0.5); showProfile(app, socialBadge() ? 'friends' : 'rank'); }, { title: 'Rank, mastery, friends, banners and titles', cls: 'navprofile', dot: socialBadge() }),
       navTile('Cup', item('items/GoldCup'), () => showCup(app), { title: mm ? `Season Cup: ${ROUND_NAMES[mm.round]} vs ${mm.opp.name}` : 'Season Cup: 8-team knockout', dot: !!mm }),
       navTile('Pass', item('items/BigTreasureChest'), () => showSeason(app), { title: 'Season Pass' }),
       navTile('Ladder', item('items/BarGold'), () => showLeaderboard(app), { title: 'Online leaderboard' }),
@@ -134,11 +135,12 @@ function rewardIcon(r) {
 // ───────────── profile (cosmetics; hero skins live in the Dojo) ─────────────
 export function showProfile(app, tab = 'rank', all = false) {
   const p = profile, un = p.d.unlocked;
-  const tabs = h('div', { class: 'tabs' }, ...[['rank', 'Rank'], ['career', 'Career'], ['mastery', 'Mastery'], ['banners', 'Banners'], ['titles', 'Titles'], ['borders', 'Borders']].map(([k, l]) => h('button', { class: 'chip' + (tab === k ? ' on' : ''), onclick: () => showProfile(app, k) }, l)));
+  const tabs = h('div', { class: 'tabs' }, ...[['rank', 'Rank'], ['career', 'Career'], ['mastery', 'Mastery'], ['friends', 'Friends'], ['banners', 'Banners'], ['titles', 'Titles'], ['borders', 'Borders']].map(([k, l]) => h('button', { class: 'chip' + (tab === k ? ' on' : ''), onclick: () => showProfile(app, k) }, l)));
   let body;
   if (tab === 'rank') body = rankTab();
   else if (tab === 'career') body = careerTab(p.d, all, () => showProfile(app, 'career', !all));
   else if (tab === 'mastery') body = masteryTab();
+  else if (tab === 'friends') body = friendsTab(app);
   else if (tab === 'banners') {
     body = h('div', { class: 'cardgrid' }, ...Object.entries(BANNERS).map(([k, b]) => {
       const have = un.banners.includes(k);
@@ -249,7 +251,8 @@ export function showHistory(app, open = 0) {
       h('div', { class: 'row', style: { justifyContent: 'center' } },
         e && e.A ? h('button', { class: 'btn big', title: 'Turning point, damage, calls and the timeline', onclick: () => showAnalysis(e.A, { title: 'Match analysis', onTheater: theater }) }, 'Analysis') : null,
         theater ? h('button', { class: 'btn big', title: 'Replay Theater', onclick: theater }, '▶ Replay') : null,
-        h('button', { class: 'btn big', onclick: () => shareMatch(m, coach, app.lastReplay()) }, 'Share card')));
+        h('button', { class: 'btn big', onclick: () => shareMatch(m, coach, app.lastReplay()) }, 'Share card'),
+        m.opp ? h('button', { class: 'btn big', onclick: () => showPlayer(app, m.opp, { name: (m.names || [])[1 - m.side] || 'Coach' }) }, 'Opponent') : null));
   };
   const rep = app.lastReplay();
   mount(screen(), h('div', { class: 'subscreen' }, h('div', { class: 'shead' }, back(app), h('h2', {}, 'Match History'), h('div')),
