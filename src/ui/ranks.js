@@ -26,6 +26,7 @@ export function rankRow(sum) {
 // The promotion / demotion moment: a full-width card over the results with the badge swap.
 export function rankMoment(sum) {
   if (!sum || !sum.rated || !(sum.promoted || sum.demoted)) return;
+  if (sum.demoted && sum.rg <= 3) return; // everyone starts on a division line: no DEMOTED card for a first loss (the results row still shows it)
   const up = sum.promoted, a = sum.rankBefore, b = sum.rankAfter, newTier = b.idx !== a.idx;
   const conf = up ? Array.from({ length: 26 }, (_, i) => h('i', { class: 'rconf', style: { '--x': `${(i * 37) % 100}%`, '--d': `${(i % 7) * 0.07}s`, '--c': [b.tier.color, '#fff', '#ffd84a', b.tier.gem][i % 4], '--r': `${(i * 53) % 360}deg` } })) : [];
   const el = h('div', { class: 'rankmoment ' + (up ? 'up' : 'down') + (newTier ? ' tier' : ''), style: { '--tc': b.tier.color }, onclick: () => close() },

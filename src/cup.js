@@ -3,7 +3,7 @@
 import { profile } from './profile.js';
 import { HEROES } from './data/heroes.js';
 
-export const CUP_TEAMS = [
+const CUP_TEAMS = [
   { name: 'Stone Lanterns', lvl: 0, crest: 'totem' }, { name: 'Moonlit Foxes', lvl: 0, crest: 'shuri' },
   { name: 'Tide Callers', lvl: 1, crest: 'marlowe' }, { name: 'Iron Ravens', lvl: 1, crest: 'karasu' },
   { name: 'Ember Fangs', lvl: 1, crest: 'ember' }, { name: 'Jade Tigers', lvl: 2, crest: 'leonin' },

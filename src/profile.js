@@ -16,7 +16,7 @@ const fresh = () => ({
 });
 
 // Same MVP rule as the results screen.
-export function mvpOf(game) {
+function mvpOf(game) {
   const all = [...game.teams[0].heroes, ...game.teams[1].heroes];
   const sc = (x) => x.kills * 3 + x.assists * 1.5 - x.deaths + x.dmgHeroes / 1500 + x.cs / 40 + (x.team === game.winner ? 4 : 0);
   const m = all.sort((a, b) => sc(b) - sc(a))[0]; return m ? { id: m.heroId, team: m.team } : null;
@@ -134,7 +134,7 @@ export class Profile {
     this.d.history.length = Math.min(this.d.history.length, 50);
     this.save();
     const rankAfter = rankOf(elo);
-    return { won, rated, key, eloBefore: before, elo, delta: elo - before, rankBefore, rankAfter,
+    return { won, rated, rg: s.rg, key, eloBefore: before, elo, delta: elo - before, rankBefore, rankAfter,
       promoted: rankAfter.step > rankBefore.step, demoted: rankAfter.step < rankBefore.step,
       xp, xpParts, lvBefore, lvAfter, unlocks, mastery, capped: rated && key.startsWith('ai') && won && elo >= AI_CAP[aiLevel] };
   }

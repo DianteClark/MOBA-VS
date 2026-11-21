@@ -35,7 +35,7 @@ export async function showLeaderboard(app) {
 }
 
 // ── Account: recovery code + sign in on another device ──
-export function accountPanel(app) {
+function accountPanel(app) {
   const el = h('div', { class: 'panel col acct' });
   const render = () => {
     const a = getAccount();

@@ -113,7 +113,8 @@ export function coachMoment(g, my) {
     const tm = g.objTimers[k];
     if (!tm || tm - now > TICK_RATE * 20 || tm - now < TICK_RATE * 6 || !g.objAvailable(k) || callOn(k)) continue;
     const lane = weakestLane(g, my);
-    return { key: 'wake' + k + tm, kind: 'wake', title: `${objName(g, k)} wakes in ${Math.ceil((tm - now) / TICK_RATE)}s`, text: 'Set up for it, or trade elsewhere?', at: pitOf(g, k),
+    const wake = () => (tm > g.tick ? `${objName(g, k)} wakes in ${Math.ceil((tm - g.tick) / TICK_RATE)}s` : `${objName(g, k)} is up!`);
+    return { key: 'wake' + k + tm, kind: 'wake', title: wake(), liveTitle: wake, text: 'Set up for it, or trade elsewhere?', at: pitOf(g, k),
       opts: [opt(`Take ${OBJ_NAME[k]}`, { type: 'objective', obj: k }), wait('Wait & see'), opt(`Push ${LANE_L[lane]}`, { type: 'group', lane })] };
   }
   return null;

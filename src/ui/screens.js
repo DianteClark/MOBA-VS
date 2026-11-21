@@ -68,9 +68,12 @@ export function showHowTo(app) {
     h('h3', {}, '3. Calls'), h('p', {}, 'Six big buttons along the bottom: Gank, Objective, Push, Shrine, Defend and Regroup. Calls cost charges (max 3, +1 every 20s). Or just tap the map: tap a lane, a pit, a shrine or an enemy and a ring of calls pops up right there.'),
     h('p', {}, 'Your analyst flashes one-tap suggestions ("Mid is overextended: Gank"). Tap the button and the call goes out. Tactic cards (Q, E, T) are one-time plays like Smoke Bomb or Second Wind.'),
     h('p', {}, 'Tap one of your portraits to follow that hero and change its build; tap an enemy portrait to focus them. Press and hold (or right-click) a portrait for details. Good calls build trust, and inspired heroes react faster.'),
-    h('p', {}, 'Arrows on the screen edge point at fights, towers under attack and contested objectives: tap one to jump there. Sound, colour-blind colours, text size and motion live in Settings.'),
-    h('h3', {}, 'Winning'), h('p', {}, 'Destroy the enemy Shrine Crystal, or have more towers standing when the 15:00 clock runs out.'),
-    h('h3', {}, 'Controls'), h('p', {}, 'Drag to pan, scroll or pinch to zoom, tap the minimap to jump. Keys: G O R K X B for calls, Q E T for cards, C to cancel, 1-5 follow heroes, Space for the director camera.'),
+    h('p', {}, 'Arrows on the screen edge point at fights, towers under attack and contested objectives: tap one to jump there. The camera follows the action on its own until you drag it, tap the minimap or follow a hero (Cam turns it back on).'),
+    h('h3', {}, '4. Big moments'), h('p', {}, 'Coach\'s Calls pop up above the buttons when something big is about to happen: pick one of the 2-3 options before the bar runs out. Fill Momentum with calls that pay off, then tap the meter for a Kami Surge.'),
+    h('p', {}, 'Moments (M) are three once-per-match calls that open at 1:15: Timeout (reset cooldowns and heal), Rally (+15% damage and speed) and All-Out Push (super minions). The Ults button switches between Auto, Hold (save them for a fight) and ALL-IN. At halftime you can change the game plan, swap a card and adjust builds.'),
+    h('h3', {}, 'Winning'), h('p', {}, 'Destroy the enemy Shrine Crystal, or have more towers standing when the clock runs out (15:00; Lane Rush: 8:00).'),
+    h('h3', {}, 'Modes'), h('p', {}, 'Ranked vs AI and the Season Cup move your rating (Bronze to Kami). Online, Ranked climbs the ladder while Casual and Rush never change it. Lane Rush is a quick one-lane game. Host and Join are private games with a friend. Settings has sound, colour-blind colours, text size, reduced effects and graphics quality.'),
+    h('h3', {}, 'Controls'), h('p', {}, 'Drag to pan, scroll or pinch to zoom, tap the minimap to jump. Keys: G O R K X B for calls, Q E T for cards, M for Moments, C to cancel, 1-5 follow heroes, Tab for the scoreboard, Space for the auto-camera.'),
   )));
 }
 
@@ -157,6 +160,16 @@ export function showPrep(app, prep, enemyIds, left, onChange, onReady, ready) {
 }
 
 // ───────────────────────── results ─────────────────────────
+// Why a timed-out game went the way it did (same order as Game.timeUp: towers, Crystal health, kills, gold).
+function timeTiebreak(g) {
+  const a = g.towersStanding(0), b = g.towersStanding(1);
+  if (a !== b) return `towers ${a} - ${b}`;
+  const nx = (t) => { const n = g.units.find((u) => u.type === 'nexus' && u.team === t); return n ? n.hp / n.maxHp : 0; };
+  const pc = (t) => Math.min(99, Math.round(nx(t) * 100)) + (nx(t) >= 1 ? 1 : 0); // 100% only when untouched
+  if (Math.abs(nx(0) - nx(1)) > 1e-6) return `towers ${a} - ${b}, Crystal ${pc(0)}% - ${pc(1)}%`;
+  const k = [g.teams[0].kills, g.teams[1].kills];
+  return k[0] !== k[1] ? `towers ${a} - ${b}, kills ${k[0]} - ${k[1]}` : `towers ${a} - ${b}, more gold earned`;
+}
 export function showResults(app, g, myTeam, onAgain, onMenu, extra = {}) {
   const win = g.winner;
   const verdict = myTeam < 0 ? `${TEAM_NAME[win] ?? '-'} wins` : win === myTeam ? 'VICTORY' : win < 0 ? 'NO CONTEST' : 'DEFEAT';
@@ -199,7 +212,7 @@ export function showResults(app, g, myTeam, onAgain, onMenu, extra = {}) {
     h('div', { class: 'tip' }, h('span', {}, 'Tip'), rc.tip)) : null;
   mount(screen(), h('div', { class: 'results' },
     h('div', { class: 'verdict ' + vcls }, verdict),
-    h('div', { class: 'vsub muted' }, timeout ? `Decided on time: towers ${g.towersStanding(0)} - ${g.towersStanding(1)} · ` : '', `Game length ${fmtTime(g.time)}`),
+    h('div', { class: 'vsub muted' }, timeout ? `Decided on time: ${timeTiebreak(g)} · ` : '', `Game length ${fmtTime(g.time)}`),
     potgEl || repEl ? h('div', { class: 'rrow' }, potgEl, repEl) : null,
     mvpCard,
     extra.progress || null,
