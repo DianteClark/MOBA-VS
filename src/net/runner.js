@@ -55,7 +55,7 @@ export class LocalRunner {
 }
 Object.assign(LocalRunner.prototype, Halftime);
 
-export const DELAY = 5; // ticks of input delay (250ms)
+const DELAY = 5; // ticks of input delay (250ms)
 export class LockstepRunner {
   constructor(game, myTeam, transport, opts = {}) {
     this.game = game; this.myTeam = myTeam; this.t = transport; this.online = true;

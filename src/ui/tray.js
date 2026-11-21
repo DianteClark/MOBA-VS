@@ -9,7 +9,7 @@ export const PRIO = { call: 50, request: 40, surge: 30, payoff: 20, danger: 15, 
 export class Tray {
   constructor(el) { this.el = el; this.items = []; this.cur = null; this.seq = 0; }
   has(key) { return this.items.some((i) => i.key === key); }
-  // item: { key, prio, ttl(ms), cls, build(item) → [children], valid?() , onShow?(), onEnd?(reason), staleMs? }
+  // item: { key, prio, ttl(ms), cls, build(item) → [children] (may set item.upd for live text), valid?(), onShow?(), onEnd?(reason), staleMs? }
   push(item) {
     if (item.key && this.has(item.key)) return null;
     const now = performance.now();
@@ -44,6 +44,7 @@ export class Tray {
         if (!top.shown) { top.shown = true; if (top.onShow) top.onShow(top); }
       } else mount(this.el);
     }
+    if (this.cur && this.cur.upd) this.cur.upd(); // live text (e.g. a countdown in the title)
     if (this.cur && this.badge) { const n = this.items.length - 1, t = n > 0 ? '+' + n : ''; if (this.badge.textContent !== t) this.badge.textContent = t; }
     this.el.classList.toggle('empty', !this.cur);
   }

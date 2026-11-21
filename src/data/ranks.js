@@ -53,5 +53,5 @@ export const SEASON_REWARDS = {
   kami: [{ kind: 'border', id: 'kami' }, { kind: 'banner', id: 'rankKami' }, { kind: 'skin', id: 'kami' }, { kind: 'title', id: 'rankKami' }],
 };
 // Older profiles stored borders with the previous tier names.
-export const OLD_TIER = { ronin: 'bronze', samurai: 'silver', daimyo: 'gold', shogun: 'diamond' };
+const OLD_TIER = { ronin: 'bronze', samurai: 'silver', daimyo: 'gold', shogun: 'diamond' };
 export const tierById = (id) => TIERS.find((t) => t.id === (OLD_TIER[id] || id)) || TIERS[0];

@@ -53,7 +53,7 @@ function draw(idx, d) {
   for (let k = 0; k < n; k++) { const X = 16 - n * 2 + k * 4 + 1; px(X - 1, py - 1, deep, 4, 4); px(X, py, light, 2, 2); }
   return c.toDataURL('image/png');
 }
-export function badgeUrl(idx, d) { const k = idx * 3 + d; return cache[k] || (cache[k] = draw(idx, d)); }
+function badgeUrl(idx, d) { const k = idx * 3 + d; return cache[k] || (cache[k] = draw(idx, d)); }
 
 // <img> badge for a rank (from rankOf) or a raw Elo number.
 export function tierBadge(rk, size = 40, cls = '') {

@@ -3,18 +3,23 @@ const MUSIC = { menu: 'menu', draft: 'draft', match: 'match1', match2: 'match2',
 export const audio = {
   musicVol: 0.35, sfxVol: 0.55, muted: readMuted(), cur: null, curName: null, unlocked: false, last: {}, pool: {},
   init() {
-    const unlock = () => { this.unlocked = true; if (this.curName && this.cur && this.cur.paused && !this.muted) this.cur.play().catch(() => {}); };
+    const unlock = () => { this.unlocked = true; if (!this.cur) this.startMusic(); else if (this.cur.paused && !this.muted) this.cur.play().catch(() => {}); };
     window.addEventListener('pointerdown', unlock, { once: false });
     window.addEventListener('keydown', unlock, { once: true });
   },
   music(name) {
     if (this.curName === name) return;
     if (this.cur) { const old = this.cur; fade(old, 0, 600, () => old.pause()); }
-    this.curName = name;
-    if (!MUSIC[name]) { this.cur = null; return; }
+    this.curName = name; this.cur = null;
+    this.startMusic();
+  },
+  // Tracks are 0.3-1.1 MB: nothing is fetched until the first tap (browsers block autoplay anyway) or while muted.
+  startMusic() {
+    const name = this.curName;
+    if (!MUSIC[name] || !this.unlocked || this.muted) return;
     const a = new Audio(`assets/audio/music/${MUSIC[name]}.mp3`); a.loop = true; a.volume = 0;
     this.cur = a;
-    if (!this.muted) a.play().then(() => fade(a, this.musicVol, 800)).catch(() => {});
+    a.play().then(() => fade(a, this.musicVol, 800)).catch(() => {});
   },
   sfx(name, vol = 1, throttleMs = 60) {
     if (this.muted || !this.unlocked) return;
@@ -37,7 +42,7 @@ export const audio = {
   toggle() {
     this.muted = !this.muted;
     try { localStorage.setItem('mobavs_muted', this.muted ? '1' : '0'); } catch { /* ignore */ }
-    if (this.cur) { if (this.muted) this.cur.pause(); else { this.cur.volume = this.musicVol; this.cur.play().catch(() => {}); } }
+    if (this.cur) { if (this.muted) this.cur.pause(); else { this.cur.volume = this.musicVol; this.cur.play().catch(() => {}); } } else if (!this.muted) this.startMusic();
     return this.muted;
   },
 };

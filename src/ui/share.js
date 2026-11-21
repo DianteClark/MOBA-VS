@@ -3,10 +3,9 @@ import { IMG } from '../render/assets.js';
 import { HERO_BY_ID } from '../data/heroes.js';
 import { MAP_BY_ID } from '../maps/defs.js';
 import { mapThumb } from './screens.js';
-import { toast, fmtTime } from './dom.js';
+import { toast, fmtTime, MODE_LABEL } from './dom.js';
 import { createShare, shareUrl } from '../net/online.js';
 
-const MODE = { ai0: 'vs Easy AI', ai1: 'vs Normal AI', ai2: 'vs Hard AI', online: 'Online match', cup: 'Season Cup' };
 const BLUE = '#4aa3ff', RED = '#ff5a5a', GOLD = '#ffd84a', INK = '#f3ead8', MUTED = '#a99fb3';
 
 export async function drawShareCard(m, coach) {
@@ -28,10 +27,10 @@ export async function drawShareCard(m, coach) {
     x.fillStyle = col; x.fillText(str, px, py);
   };
   T('MOBA-VS', 40, 70, 34, '#ffe3a3');
-  T(`${MODE[m.mode] || 'Match'}${m.cup ? ' · ' + m.cup : ''} · ${(MAP_BY_ID[m.map] || {}).name || ''}`, W - 40, 62, 20, MUTED, 'right');
+  T(`${MODE_LABEL[m.mode] || 'Match'}${m.cup ? ' · ' + m.cup : ''} · ${(MAP_BY_ID[m.map] || {}).name || ''}`, W - 40, 62, 20, MUTED, 'right');
   T(new Date(m.t).toLocaleDateString(), W - 40, 92, 18, MUTED, 'right');
   T(won ? 'VICTORY' : 'DEFEAT', 40, 190, 104, won ? GOLD : RED);
-  const how = m.crystal ? `${won ? 'Crystal destroyed' : 'Crystal lost'} at ${fmtTime(m.len)}` : `Decided on towers at 15:00 (${m.towers[me]}-${m.towers[them]})`;
+  const how = m.crystal ? `${won ? 'Crystal destroyed' : 'Crystal lost'} at ${fmtTime(m.len)}` : `Decided on towers at ${fmtTime(m.len)} (${m.towers[me]}-${m.towers[them]})`;
   T(how, 44, 236, 24, INK);
   // score block
   T(`${m.kills[me]}`, 760, 170, 72, me === 0 ? BLUE : RED, 'right');

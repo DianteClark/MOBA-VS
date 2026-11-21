@@ -66,7 +66,7 @@ export class Alerts {
       if (!it) {
         const img = h('img', { src: a.img || 'assets/img/icons/DefenseUpgrade.png' }), lab = h('b', {});
         const big = a.kind === 'bigfight';
-        const el = h('button', { class: 'alert ' + a.kind, title: big ? 'Big fight! Tap to watch' : a.kind === 'fight' ? 'Fight! Tap to look' : a.kind === 'tower' ? 'Tower under attack' : 'Objective under attack',
+        const el = h('button', { class: 'alert fresh ' + a.kind, title: big ? 'Big fight! Tap to watch' : a.kind === 'fight' ? 'Fight! Tap to look' : a.kind === 'tower' ? 'Tower under attack' : 'Objective under attack',
           onclick: (e) => { e.stopPropagation(); this.go(it); } }, h('i', { class: 'arw' }), h('span', { class: 'ic' }, img), big ? h('span', { class: 'bl' }, lab, h('small', {}, 'tap to watch')) : lab);
         this.el.append(el);
         it = { el, lab, img, born: performance.now(), w: 0, hh: 0 };
@@ -115,7 +115,7 @@ export class Alerts {
         k *= 0.94; x = cx + dx * k; y = cy + dy * k;
       }
       if (!ok || k < k0 * (it.kind === 'bigfight' ? 0.12 : 0.35)) { it.el.classList.add('hidden'); continue; } // wide prompts may sit further in
-      it.el.classList.remove('hidden');
+      it.el.classList.remove('hidden', 'fresh');
       rects.push({ l: x - half - 3, t: y - halfH - 3, r: x + half + 3, b: y + halfH + 3 }); // later prompts keep clear of this one
       const ang = Math.atan2(dy, dx), ca = Math.abs(Math.cos(ang)), sa = Math.abs(Math.sin(ang));
       const edge = Math.min(ca > 1e-3 ? half / ca : 1e9, sa > 1e-3 ? halfH / sa : 1e9); // arrow sits on the box edge

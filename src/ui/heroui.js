@@ -15,7 +15,7 @@ export function statBars(id, mini = false) {
 
 // Hero sheets are 4 columns (facing) x 7 rows of 16px frames: rows 0-3 walk, row 4 attack.
 const sheets = {};
-export function heroSheet(id, skin) {
+function heroSheet(id, skin) {
   const base = IMG['hero_' + id]; if (!base) return null;
   const sk = SKINS[skin]; if (!sk || !sk.recolor) return base;
   const key = id + ':' + skin;

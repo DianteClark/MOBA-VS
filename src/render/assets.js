@@ -82,7 +82,7 @@ export function recolor(img, { hue = 0, sat = 1, light = 0 } = {}) {
   x.putImageData(d, 0, 0);
   return c;
 }
-export function silhouette(img, color) {
+function silhouette(img, color) {
   const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
   const x = c.getContext('2d'); x.drawImage(img, 0, 0); x.globalCompositeOperation = 'source-in'; x.fillStyle = color; x.fillRect(0, 0, c.width, c.height);
   return c;

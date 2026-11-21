@@ -2,7 +2,8 @@
 export function bindCamera(r, canvas, minimap, mmCanvas, hooks = {}) {
   const keys = new Set();
   let drag = null, pinch = null, moved = 0, lastTouch = -1e9; // ignore the emulated mouse events that follow a touch
-  const stopFollow = () => { r.panTo = null; if (r.follow) { r.follow = null; hooks.onFollow && hooks.onFollow(null); } };
+  // the player took the camera: stop following a hero / the auto-camera
+  const stopFollow = () => { r.panTo = null; r.follow = null; hooks.onManual && hooks.onManual(); };
 
   canvas.addEventListener('mousedown', (e) => { if (performance.now() - lastTouch < 800) return; drag = { x: e.clientX, y: e.clientY }; moved = 0; });
   window.addEventListener('mousemove', (e) => {
