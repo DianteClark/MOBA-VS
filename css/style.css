@@ -586,10 +586,10 @@ canvas.graph { width: 100%; height: 150px; background: #120f18; border: 2px soli
   #cmdbar { left: calc(58px + var(--safe-l)); right: calc(4px + var(--safe-r)); bottom: calc(3px + var(--safe-b)); gap: 4px; }
   #scorebar { padding: 1px 8px; gap: 8px; }
   #scorebar .tw { font-size: 18px; min-width: 20px; }
-  #scorebar .ticon { width: 11px; height: 11px; background-size: 132px 33px; background-position: 0 -11px; } /* small, but the big numbers must read as towers */
-  #scorebar .side.red .ticon { background-position: 0 0; }
+  #scorebar .ticon { width: 10px; height: 10px; background-size: 120px 30px; background-position: 0 -10px; } /* small, but the big numbers must read as towers */
+  #scorebar .side.red .ticon { background-position: 0 0; } #scorebar .tw { gap: 2px; }
   #scorebar .clock { font-size: 14px; }
-  #scorebar .mid { min-width: 48px; }
+  #scorebar .mid { min-width: 42px; }
   #scorebar .meta { display: none; }
   #objtimers { font-size: 8px; gap: 2px; max-width: max(160px, calc(100vw - 470px)); }
   #objtimers .ot { padding: 0 3px 0 1px; } #objtimers img { width: 12px; height: 12px; }
@@ -1002,7 +1002,7 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 20px; border-radius: 
 #scorebar { flex-wrap: wrap; justify-content: center; cursor: pointer; }
 #scorebar .meta .drag-pips { display: none; }
 #scorebar .markrow { flex: 1 0 100%; display: flex; align-items: center; justify-content: space-between; gap: 6px; min-height: 12px; margin-top: 1px; }
-#scorebar .markrow .kk { display: none; font-size: 11px; color: var(--ink); }
+#scorebar .markrow .kk { display: none; font-size: 10px; color: var(--ink); }
 .omarks { display: flex; gap: 3px; align-items: center; min-width: 30px; }
 .omarks.red { flex-direction: row-reverse; }
 .omarks .oms { width: 7px; height: 7px; transform: rotate(45deg); background: currentColor; display: inline-block; }

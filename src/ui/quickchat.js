@@ -79,9 +79,10 @@ export class QuickChat {
   place() {
     const lc = document.getElementById('leftcol').getBoundingClientRect(), sb = document.getElementById('scorebar').getBoundingClientRect();
     const ob = document.getElementById('objtimers').getBoundingClientRect();
-    const under = sb.left - lc.right - 16 < 140;
+    const room = sb.left - lc.right - 16, under = room < 120;
     this.feed.classList.toggle('under', under);
     this.feed.style.top = under ? Math.round(Math.max(sb.bottom, ob.bottom) + 30) + 'px' : '';
+    this.feed.style.maxWidth = under ? '' : Math.round(room) + 'px'; // never reaches under the score block
   }
   destroy() { this.close(); this.btn.remove(); this.feed.remove(); window.removeEventListener('pointerdown', this._outside, true); }
 }
