@@ -41,9 +41,9 @@ export const BUILDS = {
     goodAt: 'Soaking burst, frontlining, auto-attackers', weakTo: 'Armor shred, % HP damage, burn', bestOn: 'Tanks and engage supports',
     items: [
       { name: 'Ruby Heart', cost: 900, icon: 'Heal', stats: { hp: 250 } },
-      { name: 'Thornmail', cost: 2700, icon: 'Counter', stats: { hp: 200, armor: 60, thorns: 0.25 } },
+      { name: 'Thornmail', cost: 2700, icon: 'Counter', stats: { hp: 200, armor: 55, thorns: 0.2 } },
       { name: "Warden's Cowl", cost: 2800, icon: 'Mist', stats: { hp: 300, mr: 60, haste: 10 } },
-      { name: 'Titan Plate', cost: 3000, icon: 'Upgrade', stats: { hp: 550, regen: 6, hpPct: 0.06 } },
+      { name: 'Titan Plate', cost: 3000, icon: 'Upgrade', stats: { hp: 480, regen: 6, hpPct: 0.05 } },
       { name: 'Unyielding Aegis', cost: 3000, icon: 'DefenseUpgrade', stats: { hp: 300, armor: 40, mr: 40, lowHpShield: 0.2 } },
     ],
   },
@@ -124,9 +124,9 @@ export const BUILDS = {
     desc: 'Ability haste. Every spell charges the next attack with bonus damage.',
     goodAt: 'Weaving spells and attacks in skirmishes', weakTo: 'Silence and kiting (needs to stay in reach)', bestOn: 'Fighters with short cooldowns',
     items: [
-      { name: 'Sheen Charm', cost: 1000, icon: 'OrbLight', stats: { haste: 10, spellblade: 0.5 } },
-      { name: 'Trinity Edge', cost: 3200, icon: 'MagicWeapon', stats: { power: 35, asPct: 0.2, haste: 20, spellblade: 0.4, msPct: 0.04 } },
-      { name: 'Lich Tome', cost: 3000, icon: 'BookDarkness', stats: { power: 55, haste: 15, spellblade: 0.4 } },
+      { name: 'Sheen Charm', cost: 1000, icon: 'OrbLight', stats: { power: 10, haste: 10, spellblade: 0.6 } },
+      { name: 'Trinity Edge', cost: 3200, icon: 'MagicWeapon', stats: { power: 40, asPct: 0.2, haste: 20, spellblade: 0.4, msPct: 0.04 } },
+      { name: 'Lich Tome', cost: 3000, icon: 'BookDarkness', stats: { power: 55, haste: 15, spellblade: 0.5 } },
       { name: 'Iceborn Gauntlet', cost: 2900, icon: 'BookIce', stats: { hp: 250, armor: 40, haste: 15, spellblade: 0.3, sbSlow: 0.3 } },
       { name: 'Essence Reaver', cost: 2900, icon: 'Permutation', stats: { power: 45, haste: 20, crit: 0.2 } },
     ],
@@ -138,9 +138,9 @@ export const BUILDS = {
     items: [
       { name: 'Watch Lantern', cost: 700, icon: 'Vision', stats: { hp: 200, regen: 3, sight: 0.15 } },
       { name: 'Bodyguard Charm', cost: 2500, icon: 'DefenseUpgrade', stats: { hp: 300, armor: 30, mr: 20, guard: 0.14 } },
-      { name: "Knight's Vow", cost: 2600, icon: 'Counter', stats: { hp: 300, mr: 40, haste: 10, peelSlow: 0.3 } },
+      { name: "Knight's Vow", cost: 2600, icon: 'Counter', stats: { hp: 300, armor: 20, mr: 40, haste: 10, peelSlow: 0.3 } },
       { name: 'Seer Stone', cost: 2400, icon: 'OrbLight', stats: { power: 30, hp: 250, haste: 15, sight: 0.1, tenacity: 0.15, healPower: 0.1 } },
-      { name: 'Gargoyle Plate', cost: 2900, icon: 'Upgrade', stats: { hp: 400, armor: 30, mr: 30, guard: 0.06 } },
+      { name: 'Gargoyle Plate', cost: 2900, icon: 'Upgrade', stats: { hp: 400, armor: 35, mr: 35, guard: 0.08 } },
     ],
   },
 };

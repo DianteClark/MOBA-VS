@@ -455,9 +455,9 @@ export const HEROES = [
     tags: ['dps', 'dive', 'crit'], builds: ['crit', 'pierce', 'sustain'], proj: 'p_shuriken',
     passive: { kind: 'frenzy', name: 'Hornet Swarm', pct: 0.1, max: 5, desc: 'Each attack on the same target grants +10% attack speed, up to 5 stacks. Switching targets resets it.' },
     abilities: [
-      { name: 'Sting', icon: 'Cut', kind: 'shot', range: 420, speed: 1000, width: 30, cd: 6, dmg: { b: 65, l: 20, ad: 0.9 }, cc: { shred: [0.15, 3] }, use: ['poke', 'clear'], proj: 'p_shuriken', fx: 'cut' },
+      { name: 'Sting', icon: 'Cut', kind: 'shot', range: 420, speed: 1000, width: 30, cd: 5, dmg: { b: 70, l: 22, ad: 1.0 }, cc: { shred: [0.2, 3] }, use: ['poke', 'clear'], proj: 'p_shuriken', fx: 'cut' },
       { name: 'Swarm Step', icon: 'BookWind', kind: 'dash', range: 260, cd: 10, buff: { dur: 2.5, stats: { asPct: 0.3 } }, use: ['escape'], fx: 'smoke' },
-      { name: 'Hive Fury', icon: 'AttackUpgrade', kind: 'self', cd: 65, buff: { dur: 6, stats: { asPct: 0.5, msPct: 0.15, sunder: 0.05 } }, use: ['teamfight', 'engage'], fx: 'boost', ult: true },
+      { name: 'Hive Fury', icon: 'AttackUpgrade', kind: 'self', cd: 65, buff: { dur: 6, stats: { asPct: 0.6, msPct: 0.15, sunder: 0.05 } }, use: ['teamfight', 'engage'], fx: 'boost', ult: true },
     ] },
   { id: 'rekka', clan: 'wild', pers: 'cautious', name: 'Rekka', title: 'Rocket Ninja', role: 'bot', flex: ['mid'], cls: 'marksman', dmgType: 'phys', curve: 'mid',
     lore: 'Traded her sword for black powder. Towers are just big targets that do not dodge.',
