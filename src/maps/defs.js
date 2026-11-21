@@ -152,9 +152,9 @@ export const MAPS = [
   {
     id: 'ruins', name: 'Mossgate Ruins', theme: 'ruins', weather: ['clear', 'rain', 'fog', 'clear', 'wind', 'rain'],
     blurb: 'A ruined temple city. Narrow stone streets, stepped corners, and a pillared plaza around the centre made for ambushes.',
-    laneW: 54,
-    top: [[330, 2070], [250, 1780], [250, 1000], [250, 560], [400, 560], [400, 400], [560, 400], [560, 250], [1000, 250], [1840, 250], [2070, 330]],
-    midHalf: [[330, 2070], [600, 1800], [720, 1560], [960, 1440], [1200, 1200]],
+    laneW: 58,
+    top: [[330, 2070], [250, 1780], [250, 1000], [250, 640], [310, 580], [400, 580], [470, 510], [510, 470], [580, 400], [580, 310], [640, 250], [1000, 250], [1780, 250], [2070, 330]],
+    midHalf: [[330, 2070], [600, 1800], [760, 1600], [960, 1440], [1200, 1200]],
     river: [[320, 320], [700, 700], [1200, 1200]], riverW: 50,
     paths: [
       [[250, 1240], [460, 1240], [640, 1240], [640, 1000], [640, 820], [760, 760]],
@@ -168,7 +168,7 @@ export const MAPS = [
       [[1500, 1860], [1560, 1960], [1600, 2150]],
     ],
     camps: [
-      { id: 'bb', at: [840, 1120], kind: 'bluebuff' }, { id: 'gromp', at: [460, 1000], kind: 'gromp' }, { id: 'wolf', at: [640, 1240], kind: 'wolf' },
+      { id: 'bb', at: [840, 1120], kind: 'bluebuff' }, { id: 'gromp', at: [500, 1000], kind: 'gromp' }, { id: 'wolf', at: [640, 1240], kind: 'wolf' },
       { id: 'rb', at: [1260, 1760], kind: 'redbuff' }, { id: 'rap', at: [1420, 1600], kind: 'raptor' }, { id: 'krug', at: [1500, 1860], kind: 'krug' },
     ],
     towerLayout: { outer: true },
