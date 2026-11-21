@@ -17,6 +17,16 @@ export function mount(el, ...kids) { el.replaceChildren(...kids.flat(Infinity).f
 export function toast(msg, ms = 2200) {
   const t = h('div', { class: 'toast' }, msg); document.body.append(t); setTimeout(() => t.remove(), ms);
 }
+// Empty state: an icon, a short headline, one line of help and (optionally) the next step.
+export function emptyState(img, title, text, action) {
+  return h('div', { class: 'empty-state' }, img ? h('img', { src: img, alt: '' }) : null, h('b', {}, title), text ? h('p', {}, text) : null,
+    action ? h('button', { class: 'btn', onclick: action.onclick }, action.label) : null);
+}
 export const face = (id) => `assets/img/faces/${id}.png`;
+// Boss portraits: every Kami element has its own face; the Oni and the Kraken have one each.
+export const KAMI_FACE = { infernal: 'kami_infernal', ocean: 'kami_ocean', mountain: 'kami_mountain', cloud: 'kami_cloud', elder: 'kami_elder' };
+export const bossFace = (k, el) => `assets/img/boss/${k === 'dragon' ? KAMI_FACE[el] || 'kami_elder' : k === 'herald' ? 'herald_faceset' : 'baron_faceset'}.png`;
+// The Kami that is up, or the one that wakes next.
+export const kamiNow = (g) => (g.objectives.dragon ? g.objectives.dragon.element : g.teams.some((t) => t.soul) ? 'elder' : g.nextDragon);
 export const icon = (name) => `assets/img/icons/${name}.png`;
 export const fmtTime = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;

@@ -11,8 +11,10 @@ export class Minimap {
   }
   resize() {
     const r = this.c.getBoundingClientRect();
-    const dpr = Math.min(1.5, window.devicePixelRatio || 1);
-    this.c.width = Math.round(r.width * dpr); this.c.height = Math.round(r.height * dpr);
+    if (r.width < 2 || !this.r.map) return;
+    const dpr = Math.min(1.5, window.devicePixelRatio || 1), w = Math.round(r.width * dpr), hh = Math.round(r.height * dpr);
+    if (this.bg && w === this.c.width && hh === this.c.height && this.bgMap === this.r.map) return;
+    this.c.width = w; this.c.height = hh; this.bgMap = this.r.map;
     this.size = this.c.width;
     const b = document.createElement('canvas'); b.width = b.height = this.size;
     const x = b.getContext('2d'); x.imageSmoothingEnabled = true; x.drawImage(this.r.map, 0, 0, this.size, this.size);
@@ -22,7 +24,8 @@ export class Minimap {
   ping(x, y, color) { this.pings.push({ x, y, color, t: performance.now() }); }
   toWorld(px, py) { const r = this.c.getBoundingClientRect(); return { x: (px - r.left) / r.width * MAP_SIZE, y: (py - r.top) / r.height * MAP_SIZE }; }
   draw() {
-    if (!this.bg) this.resize();
+    if (!this.bg || this.c.clientWidth !== this._cw) { this._cw = this.c.clientWidth; this.resize(); }
+    if (!this.bg) return;
     const ctx = this.ctx, S = this.size, k = S / MAP_SIZE, g = this.r.game; if (!g) return;
     ctx.imageSmoothingEnabled = true;
     ctx.drawImage(this.bg, 0, 0);
@@ -33,8 +36,11 @@ export class Minimap {
       const pit = key === 'dragon' ? g.world.pits.kami : g.world.pits.kraken;
       ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 1;
       if (o && o.alive) {
+        // live boss: its portrait (each Kami element has its own) in a ring of its colour
+        const r = S * 0.04, img = IMG[key === 'dragon' ? 'kami_' + o.element : key + '_faceset'];
         ctx.fillStyle = key === 'dragon' ? DRAGON_INFO[o.element].color : key === 'baron' ? '#b56cff' : '#9fd0ff';
-        ctx.beginPath(); ctx.arc(pit.x * k, pit.y * k, S * 0.022, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.arc(pit.x * k, pit.y * k, r + 1.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        if (img) { ctx.save(); ctx.beginPath(); ctx.arc(pit.x * k, pit.y * k, r, 0, Math.PI * 2); ctx.clip(); ctx.drawImage(img, 3, 3, 32, 32, pit.x * k - r, pit.y * k - r, r * 2, r * 2); ctx.restore(); }
       }
     }
     // shrines

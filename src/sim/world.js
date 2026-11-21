@@ -99,7 +99,8 @@ export class World {
     const place = (team) => {
       const list = [];
       for (const ln of this.laneNames) {
-        const fr = d.towers ? d.towers.map((x) => x[0]) : ln === 'mid' ? [0.75, 0.5, 0.29, 0.15] : [0.7, 0.46, 0.27, 0.15];
+        const tw = d.towerLayout || {}; // 5v5 maps: outer / midFlip / side / mid (see maps/defs.js)
+        const fr = d.towers ? d.towers.map((x) => x[0]) : (ln === 'mid' ? tw.mid : tw.side) || (ln === 'mid' ? [0.75, 0.5, 0.29, 0.15] : [0.7, 0.46, 0.27, 0.15]);
         const half = this.laneLen[ln][this.laneLen[ln].length - 1] / 2;
         fr.forEach((f, k0) => {
           const k = d.towers ? d.towers[k0][1] - 1 : k0; // d.towers: [[fraction, tier]], tier 4 = the gate
@@ -107,10 +108,11 @@ export class World {
           const prog = team === 0 ? dist / (half * 2) : 1 - dist / (half * 2);
           const at = this.lanePoint(ln, prog), dir = this.laneDir(ln, prog);
           let nx = -dir.y, ny = dir.x;  // a normal
-          // choose the side facing the map interior for side lanes; a fixed side for mid
+          // side lanes: the side facing the map interior (or the outer edge with towerLayout.outer);
+          // mid: a fixed side per team, point-symmetric (mid never runs along (1,1), so nx + ny never vanishes)
           const toC = { x: S / 2 - at.x, y: S / 2 - at.y };
-          if (ln === 'mid') { if ((nx - ny) * (team === 0 ? 1 : -1) > 0) { nx = -nx; ny = -ny; } }
-          else if (nx * toC.x + ny * toC.y < 0) { nx = -nx; ny = -ny; }
+          if (ln === 'mid') { if (((nx + ny) * (team === 0 ? 1 : -1) < 0) !== !!tw.midFlip) { nx = -nx; ny = -ny; } }
+          else if ((nx * toC.x + ny * toC.y < 0) !== !!tw.outer) { nx = -nx; ny = -ny; }
           const off = k === 3 ? 0 : 92;
           const p = { x: Math.round(at.x + nx * off), y: Math.round(at.y + ny * off) };
           list.push(k === 3 ? { kind: 'inhib', lane: ln, ...p } : { kind: 'tower', tier: k + 1, lane: ln, ...p });

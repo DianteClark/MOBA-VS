@@ -2,13 +2,13 @@
 // anywhere you can see ("FIGHT AT KAMI - tap to watch": the fight cam), your structures under
 // attack, objectives being attacked. Arrows sit on the screen edge (never over HUD panels);
 // tap one to look there (big fights cut the camera straight in). Read-only on the game.
-import { h, face } from './dom.js';
+import { h, face, bossFace } from './dom.js';
 import { TICK_RATE } from '../sim/constants.js';
 import { settings } from './settings.js';
 import { placeName } from './moments.js';
+import { onViewport } from '../render/viewport.js';
 
 const PANEL_IDS = ['banner', 'myteam', 'topcenter', 'rightcol', 'foestrip', 'brcol', 'cmdbar', 'detail'];
-const BOSS_FACE = { dragon: 'boss/dragon_green_faceset', herald: 'boss/herald_faceset', baron: 'boss/baron_faceset' };
 const SIZE = 46, EDGE = 8;
 
 export class Alerts {
@@ -18,8 +18,10 @@ export class Alerts {
     document.getElementById('hud').append(this.el);
     this.items = new Map(); // key → { el, x, y, kind, born }
     this.rects = []; this.rectsAt = 0;
+    // rotation / toolbar / text-size changes: re-measure panels and prompt sizes
+    this.offVp = onViewport(() => { this.rectsAt = 0; for (const it of this.items.values()) it.w = 0; });
   }
-  destroy() { this.el.remove(); }
+  destroy() { this.el.remove(); this.offVp(); }
   // Collect alert sources (called on the HUD tick, ~8/s).
   scan() {
     const g = this.g, r = this.r, my = this.hud.my, view = this.hud.view, now = g.tick, out = [];
@@ -50,7 +52,7 @@ export class Alerts {
       const o = g.objectives[k];
       if (!o || !o.alive || o.hp >= o.maxHp || !recent(o.lastHurt, 2.5)) continue;
       if (my >= 0 && !g.vision[view].has(o.id)) continue;
-      out.push({ key: 'obj' + k, kind: 'obj', x: o.x, y: o.y, img: `assets/img/${BOSS_FACE[k]}.png`, label: Math.round(o.hp / o.maxHp * 100) + '%' });
+      out.push({ key: 'obj' + k, kind: 'obj', x: o.x, y: o.y, img: bossFace(k, o.element), label: Math.round(o.hp / o.maxHp * 100) + '%' });
     }
     const rank = { bigfight: 0, fight: 1, tower: 2, obj: 3 };
     out.sort((a, b) => rank[a.kind] - rank[b.kind]);
@@ -93,7 +95,7 @@ export class Alerts {
   // Per frame: place arrows on the screen edge, pushed inward until clear of HUD panels.
   place() {
     if (!this.items.size) return;
-    const r = this.r, W = window.innerWidth, H = window.innerHeight, rects = this.panelRects().slice();
+    const r = this.r, W = r.cssW || window.innerWidth, H = r.cssH || window.innerHeight, rects = this.panelRects().slice();
     const cx = W / 2, cy = H / 2;
     for (const it of this.items.values()) {
       // each prompt keeps its own size (a big-fight prompt is wider than a plain arrow)

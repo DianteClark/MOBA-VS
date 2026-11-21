@@ -8,12 +8,15 @@ export const P_SQUARE = 0, P_SPARK = 1, P_SPRITE = 2, P_COIN = 3, P_WISP = 4, P_
 export class Particles {
   constructor(max = 900) {
     this.max = max; this.n = 0;
+    this.keep = 1; // share of spawns that are real (Reduced effects lowers it); the rest go to a scratch particle
+    this.scratch = { kind: 0, x: 0, y: 0, vx: 0, vy: 0, g: 0, life: 1, t: 0, c: '#fff', s: 1, s2: 0, ground: 0, target: 0, sprite: null, w: 2 };
     this.a = Array.from({ length: max }, () => ({ kind: 0, x: 0, y: 0, vx: 0, vy: 0, g: 0, life: 1, t: 0, c: '#fff', s: 1, s2: 0, ground: 0, target: 0, sprite: null, w: 2 }));
   }
   clear() { this.n = 0; }
   // Returns a recycled particle with sane defaults; caller sets the rest.
   spawn(kind, x, y, life) {
     let p;
+    if (this.keep < 1 && Math.random() > this.keep) return this.scratch;
     if (this.n < this.max) p = this.a[this.n++];
     else p = this.a[(Math.random() * this.max) | 0]; // full: overwrite a random one
     p.kind = kind; p.x = x; p.y = y; p.vx = 0; p.vy = 0; p.g = 0; p.life = life; p.t = 0; p.c = '#fff'; p.s = 1; p.s2 = 0; p.ground = 0; p.target = 0; p.sprite = null; p.w = 2;

@@ -33,12 +33,16 @@ python3 -m http.server 8000      # ES modules need an HTTP server
 ```bash
 node tools/determinism.mjs        # same seed + commands → identical checksums
 node tools/lockstep.mjs           # two peers over a laggy link stay in sync
-node tools/maps.mjs [outdir]      # every map fully connected (+ preview images)
+node tools/maps.mjs [outdir]      # every map fully connected, pits/camps out of tower range (+ previews)
 node tools/pathq.mjs 6 2           # movement quality: stuck, jitter, facing flips, wall scrapes, A* cost
 node tools/replay.mjs             # a recorded match replays to the identical checksum
 node tools/balance.mjs 50         # AI-vs-AI batch: side win rates, kills, hero table
 node tools/tune.mjs 2 80 2        # self-play tuner → writes src/data/tuning.js
-python3 tools/ui_audit.py http://localhost:8000/index.html   # HUD overlap audit, 10 viewports
+python3 tools/ui_audit.py http://localhost:8000/ "" iphones   # HUD audit: every iPhone (PWA + Safari, notch insets), 12 popup states
+python3 tools/screen_audit.py http://localhost:8000/ out       # every menu scene: overflow, safe area, overlaps (+ screenshots)
+python3 tools/viewport_test.py http://localhost:8000/          # rotate/resume: canvas size = CSS x DPR, taps land right
+python3 tools/sw_test.py                                       # service worker: offline, deploys, never mid-match, VERSION bump
+python3 tools/chat_test.py http://localhost:8000/              # quick chat across two ?local=1 tabs
 ```
 
 `dev.html?map=frost&fog=0&speed=4` is a bare AI-vs-AI viewer for debugging.

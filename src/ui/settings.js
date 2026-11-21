@@ -5,6 +5,7 @@
 import { h, mount } from './dom.js';
 import { audio } from '../audio.js';
 import { TEAM_COL, TEAM_DARK } from '../render/palette.js';
+import { hapticsSupported } from './haptics.js';
 
 const KEY = 'mobavs_settings';
 const PALETTES = {
@@ -12,7 +13,7 @@ const PALETTES = {
   // blue / orange: safe for deuteranopia, protanopia and tritanopia
   cb: { col: ['#3d9bff', '#ffa22e'], dark: ['#174a8a', '#8a4d0c'] },
 };
-const DEFAULTS = { music: 70, sfx: 80, colorblind: false, textSize: 'normal', reducedMotion: false, speed: 1, chatter: true, alerts: true, quality: 'auto' };
+const DEFAULTS = { music: 70, sfx: 80, colorblind: false, textSize: 'normal', reducedMotion: false, speed: 1, chatter: true, alerts: true, quality: 'auto', haptics: true, chatMute: false };
 // Phones/tablets: touch-first devices. Used for default render resolution and HUD cadence.
 export const isTouch = (() => { try { return matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window; } catch { return false; } })();
 // Render resolution multiplier (canvas pixels per CSS pixel) for the chosen quality.
@@ -82,12 +83,14 @@ function body(rerender) {
     h('div', { class: 'sgroup' }, h('div', { class: 'sgt' }, 'Display'),
       toggle('Colour-blind team colours', 'colorblind', 'Blue vs orange instead of blue vs red', rerender, sw),
       seg('Text size', 'textSize', [['small', 'Small'], ['normal', 'Normal'], ['large', 'Large']], rerender),
-      toggle('Reduced motion', 'reducedMotion', 'No screen shake, hit-stop or flashes', rerender),
+      toggle('Reduced effects', 'reducedMotion', 'Fewer particles; no screen shake, hit-stop, slow-mo or flashes', rerender),
       seg('Graphics', 'quality', [['auto', 'Auto'], ['sharp', 'Sharp'], ['battery', 'Battery']], () => { window.dispatchEvent(new Event('resize')); rerender(); })),
     h('div', { class: 'sgroup' }, h('div', { class: 'sgt' }, 'Match'),
       seg('Default speed', 'speed', [[1, '1x'], [2, '2x'], [4, '4x']], rerender),
       toggle('Hero chatter', 'chatter', 'Speech bubbles when heroes react', rerender),
-      toggle('Off-screen alerts', 'alerts', 'Edge arrows for fights, towers and objectives', rerender)),
+      toggle('Off-screen alerts', 'alerts', 'Edge arrows for fights, towers and objectives', rerender),
+      toggle('Haptics', 'haptics', hapticsSupported ? 'Vibrate on kills, objectives and your call results' : 'Not supported by this browser (iPhone Safari has no vibration)', rerender),
+      toggle('Mute quick chat', 'chatMute', "Hide your online opponent's quick chat and emotes", rerender)),
   ];
 }
 

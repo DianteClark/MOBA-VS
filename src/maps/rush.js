@@ -12,7 +12,7 @@ const RUSH_COMMON = {
   towers: [[0.6, 2], [0.33, 3], [0.15, 4]], baseTowers: [[-40, -175], [175, 40]],
   midHalf: [[600, 1800], [650, 1580], [880, 1560], [960, 1350], [1200, 1200]],
   river: [[700, 700], [880, 880], [1040, 1040], [1200, 1200]], riverW: 46,
-  kraken: [990, 990],
+  kraken: [870, 870], // on the centre line, out of tower reach (tools/maps.mjs checks it)
   camps: [],
 };
 
@@ -22,8 +22,8 @@ export const RUSH_MAPS = [
     id: 'rush_sakura', name: 'Blossom Bridge', theme: 'spring', weather: ['clear', 'wind', 'clear', 'rain'],
     blurb: 'Lane Rush: one cherry-lined lane over the valley stream. Kami and Kraken wait on the centre line.',
     paths: [
-      [[1200, 1200], [1100, 1100], [990, 990]],
-      [[690, 1610], [700, 1400], [800, 1200], [990, 990]],
+      [[1200, 1200], [1100, 1100], [870, 870]],
+      [[690, 1610], [700, 1400], [800, 1200], [870, 870]],
       [[990, 1360], [1150, 1500], [1330, 1500], [1440, 1400]],
     ],
     shrine: [740, 1330],
@@ -37,8 +37,8 @@ export const RUSH_MAPS = [
     blurb: 'Lane Rush: a scorched canyon lane. Tight flanks, brawls at the Kami pit, first Crystal wins.',
     midHalf: [[600, 1800], [800, 1720], [900, 1520], [1080, 1440], [1200, 1200]],
     paths: [
-      [[1200, 1200], [1100, 1100], [990, 990]],
-      [[800, 1720], [700, 1500], [800, 1260], [990, 990]],
+      [[1200, 1200], [1100, 1100], [870, 870]],
+      [[800, 1720], [700, 1500], [800, 1260], [870, 870]],
       [[1080, 1440], [1240, 1560], [1400, 1480]],
     ],
     shrine: [730, 1400], riverW: 38,

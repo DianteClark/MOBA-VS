@@ -1,8 +1,9 @@
 // App controller: menu → lobby → draft → prep → match → results.
-import { loadAssets } from './render/assets.js';
+import { loadAssets, assetsAll, assetsDone } from './render/assets.js';
 import { Renderer } from './render/renderer.js';
 import { Minimap } from './render/minimap.js';
 import { bindCamera } from './render/input.js';
+import { onViewport, refit } from './render/viewport.js';
 import { paintMap } from './render/mapgen.js';
 import { Game } from './sim/game.js';
 import { World } from './sim/world.js';
@@ -13,7 +14,7 @@ import { newDraft, apply as draftApply, currentTurn, autoChoice, aiPrep, TURN_SE
 import { presetChoice, prepFromPreset } from './presets.js';
 import { HERO_BY_ID } from './data/heroes.js';
 import { LocalRunner, LockstepRunner } from './net/runner.js';
-import { host, join, makeCode } from './net/peer.js';
+import { host, join, makeCode, warmNet } from './net/peer.js';
 import { showLobby, showPrep, showResults, startParade, stopParade } from './ui/screens.js';
 import { DraftView, AUTO_GRACE } from './ui/draftview.js';
 import { Hud } from './ui/hud.js';
@@ -64,7 +65,7 @@ class App {
     audio.init();
     installBuildTips();
     const bar = document.querySelector('#loading .barw i');
-    await loadAssets((p) => { bar.style.width = Math.round(p * 100) + '%'; });
+    await loadAssets((p) => { bar.style.width = Math.round(p * 100) + '%'; }, true);
     try { await document.fonts.load('12px PixelFont'); } catch { /* ignore */ }
     this.map = this.mapCanvas(new World(MAPS[0]));
     document.getElementById('loading').remove();
@@ -72,6 +73,7 @@ class App {
     const q = new URLSearchParams(location.search), code = q.get('join'), shared = q.get('s');
     if (code) this.joinScreen(code); else if (shared) showShared(this, shared); else this.menu();
     this.connectOnline();
+    setTimeout(warmNet, 3000); // PeerJS off the first-paint path, ready before anyone taps Host / Join
   }
   // Online services: create/restore the account, then sync the profile (newest copy wins).
   async connectOnline() {
@@ -114,6 +116,19 @@ class App {
     audio.music('menu');
     showHome(this);
     startParade();
+    if (this.update) setTimeout(() => this.safeUpdate(), 600);
+  }
+  // A new build is ready (new service worker waiting, or the cache was refreshed by a deploy):
+  // switch only from the menu, with a quick fade, never during a draft, prep or match.
+  safeUpdate() {
+    const u = this.update;
+    if (!u || u.busy || this.match || this.session || document.querySelector('.modal') || !document.querySelector('#screen .home')) return;
+    u.busy = true;
+    document.getElementById('fade').classList.add('on');
+    setTimeout(() => {
+      if (u.reg && u.reg.waiting) u.reg.waiting.postMessage({ t: 'skipWaiting' }); // controllerchange reloads
+      else location.reload();
+    }, 250);
   }
   fade(fn) {
     const f = document.getElementById('fade');
@@ -276,6 +291,9 @@ class App {
       case 'in': case 'h': case 'ht':
         if (this.match && this.match.runner.receive) this.match.runner.receive(m);
         break;
+      case 'qc': // quick chat: a side channel, never part of the lockstep command log
+        if (this.match && this.match.hud.chat) this.match.hud.chat.receive(m);
+        break;
       case 'quit':
         if (s.finished) { this.cleanupNet(); return; }
         toast('Opponent left the match.');
@@ -293,7 +311,7 @@ class App {
       g.coaches[enemy] = new Coach(g, enemy, 1);
       const old = this.match.runner, r = new LocalRunner(g, this.session.myTeam); r.acc = old.acc;
       r.log = old.log; r.htDone = old.htDone; r.ht = old.ht; if (r.ht) r.ht.them = true; r.onHalftime = old.onHalftime; r.onHalftimeEnd = old.onHalftimeEnd;
-      this.match.runner = r; this.match.hud.runner = r;
+      this.match.runner = r; this.match.hud.runner = r; this.match.hud.disableChat();
       this.session.mode = 'ai'; this.session.wasOnline = true;
       this.cleanupNet();
       return;
@@ -423,6 +441,8 @@ class App {
 
   // ───────────── match ─────────────
   startMatch() {
+    // the match art finishes loading in the background after first paint; on a slow link wait for it here
+    if (!assetsDone) { const s0 = this.session; toast('Loading the battlefield…', 1500); assetsAll.then(() => { if (this.session === s0 && !this.match) this.startMatch(); }); return; }
     const s = this.session;
     const cfg = s.replay ? JSON.parse(JSON.stringify(s.replay.cfg)) : {
       seed: s.seed, map: s.mapId, ...(s.gameMode === 'rush' ? { mode: 'rush' } : {}),
@@ -443,12 +463,13 @@ class App {
         onKey: (e) => this.match && this.match.hud.onKey(e),
         onClick: (w, sx, sy) => this.clickWorld(w, sx, sy),
       });
-      window.addEventListener('resize', () => { this.renderer.resize(); this.minimap.resize(); });
+      onViewport(() => { if (this.match) { this.renderer.resize(); this.minimap.resize(); } });
     }
-    this.renderer.resize();
+    this.renderer.resize(true);
     this.renderer.attach(game, s.myTeam, this.mapCanvas(game.world));
     this.renderer.skins = s.replay ? s.replay.skins || [{}, {}] : [0, 1].map((t) => (s.preps[t] && s.preps[t].skins) || {});
     this.minimap.resize();
+    refit();
     this.renderer.fogOn = s.myTeam >= 0;
     const home = game.world.fountain[Math.max(0, s.myTeam)];
     this.renderer.cam.x = home.x + (s.myTeam === 1 ? -300 : 300); this.renderer.cam.y = home.y + (s.myTeam === 1 ? 300 : -300);
@@ -643,8 +664,21 @@ class App {
   }
 }
 
-// Installable app: register the (network-first) service worker; offer full screen on phones.
-if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+// Installable app: the service worker (sw.js) serves repeat launches from cache and keeps it fresh.
+// A new build is only switched in when it is safe: on the menu, never mid-match (see App.safeUpdate).
+function registerSW() {
+  if (!('serviceWorker' in navigator) || !(location.protocol === 'https:' || location.hostname === 'localhost')) return;
+  const sw = navigator.serviceWorker;
+  sw.register('sw.js?v=' + VERSION).then((reg) => {
+    const waiting = () => { if (reg.waiting && sw.controller) { app.update = { reg }; app.safeUpdate(); } };
+    waiting();
+    reg.addEventListener('updatefound', () => { const w = reg.installing; if (w) w.addEventListener('statechange', () => { if (w.state === 'installed') waiting(); }); });
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) reg.update().catch(() => {}); });
+  }).catch(() => {});
+  sw.addEventListener('message', (e) => { if (e.data && e.data.t === 'sw-updated') { app.update = app.update || {}; app.safeUpdate(); } });
+  let reloaded = false;
+  sw.addEventListener('controllerchange', () => { if (app.update && !reloaded) { reloaded = true; location.reload(); } });
+}
 export function toggleFullscreen() {
   const d = document, el = d.documentElement;
   try {
@@ -656,3 +690,4 @@ window.toggleFullscreen = toggleFullscreen;
 const app = new App();
 window.app = app;
 app.boot();
+registerSW();
