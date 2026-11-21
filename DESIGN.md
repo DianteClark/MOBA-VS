@@ -1,4 +1,4 @@
-# MOBA-VS — Design Document (v1.0)
+# MOBA-VS — Design Document (v5.0)
 
 **Live:** https://dianteclark.github.io/MOBA-VS/
 
@@ -20,7 +20,7 @@
 | Phase | What you do |
 |---|---|
 | Lobby | Host gets a 5-letter room code (or play vs AI / watch AI vs AI). Pick a map or Random. |
-| **Draft** | Tournament bans/picks from 25 heroes, 5 roles. Clans and matchups are shown live. Any unbanned hero can be picked. |
+| **Draft** | Tournament bans/picks from 40 heroes, 5 roles. Clans and matchups are shown live. Any unbanned hero can be picked. |
 | **Prep** | Lanes, build path per hero, team plan, and **3 tactic cards** for your deck. |
 | **Match** | 15:00 countdown. Make calls with your command charges; play your tactic cards. |
 | Results | MVP, stats, gold-lead graph, call log with outcomes. |
@@ -29,13 +29,14 @@
 
 ## 3. Maps
 
-Three handcrafted maps share the same rules (3 lanes, 3 towers + gate per lane, 2 base towers, Crystal, 6 jungle camps per side, Kami pit, Kraken pit, 2 river shrines) but differ in layout, theme and weather:
+Four handcrafted maps share the same rules (3 lanes, 3 towers + gate per lane, 2 base towers, Crystal, 6 jungle camps per side, Kami pit, Kraken pit, 2 river shrines) but differ in layout, theme and weather:
 
 | Map | Theme | Character | Weather cycle |
 |---|---|---|---|
 | **Sakura Valley** | Spring | Classic, wide river, balanced jungle | clear, rain, fog, gale |
 | **Frostfang Pass** | Winter | Winding lanes, frozen central lake, long rotations | snow, blizzard, fog |
 | **Ember Canyon** | Autumn | Tight canyon lanes, brawly | gale, heatwave, dust storm |
+| **Moonlit Marsh** | Night | Misty swamp, reed beds, two jungle crossings | fog, rain |
 
 Maps are authored for one half and point-mirrored. Trees and rocks are **real walls**: they block movement and line of sight. **Tall grass** hides units (attacking reveals you). Towers sit beside the lanes.
 
@@ -56,7 +57,7 @@ Objectives are **only started by your calls**. Junglers auto-smite to secure (or
 
 ## 5. Heroes
 
-25 heroes, 5 per role (Top, Jungle, Mid, Bot, Support). Each has a passive, two abilities and an ultimate (level 5), all data-driven.
+40 heroes (8 per clan) across five roles (Top, Jungle, Mid, Bot, Support), many with a flex role. Each has a passive, two abilities and an ultimate (level 5), all data-driven.
 
 * **Range tiers:** melee 55, short 150, long 180. Towers 255 out-range every hero. Ability ranges are capped.
 * **Clans:** Shinobi, Beast, Spirit, Iron, Wild. 2+ and 3+ of a clan give team bonuses.
@@ -79,7 +80,13 @@ Each hero has trust 0–100. Successful calls raise it; deaths on your calls, st
 * Hotheads tilt for 60s after dying. Emotes over heroes show reactions.
 
 ### Tactic cards (pick 3, each usable once)
-Shown as a hand of big cards above the calls. Smoke Bomb · Ambush · Rally Cry · Second Wind · Siege Formation · Ward Sweep · Bait · Lane Swap · Fortify · Ancient Pact.
+Shown as a hand of big cards above the calls. Smoke Bomb · Ambush · Rally Cry · Second Wind · Siege Formation · Ward Sweep · Bait · Lane Swap · Fortify · Ancient Pact · Spirit Eyes · War Council · Kami Barrier · Spirit Gate.
+
+### Ult calls
+Auto (heroes decide) · **Hold** (save ultimates for kills/self-defence, 45s) · **ALL-IN** (fire them in the next fight, 20s). Free.
+
+### Halftime (7:30) and Last Stand (12:00+)
+At 7:30 the match pauses (up to 20s, both coaches ready to skip): change plan, builds and swap one unused card. In the final 3 minutes gold rewards are ×1.5 and respawns ×1.25.
 
 ### Analyst feed
 Only what your team can see: overextended laners (one-tap Gank), open shrines, enemy on an objective (Contest), missing enemies, numbers advantage.
@@ -99,7 +106,12 @@ Only what your team can see: overextended laners (one-tap Gank), open shrines, e
 * **Micro (every tick):** dodge skillshots and telegraphs, fight-or-flight via Lanchester strength (towers count only when they can shoot), sticky target choice (killable, focus calls, carries, peel), role positioning (kiting, divers, supports escorting the carry), lane trading discipline, Flash + escapes.
 * Vision-limited: AI only reacts to what its team sees.
 
-## 9. Technology
+## 9. Mobile & technology
+
+* Phone-first HUD (portrait and landscape): Menu dropdown, finger-sized hit areas, a wide camera, a one-row landscape dock, and a graphics setting (Auto/Sharp/Battery).
+* Installable web app (manifest + network-first service worker), full-screen button.
+* Replays = match config + command log (the sim is deterministic).
+
 
 * Static ES-module web app (GitHub Pages). Canvas 2D renderer.
 * Deterministic sim at 20 Hz, seeded PRNG, IEEE-exact math only, integer A*.

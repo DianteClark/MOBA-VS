@@ -1,6 +1,23 @@
 // Patch notes, newest first. tools/season.mjs prepends an entry at each season rollover.
 export const PATCHES = [
   {
+    version: '5.0', season: 1, date: '2026-11-21', title: 'MOBA-VS 5.0',
+    notes: [
+      'Built for phones first: new portrait and landscape layouts, a Menu dropdown, bigger tap targets, a wider camera, and an installable full-screen app (Add to Home Screen).',
+      'Fixed: tapping the map on phones now opens the call ring.',
+      '15 new champions: 40 in total, 8 per clan.',
+      'New map: Moonlit Marsh, a misty night swamp.',
+      'Ult calls: set ultimates to Auto, Hold or ALL-IN.',
+      'Halftime at 7:30: change your plan and builds, and swap one tactic card.',
+      'Last Stand: the final 3 minutes pay 1.5x gold and respawns take longer.',
+      'Replays: watch your last match from the results screen or the home screen.',
+      'New tactic cards: Spirit Eyes, War Council, Kami Barrier, Spirit Gate.',
+      'Smoother movement: heroes no longer jitter in lane or flip between fighting and fleeing at tower range.',
+      'Lots of juice: hit-stop, ultimate callouts, kill bursts, gold pops, edge alerts, hero chatter, and a Settings screen with colour-blind, text-size and graphics options.',
+    ],
+    heroes: [],
+  },
+  {
     version: '1.1', season: 1, date: '2026-11-20', title: 'The Coach Update',
     notes: [
       'Brand-new calling: six big calls, a hand of tactic cards, and a call ring when you tap the map.',

@@ -23,7 +23,7 @@ import { showHome, showCup, progressPanel } from './ui/home.js';
 import { profile } from './profile.js';
 import { newCup, recordCup, myMatch } from './cup.js';
 
-const VERSION = 2; // bump whenever the sim or balance changes (peers must match)
+const VERSION = 5; // bump whenever the sim or balance changes (peers must match)
 const PREP_SECONDS = 60;
 
 class App {

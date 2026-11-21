@@ -8,12 +8,14 @@ Invite a friend straight into your room: `https://dianteclark.github.io/MOBA-VS/
 A peer-to-peer **MOBA manager** in the browser. You don't pilot a hero; you coach five of them.
 Draft, pick builds and a tactic deck, then win the match with your calls.
 
-* **15-minute matches.** If no Crystal falls, the team with more towers standing when the clock hits 0:00 wins.
-* **Three handcrafted maps** (Sakura Valley, Frostfang Pass, Ember Canyon) with real walls, tall grass, line-of-sight fog, river shrines and changing weather.
-* **25 heroes**, each with a clan (Shinobi, Beast, Spirit, Iron, Wild) and a personality (Reckless, Cautious, Greedy, Loyal, Hothead, Calm).
-* **Trust:** good calls inspire your heroes; bad ones make them hesitate.
-* **Tactic cards:** Smoke Bomb, Ambush, Rally Cry, Second Wind, Siege Formation, Ward Sweep, Bait, Lane Swap, Fortify, Ancient Pact.
-* **Our world:** Kami spirits (Ember, Tide, Stone, Gale, Ancient), the Oni, the Kraken and the Shrine Crystal.
+**v5.0, built for phones first** (portrait and landscape, installable: *Share → Add to Home Screen*), and it plays great on desktop too.
+
+* **15-minute matches.** If no Crystal falls, the team with more towers standing at 0:00 wins. **Halftime** at 7:30 and a **Last Stand** for the final 3 minutes.
+* **Four handcrafted maps:** Sakura Valley, Frostfang Pass, Ember Canyon and Moonlit Marsh. Real walls, tall grass, line-of-sight fog, river shrines and changing weather.
+* **40 heroes**, each with a clan (Shinobi, Beast, Spirit, Iron, Wild) and a personality that shapes how they play and how fast they trust you.
+* **Simple, deep calling:** six big calls, tap-the-map call ring, one-tap analyst suggestions, ult calls (Auto / Hold / ALL-IN), and 14 tactic cards.
+* **Seasons:** ranked ladder, a 20-level pass with skins, banners and titles, the Season Cup, and automatic season-end balancing.
+* **Replays** of your last match; peer-to-peer online play with deterministic lockstep.
 
 Modes: **Play vs AI** (Easy / Normal / Hard), **Host / Join** (WebRTC, deterministic lockstep), **Watch AI vs AI**.
 
@@ -32,7 +34,8 @@ python3 -m http.server 8000      # ES modules need an HTTP server
 node tools/determinism.mjs        # same seed + commands → identical checksums
 node tools/lockstep.mjs           # two peers over a laggy link stay in sync
 node tools/maps.mjs [outdir]      # every map fully connected (+ preview images)
-node tools/stuck.mjs              # pathing regression: heroes that stop making progress
+node tools/pathq.mjs 6 2           # movement quality: stuck, jitter, facing flips, wall scrapes, A* cost
+node tools/replay.mjs             # a recorded match replays to the identical checksum
 node tools/balance.mjs 50         # AI-vs-AI batch: side win rates, kills, hero table
 node tools/tune.mjs 2 80 2        # self-play tuner → writes src/data/tuning.js
 python3 tools/ui_audit.py http://localhost:8000/index.html   # HUD overlap audit, 10 viewports
