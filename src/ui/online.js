@@ -1,4 +1,4 @@
-// Online screens: global ladder, account (recovery code / sign in), shared-match links,
+// Online screens: global / friends ladder, account (recovery code / sign in), shared-match links,
 // and the post-match ladder result panel.
 import { h, mount, toast, emptyState } from './dom.js';
 import { HERO_BY_ID } from '../data/heroes.js';
@@ -8,31 +8,63 @@ import { drawShareCard } from './share.js';
 import { audio } from '../audio.js';
 import { tierBadge } from './badges.js';
 import { rankOf } from '../data/ranks.js';
+import { showPlayer } from './social.js';
 
 const screen = () => document.getElementById('screen');
 const back = (app) => h('button', { class: 'btn backbtn', onclick: () => { audio.sfx('move', 0.5); app.menu(); } }, '‹ Back');
 
 // ── Global ladder ──
-export async function showLeaderboard(app) {
+// Global (pages of 50, "Show more") or Friends only. Tap a coach for their public profile. Your own row stays
+// pinned to the bottom of the screen while you scroll the list.
+export async function showLeaderboard(app, view = 'global') {
   const season = profile.season;
   const body = h('div', { class: 'panel col lb' }, h('p', { class: 'muted center' }, 'Loading the ladder…'));
-  mount(screen(), h('div', { class: 'subscreen' },
+  const tabs = h('div', { class: 'tabs lbtabs' }, ...[['global', 'Global'], ['friends', 'Friends']].map(([k, l]) => h('button', { class: 'chip' + (view === k ? ' on' : ''), 'aria-pressed': String(view === k), onclick: () => { if (view !== k) showLeaderboard(app, k); } }, l)));
+  mount(screen(), h('div', { class: 'subscreen', 'data-view': 'ladder' },
     h('div', { class: 'shead' }, back(app), h('div', {}, h('small', {}, `SEASON ${season.id} · ONLINE LADDER`), h('h2', {}, 'Leaderboard')), h('div')),
     h('p', { class: 'muted center small' }, 'Only verified online Ranked matches count: both players’ games must agree on the result. Casual and Lane Rush never change your rating.'),
-    body, accountPanel(app)));
+    tabs, body, accountPanel(app)));
   if (!(await ping())) { mount(body, emptyState('assets/img/icons/Vision.png', 'Ladder offline', 'The online ladder can\'t be reached right now. Your matches still count on this device.')); return; }
   try {
     if (!getAccount()) await ensureAccount(app.name);
-    const lb = await leaderboard(season.id);
+    const friends = view === 'friends';
+    const lb = await leaderboard(season.id, { friends });
+    if (!body.isConnected) return;
     const me = getAccount();
-    const row = (r) => h('div', { class: 'lbr' + (me && r.id === me.id ? ' me' : '') + (r.rank <= 3 ? ' top' + r.rank : '') },
+    const row = (r) => h('button', { class: 'lbr' + (me && r.id === me.id ? ' me' : '') + (r.rank <= 3 ? ' top' + r.rank : ''), title: 'View profile', onclick: () => showPlayer(app, r.id, { name: r.name }) },
       h('b', { class: 'lbrank' }, `#${r.rank}`), tierBadge(r.rating, 24, 'lbtier'), h('span', { class: 'lbname' }, r.name), h('span', { class: 'lbrat', style: { color: rankOf(r.rating).tier.color } }, h('small', {}, rankOf(r.rating).label + ' '), r.rating), h('small', {}, `${r.wins}W ${r.losses}L`));
+    const list = h('div', { class: 'lblist' }, h('div', { class: 'lbr head' }, h('b', { class: 'lbrank' }, 'Rank'), h('i', { class: 'lbtier' }), h('span', { class: 'lbname' }, 'Coach'), h('span', { class: 'lbrat' }, 'Rating'), h('small', {}, 'Record')), ...lb.top.map(row));
+    let next = lb.next, shown = lb.top.length;
+    const more = h('button', { class: 'chip lbmore', onclick: async () => {
+      more.disabled = true; more.textContent = 'Loading…';
+      try {
+        const pg = await leaderboard(season.id, { after: next, from: shown });
+        for (const r of pg.top) list.append(row(r));
+        next = pg.next; shown += pg.top.length;
+        if (!next) more.remove(); else { more.disabled = false; more.textContent = 'Show more'; }
+        pinned();
+      } catch (e) { more.disabled = false; more.textContent = 'Show more'; toast(e.message || 'Could not load more'); }
+    } }, 'Show more');
+    const rk = lb.me ? rankOf(lb.me.rating) : null;
+    // Your position: pinned under the list while your own row is not on screen (or not loaded yet).
+    const pin = lb.me ? h('button', { class: 'lbme lbpin', title: 'Your profile', onclick: () => showPlayer(app, me.id, { name: app.name }) }, tierBadge(lb.me.rating, 34), h('span', {}, 'You'), h('b', {}, `#${friends ? (lb.top.find((r) => r.id === me.id) || {}).rank || '-' : lb.me.rank}`),
+      h('span', { style: { color: rk.tier.color } }, `${rk.label} · ${lb.me.rating}`), h('small', {}, `${lb.me.wins}W ${lb.me.losses}L · peak ${rankOf(lb.me.peak).label}`))
+      : h('div', { class: 'lbme muted' }, 'Play an online Ranked match to join the ladder.');
+    const pinned = () => { const mine = list.querySelector('.lbr.me'); pin.classList.toggle('stuck', !!lb.me && !mine); };
     mount(body,
-      lb.me ? h('div', { class: 'lbme' }, tierBadge(lb.me.rating, 34), h('span', {}, 'You'), h('b', {}, `#${lb.me.rank}`), h('span', { style: { color: rankOf(lb.me.rating).tier.color } }, `${rankOf(lb.me.rating).label} · ${lb.me.rating}`), h('small', {}, `${lb.me.wins}W ${lb.me.losses}L · peak ${rankOf(lb.me.peak).label}`)) : h('div', { class: 'lbme muted' }, 'Play an online Ranked match to join the ladder.'),
-      lb.top.length ? h('div', { class: 'lblist' }, h('div', { class: 'lbr head' }, h('b', { class: 'lbrank' }, 'Rank'), h('i', { class: 'lbtier' }), h('span', { class: 'lbname' }, 'Coach'), h('span', { class: 'lbrat' }, 'Rating'), h('small', {}, 'Record')), ...lb.top.map(row))
-        : emptyState('assets/img/items/GoldCup.png', 'No ranked matches yet', 'Be the first this season: Find Match, or Host and send a friend the link.'));
+      lb.top.length ? [list, next ? more : null] : friends ? emptyState('assets/img/items/GoldCup.png', 'No friends on the ladder yet', 'Add friends in Profile › Friends, then climb together in Ranked.', { label: 'Friends', onclick: () => showProfileFriends(app) })
+        : emptyState('assets/img/items/GoldCup.png', 'No ranked matches yet', 'Be the first this season: Find Match, or Host and send a friend the link.'),
+      pin);
+    pinned();
+    // the pinned row hides itself whenever your own row scrolls into view
+    const mine = list.querySelector('.lbr.me');
+    if (mine && lb.me && 'IntersectionObserver' in window) {
+      const io = new IntersectionObserver(([e]) => { if (!pin.isConnected) { io.disconnect(); return; } pin.classList.toggle('stuck', !e.isIntersecting); });
+      io.observe(mine);
+    }
   } catch (e) { mount(body, emptyState('assets/img/icons/Vision.png', 'Could not load the ladder', String(e.message || e))); }
 }
+const showProfileFriends = (app) => import('./home.js').then((m) => m.showProfile(app, 'friends'));
 
 // ── Account: recovery code + sign in on another device ──
 function accountPanel(app) {

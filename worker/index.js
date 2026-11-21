@@ -150,8 +150,7 @@ async function social(req, db, url, p, M, now) {
       .sort((a, b) => order[a.presence] - order[b.presence] || b.seen - a.seen);
     return json({ friends, sent: pick('req').map((r) => ({ id: r.id, name: r.name })), blocked: pick('block').map((r) => ({ id: r.id, name: r.name })),
       requests: (inc.results || []).map((r) => ({ id: r.id, name: r.name, elo: r.elo })),
-      invites: (inv.results || []).map((r) => ({ id: r.id, from: { id: r.sender, name: r.name }, mode: r.mode, room: r.room, expires: r.created + INVITE_TTL })),
-      now, poll: 30 });
+      invites: (inv.results || []).map((r) => ({ id: r.id, from: { id: r.sender, name: r.name }, mode: r.mode, room: r.room, left: r.created + INVITE_TTL - now })) }); // ms left: immune to client clock skew
   }
   if (p === '/api/social/friend' && M === 'POST') {
     const me = await auth(req, db); if (!me) return bad('unauthorized', 401);
@@ -228,7 +227,7 @@ async function social(req, db, url, p, M, now) {
     if (to) stmts.unshift(db.prepare("UPDATE invites SET status = 'cancelled' WHERE sender = ? AND target = ? AND status = 'pending'").bind(me.id, to)); // one live invite per friend
     if (id.charCodeAt(0) % 16 === 0) stmts.push(db.prepare('DELETE FROM invites WHERE created < ?').bind(now - 86400000)); // occasional sweep
     await db.batch(stmts);
-    return json({ id, url: `${url.origin}/i/${id}`, expires: now + (to ? INVITE_TTL : LINK_TTL) });
+    return json({ id, url: `${url.origin}/i/${id}`, ttl: to ? INVITE_TTL : LINK_TTL });
   }
   if (p === '/api/invite/cancel' && M === 'POST') {
     const me = await auth(req, db); if (!me) return bad('unauthorized', 401);
@@ -244,7 +243,7 @@ async function social(req, db, url, p, M, now) {
     if (limited('ig:' + ip(req), 60)) return slow();
     const r = await db.prepare('SELECT i.*, p.name FROM invites i JOIN players p ON p.id = i.sender WHERE i.id = ?').bind(im[1]).first();
     if (!r) return bad('This invite was not found', 404);
-    return json({ id: r.id, from: { id: r.sender, name: r.name }, mode: r.mode, room: r.room, status: live(r), direct: !!r.target, expires: r.created + (r.target ? INVITE_TTL : LINK_TTL) });
+    return json({ id: r.id, from: { id: r.sender, name: r.name }, mode: r.mode, room: r.room, status: live(r), direct: !!r.target, left: Math.max(0, r.created + (r.target ? INVITE_TTL : LINK_TTL) - now) });
   }
   if (p === '/api/invite/respond' && M === 'POST') {
     const me = await auth(req, db); if (!me) return bad('unauthorized', 401);
