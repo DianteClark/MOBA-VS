@@ -69,7 +69,7 @@ export function planRisk(g, h) {
   const plan = g.teams[h.team].plan, m = g.gameMinute;
   switch (plan) {
     case 'aggro': return m < EARLY ? 0.88 : m < SPIKE + 1 ? 0.95 : 0.98;
-    case 'scale': return m < EARLY + 1 ? 1.15 : m < SPIKE + 1 ? 1 : 0.93;
+    case 'scale': return m < EARLY + 1 ? 1.15 : m < SPIKE + 1 ? 1 : 0.98;
     case 'objective': {
       // brave around a live (or waking) objective, normal elsewhere
       const pits = g.world.pits;
@@ -83,8 +83,8 @@ export function planRisk(g, h) {
     case 'split': return splitterOf(g, h) ? 1.12 : 1;
     case 'protect': {
       const c = planCarry(g, h.team); if (!c) return 1;
-      if (c === h) return 1.05; // the carry stays safe
-      return c.alive && (c.x - h.x) ** 2 + (c.y - h.y) ** 2 < 650 * 650 ? 0.9 : 1.04;
+      if (c === h) return 1; // the carry plays its normal game (the team does the peeling)
+      return c.alive && (c.x - h.x) ** 2 + (c.y - h.y) ** 2 < 650 * 650 ? 0.88 : 1.02;
     }
     default: return 1;
   }
@@ -140,7 +140,7 @@ export function coachWeights(g, team) {
     else w.lateAt = 720;
   } else if (plan === 'scale') {
     if (m < EARLY + 1) { w.invadeFrom = 9999; w.gankCd = 60; w.objWait = true; }
-    else { w.lateAt = 540; w.groupCd = 28; }
+    else { w.lateAt = 600; w.groupCd = 34; }
   } else if (plan === 'objective') {
     w.objFree = true; w.objCd = 30;
   } else if (plan === 'split') {
