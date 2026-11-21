@@ -166,12 +166,11 @@ class App {
       } else lock();
     } catch { /* not supported */ }
   }
-  // mode: 'classic' (5v5 on the chosen map) or 'rush' (Lane Rush); omitted = the last one played (Play again).
-  startVsAI(mode) {
+  // mode: 'classic' (5v5 on the chosen map) or 'rush' (Lane Rush on one of its maps).
+  startVsAI(mode = 'classic') {
     this.immersive();
-    if (mode) this.vsMode = mode;
     try { localStorage.setItem('mobavs_ai', String(this.aiLevel)); } catch { /* ignore */ }
-    const seed = (Math.random() * 2 ** 31) >>> 0, gameMode = this.vsMode === 'rush' ? 'rush' : 'classic';
+    const seed = (Math.random() * 2 ** 31) >>> 0, gameMode = mode === 'rush' ? 'rush' : 'classic';
     this.session = { mode: 'ai', gameMode, myTeam: 0, seed, mapId: this.pickMap(seed, gameMode), aiLevel: this.aiLevel, names: [this.name, ['Easy', 'Normal', 'Hard'][this.aiLevel] + ' AI'], rng: new Rng(seed ^ 0x5eed) };
     this.startDraft();
   }
@@ -595,7 +594,7 @@ class App {
       this.potgReel = potg && src ? this.prerollPOTG(src, potg) : null;
       const report = s.myTeam >= 0 ? reportCard(m.game, s.myTeam, m.hud.stats) : null;
       const args = [this, m.game, s.myTeam,
-        s.cup ? () => showCup(this) : s.mode === 'ai' ? () => this.startVsAI() : s.mode === 'watch' ? () => this.watch() : null,
+        s.cup ? () => showCup(this) : s.mode === 'ai' ? () => this.startVsAI(s.gameMode === 'rush' ? 'rush' : 'classic') : s.mode === 'watch' ? () => this.watch() : null,
         () => this.menu(), { progress: progressPanel(sum, cupOut), ladder, againLabel: s.cup ? 'Back to bracket' : null, potg: this.potgReel ? potg : null, report,
           onPOTG: () => this.playPOTG(), onClip: potg && src && clipSupport() ? () => saveClip(src, potg, s.names, this.mapCanvas(m.game.world)) : null, share: sum ? () => shareMatch(profile.d.history[0], { name: this.name, rank: profile.rank.label }, this.lastReplay()) : null }];
       this.lastResults = { args, session: s, src, potg };
