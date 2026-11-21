@@ -1,12 +1,14 @@
 // Canvas renderer: interpolated sprites, FX, fog of war, floating combat text.
-import { IMG, VAR, FX, PROJ, flashOf, recolor } from './assets.js';
+import { IMG, VAR, FX, flashOf, recolor } from './assets.js';
 import { SKINS } from '../data/seasons.js';
 import { paintMap, THEMES } from './mapgen.js';
 import { S as MAP_SIZE, N as GN } from '../sim/world.js';
 import { TICK_RATE, DRAGON_INFO, OBJ_NAME, T as TIMERS } from '../sim/constants.js';
 import { TEAM_COL, TEAM_DARK, rgba } from './palette.js';
-import { Particles, P_SQUARE, P_SPARK, P_SPRITE, P_COIN, P_WISP, P_DEBRIS, P_RING, P_PUFF, P_BEAM } from './particles.js';
+import { Particles, P_SQUARE, P_SPARK, P_SPRITE, P_COIN, P_WISP, P_DEBRIS, P_RING, P_PUFF, P_BEAM, P_GLOW, glowSprite } from './particles.js';
 import { Chatter } from './chatter.js';
+import { Vfx } from './vfx.js';
+import { Ambient } from './ambient.js';
 import { settings, textScale, renderDpr } from '../ui/settings.js';
 
 export { TEAM_COL, TEAM_DARK };
@@ -47,6 +49,10 @@ export class Renderer {
     this.dpr = 1; this.W = canvas.width; this.H = canvas.height;
     this.showNames = true;
     this.labelAll = false;
+    this.vfx = new Vfx(this);
+    this.amb = new Ambient(this);
+    this.detail = 2; // 2 high, 1 medium (Auto, after a slow spell), 0 low
+    this.castT = new Map(); this.corpses = []; this.wasAlive = new Map(); this.spawnT = new Map(); this.knock = new Map(); this.bossSeen = new Map();
     this.grad = this.makeGrad();
     this.resize();
   }
@@ -75,17 +81,26 @@ export class Renderer {
     if (cw && ch && (cw !== Math.round(this.cssW || 0) || ch !== Math.round(this.cssH || 0) || this.wantDpr() !== this.dpr)) this.resize();
   }
   wantDpr() { return Math.min(renderDpr(), this.dprCap || 9); }
-  // Auto quality: a device that can't hold ~40 fps for a few seconds drops to 1 canvas px per CSS px (2.25x fewer
-  // pixels at the usual 1.5 cap). One step down per match, never back up mid-match (no visible pumping).
+  // Auto quality: a device that can't hold ~40 fps for a few seconds first drops effect detail (ambient life,
+  // particle counts), then, if still slow, to 1 canvas px per CSS px (2.25x fewer pixels at the usual 1.5 cap).
+  // Steps only go down within a match, never back up (no visible pumping). High / Low are fixed.
   govern(dt) {
-    if (settings.quality !== 'auto' || this.dprCap || renderDpr() <= 1 || !(dt > 0 && dt < 0.25)) return;
+    if (settings.quality !== 'auto') { this.detail = settings.quality === 'battery' ? 0 : 2; return; }
+    if (this.dprCap || !(dt > 0 && dt < 0.25)) return;
     this.slowT = Math.max(0, (this.slowT || 0) + (dt > 1 / 40 ? dt : -dt / 2));
-    if (this.slowT > 3) { this.dprCap = 1; this.resize(); }
+    if (this.slowT > 3) {
+      this.slowT = 0;
+      if (this.detail > 1) this.detail = 1;
+      else if (renderDpr() > 1) { this.dprCap = 1; this.resize(); } else this.dprCap = 9;
+    }
   }
   attach(game, viewTeam, map) {
     this.game = game; this.viewTeam = viewTeam; this.map = map || paintMap(game.world); this.theme = THEMES[game.world.def.theme] || THEMES.spring;
     this.fogSmooth.fill(0); this.prev.clear(); this.effects = []; this.texts = []; this.lines = []; this.fxp.clear(); this.focus = null;
-    this.dprCap = 0; this.slowT = 0;
+    this.dprCap = 0; this.slowT = 0; this.detail = settings.quality === 'battery' ? 0 : 2;
+    this.vfx.reset(); this.amb.attach(game.world, this.theme);
+    this.castT.clear(); this.corpses = []; this.wasAlive.clear(); this.spawnT.clear(); this.knock.clear(); this.bossSeen.clear();
+    for (const u of game.units) if (u.type === 'hero') this.wasAlive.set(u.id, u.alive);
     this.chatter.reset(); this.hpT.clear(); this.heroPos.clear(); this.callouts = []; this.trauma = 0; this.hitStop = 0; this.tint = null; this.panTo = null; this.visSlow = null;
     this.evIdx = game.events.length;
   }
@@ -126,7 +141,7 @@ export class Renderer {
     const k = 'skin_' + u.heroId + '_' + sk;
     return VAR[k] || (VAR[k] = recolor(base, SKINS[sk].recolor));
   }
-  snapshot() { this.prev.clear(); for (const u of this.game.units) if (u.alive && !u.structure) this.prev.set(u.id, { x: u.x, y: u.y }); }
+  snapshot() { this.prev.clear(); for (const u of this.game.units) if (u.alive && !u.structure) this.prev.set(u.id, { x: u.x, y: u.y }); this.vfx.snapshot(this.game); }
   visible(u) {
     if (!this.fogOn || this.viewTeam < 0) return true;
     return u.team === this.viewTeam || u.structure || this.game.vision[this.viewTeam].has(u.id);
@@ -144,7 +159,7 @@ export class Renderer {
     const emotes = [], killed = new Set();
     for (const f of g.fx) {
       const u = f.id ? byId.get(f.id) : null;
-      if (u && !this.visible(u) && f.kind !== 'death') continue;
+      if (u && !this.visible(u) && f.kind !== 'death') { if (f.kind === 'cast') this.vfx.cur = null; continue; }
       switch (f.kind) {
         case 'dmg': {
           if (!u) break;
@@ -182,7 +197,10 @@ export class Renderer {
           }
           break;
         case 'cast':
-          if (u && f.ult) {
+          if (!u) break;
+          this.castT.set(u.id, now);
+          this.vfx.cast(f, u, g);
+          if (f.ult) {
             const on = this.onScreen(u.x, u.y, 40);
             if (on) {
               this.shakeBy(0.2); this.screenTint(TEAM_COL[u.team], 0.16, 0.45); this.punchBy(0.03);
@@ -190,13 +208,12 @@ export class Renderer {
               this.callouts = this.callouts.filter((c) => c.id !== u.id).slice(-1);
               this.callouts.push({ id: u.id, heroId: u.heroId, team: u.team, name: u.def.name, ult: f.name, born: now, dur: 1.5 });
             } else this.text(u.x, u.y - 62, f.name.toUpperCase() + '!', TEAM_COL[u.team], 14, 1.6, 'pop');
-            this.fxSprite('circle_orange', u.x, u.y, 2.2);
           }
           break;
-        case 'fx': if (this.visiblePoint(f.x, f.y)) this.fxSprite(f.name, f.x, f.y, f.s || 1, f.follow); break;
-        case 'line': if (this.visiblePoint(f.x1, f.y1) || this.visiblePoint(f.x2, f.y2)) { this.lines.push({ ...f, born: now }); this.fxSprite(f.name, (f.x1 + f.x2) / 2, (f.y1 + f.y2) / 2, 1.3); } break;
-        case 'telegraph': if (this.visiblePoint(f.x, f.y)) this.effects.push({ kind: 'tele', x: f.x, y: f.y, r: f.r, team: f.team, born: now, dur: Math.max(0.15, (f.until - g.tick) / TICK_RATE) }); break;
-        case 'zone': if (this.visiblePoint(f.x, f.y)) this.effects.push({ kind: 'zone', x: f.x, y: f.y, r: f.r, team: f.team, born: now, dur: (f.until - g.tick) / TICK_RATE, name: f.name }); break;
+        case 'fx': { const o = this.vfx.owner(f, g); if (this.visiblePoint(f.x, f.y)) { const [nm, sc] = this.vfx.impact(f, o); this.fxSprite(nm, f.x, f.y, sc, f.follow); } break; }
+        case 'line': { const o = this.vfx.owner({ name: f.name, x: f.x1, y: f.y1 }, g); if (this.visiblePoint(f.x1, f.y1) || this.visiblePoint(f.x2, f.y2)) this.vfx.line(f, o); break; }
+        case 'telegraph': { const o = this.vfx.owner(f, g, true); if (this.visiblePoint(f.x, f.y)) { const e = { kind: 'tele', x: f.x, y: f.y, r: f.r, team: f.team, born: now, dur: Math.max(0.15, (f.until - g.tick) / TICK_RATE) }; this.vfx.ground(e, o); this.effects.push(e); } break; }
+        case 'zone': { const o = this.vfx.owner(f, g); if (this.visiblePoint(f.x, f.y)) { const e = { kind: 'zone', x: f.x, y: f.y, r: f.r, team: f.team, born: now, dur: (f.until - g.tick) / TICK_RATE, name: f.name }; this.vfx.ground(e, o); this.effects.push(e); } break; }
         case 'death': this.deathFx(f); break;
         case 'cc': if (u) this.text(u.x, u.y - 46, f.cc === 'knock' ? 'AIRBORNE' : f.cc.toUpperCase(), STATUS_COL[f.cc] || '#ffe066', 9, 0.9); break;
         case 'duo': if (this.visiblePoint(f.x, f.y)) { const a = byId.get(f.a); this.text(f.x, f.y - 58, 'DUO: ' + f.name.toUpperCase(), a ? TEAM_COL[a.team] : '#fff', 10, 1.3, 'pop'); if (this.motion) this.fxSprite('boost', f.x, f.y, 1.4); } break;
@@ -218,11 +235,32 @@ export class Renderer {
       this.effects = this.effects.filter((e) => !(e.kind === 'emote' && e.id === m.u.id));
       this.effects.push({ kind: 'emote', id: m.u.id, e: m.e, born: now, dur: 1.4 });
     }
+    // respawns: a hero that is alive again (the sim has no event for it)
+    for (const t of g.teams) for (const h of t.heroes) {
+      const was = this.wasAlive.get(h.id);
+      if (h.alive && was === false) this.respawnFx(h);
+      this.wasAlive.set(h.id, h.alive);
+    }
     this.consumeEvents(byId);
+  }
+  respawnFx(h) {
+    this.spawnT.set(h.id, this.time);
+    if (!this.visible(h) || !this.onScreen(h.x, h.y, 80)) return;
+    const c = TEAM_COL[h.team];
+    const b = this.fxp.spawn(P_BEAM, h.x, h.y + 2, 0.9); b.s = 34; b.s2 = 160; b.c = rgba(c, 0.9);
+    this.ring(h.x, h.y, 6, 54, c, 0.6, 4); this.ring(h.x, h.y, 6, 36, '#ffffff', 0.45, 2, 0.1);
+    for (let k = 0; k < 10; k++) { const q = this.fxp.spawn(P_GLOW, h.x + (Math.random() - 0.5) * 34, h.y - Math.random() * 30, 0.8); q.vy = -50 - Math.random() * 60; q.c = k % 2 ? c : '#ffffff'; q.s = 5; q.t = -Math.random() * 0.25; }
   }
   deathFx(f) {
     if (!this.visiblePoint(f.x, f.y)) return;
     const on = this.onScreen(f.x, f.y, 80);
+    const du = this.byIdMap && this.byIdMap.get(f.id);
+    if (du && on && (f.type === 'hero' || f.type === 'minion' || f.type === 'mob' || f.type === 'objective' || f.type === 'summon')) {
+      const d = this.heroPos.get(f.id);
+      this.corpses.push({ u: du, x: d ? d.x : f.x, y: d ? d.y : f.y, born: this.time, dur: f.type === 'hero' ? 0.9 : f.type === 'objective' ? 1.2 : 0.45 });
+      if (this.corpses.length > 40) this.corpses.shift();
+    }
+    if (f.type === 'objective' && on) this.objectiveDeath(f, du);
     if (f.type === 'hero') {
       this.fxSprite('smoke_ring', f.x, f.y, 2.4);
       if (!on) return;
@@ -247,6 +285,15 @@ export class Renderer {
       this.fxSprite(f.type === 'objective' ? 'smoke_ring' : 'smoke', f.x, f.y, f.type === 'objective' ? 3 : 1.2);
     }
   }
+  // Boss slain: white flash at the pit, element-coloured explosion, light pillar and shockwaves.
+  objectiveDeath(f, u) {
+    const c = u && u.kind === 'dragon' && DRAGON_INFO[u.element] ? DRAGON_INFO[u.element].color : OBJ_COL[u && u.kind] || '#ffffff';
+    const b = this.fxp.spawn(P_BEAM, f.x, f.y + 10, 1.4); b.s = 110; b.s2 = 420; b.c = rgba(c, 0.95);
+    for (let k = 0; k < 3; k++) this.ring(f.x, f.y, 16, 160 + k * 70, k ? c : '#ffffff', 0.9, 6 - k, k * 0.12);
+    this.burst(f.x, f.y - 50, 46, [c, '#ffffff', '#ffd84a'], 90, 360, 200, 420, 4, 1.4);
+    for (let k = 0; k < 12; k++) { const q = this.fxp.spawn(P_GLOW, f.x + (Math.random() - 0.5) * 120, f.y - 40 - Math.random() * 80, 1.1); q.vy = -40 - Math.random() * 80; q.c = c; q.s = 10 + Math.random() * 8; q.t = -Math.random() * 0.4; }
+    this.screenTint(c, 0.22, 0.6); this.impact(0.14, 0.05);
+  }
   pitOf(obj) { const W = this.game.world; return obj === 'dragon' ? W.pits.kami : W.pits.kraken; }
   consumeEvents(byId) {
     const g = this.game, ev = g.events;
@@ -270,6 +317,9 @@ export class Renderer {
           const o = g.objectives[e.obj]; const p = o || this.pitOf(e.obj);
           if (!this.onScreen(p.x, p.y, 120)) break;
           const c = e.obj === 'dragon' && e.element && DRAGON_INFO[e.element] ? DRAGON_INFO[e.element].color : OBJ_COL[e.obj] || '#fff';
+          if (o) this.bossSeen.set(o.id, this.time);
+          { const b = this.fxp.spawn(P_BEAM, p.x, p.y + 10, 1.3); b.s = 90; b.s2 = 340; b.c = rgba(c, 0.9); }
+          for (let k = 0; k < 16; k++) { const a = Math.random() * 6.283, sp = 60 + Math.random() * 200, q = this.fxp.spawn(P_DEBRIS, p.x + Math.cos(a) * 30, p.y + Math.sin(a) * 18, 1.4); q.vx = Math.cos(a) * sp; q.vy = -200 - Math.random() * 160; q.g = 700; q.c = ['#8a7a6a', '#6b5b52', '#b3957f'][k % 3]; q.s = 3 + (k % 3); q.ground = p.y + Math.sin(a) * 40; }
           for (let k = 0; k < 3; k++) this.ring(p.x, p.y, 20, 220 + k * 40, c, 0.9, 5 - k, k * 0.18);
           for (let k = 0; k < 10; k++) { const a = k / 10 * 6.283; this.puff(p.x + Math.cos(a) * 40, p.y + Math.sin(a) * 24, 8, 30, 'rgba(230,220,200,0.8)', 1.1, Math.cos(a) * 90, Math.sin(a) * 40); }
           this.text(p.x, p.y - 150, 'ROOAAR!', c, 18, 1.4, 'crit');
@@ -312,9 +362,9 @@ export class Renderer {
     }
     this.texts.push({ x, y, s, color, size, dur, born: this.time, style }); if (this.texts.length > 120) this.texts.shift();
   }
-  fxSprite(name, x, y, s, follow) {
+  fxSprite(name, x, y, s, follow, delay = 0) {
     const def = FX[name]; if (!def) return;
-    this.effects.push({ kind: 'sprite', name, x, y, s, follow, born: this.time, dur: def.frames / 14 });
+    this.effects.push({ kind: 'sprite', name, x, y, s, follow, born: this.time + delay, dur: def.frames / 14 });
   }
 
   // ── main draw ──
@@ -335,7 +385,12 @@ export class Renderer {
       if (Math.abs(this.panTo.x - this.cam.x) + Math.abs(this.panTo.y - this.cam.y) < 6) this.panTo = null;
     } else if (this.follow) {
       const u = g.units.find((x) => x.id === this.follow);
-      if (u && u.alive) { this.cam.x += (u.x - this.cam.x) * Math.min(1, dt * 6); this.cam.y += (u.y - this.cam.y) * Math.min(1, dt * 6); }
+      if (u && u.alive) {
+        // follow the interpolated position, not the 20 Hz sim one (a stepping target makes the whole world judder)
+        const p = this.prev.get(u.id); let fx = u.x, fy = u.y;
+        if (p && (u.x - p.x) ** 2 + (u.y - p.y) ** 2 < 200 * 200) { fx = p.x + (u.x - p.x) * alpha; fy = p.y + (u.y - p.y) * alpha; }
+        this.cam.x += (fx - this.cam.x) * Math.min(1, dt * 6); this.cam.y += (fy - this.cam.y) * Math.min(1, dt * 6);
+      }
     }
     this.punch = Math.max(0, this.punch - dt * 0.25);
     this.clampCam();
@@ -358,8 +413,11 @@ export class Renderer {
     if (sw > 0 && sh > 0) ctx.drawImage(this.map, sx, sy, sw, sh, sx, sy, sw, sh);
     const inView = (x, y, m = 120) => x > x0 - m && x < x0 + vw + m && y > y0 - m && y < y0 + vh + m;
 
-    // ground effects
-    for (const e of this.effects) if (e.kind === 'tele' || e.kind === 'zone') this.drawGroundFx(e);
+    this._alphaNow = alpha;
+    // ambient ground layer (water shimmer, flowers, flags) under everything that moves
+    this.amb.drawGround(ctx, x0, y0, vw, vh, vdt);
+    // ground effects: skillshot lanes, telegraphs, zones, ult sigils
+    for (const e of this.effects) if (e.kind === 'tele' || e.kind === 'zone' || e.kind === 'lane' || e.kind === 'sigil') this.vfx.drawGround(e);
     // wards
     for (const w of g.wards) if (w.until > g.tick && (w.team === this.viewTeam || this.viewTeam < 0 || !this.fogOn) && inView(w.x, w.y)) {
       ctx.fillStyle = TEAM_COL[w.team]; ctx.globalAlpha = 0.25 + 0.15 * Math.sin(this.time * 4);
@@ -382,18 +440,19 @@ export class Renderer {
       list.push(d);
     }
     list.sort((a, b) => a.y - b.y);
+    for (const d of list) if (d.u.type === 'hero' || d.u.type === 'summon') this.drawRing(d);
+    this.vfx.drawGhosts();
+    this.drawCorpses();
     for (const d of list) this.drawUnit(d);
-    // projectiles
-    for (const p of g.projectiles) {
-      if (!inView(p.x, p.y)) continue;
-      if (!this.visiblePoint(p.x, p.y)) continue;
-      this.drawProjectile(p);
-    }
+    for (const d of list) if (d.u.type === 'tower' && d.u.alive) this.drawAggro(d.u);
+    // projectiles (interpolated)
+    this.vfx.drawProjectiles(g, alpha, inView, (x, y) => this.visiblePoint(x, y));
     // top effects
-    this.drawLines(dt);
+    this.vfx.drawLines();
     for (const e of this.effects) if (e.kind === 'sprite') this.drawSpriteFx(e); else if (e.kind === 'emote') this.drawEmote(e);
     this.effects = this.effects.filter((e) => this.time - e.born < e.dur);
     this.drawParticles(vdt);
+    this.amb.drawAir(ctx, x0, y0, vw, vh, vdt);
     // bars on top
     for (const d of list) this.drawBars(d);
     if (this.frame % 300 === 0) this.pruneHp();
@@ -547,27 +606,68 @@ export class Renderer {
     ctx.restore();
   }
 
-  drawGroundFx(e) {
-    const ctx = this.ctx, t = (this.time - e.born) / e.dur;
-    ctx.save();
-    const col = TEAM_COL[e.team] || '#fff';
-    if (e.kind === 'tele') {
-      ctx.globalAlpha = 0.18 + 0.25 * t; ctx.fillStyle = col;
-      ctx.beginPath(); ctx.ellipse(e.x, e.y, e.r * t, e.r * t * 0.85, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = 0.7; ctx.strokeStyle = col; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.ellipse(e.x, e.y, e.r, e.r * 0.85, 0, 0, Math.PI * 2); ctx.stroke();
-    } else {
-      ctx.globalAlpha = 0.22 + 0.08 * Math.sin(this.time * 8); ctx.fillStyle = col;
-      ctx.beginPath(); ctx.ellipse(e.x, e.y, e.r, e.r * 0.85, 0, 0, Math.PI * 2); ctx.fill();
-      if (Math.random() < 0.3) this.fxSprite(e.name || 'spirit', e.x + (Math.random() - 0.5) * e.r * 1.4, e.y + (Math.random() - 0.5) * e.r * 1.2, 0.9);
-    }
-    ctx.restore();
-  }
-
-  drawSheetFrame(img, fw, fh, col, row, x, y, scale, flip) {
-    const ctx = this.ctx, w = fw * scale, h = fh * scale;
+  // Bottom-anchored sheet frame; sx / sy squash and stretch around the feet.
+  drawSheetFrame(img, fw, fh, col, row, x, y, scale, flip, sx = 1, sy = 1) {
+    const ctx = this.ctx, w = fw * scale * sx, h = fh * scale * sy;
     if (flip) { ctx.save(); ctx.translate(Math.round(x), 0); ctx.scale(-1, 1); ctx.drawImage(img, col * fw, row * fh, fw, fh, -w / 2, Math.round(y - h), w, h); ctx.restore(); }
     else ctx.drawImage(img, col * fw, row * fh, fw, fh, Math.round(x - w / 2), Math.round(y - h), w, h);
+  }
+  // Team ring under heroes (and the Herald summon): ally = solid ring, enemy = ring with side notches;
+  // the followed hero gets a turning dashed halo; under 30% HP the ring pulses red, faster as HP drops.
+  drawRing(d) {
+    const { u, x, y } = d, ctx = this.ctx, col = TEAM_COL[u.team], rx = u.type === 'summon' ? 22 : 16, ry = rx * 0.45, yy = y + 2;
+    const el = () => { ctx.beginPath(); ctx.ellipse(x, yy, rx, ry, 0, 0, Math.PI * 2); };
+    ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(x, yy + 1, rx + 1, ry + 1, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 0.24; ctx.fillStyle = col; el(); ctx.fill();
+    ctx.globalAlpha = 0.55; ctx.strokeStyle = '#000'; ctx.lineWidth = 4; el(); ctx.stroke();
+    ctx.globalAlpha = 1; ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke();
+    if (this.viewTeam >= 0 && u.team !== this.viewTeam) { ctx.fillStyle = col; ctx.fillRect(Math.round(x - rx - 4), Math.round(yy - 1.5), 5, 3); ctx.fillRect(Math.round(x + rx - 1), Math.round(yy - 1.5), 5, 3); }
+    if (this.follow === u.id) {
+      ctx.globalAlpha = 0.85; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5; ctx.setLineDash([5, 5]); ctx.lineDashOffset = this.motion ? -this.time * 14 : 0;
+      ctx.beginPath(); ctx.ellipse(x, yy, rx + 5, ry + 3, 0, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+    }
+    const f = u.hp / u.maxHp;
+    if (u.type === 'hero' && f < 0.3) {
+      const pulse = this.motion ? 0.5 + 0.5 * Math.sin(this.time * (7 + (0.3 - f) * 30)) : 0.6;
+      ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.25 + 0.35 * pulse; ctx.drawImage(glowSprite('#ff3b3b'), x - rx * 1.8, yy - ry * 2.2, rx * 3.6, ry * 4.4); ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 0.5 + 0.5 * pulse; ctx.strokeStyle = '#ff3b3b'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.ellipse(x, yy, rx + 2 + pulse * 2, ry + 1 + pulse, 0, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1;
+    }
+  }
+  // Tower aggro: a line from the tower's eye to its current target. Hero targets get a bold pulsing beam and a
+  // reticle (that dive is about to hurt); minion targets only a faint thread.
+  drawAggro(u) {
+    const t = u.target; if (!t || !t.alive || !this.visible(t)) return;
+    const d = this.heroPos.get(t.id), tx = d ? d.x : t.x, ty = (d ? d.y : t.y) - 12, sx = u.x, sy = u.y - (u.tier === 4 ? 62 : 70);
+    const ctx = this.ctx, col = TEAM_COL[u.team], hero = t.type === 'hero';
+    if (!hero) { ctx.globalAlpha = 0.28; ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(tx, ty); ctx.stroke(); ctx.globalAlpha = 1; return; }
+    const pulse = this.motion ? 0.5 + 0.5 * Math.sin(this.time * 10) : 0.7;
+    ctx.globalAlpha = 0.5; ctx.strokeStyle = '#000'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(tx, ty); ctx.stroke();
+    ctx.globalAlpha = 0.6 + 0.4 * pulse; ctx.strokeStyle = col; ctx.lineWidth = 2.5; ctx.setLineDash([8, 5]); ctx.lineDashOffset = this.motion ? -this.time * 60 : 0; ctx.stroke(); ctx.setLineDash([]);
+    ctx.lineWidth = 2; const r = 13 + pulse * 2; ctx.beginPath();
+    for (let q = 0; q < 4; q++) { const a = q * Math.PI / 2; ctx.moveTo(tx + Math.cos(a) * r, ty + Math.sin(a) * r); ctx.lineTo(tx + Math.cos(a) * (r - 6), ty + Math.sin(a) * (r - 6)); }
+    ctx.stroke(); ctx.beginPath(); ctx.arc(tx, ty, r - 3, 0, Math.PI * 2); ctx.globalAlpha = 0.5; ctx.stroke(); ctx.globalAlpha = 1;
+  }
+  // Death fade: the last frame flashes white, squashes into the ground and fades.
+  drawCorpses() {
+    if (!this.corpses.length) return;
+    const ctx = this.ctx; this.corpses = this.corpses.filter((c) => this.time - c.born < c.dur);
+    for (const c of this.corpses) {
+      const u = c.u, k = (this.time - c.born) / c.dur, sy = 1 - 0.55 * k * k, sx = 1 + 0.25 * k;
+      ctx.globalAlpha = 1 - k;
+      if (u.type === 'hero') { const img = this.heroImg(u); if (img) this.drawSheetFrame(k < 0.2 ? flashOf('hero_' + u.heroId, img) : img, 16, 16, u.facing, 5, c.x, c.y + 4, 2.2, false, sx, sy); }
+      else if (u.type === 'minion') { const key = `minion_${u.team ? 'red' : 'blue'}_${u.kind === 'super' ? 'siege' : u.kind}`, img = IMG[key]; if (img) this.drawSheetFrame(k < 0.3 ? flashOf(key, img) : img, 16, 16, u.facing, 0, c.x, c.y + 3, u.kind === 'super' ? 2.4 : u.kind === 'siege' ? 1.9 : 1.5, false, sx, sy); }
+      else if (u.type === 'mob') { const img = IMG[u.kind]; if (img) this.drawSheetFrame(k < 0.3 ? flashOf(u.kind, img) : img, 16, 16, u.facing, 0, c.x, c.y + 3, u.big ? 2.6 : 1.7, false, sx, sy); }
+      else if (u.type === 'objective' && u.kind !== 'dragon') { ctx.save(); ctx.translate(c.x, c.y); ctx.scale(sx, sy); ctx.translate(-c.x, -c.y); this.drawBoss(u, c.x, c.y, k < 0.3, false); ctx.restore(); }
+    }
+    ctx.globalAlpha = 1;
+  }
+  // Render-only knock-up arc: a parabola over the airborne time (the sim only stores the end tick).
+  liftOf(u, tk) {
+    const g = this.game;
+    if (!(u.knockUntil > g.tick)) { this.knock.delete(u.id); return 0; }
+    let k = this.knock.get(u.id); if (!k || k.end !== u.knockUntil) { k = { start: tk, end: u.knockUntil }; this.knock.set(u.id, k); }
+    const p = Math.max(0, Math.min(1, (tk - k.start) / Math.max(1, k.end - k.start)));
+    return 4 * p * (1 - p) * 26;
   }
 
   drawUnit(d) {
@@ -576,28 +676,37 @@ export class Renderer {
     const flashT = this.flashes.get(u.id);
     const flashing = flashT !== undefined && this.time - flashT < 0.08;
     if (u.structure) return this.drawStructure(u, flashing);
-    // shadow + team ring
-    const big = u.type === 'objective' ? 2.4 : u.type === 'mob' && u.big ? 1.6 : u.type === 'hero' ? 1.15 : 0.8;
-    if (u.type === 'hero' || u.type === 'summon') {
-      ctx.fillStyle = TEAM_COL[u.team]; ctx.globalAlpha = 0.85;
-      ctx.beginPath(); ctx.ellipse(x, y + 2, 15, 7, 0, 0, Math.PI * 2); ctx.lineWidth = 2; ctx.strokeStyle = TEAM_COL[u.team]; ctx.stroke();
-      ctx.globalAlpha = 0.25; ctx.fill(); ctx.globalAlpha = 1;
-    } else {
+    if (u.type !== 'hero' && u.type !== 'summon') {
+      const big = u.type === 'objective' ? 2.4 : u.type === 'mob' && u.big ? 1.6 : 0.8;
       ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(x, y + 2, 9 * big, 4 * big, 0, 0, Math.PI * 2); ctx.fill();
     }
-    let lift = 0;
-    if (u.knockUntil > g.tick) { const k = (u.knockUntil - g.tick) / 15; lift = Math.sin(Math.min(1, k) * Math.PI) * 18; }
+    const tk = g.tick + (this._alphaNow || 0), lift = this.motion ? this.liftOf(u, tk) : 0;
     const walkF = Math.floor(this.time * 8 + u.id) % 4;
     const attacking = g.tick - u.animAttack < 6;
+    // squash on hit, stretch on spawn, bob on the walk, breathe at rest, lunge on attacks
+    let sx = 1, sy = 1;
+    if (this.motion) {
+      const hk = flashT !== undefined ? this.time - flashT : 9;
+      if (hk < 0.16) { const e = 1 - hk / 0.16; sx += 0.16 * e; sy -= 0.14 * e; }
+      if (d.moving) y -= Math.abs(Math.sin(this.time * 12.6 + u.id)) * 1.6; else sy *= 1 + 0.025 * Math.sin(this.time * 3 + u.id);
+      if (attacking && !u.dash) { const at = Math.min(1, Math.max(0, (tk - u.animAttack) / 6)), l = Math.sin(at * Math.PI) * 4, dir = [[0, 1], [0, -1], [-1, 0], [1, 0]][u.facing] || [0, 0]; x += dir[0] * l; y += dir[1] * l * 0.6; }
+      if (lift > 0) { sx *= 0.92; sy *= 1.08; }
+    }
     if (u.type === 'hero') {
       const img = this.heroImg(u); if (!img) return;
-      const row = attacking ? 4 : d.moving ? walkF : 0;
-      const dirCol = u.facing;
+      const ct = this.castT.get(u.id), casting = ct !== undefined && this.time - ct < 0.3;
+      const dashing = u.dash && !u.dash.pulled;
+      let row = attacking ? 4 : d.moving ? walkF : 0, col = u.facing;
+      if (dashing) row = 5; else if (casting && !d.moving) { row = 6; col = 1; }
       const src = flashing ? flashOf('hero_' + u.heroId, img) : img;
       if (u.recallAt) { ctx.strokeStyle = '#7fe0ff'; ctx.lineWidth = 2; const p = 1 - (u.recallAt - g.tick) / (4 * TICK_RATE); ctx.beginPath(); ctx.arc(x, y - 12, 22, -Math.PI / 2, -Math.PI / 2 + p * Math.PI * 2); ctx.stroke(); }
       const hidden = u.stealthUntil > g.tick || g.world.inBrush(u.x, u.y);
-      if (hidden) ctx.globalAlpha = 0.55;
-      this.drawSheetFrame(src, 16, 16, dirCol, row, x, y + 4 - lift, 2.2);
+      let a = hidden ? 0.55 : 1;
+      const st = this.spawnT.get(u.id);
+      if (st !== undefined) { const k = (this.time - st) / 0.45; if (k >= 1) this.spawnT.delete(u.id); else { a *= k; if (this.motion) { sy *= 1 + 0.4 * (1 - k); sx *= 1 - 0.25 * (1 - k); } } }
+      if (dashing && this.motion) this.vfx.afterimage(u, x, y + 4 - lift, col, row, 2.2);
+      ctx.globalAlpha = a;
+      this.drawSheetFrame(src, 16, 16, col, row, x, y + 4 - lift, 2.2, false, sx, sy);
       ctx.globalAlpha = 1;
       if (u.stunUntil > g.tick) this.drawStars(x, y - 40 - lift);
       if (u.shields.length) { ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y - 14, 20, 0, Math.PI * 2); ctx.stroke(); }
@@ -609,13 +718,13 @@ export class Renderer {
       const key = `minion_${u.team ? 'red' : 'blue'}_${u.kind === 'super' ? 'siege' : u.kind}`;
       const img = IMG[key]; if (!img) return;
       const sc = u.kind === 'super' ? 2.4 : u.kind === 'siege' ? 1.9 : 1.5;
-      this.drawSheetFrame(flashing ? flashOf(key, img) : img, 16, 16, u.facing, d.moving ? walkF : 0, x, y + 3 - lift, sc);
+      this.drawSheetFrame(flashing ? flashOf(key, img) : img, 16, 16, u.facing, d.moving ? walkF : 0, x, y + 3 - lift, sc, false, sx, sy);
       if (u.empowered) { ctx.globalAlpha = 0.3; ctx.fillStyle = '#b56cff'; ctx.beginPath(); ctx.arc(x, y - 10, 10, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
       return;
     }
     if (u.type === 'mob') {
       const img = IMG[u.kind]; if (!img) return;
-      this.drawSheetFrame(flashing ? flashOf(u.kind, img) : img, 16, 16, u.facing, d.moving ? walkF : (Math.floor(this.time * 3 + u.id) % 2), x, y + 3, u.big ? 2.6 : 1.7);
+      this.drawSheetFrame(flashing ? flashOf(u.kind, img) : img, 16, 16, u.facing, d.moving ? walkF : (Math.floor(this.time * 3 + u.id) % 2), x, y + 3 - lift, u.big ? 2.6 : 1.7, false, sx, sy);
       return;
     }
     if (u.type === 'summon') {
@@ -624,7 +733,12 @@ export class Renderer {
       this.drawSheetFrame(img, 50, 50, f, 0, x, y + 8, 1.3, u.facing === 2);
       return;
     }
-    if (u.type === 'objective') return this.drawBoss(u, x, y, flashing, attacking);
+    if (u.type === 'objective') {
+      // spawn rise: the boss grows out of the pit over 0.9 s
+      const rt = this.bossSeen.get(u.id), k = rt === undefined ? 1 : Math.min(1, (this.time - rt) / 0.9);
+      if (k < 1 && this.motion) { const e = 1 - (1 - k) ** 3; ctx.save(); ctx.globalAlpha = Math.min(1, k * 2); ctx.translate(x, y); ctx.scale(0.3 + 0.7 * e, 0.2 + 0.8 * e); ctx.translate(-x, -y); this.drawBoss(u, x, y, flashing || k < 0.15, attacking); ctx.restore(); ctx.globalAlpha = 1; return; }
+      return this.drawBoss(u, x, y, flashing, attacking);
+    }
   }
 
   // Status pips (v20): tiny glyphs right of the HP bar, plus a ground ring when rooted and a
@@ -733,42 +847,6 @@ export class Renderer {
     }
   }
 
-  drawProjectile(p) {
-    const ctx = this.ctx;
-    if (p.sprite === 'tower') {
-      const gr = ctx.createRadialGradient(p.x, p.y, 1, p.x, p.y, 10);
-      gr.addColorStop(0, '#ffffff'); gr.addColorStop(0.4, TEAM_COL[p.team]); gr.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(p.x, p.y, 10, 0, Math.PI * 2); ctx.fill();
-      return;
-    }
-    if (p.sprite === 'p_energy_small') { ctx.fillStyle = TEAM_COL[p.team]; ctx.fillRect(Math.round(p.x) - 2, Math.round(p.y) - 2, 4, 4); return; }
-    const def = PROJ[p.sprite]; const img = IMG['fx_' + p.sprite];
-    if (!def || !img) { ctx.fillStyle = '#fff'; ctx.fillRect(p.x - 2, p.y - 2, 4, 4); return; }
-    const fw = img.width / def.frames, fh = img.height, f = Math.floor(this.time * 14) % def.frames;
-    const sc = p.ab && p.ab.ult ? 2.6 : p.ab ? 2 : 1.6;
-    ctx.save(); ctx.translate(p.x, p.y);
-    if (!def.round) ctx.rotate(Math.atan2(p.dy || 0, p.dx || 1));
-    ctx.drawImage(img, f * fw, 0, fw, fh, -fw * sc / 2, -fh * sc / 2, fw * sc, fh * sc);
-    ctx.restore();
-    if (p.hook) {
-      const s = p.src; ctx.strokeStyle = '#ddd'; ctx.lineWidth = 2; ctx.setLineDash([4, 4]);
-      ctx.beginPath(); ctx.moveTo(s.x, s.y - 12); ctx.lineTo(p.x, p.y); ctx.stroke(); ctx.setLineDash([]);
-    }
-  }
-
-  drawLines() {
-    const ctx = this.ctx;
-    this.lines = this.lines.filter((l) => this.time - l.born < 0.3);
-    for (const l of this.lines) {
-      const t = (this.time - l.born) / 0.3;
-      ctx.globalAlpha = 1 - t; ctx.strokeStyle = '#fff'; ctx.lineWidth = 8 * (1 - t) + 2;
-      ctx.beginPath(); ctx.moveTo(l.x1, l.y1 - 12); ctx.lineTo(l.x2, l.y2 - 12); ctx.stroke();
-      ctx.strokeStyle = TEAM_COL[l.team]; ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.moveTo(l.x1, l.y1 - 12); ctx.lineTo(l.x2, l.y2 - 12); ctx.stroke();
-    }
-    ctx.globalAlpha = 1;
-  }
-
   drawParticles(dt) {
     this.fxp.update(dt, (id) => this.unitPos(id));
     this.fxp.draw(this.ctx, this.time, (w) => { const p = this.fxp.spawn(P_SQUARE, w.x + (Math.random() - 0.5) * 6, w.y + (Math.random() - 0.5) * 6, 0.35); p.c = w.c; p.s = 2; p.vy = -10; });
@@ -783,6 +861,7 @@ export class Renderer {
     this.ctx.globalAlpha = 1;
   }
   drawSpriteFx(e) {
+    if (this.time < e.born) return;
     const def = FX[e.name]; const img = IMG['fx_' + (def.img || e.name)]; if (!img) return;
     const fw = img.width / def.frames, fh = img.height;
     const f = Math.min(def.frames - 1, Math.floor((this.time - e.born) / e.dur * def.frames));
