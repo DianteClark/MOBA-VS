@@ -4,6 +4,8 @@
   "name": "moba-vs",
   "main": "worker/index.js",
   "compatibility_date": "2025-09-01",
+  "workers_dev": true,
+  "preview_urls": true,
   "assets": {
     "directory": "./",
     "binding": "ASSETS",
