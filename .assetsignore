@@ -1,13 +1,14 @@
-.git
-.github
-.gitignore
-.assetsignore
-node_modules
-tools
-data
-worker
-wrangler.jsonc
-package.json
-package-lock.json
-*.md
-.wrangler
+# Leading slashes anchor to the repo root (otherwise "data" would also hide src/data/).
+/.git
+/.github
+/.gitignore
+/.assetsignore
+/.wrangler
+/node_modules
+/tools
+/data
+/worker
+/wrangler.jsonc
+/package.json
+/package-lock.json
+/*.md
