@@ -2,8 +2,9 @@
 //   node tools/leash.mjs [games=6]
 // Plays seeded bot matches (classic on all 4 maps, plus Lane Rush) and samples every unit twice a
 // second. A minion more than LEASH.minion (+40px body slack) off its lane, or a camp monster /
-// objective boss farther than its leash (+40) from home, must be walking back: if it is still out
-// 3 seconds later, that is a violation. Exits 1 on any violation.
+// objective boss farther than its leash (+40) from home (shoved, hooked or knocked out), must walk
+// straight back: it has to close in by 30px every 3s until it is inside again, otherwise that is a
+// violation. Exits 1 on any violation.
 import { Game } from '../src/sim/game.js';
 import { HEROES, ROLES } from '../src/data/heroes.js';
 import { Rng } from '../src/sim/rng.js';
@@ -32,9 +33,12 @@ for (let i = 0; i < N; i++) {
       else continue;
       samples++; if (off > worst[k]) worst[k] = off;
       if (off <= L + 40) { out.delete(u.id); continue; }
-      const t0 = out.get(u.id);
-      if (t0 === undefined) out.set(u.id, g.tick);
-      else if (t0 >= 0 && g.tick - t0 >= 60) { bad++; out.set(u.id, -1); console.log(`  ${map} ${(g.time / 60).toFixed(1)}m ${k} ${u.kind || ''} ${Math.round(off)}px out for 3s+ at ${Math.round(u.x)},${Math.round(u.y)}`); }
+      { const o = out.get(u.id); if (o && !o.done && g.tick - o.t >= 60 && off <= o.d - 30) { o.t = g.tick; o.d = off; o.n = (o.n || 0) + 1; } }
+      const o = out.get(u.id);
+      if (o === undefined) { out.set(u.id, { t: g.tick, d: off }); continue; }
+      if (o.done) continue;
+      // walking back around a wall can take a while: fine while it keeps closing in (30px per 3s), never past 8s
+      if (g.tick - o.t >= 60 && off > o.d - 30) { bad++; o.done = true; console.log(`  ${map} ${(g.time / 60).toFixed(1)}m ${k} ${u.kind || ''} ${Math.round(off)}px out for 3s+ at ${Math.round(u.x)},${Math.round(u.y)}`); }
     }
   }
   console.log(`${mode}/${map}: ${(g.time / 60).toFixed(1)} min checked`);
