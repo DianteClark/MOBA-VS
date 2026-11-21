@@ -35,7 +35,10 @@ import { findPOTG, reportCard } from './ui/moments.js';
 import { rankMoment } from './ui/ranks.js';
 import { installBuildTips } from './ui/buildguide.js';
 import { saveClip, clipSupport } from './ui/clip.js';
-import { installPressSounds, confetti } from './ui/juice.js';
+import { installPressSounds, tokRecent, confetti } from './ui/juice.js';
+import { MatchRecorder, showAnalysis } from './ui/analytics.js';
+import { Theater } from './ui/theater.js';
+import { loadLib, storeMatch } from './ui/replays.js';
 
 const VERSION = 20; // bump whenever the sim or balance changes (peers must match)
 const PREP_SECONDS = 60;
@@ -505,6 +508,9 @@ class App {
     }
     this.match = { game, runner, hud, ended: false, cfg: cfgSaved };
     matchAudio.attach(game, this.renderer, runner, s.myTeam);
+    // post-match analytics are recorded live; a replay (not the Play of the Game) opens in the Theater
+    if (!s.replay && !pre) this.match.rec = new MatchRecorder(game);
+    if (s.replay && !s.potg) this.match.theater = new Theater(this, this.match, s.replay, { back: s.theaterBack });
     this.lastFrame = performance.now();
     requestAnimationFrame((t) => this.frame(t));
     // Hidden tabs stop requestAnimationFrame: keep the lockstep sim ticking so the opponent never stalls.
@@ -512,7 +518,7 @@ class App {
     this.bgTick = setInterval(() => {
       const m = this.match; if (!m || !document.hidden) return;
       const now = performance.now(), dt = Math.min(1.5, (now - this.lastFrame) / 1000); this.lastFrame = now;
-      m.runner.update(dt, () => this.renderer.snapshot(), () => { this.renderer.game.fx.length = 0; });
+      m.runner.update(dt, () => this.renderer.snapshot(), () => { this.renderer.game.fx.length = 0; if (m.rec) m.rec.step(); });
     }, 100);
   }
   clickWorld(w, sx, sy) {
@@ -538,18 +544,19 @@ class App {
     const raw = (now - this.lastFrame) / 1000; this.lastFrame = now;
     const dt = Math.min(0.1, raw);
     const r = this.renderer;
-    m.runner.update(m.runner.online ? Math.min(1, raw) : dt, () => r.snapshot(), () => { matchAudio.consume(); r.consume(); });
+    m.runner.update(m.runner.online ? Math.min(1, raw) : dt, () => r.snapshot(), () => { matchAudio.consume(); r.consume(); if (m.rec) m.rec.step(); });
     this.camCtl.update(dt);
     r.draw(m.runner.alpha, dt);
     this.minimap.draw();
     m.hud.update(dt);
     matchAudio.frame();
+    if (m.theater) m.theater.frame(raw);
     const potg = this.session && this.session.potg;
     if (potg) {
       if (!m.ended && (m.game.tick >= potg.end || m.game.over)) { m.ended = true; setTimeout(() => { if (this.match === m) this.endPOTG(); }, 1200); }
       requestAnimationFrame((t) => this.frame(t)); return;
     }
-    if (m.game.over && !m.ended) {
+    if (m.game.over && !m.ended && !m.theater) {
       m.ended = true;
       // victory camera: fly to the fallen crystal (or the winning side's crystal on time-out)
       const lost = m.game.units.find((u) => u.type === 'nexus' && !u.alive) || m.game.units.find((u) => u.type === 'nexus' && u.team === m.game.winner);
@@ -579,19 +586,20 @@ class App {
       this.showScreen(true);
       audio.music(won ? 'victory' : 'defeat');
       const s = this.session;
-      if (!s.replay && m.cfg) this.saveReplay(m, s);
       // Online: both players report (ranked counts for the ladder; casual only feeds hero balance stats)
       const ladder = s.matchId && s.oppId && getAccount() ? this.reportOnline(m, s) : null;
       // Play of the Game: found from the event log, replayed from the saved replay (cfg + command log)
       let potg = null;
       try { potg = findPOTG(m.game); } catch (e) { console.error(e); }
       let sum = null, cupOut = null;
+      const analytics = m.rec ? m.rec.finish({ my: s.myTeam, cc: s.myTeam >= 0 ? [m.hud.stats.coachCalls, m.hud.stats.coachAnswered] : null }) : null;
       try {
         profile.lastNames = s.names;
         sum = profile.record({ game: m.game, myTeam: s.myTeam, mode: s.mode === 'ai' && !s.wasOnline ? 'ai' : 'online', aiLevel: s.aiLevel ?? this.aiLevel, cup: !!s.cup,
-          ranked: !!s.ranked, oppElo: s.oppElo, potgHero: potg && potg.team === s.myTeam ? potg.heroId : null });
+          ranked: !!s.ranked, oppElo: s.oppElo, potgHero: potg && potg.team === s.myTeam ? potg.heroId : null, analytics });
         if (s.cup && profile.d.cup) cupOut = recordCup(profile.d.cup, m.game.winner === s.myTeam);
       } catch (e) { console.error(e); }
+      if (!s.replay && m.cfg) this.saveReplay(m, s, analytics, sum && profile.d.history[0] ? profile.d.history[0].t : Date.now());
       if (sum && (sum.promoted || sum.unlocks.length) && !sum.demoted) setTimeout(() => audio.sfx('powerup', 0.8), 700);
       const src = s.replay ? s.replay : m.cfg ? { cfg: m.cfg, log: m.runner.log, skins: this.renderer.skins } : null;
       if (potg && sum && profile.d.history[0]) { profile.d.history[0].potg = potg.title; profile.save(); }
@@ -600,7 +608,9 @@ class App {
       const args = [this, m.game, s.myTeam,
         s.cup ? () => showCup(this) : s.mode === 'ai' ? () => this.startVsAI(s.gameMode === 'rush' ? 'rush' : 'classic') : s.mode === 'watch' ? () => this.watch() : null,
         () => this.menu(), { progress: progressPanel(sum, cupOut), ladder, againLabel: s.cup ? 'Back to bracket' : null, potg: this.potgReel ? potg : null, report,
-          onPOTG: () => this.playPOTG(), onClip: potg && src && clipSupport() ? () => saveClip(src, potg, s.names, this.mapCanvas(m.game.world)) : null, share: sum ? () => shareMatch(profile.d.history[0], { name: this.name, rank: profile.rank.label }, this.lastReplay()) : null }];
+          onPOTG: () => this.playPOTG(), onClip: potg && src && clipSupport() ? () => saveClip(src, potg, s.names, this.mapCanvas(m.game.world)) : null,
+          analytics, onAnalysis: analytics ? () => showAnalysis(analytics, { title: 'Match analysis', onTheater: this.lastReplay() ? () => this.watchReplay(null, { back: () => this.backToResults() }) : null }) : null,
+          onReplay: () => this.watchReplay(null, { back: () => this.backToResults() }), share: sum ? () => shareMatch(profile.d.history[0], { name: this.name, rank: profile.rank.label }, this.lastReplay()) : null }];
       this.lastResults = { args, session: s, src, potg };
       showResults(...args);
       if (sum) setTimeout(() => rankMoment(sum), 900);
@@ -666,23 +676,32 @@ class App {
       return r && { ...r, mySide: s.myTeam, casual: body.mode !== 'ranked' };
     } catch (e) { return { status: 'offline', error: String(e.message || e), casual: body.mode !== 'ranked' }; }
   }
-  // Replays: config + command log is enough to re-run the whole match deterministically.
-  saveReplay(m, s) {
-    try {
-      localStorage.setItem('mobavs_replay', JSON.stringify({ v: VERSION, t: Date.now(), cfg: m.cfg, log: m.runner.log, names: s.names, mapId: s.mapId,
-        myTeam: s.myTeam, winner: m.game.winner, skins: this.renderer.skins, len: Math.round(m.game.time) }));
-    } catch { /* storage full or unavailable */ }
+  // Replays: config + command log is enough to re-run the whole match deterministically. The last few are kept
+  // with their analytics (src/ui/replays.js); `id` links one to its match-history entry.
+  saveReplay(m, s, A, id) {
+    storeMatch({ id, v: VERSION, t: Date.now(), cfg: m.cfg, log: m.runner.log, names: s.names, mapId: s.mapId,
+      myTeam: s.myTeam, winner: m.game.winner, skins: this.renderer.skins, len: Math.round(m.game.time), A });
   }
-  lastReplay() { try { const r = JSON.parse(localStorage.getItem('mobavs_replay') || 'null'); return r && r.v === VERSION ? r : null; } catch { return null; } }
-  watchReplay(shared) {
-    const r = shared ? (shared.v === VERSION ? shared : null) : this.lastReplay();
+  lastReplay() { const r = loadLib()[0]; return this.canPlay(r) ? r : null; }
+  canPlay(r) { return !!(r && r.cfg && r.v === VERSION); }
+  // Watch a replay in the Theater. shared: a replay from a share link; opts.entry: a stored match; opts.back: where Quit goes.
+  watchReplay(shared, opts = {}) {
+    const r = shared ? (shared.v === VERSION ? { ...shared, A: shared.A ? { ...shared.A, my: -1 } : null, id: null } : null) : opts.entry ? (this.canPlay(opts.entry) ? opts.entry : null) : this.lastReplay();
     if (!r) { toast(shared ? 'That replay is from an older version of the game.' : 'No replay saved yet (or it is from an older version).'); return; }
     stopParade(); this.dropReel();
-    this.session = { mode: 'watch', replay: r, myTeam: -1, seed: r.cfg.seed, mapId: r.mapId || r.cfg.map, names: r.names, rng: new Rng(1) };
+    this.session = { mode: 'watch', replay: r, theaterBack: opts.back || null, myTeam: -1, seed: r.cfg.seed, mapId: r.mapId || r.cfg.map, names: r.names, rng: new Rng(1) };
     this.fade(() => this.startMatch());
+  }
+  // Back from the Theater to the results it was opened from.
+  backToResults() {
+    const lr = this.lastResults; if (!lr) { this.menu(); return; }
+    this.session = lr.session;
+    if (lr.src && lr.potg && !this.potgReel) this.potgReel = this.prerollPOTG(lr.src, lr.potg);
+    showResults(...lr.args);
   }
   quitMatch() {
     if (this.session && this.session.potg) { this.endPOTG(); return; }
+    if (this.match && this.match.theater) { this.match.theater.exit(); return; }
     if (!confirm('Leave this match?')) return;
     if (this.net) this.net.t.send({ t: 'quit' });
     const m = this.match; this.match = null;
