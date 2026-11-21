@@ -1,35 +1,142 @@
-// Run many AI-vs-AI games with random drafts and report balance stats.
-//   node tools/balance.mjs [games=50] [maxMinutes=35]
-import { Game } from '../src/sim/game.js';
-import { HEROES, ROLES } from '../src/data/heroes.js';
-import { Rng } from '../src/sim/rng.js';
-const N = +(process.argv[2] || 50), MAXM = +(process.argv[3] || 16);
-let timeouts = 0;
-const rng = new Rng(12345);
-const heroStats = {}; let blueWins = 0, redWins = 0, draws = 0, totalLen = 0, totalKills = 0, totalTowers = 0, objectives = { dragon: 0, herald: 0, baron: 0 };
-const t0 = Date.now();
-for (let i = 0; i < N; i++) {
-  const used = new Set();
-  const draft = () => ROLES.map((r) => { const pool = HEROES.filter((h) => h.role === r && !used.has(h.id)); const h = pool[rng.int(pool.length)]; used.add(h.id); return { id: h.id, role: r, build: h.builds[rng.int(h.builds.length)] }; });
-  const a = draft(), b = draft();
-  const g = new Game({ seed: 1000 + i, map: ['sakura', 'frost', 'ember', 'marsh'][i % 4], coach: [true, true], teams: [{ heroes: a, plan: 'balanced' }, { heroes: b, plan: 'balanced' }] });
-  while (!g.over && g.time < MAXM * 60) { g.step([]); g.fx.length = 0; }
-  const w = g.winner;
-  if (g.events.some((e) => e.type === 'victory' && e.timeout)) timeouts++;
-  if (w === 0) blueWins++; else if (w === 1) redWins++; else draws++;
-  totalLen += g.time; totalKills += g.teams[0].kills + g.teams[1].kills; totalTowers += g.teams[0].towers + g.teams[1].towers;
-  for (const e of g.events) if (e.type === 'objective') objectives[e.obj]++;
-  for (const t of [0, 1]) for (const h of g.teams[t].heroes) {
-    const s = heroStats[h.heroId] || (heroStats[h.heroId] = { g: 0, w: 0, k: 0, d: 0, a: 0, dmg: 0 });
-    s.g++; if (w === t) s.w++; s.k += h.kills; s.d += h.deaths; s.a += h.assists; s.dmg += h.dmgHeroes;
+// Balance scan: AI-vs-AI self-play with balanced hero coverage, run on worker threads.
+//   node tools/balance.mjs [games=60] [workers=2] [--seed N] [--smart] [--json out.json] [--log games.jsonl] [--quiet]
+//   node tools/balance.mjs --from a.jsonl[,b.jsonl] [--json out.json]   (re-aggregate saved games)
+//   --nudge K   also move each hero's TUNE multiplier toward 50% (delta = (0.5 - shrunk win rate) * K,
+//               max ±6% per pass, clamp 0.8-1.2) and rewrite src/data/tuning.js (same format as tune.mjs)
+// Each game draws heroes from shuffled per-role decks so every hero gets the same number of games.
+// Builds are random from each hero's list (so every build gets played); --smart uses aiPrep
+// (situational builds) instead.
+// Reports: per-hero win rate, pick impact, KDA, damage share, basic hits, ability casts and hit
+// rates; per-build and per hero-build win rates; static range sanity (heroes vs towers).
+import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
+import { writeFileSync, appendFileSync, readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
+const MAPS = ['sakura', 'frost', 'ember', 'marsh'];
+const AREA = new Set(['shot', 'hook', 'line', 'target', 'circle', 'nova', 'dash']);
+
+if (!isMainThread) {
+  const { Game } = await import('../src/sim/game.js');
+  const { HERO_BY_ID } = await import('../src/data/heroes.js');
+  const { aiPrep, defaultPrep } = await import('../src/sim/draft.js');
+  if (workerData.tune) { const t = await import('../src/data/tuning.js'); Object.assign(t.TUNE, workerData.tune); }
+  // instrumentation: casts, hero hits per cast, basic hits on heroes
+  const P = Game.prototype, oCast = P.cast, oHit = P.abilityHit, oBasic = P.basicHit;
+  P.cast = function (h, i, t, p) { const s = h._ab || (h._ab = [[0, 0], [0, 0], [0, 0]]); s[i][0]++; h._castSeq = (h._castSeq || 0) + 1; (h._seq || (h._seq = []))[i] = h._castSeq; return oCast.call(this, h, i, t, p); };
+  P.abilityHit = function (h, e, ab, type, aoe) {
+    if (e.type === 'hero' && h.type === 'hero') { const i = h.def.abilities.indexOf(ab); const hs = h._hitSeq || (h._hitSeq = []); if (i >= 0 && h._seq && hs[i] !== h._seq[i]) { hs[i] = h._seq[i]; h._ab[i][1]++; } }
+    return oHit.call(this, h, e, ab, type, aoe);
+  };
+  P.basicHit = function (a, t) { if (a.type === 'hero' && t.type === 'hero') a._bh = (a._bh || 0) + 1; return oBasic.call(this, a, t); };
+  for (const job of workerData.jobs) {
+    const [ida, idb] = job.teams;
+    const prep = (ids, other, builds) => {
+      if (workerData.smart) return aiPrep(ids, other);
+      const p = defaultPrep(ids); p.heroes.forEach((x, k) => { x.build = builds[k]; }); return p;
+    };
+    const g = new Game({ seed: job.seed, map: MAPS[job.seed % 4], coach: [true, true], teams: [prep(ida, idb, job.builds[0]), prep(idb, ida, job.builds[1])] });
+    while (!g.over) { g.step([]); g.fx.length = 0; }
+    const ev = {}; for (const e of g.events) if (e.type === 'duo' || e.type === 'comp' || e.type === 'reset') ev[e.type] = (ev[e.type] || 0) + 1;
+    const out = { seed: job.seed, winner: g.winner, min: g.time / 60, timeout: g.events.some((e) => e.type === 'victory' && e.timeout), ev,
+      teams: g.teams.map((t) => ({ comp: t.comp && t.comp.active ? t.comp.id : null, heroes: t.heroes.map((h) => ({ id: h.heroId, role: h.role, build: h.build, k: h.kills, d: h.deaths, a: h.assists, dmg: h.dmgHeroes, taken: h.dmgTaken, healed: h.healed, gold: h.goldEarned, bh: h._bh || 0, ab: h._ab || [[0, 0], [0, 0], [0, 0]] })) })) };
+    parentPort.postMessage(out);
   }
-  process.stdout.write(`game ${i + 1}: ${w === 0 ? 'BLUE' : w === 1 ? 'RED' : 'DRAW'} ${(g.time / 60).toFixed(1)}m kills ${g.teams[0].kills}-${g.teams[1].kills} towers ${g.teams[0].towers}-${g.teams[1].towers}\n`);
-}
-console.log(`\n${N} games in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
-console.log(`Blue ${blueWins}  Red ${redWins}  Unfinished ${draws}  Decided on time ${timeouts}`);
-console.log(`Avg length ${(totalLen / N / 60).toFixed(1)}m, kills/game ${(totalKills / N).toFixed(1)}, towers/game ${(totalTowers / N).toFixed(1)}`);
-console.log('Objectives/game', Object.fromEntries(Object.entries(objectives).map(([k, v]) => [k, (v / N).toFixed(2)])));
-console.log('\nHero            games  win%   K/D/A        dmg/game');
-for (const [id, s] of Object.entries(heroStats).sort((a, b) => b[1].w / b[1].g - a[1].w / a[1].g)) {
-  console.log(`${id.padEnd(14)} ${String(s.g).padStart(5)}  ${(100 * s.w / s.g).toFixed(0).padStart(4)}%  ${(s.k / s.g).toFixed(1)}/${(s.d / s.g).toFixed(1)}/${(s.a / s.g).toFixed(1)}  ${Math.round(s.dmg / s.g)}`);
+  parentPort.postMessage({ done: true });
+} else {
+  const args = process.argv.slice(2);
+  const flag = (k) => args.includes('--' + k);
+  const opt = (k, d) => { const i = args.indexOf('--' + k); return i >= 0 ? args[i + 1] : d; };
+  const pos = args.filter((a, i) => !a.startsWith('--') && !['--seed', '--json', '--log', '--from', '--nudge'].includes(args[i - 1]));
+  const N = +(pos[0] || 60), NW = +(pos[1] || 2), seed0 = +opt('seed', 9000);
+  const { HEROES, ROLES, HERO_BY_ID } = await import('../src/data/heroes.js');
+  const { BUILDS } = await import('../src/data/items.js');
+  const { Rng } = await import('../src/sim/rng.js');
+  const { RANGE } = await import('../src/sim/constants.js');
+
+  // Static range sanity: max basic-attack range (base + self buffs + range items) vs tower reach.
+  const cap = RANGE.tower - 45, rangeRows = [];
+  for (const h of HEROES) {
+    const buff = Math.max(0, ...h.abilities.map((a) => (a.buff && a.buff.stats.range) || 0));
+    const items = Math.max(0, ...h.builds.map((b) => BUILDS[b].items.reduce((s, it) => s + (it.stats.range || 0), 0)));
+    const raw = h.base.range + buff + items;
+    rangeRows.push({ id: h.id, base: h.base.range, max: raw, capped: Math.min(raw, cap) });
+  }
+
+  // Jobs: per-role shuffled decks so coverage is even.
+  const rng = new Rng(seed0);
+  const decks = Object.fromEntries(ROLES.map((r) => [r, []]));
+  const draw = (r, used) => {
+    for (let tries = 0; tries < 50; tries++) {
+      if (!decks[r].length) { const d = HEROES.filter((h) => h.role === r).map((h) => h.id); for (let i = d.length - 1; i > 0; i--) { const j = rng.int(i + 1); [d[i], d[j]] = [d[j], d[i]]; } decks[r] = d; }
+      const id = decks[r].pop(); if (!used.has(id)) { used.add(id); return id; } decks[r].unshift(id);
+    }
+    throw new Error('deck');
+  };
+  const jobs = [];
+  for (let i = 0; i < N; i++) {
+    const used = new Set(), a = ROLES.map((r) => draw(r, used)), b = ROLES.map((r) => draw(r, used));
+    const pb = (ids) => ids.map((id) => { const bl = HERO_BY_ID[id].builds; return bl[rng.int(bl.length)]; });
+    jobs.push({ seed: seed0 + i, teams: [a, b], builds: [pb(a), pb(b)] });
+  }
+  const results = [];
+  const t0 = Date.now(), log = opt('log', null), from = opt('from', null);
+  if (from) for (const f of from.split(',')) for (const line of readFileSync(f, 'utf8').split('\n')) { if (line.trim()) results.push(JSON.parse(line)); }
+  else await Promise.all(Array.from({ length: NW }, (_, w) => new Promise((res) => {
+    const wk = new Worker(fileURLToPath(import.meta.url), { workerData: { jobs: jobs.filter((_, k) => k % NW === w), smart: flag('smart') } });
+    wk.on('message', (m) => { if (m.done) return res(); results.push(m); if (log) appendFileSync(log, JSON.stringify(m) + '\n'); if (!flag('quiet') && results.length % 10 === 0) console.log(`  ${results.length}/${N} games (${((Date.now() - t0) / 1000).toFixed(0)}s)`); });
+    wk.on('error', (e) => { console.error(e); res(); });
+  })));
+
+  // Aggregate
+  const H = {}, B = {}, HB = {}, C = {};
+  let blue = 0, len = 0, timeouts = 0, kills = 0; const ev = {};
+  for (const r of results) {
+    if (r.winner === 0) blue++; len += r.min; if (r.timeout) timeouts++;
+    for (const k in r.ev) ev[k] = (ev[k] || 0) + r.ev[k];
+    r.teams.forEach((t, ti) => {
+      const win = r.winner === ti ? 1 : 0, teamDmg = t.heroes.reduce((s, x) => s + x.dmg, 0) || 1;
+      if (t.comp) { const c = C[t.comp] || (C[t.comp] = { g: 0, w: 0 }); c.g++; c.w += win; }
+      for (const x of t.heroes) {
+        kills += x.k;
+        const s = H[x.id] || (H[x.id] = { g: 0, w: 0, k: 0, d: 0, a: 0, dmg: 0, share: 0, taken: 0, healed: 0, gold: 0, bh: 0, min: 0, ab: [[0, 0], [0, 0], [0, 0]] });
+        s.g++; s.w += win; s.k += x.k; s.d += x.d; s.a += x.a; s.dmg += x.dmg; s.share += x.dmg / teamDmg; s.taken += x.taken; s.healed += x.healed; s.gold += x.gold; s.bh += x.bh; s.min += r.min;
+        x.ab.forEach((v, i) => { s.ab[i][0] += v[0]; s.ab[i][1] += v[1]; });
+        const b = B[x.build] || (B[x.build] = { g: 0, w: 0, heroes: new Set() }); b.g++; b.w += win; b.heroes.add(x.id);
+        const hb = HB[x.id + ':' + x.build] || (HB[x.id + ':' + x.build] = { g: 0, w: 0 }); hb.g++; hb.w += win;
+      }
+    });
+  }
+  const n = results.length;
+  console.log(`\n${n} games in ${((Date.now() - t0) / 1000).toFixed(0)}s · blue ${(100 * blue / n).toFixed(0)}% · avg ${(len / n).toFixed(1)}m · on time ${(100 * timeouts / n).toFixed(0)}% · kills/game ${(kills / n).toFixed(1)}`);
+  console.log('events/game', Object.fromEntries(Object.entries(ev).map(([k, v]) => [k, +(v / n).toFixed(2)])));
+  const pct = (w, g) => (g ? (100 * w / g).toFixed(0) : '-');
+  console.log('\nHero        role     g  win%  impact  K/D/A           share  bh/min  abilities (casts/min, hero-hit%)');
+  const rows = Object.entries(H).sort((a, b) => b[1].w / b[1].g - a[1].w / a[1].g);
+  for (const [id, s] of rows) {
+    const def = HERO_BY_ID[id];
+    const abs = s.ab.map((v, i) => `${(v[0] / s.min).toFixed(1)}/${AREA.has(def.abilities[i].kind) ? pct(v[1], v[0]) + '%' : 'n/a'}`).join(' ');
+    console.log(`${id.padEnd(10)} ${def.role.padEnd(8)} ${String(s.g).padStart(3)}  ${pct(s.w, s.g).padStart(4)}  ${((s.w / s.g - 0.5) * 100).toFixed(0).padStart(5)}   ${(s.k / s.g).toFixed(1)}/${(s.d / s.g).toFixed(1)}/${(s.a / s.g).toFixed(1)}`.padEnd(60) + `${(100 * s.share / s.g).toFixed(0).padStart(4)}%  ${(s.bh / s.min).toFixed(1).padStart(5)}   ${abs}`);
+  }
+  console.log('\nBuild        games  win%  heroes');
+  for (const [k, b] of Object.entries(B).sort((a, b) => b[1].w / b[1].g - a[1].w / a[1].g)) console.log(`${k.padEnd(12)} ${String(b.g).padStart(5)}  ${pct(b.w, b.g).padStart(4)}  ${b.heroes.size}`);
+  console.log('\nComps (active)', Object.entries(C).map(([k, c]) => `${k} ${pct(c.w, c.g)}% of ${c.g}`).join(' · '));
+  const over = rangeRows.filter((r) => r.max > cap);
+  console.log(`\nRange sanity: hero attack range cap ${cap} (towers ${RANGE.tower}). Would exceed without cap: ${over.map((r) => `${r.id} ${r.max}`).join(', ') || 'none'}`);
+  const out = opt('json', null);
+  if (out) writeFileSync(out, JSON.stringify({ n, blue, len, timeouts, ev, H, B: Object.fromEntries(Object.entries(B).map(([k, v]) => [k, { g: v.g, w: v.w, heroes: [...v.heroes] }])), HB, C, rangeRows, cap }, null, 1));
+  const K = +opt('nudge', 0);
+  if (K) {
+    const { TUNE } = await import('../src/data/tuning.js');
+    const tune = Object.fromEntries(HEROES.map((h) => [h.id, TUNE[h.id] || 1]));
+    const moved = [];
+    for (const h of HEROES) {
+      const s = H[h.id]; if (!s) continue;
+      const rate = (s.w + 4) / (s.g + 8), d = Math.max(-0.06, Math.min(0.06, (0.5 - rate) * K));
+      const v = Math.max(0.8, Math.min(1.2, +(tune[h.id] * (1 + d)).toFixed(3)));
+      if (v !== tune[h.id]) moved.push(`${h.id} ${tune[h.id]}->${v}`); tune[h.id] = v;
+    }
+    const body = Object.entries(tune).filter(([, v]) => v !== 1).map(([k, v]) => `  ${k}: ${v},`).join('\n');
+    writeFileSync(new URL('../src/data/tuning.js', import.meta.url), `// Per-hero power multipliers produced by tools/tune.mjs (self-play balance).\n// 1.00 = untouched. Applied as +/- damage and a little +/- health.\nexport const TUNE = {\n${body}\n};\n`);
+    console.log(`\nTUNE nudged (K=${K}): ${moved.join(', ')}`);
+  }
 }

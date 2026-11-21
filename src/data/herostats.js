@@ -11,7 +11,7 @@ export const RATING_LABEL = { damage: 'Damage', toughness: 'Toughness', control:
 export const RATING_COLOR = { damage: '#ff6b5a', toughness: '#7fb4ff', control: '#b48cff', mobility: '#5fe0d0', range: '#ffd84a', sustain: '#6fdc8c', difficulty: '#ff9a3c' };
 
 const REF_LEVEL = 9, REF_ITEMS = 3, REF_TARGET_HP = 1500;
-const CC_WEIGHT = { stun: 1, knock: 1, root: 0.8 };
+const CC_WEIGHT = { stun: 1, knock: 1, root: 0.8, fear: 0.9, silence: 0.6 };
 const AREA_KINDS = new Set(['nova', 'circle', 'zone', 'allynova']);
 const SKILLSHOT_KINDS = new Set(['shot', 'line', 'hook']);
 
@@ -30,7 +30,8 @@ function refStats(x) {
 }
 const scale = (v, st) => (v ? (v.b || 0) + (v.l || 0) * st.L + (v.ad || 0) * st.ad + (v.ap || 0) * st.ap + (v.hp || 0) * st.maxHp : 0);
 const abDamage = (ab, st) => (ab.dmg ? scale(ab.dmg, st) + (ab.dmg.miss || 0) * REF_TARGET_HP * 0.5 : 0) + (ab.burn ? scale(ab.burn, st) : 0);
-const ccSeconds = (cc) => (cc ? (cc.stun || 0) * CC_WEIGHT.stun + (cc.knock || 0) * CC_WEIGHT.knock + (cc.root || 0) * CC_WEIGHT.root + (cc.slow ? cc.slow[0] * cc.slow[1] * 0.5 : 0) : 0);
+const ccSeconds = (cc) => (cc ? (cc.stun || 0) * CC_WEIGHT.stun + (cc.knock || 0) * CC_WEIGHT.knock + (cc.root || 0) * CC_WEIGHT.root + (cc.fear || 0) * CC_WEIGHT.fear
+  + (cc.silence || 0) * CC_WEIGHT.silence + (cc.slow ? cc.slow[0] * cc.slow[1] * 0.5 : 0) + (cc.shred ? cc.shred[0] * 1.5 : 0) + (cc.mark ? cc.mark[0] * 1.5 : 0) : 0);
 
 // Raw (unnormalised) numbers for one hero.
 export function rawRatings(x) {
@@ -40,7 +41,8 @@ export function rawRatings(x) {
   const p3 = p.kind === 'every3' ? scale(p.dmg, st) : 0, pBurn = p.kind === 'burnHits' ? scale(p.burn, st) : 0;
   const burst = abs.reduce((a, ab) => a + abDamage(ab, st), 0) + st.ad * 2 + p3;
   const dps = st.ad * st.as * (1 + st.crit * 0.75) + st.as * (p3 / 3 + pBurn * 0.5) + abs.reduce((a, ab) => a + abDamage(ab, st) / cd(ab), 0);
-  const execute = p.kind === 'executer' ? 1 + p.pct * 0.5 : 1;
+  const execute = p.kind === 'executer' ? 1 + p.pct * 0.5 : ['lone', 'cruel', 'firstStrike', 'longshot'].includes(p.kind) ? 1 + p.pct * 0.5
+    : p.kind === 'shredHits' ? 1 + p.cap * 0.4 : p.kind === 'frenzy' ? 1 + p.pct * p.max * 0.4 : p.kind === 'stackOnKill' ? 1.06 : 1;
   // Toughness: effective HP plus self shields, damage reduction and defensive buffs.
   let selfShield = p.kind === 'shieldOnHit' ? p.pct * st.maxHp * 1.5 : 0, resBuff = 0;
   for (const ab of abs) {
@@ -49,13 +51,14 @@ export function rawRatings(x) {
     if (ab.buff && (self || ab.kind === 'allynova')) { const bs = ab.buff.stats; resBuff += ((bs.armor || 0) + (bs.mr || 0)) * Math.min(1, ab.buff.dur * 1.5 / ab.cd) + (bs.thorns || 0) * 60; }
     if (ab.heal && ab.heal.hp && self) selfShield += ab.heal.hp * st.maxHp * 0.5;
   }
-  const dr = p.kind === 'dr' ? p.pct : 0;
+  for (const ab of abs) if (ab.parry) selfShield += st.ad * 2.5;
+  const dr = p.kind === 'dr' ? p.pct : p.kind === 'aura' && p.stats.drPct ? p.stats.drPct : p.kind === 'tenacity' ? p.pct * 0.15 : 0;
   const lowRegen = p.kind === 'lowhpRegen' ? p.pct * st.maxHp * 4 : 0;
   const toughness = (st.maxHp * (1 + (st.armor + st.mr + resBuff) / 200) + selfShield + lowRegen) / (1 - dr);
   // Control: crowd-control seconds, weighted by how often they come up and whether they hit an area.
   let control = 0, hooks = 0;
   for (const ab of abs) {
-    const c = ccSeconds(ab.cc) + (ab.kind === 'hook' ? 0.6 : 0) + (ab.buff && ab.buff.stats.slowOnHit ? ab.buff.stats.slowOnHit * ab.buff.dur * 0.5 : 0);
+    const c = ccSeconds(ab.cc) + ccSeconds(ab.enemyCc) + (ab.kind === 'hook' ? 0.6 : 0) + (ab.knockAway ? 0.5 : 0) + (ab.pull ? 0.8 : 0) + (ab.buff && ab.buff.stats.slowOnHit ? ab.buff.stats.slowOnHit * ab.buff.dur * 0.5 : 0);
     if (ab.kind === 'hook') hooks++;
     if (!c) continue;
     control += c * (1 + 24 / cd(ab)) * (AREA_KINDS.has(ab.kind) || ab.radius ? 1.25 : 1) * (ab.ult ? 0.7 : 1);
@@ -63,10 +66,13 @@ export function rawRatings(x) {
   // Mobility: base move speed, dashes (reach x frequency) and speed buffs.
   let mobility = (st.ms - 95) * 0.6;
   for (const ab of abs) {
+    if (ab.stealth) mobility += ab.stealth * 1.2;
+    if (ab.allyDash) mobility += (ab.range || 250) / 100 * 0.6;
     if (ab.kind === 'dash') mobility += (ab.range || 250) / 100 * (1 + 20 / cd(ab)) * (ab.ult ? 0.6 : 1);
     if (ab.buff && ab.buff.stats.msPct && ab.kind !== 'ally') mobility += ab.buff.stats.msPct * ab.buff.dur * 30 / cd(ab) * (ab.ult ? 0.6 : 1);
   }
   if (p.kind === 'msOutOfCombat') mobility += p.pct * 20;
+  if (p.kind === 'onTakedown') mobility += p.ms * 6;
   // Range: basic-attack reach (most important) plus how far the damaging/cc spells reach.
   const reach = abs.filter((ab) => ab.dmg || ab.cc).map((ab) => (ab.kind === 'nova' ? ab.radius || 120 : ab.kind === 'dash' ? (ab.range || 200) * 0.6 : ab.range || 150) * (ab.ult ? 0.6 : 1));
   const rangeBuff = abs.reduce((a, ab) => a + (ab.buff && ab.buff.stats.range ? ab.buff.stats.range * 0.5 : 0), 0);
@@ -75,7 +81,7 @@ export function rawRatings(x) {
   let heals = 0;
   for (const ab of abs) if (ab.heal) heals += scale(ab.heal, st) / cd(ab) * (ab.kind === 'allynova' ? 1.5 : 1);
   const vamp = (p.kind === 'spellVamp' ? p.pct : 0) + abs.reduce((a, ab) => a + (ab.buff && ab.buff.stats.omnivamp ? ab.buff.stats.omnivamp * ab.buff.dur / ab.cd : 0), 0);
-  const allyHeal = p.kind === 'healAllies' ? scale(p.heal, st) * st.as * 0.6 : 0;
+  const allyHeal = p.kind === 'healAllies' ? scale(p.heal, st) * st.as * 0.6 : p.kind === 'onTakedown' ? p.heal * st.maxHp / 30 : 0;
   const sustain = heals + vamp * dps + allyHeal + st.regen + (p.kind === 'lowhpRegen' ? p.pct * st.maxHp * 0.25 : 0);
   // Difficulty: how much the kit depends on timing, aim and target choice.
   const tags = new Set(x.tags);
@@ -88,7 +94,9 @@ export function rawRatings(x) {
     if (SKILLSHOT_KINDS.has(ab.kind) || (ab.kind === 'circle' && ab.delay >= 0.6)) diff += 0.5;
     if (ab.kind === 'dash') diff += 0.5;
     if (ab.use && ab.use.includes('execute')) diff += 0.6;
+    if (ab.parry || ab.resetOnKill || ab.knockAway || ab.allyDash || ab.selfRoot) diff += 1;
   }
+  if (['firstStrike', 'frenzy', 'wallSlam', 'empowerCC', 'lone', 'longshot'].includes(p.kind)) diff += 0.8;
   if (tags.has('tank')) diff -= 1; if (tags.has('sustain')) diff -= 0.5;
   if (abs.filter((ab) => ['self', 'ally', 'allynova'].includes(ab.kind)).length >= 2) diff -= 0.6;
   return { damage: { burst: burst * execute, dps: dps * execute }, toughness, control, mobility, range, sustain, difficulty: diff };
