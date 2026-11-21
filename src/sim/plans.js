@@ -64,14 +64,14 @@ export function planRisk(g, h) {
   const plan = g.teams[h.team].plan, m = g.gameMinute;
   switch (plan) {
     case 'aggro': return m < EARLY ? 0.88 : m < SPIKE + 1 ? 0.97 : 1.02;
-    case 'scale': return m < EARLY + 1 ? 1.17 : m < SPIKE + 1 ? 1 : 0.9;
+    case 'scale': return m < EARLY + 1 ? 1.15 : m < SPIKE + 1 ? 0.98 : 0.88;
     case 'objective': {
       // brave around a live (or waking) objective, normal elsewhere
       const pits = g.world.pits;
       for (const k of ['dragon', 'herald', 'baron']) {
         const o = g.objectives[k]; if (!(o && o.alive) && !(g.objTimers[k] > 0 && g.objTimers[k] - g.tick < sec(20))) continue;
         const p = k === 'dragon' ? pits.kami : pits.kraken;
-        if ((h.x - p.x) ** 2 + (h.y - p.y) ** 2 < 900 * 900) return 0.88;
+        if ((h.x - p.x) ** 2 + (h.y - p.y) ** 2 < 900 * 900) return 0.92;
       }
       return 1;
     }
@@ -94,7 +94,7 @@ export function gankWeights(g, team) {
   return [0.85, 1];
 }
 // Ward cooldown multiplier, and whether every hero carries wards (Objective Control).
-export function wardWeights(g, team) { return g.teams[team].plan === 'objective' ? [0.6, true] : [1, false]; }
+export function wardWeights(g, team) { return g.teams[team].plan === 'objective' ? [0.7, true] : [1, false]; }
 // Extra reach (px) for contesting an objective the enemy is on.
 export function contestReach(g, team) { return g.teams[team].plan === 'objective' ? 500 : g.teams[team].plan === 'scale' && g.gameMinute < EARLY ? -400 : 0; }
 // Peel weight multiplier (target choice: threats on our carries).
@@ -105,8 +105,8 @@ function splitterOf(g, h) {
   return planSplitters(g, h.team).find((s) => s.id === h.id) || null;
 }
 // Lane override for the plan's shape (null = the hero's own lane). Split: splitters take their side lane
-// from minute 6, the rest (not the jungler) hold mid from minute 8. Protect: from minute 7 the support and
-// the frontline walk with the carry.
+// from minute 6, the rest (not the jungler) hold mid from minute 8. Protect: the support walks with the carry
+// from minute 7, the frontline joins from minute 10.
 export function planLane(g, h) {
   const plan = g.teams[h.team].plan, m = g.gameMinute;
   if (g.world.laneNames.length < 3) return null;
@@ -118,7 +118,7 @@ export function planLane(g, h) {
   if (plan === 'protect' && m >= 7) {
     const c = planCarry(g, h.team);
     if (!c || c === h || !c.alive || h.role === 'jungle') return null;
-    if (h.role === 'support' || FRONT(h.def)) return c.task.lane || c.lane;
+    if (h.role === 'support' || (FRONT(h.def) && m >= SPIKE)) return c.task.lane || c.lane;
   }
   return null;
 }
@@ -135,13 +135,13 @@ export function coachWeights(g, team) {
     else w.lateAt = 720;
   } else if (plan === 'scale') {
     if (m < EARLY + 1) { w.invadeFrom = 9999; w.gankCd = 60; w.objWait = true; }
-    else { w.lateAt = 540; w.groupCd = 30; }
+    else { w.lateAt = 540; w.groupCd = 28; }
   } else if (plan === 'objective') {
-    w.objFree = true; w.objCd = 28;
+    w.objFree = true; w.objCd = 34;
   } else if (plan === 'split') {
     w.groupLane = 'mid'; w.lateAt = 540; w.groupCd = 45;
   } else if (plan === 'protect') {
-    const c = planCarry(g, team); w.groupLane = c && c.alive ? (c.task.lane || c.lane) : null; w.lateAt = 480; w.groupCd = 32;
+    const c = planCarry(g, team); w.groupLane = c && c.alive ? (c.task.lane || c.lane) : null; w.lateAt = 540; w.groupCd = 32;
   }
   return w;
 }

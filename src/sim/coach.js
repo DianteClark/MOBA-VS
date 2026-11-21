@@ -74,7 +74,7 @@ export class Coach {
       }
     }
     // Objectives (the plan bends how eager: Objective Control and early Aggression call them more freely,
-    // Scale only when the enemy is down two)
+    // early Scale only with an enemy down)
     const W = coachWeights(g, this.team);
     const takeObj = (obj, minAlive, extra) => {
       const o = g.objectives[obj];
@@ -85,7 +85,7 @@ export class Coach {
       const enemiesNearPit = near(pit, LANE_NAMES.length === 1 ? 650 : 1100, visibleEnemies);
       if (alive.length < minAlive) return false;
       if (enemiesNearPit > 1 && deadEnemies === 0) return false;
-      if (W.objWait && deadEnemies < 2) return false;
+      if (W.objWait && deadEnemies < 1) return false;
       if (!extra && !(W.objFree && obj !== 'baron' && alive.length >= enemyAlive.length && enemiesNearPit === 0)) return false;
       if (this.issue({ type: 'objective', obj })) { cd('objective', W.objCd); return true; }
       return false;
