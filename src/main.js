@@ -41,7 +41,7 @@ import { MatchRecorder, showAnalysis } from './ui/analytics.js';
 import { Theater } from './ui/theater.js';
 import { loadLib, storeMatch } from './ui/replays.js';
 
-const VERSION = 20; // bump whenever the sim or balance changes (peers must match)
+const VERSION = 21; // bump whenever the sim or balance changes (peers must match)
 const PREP_SECONDS = 60;
 
 class App {

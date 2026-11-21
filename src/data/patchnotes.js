@@ -1,6 +1,31 @@
 // Patch notes, newest first. tools/season.mjs prepends an entry at each season rollover.
 export const PATCHES = [
   {
+    version: '21.0', season: 1, date: '2026-11-21', title: 'Sight & Sound',
+    highlights: ['New ability effects', 'Dynamic music', 'Match analysis', 'Friends & rematch'],
+    notes: [
+      'Ability effects for all 60 heroes: each element and clan has its own look, with glowing projectiles, trails, dash afterimages and ult symbols on the ground.',
+      'Clearer fights: enemy skillshots and area spells show red warnings with a countdown ring, towers draw a line to their target, and low-HP heroes pulse red.',
+      'Respawn beams, boss spawn and kill spectacles, and smoother walking, hits and knock-ups. The camera no longer judders.',
+      'Living maps: bridges, shore foam, team flags, fish, frogs, fireflies, birds and falling petals, leaves or snow.',
+      'Graphics Auto / High / Low. Auto lowers effects detail first on slower phones.',
+      'Dynamic music: calm laning, fight tension, Last Stand intensity, an ace fanfare, and victory and defeat stingers.',
+      'New sound sets per clan and element. Hits get heavier with damage, objectives roar, and off-screen sounds are quieter and panned.',
+      'A limiter keeps phone speakers from distorting. Master, Music, Effects and Menu volume sliders. The game goes silent in the background.',
+      'Match Story on results: gold-lead graph, the turning point in plain words, and how your calls went.',
+      'Analysis: a timeline of every key moment, damage dealt and taken per hero, call stats and missed chances.',
+      'Replay Theater: scrub the timeline, play at 0.5x to 4x, jump to the next fight or objective, follow any hero, and see the fog as either team saw it.',
+      'Career stats in your Profile: win rates by hero, build, map and comp, streaks, best calls and personal records.',
+      'Friends: add by friend code, from results or from History. See who is online or in a match.',
+      'Invite friends to Casual, Lane Rush or Ranked, or share an invite link that opens straight into your lobby.',
+      'Rematch after online games, with sides swapped.',
+      'Public profiles: tap any coach for their tier, top heroes and recent results.',
+      'Leaderboard: Global and Friends tabs, more pages, and your own place pinned.',
+      'Fixed: "Ladder offline" when both players reported a result at the same moment.',
+    ],
+    heroes: [],
+  },
+  {
     version: '20.0', season: 1, date: '2026-11-21', title: 'The Big One',
     highlights: ['60 heroes', 'Lane Rush', 'Ranks & mastery', 'Coach Moments'],
     notes: [
