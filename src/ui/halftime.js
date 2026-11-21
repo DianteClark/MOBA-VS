@@ -4,9 +4,9 @@ import { h, mount, face, icon } from './dom.js';
 import { TACTICS, TACTIC_IDS } from '../data/tactics.js';
 import { BUILDS } from '../data/items.js';
 import { audio } from '../audio.js';
+import { PLAN_IDS, PLAN_INFO, planName } from '../data/plans.js';
 
 let el = null, timer = 0;
-const PLANS = [['aggressive', 'Aggressive', 'Fight more, take risks'], ['balanced', 'Balanced', 'Steady'], ['scaling', 'Scaling', 'Play safe, win late']];
 
 export function showHalftime(app, g, my, runner, ht) {
   hideHalftime();
@@ -24,8 +24,13 @@ export function showHalftime(app, g, my, runner, ht) {
       h('div', { class: 'red' }, h('b', {}, g.towersStanding(1)), h('small', {}, 'towers'), h('span', {}, `${t1.kills} kills`)));
     if (my < 0) { mount(el, h('div', { class: 'ht-card' }, score, h('p', { class: 'muted center' }, 'Both coaches are adjusting…'))); return; }
     const team = g.teams[my];
-    const plan = h('div', { class: 'ht-sec' }, h('div', { class: 'ht-h' }, 'Game plan'),
-      h('div', { class: 'ht-row' }, ...PLANS.map(([id, l, d]) => h('button', { class: 'tile' + (pick.plan === id ? ' rec' : ''), onclick: () => { pick.plan = id; runner.send({ type: 'plan', plan: id }); audio.sfx('move', 0.5); render(); } }, h('div', {}, h('b', {}, l), h('small', {}, d))))));
+    // one plan change per match, here: the last pick before play resumes stands (both sides see it at the restart)
+    const enemyPlan = g.teams[1 - my].plan;
+    const plan = h('div', { class: 'ht-sec' }, h('div', { class: 'ht-h' }, `Game plan · now ${planName(pick.plan)} · theirs ${planName(enemyPlan)}`),
+      h('div', { class: 'ht-row htplans' }, ...PLAN_IDS.map((id) => { const P = PLAN_INFO[id];
+        return h('button', { class: 'tile' + (pick.plan === id ? ' rec' : ''), title: `${P.desc} Strong: ${P.strong}. Weak: ${P.weak}.`, style: { '--pc': P.color },
+          onclick: () => { if (pick.plan === id) return; pick.plan = id; runner.send({ type: 'plan', plan: id }); audio.sfx('move', 0.5); render(); } },
+          h('div', {}, h('b', {}, P.short), h('small', {}, P.strong))); })));
     const unused = team.deck.filter((d) => !d.used);
     const swap = h('div', { class: 'ht-sec' }, h('div', { class: 'ht-h' }, pick.swapped ? 'Card swapped' : pick.swapFrom ? `Swap ${TACTICS[pick.swapFrom].name} for…` : 'Swap one unused card (optional)'),
       pick.swapped ? null : pick.swapFrom

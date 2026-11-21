@@ -20,6 +20,8 @@ import { buzz } from './haptics.js';
 import { QuickChat } from './quickchat.js';
 import { tweenNumber, pop } from './juice.js';
 import { CoachTips, tipsLeft } from './coachtips.js';
+import { planReveal, planSwitch } from './plans.js';
+import { planName } from '../data/plans.js';
 
 const LANE_L = { top: 'Top', mid: 'Mid', bot: 'Bot' };
 const OBJ_L = OBJ_NAME;
@@ -150,6 +152,7 @@ export class Hud {
   update(dt) {
     const g = this.g, now = performance.now();
     this.processEvents();
+    if (!this.planShown) planReveal(this); // both game plans, revealed at kickoff
     if (this.director) this.directorCam(dt);
     this.applySlow();
     this.alerts.place();
@@ -488,13 +491,14 @@ export class Hud {
             c.type === 'split' ? `${this.name(c.hero)} split ${LANE_L[c.lane]}` : c.type === 'focus' ? `Focus ${this.name(c.target)}` : c.type === 'build' ? `${this.name(c.hero)} → ${BUILDS[c.build].name}` :
             c.type === 'herald' ? `Oni ${LANE_L[c.lane]}` : c.type === 'shrine' ? 'Capture shrine' : c.type === 'safe' ? 'Play safe' : c.type === 'reset' ? 'Reset' : c.type === 'invade' ? 'Invade' :
             c.type === 'permit' ? `${this.name(c.hero)} green-lit` : c.type === 'surge' ? 'Kami Surge' : c.type === 'moment' ? (MOMENTS[c.id] || {}).name || 'Coach Moment' :
-            c.type === 'ult' ? ({ go: 'ALL-IN, ultimates fire next fight!', save: 'Hold ultimates', free: 'Ults: heroes choose' })[c.mode] : c.type === 'plan' ? `Plan: ${c.plan}` : c.type === 'redraw' ? 'Swapped a tactic card' : 'Cancel calls';
+            c.type === 'ult' ? ({ go: 'ALL-IN, ultimates fire next fight!', save: 'Hold ultimates', free: 'Ults: heroes choose' })[c.mode] : c.type === 'plan' ? `Plan: ${planName(c.plan)}` : c.type === 'redraw' ? 'Swapped a tactic card' : 'Cancel calls';
           this.ticker(`${TEAM_NAME[c.team]} call: ${what}`, c.team === 0 ? 'b' : 'r', 0);
           break;
         }
         case 'callResult': if (e.team === this.my) { this.payoff(e); buzz(e.result === 'success' ? 'callWin' : 'callFail'); } break;
         case 'momentumFull': if (e.team === this.my) this.dock.surgeOffer(); break;
         case 'moment': momentFx(this, e); break;
+        case 'plan': planSwitch(this, e); break;
         case 'surge':
           if (e.team === this.view || this.my < 0) { this.banner('KAMI SURGE', TEAM_COL[e.team], 1500); }
           else this.ticker('Enemy Kami Surge! +10% damage for 8s', 'danger', 3);

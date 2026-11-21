@@ -41,6 +41,8 @@ import { keepAwake } from './ui/awake.js';
 import { MatchRecorder, showAnalysis } from './ui/analytics.js';
 import { Theater } from './ui/theater.js';
 import { loadLib, storeMatch } from './ui/replays.js';
+import { nextRival, rivalPlayed, rivalPref, rivalPrep, rivalStyle, rivalPanel } from './ui/rivals.js';
+import { RIVAL_BY_ID } from './data/rivals.js';
 
 const VERSION = 21; // bump whenever the sim or balance changes (peers must match)
 const PREP_SECONDS = 60;
@@ -181,7 +183,9 @@ class App {
     this.immersive();
     try { localStorage.setItem('mobavs_ai', String(this.aiLevel)); } catch { /* ignore */ }
     const seed = (Math.random() * 2 ** 31) >>> 0, gameMode = mode === 'rush' ? 'rush' : 'classic';
-    this.session = { mode: 'ai', gameMode, myTeam: 0, seed, mapId: this.pickMap(seed, gameMode), aiLevel: this.aiLevel, names: [this.name, ['Easy', 'Normal', 'Hard'][this.aiLevel] + ' AI'], rng: new Rng(seed ^ 0x5eed) };
+    // vs AI = vs a rival coach of the difficulty's tier (their name, draft habits, plans and Coach Moment habit)
+    const rival = nextRival(this, this.aiLevel);
+    this.session = { mode: 'ai', gameMode, myTeam: 0, seed, mapId: this.pickMap(seed, gameMode), aiLevel: this.aiLevel, names: [this.name, rival.name], rng: new Rng(seed ^ 0x5eed), rival: rival.id };
     this.startDraft();
   }
   newCup() { newCup(this.name); }
@@ -435,7 +439,8 @@ class App {
     const turn = s.draft.turn;
     setTimeout(() => {
       if (!this.session || this.session !== s || s.draft.turn !== turn) return;
-      draftApply(s.draft, t.team, autoChoice(s.draft, t.team, s.rng, s.aiLevel ?? this.aiLevel));
+      const rv = s.rival && RIVAL_BY_ID[s.rival];
+      draftApply(s.draft, t.team, autoChoice(s.draft, t.team, s.rng, s.aiLevel ?? this.aiLevel, rv ? (s.rivalPref || (s.rivalPref = rivalPref(rv))) : null));
       audio.sfx('lockin', 0.6);
       this.afterDraftAct();
     }, 900 + Math.random() * 900);
@@ -448,7 +453,7 @@ class App {
     const pp = prepFromPreset(d.picks[me], d.picks[1 - me], s.preset);
     s.myPrep = pp.prep; s.prepFromPreset = pp.fromPreset; s.prepAdjust = false;
     s.myPrep.skins = profile.skinsFor(d.picks[me]);
-    if (s.mode === 'ai') { s.preps[1 - me] = aiPrep(d.picks[1 - me], d.picks[me]); s.ready[1 - me] = true; }
+    if (s.mode === 'ai') { const rv = s.rival && RIVAL_BY_ID[s.rival]; s.preps[1 - me] = rv ? rivalPrep(rv, d.picks[1 - me], d.picks[me], s.rng) : aiPrep(d.picks[1 - me], d.picks[me]); s.ready[1 - me] = true; }
     if (s.pendingPrep) { s.preps[s.pendingPrep.team] = s.pendingPrep.prep; s.ready[s.pendingPrep.team] = true; s.pendingPrep = null; }
     s.prepEnd = performance.now() + PREP_SECONDS * 1000;
     const render = () => showPrep(this, s.myPrep, d.picks[1 - me], (s.prepEnd - performance.now()) / 1000, render, () => this.prepReady(), s.ready[me]);
@@ -489,6 +494,7 @@ class App {
       teams: [0, 1].map((t) => ({ heroes: s.preps[t].heroes, plan: s.preps[t].plan, deck: s.preps[t].deck, name: s.names[t] })),
       coach: s.mode === 'ai' ? [s.myTeam !== 0, s.myTeam !== 1] : s.mode === 'watch' ? [true, true] : [false, false],
       coachLevel: [s.aiLevel ?? this.aiLevel, s.aiLevel ?? this.aiLevel],
+      ...(s.rival && RIVAL_BY_ID[s.rival] ? { coachStyle: [0, 1].map((t) => (t === s.myTeam ? null : rivalStyle(RIVAL_BY_ID[s.rival]))) } : {}),
     };
     const cfgSaved = JSON.parse(JSON.stringify(cfg));
     const pre = s.prebuilt; s.prebuilt = null; // Play of the Game: a game already fast-forwarded to the highlight
@@ -619,9 +625,10 @@ class App {
       try {
         profile.lastNames = s.names;
         sum = profile.record({ game: m.game, myTeam: s.myTeam, mode: s.mode === 'ai' && !s.wasOnline ? 'ai' : 'online', aiLevel: s.aiLevel ?? this.aiLevel, cup: !!s.cup,
-          ranked: !!s.ranked, oppElo: s.oppElo, potgHero: potg && potg.team === s.myTeam ? potg.heroId : null, analytics });
+          ranked: !!s.ranked, oppElo: s.oppElo, potgHero: potg && potg.team === s.myTeam ? potg.heroId : null, analytics, rival: s.rival && !s.wasOnline && !s.replay ? s.rival : null });
         if (s.cup && profile.d.cup) cupOut = recordCup(profile.d.cup, m.game.winner === s.myTeam);
       } catch (e) { console.error(e); }
+      if (s.rival && !s.replay) rivalPlayed(this, s.rival);
       if (!s.replay && m.cfg) this.saveReplay(m, s, analytics, sum && profile.d.history[0] ? profile.d.history[0].t : Date.now());
       if (sum && (sum.promoted || sum.unlocks.length) && !sum.demoted) setTimeout(() => audio.sfx('powerup', 0.8), 700);
       const src = s.replay ? s.replay : m.cfg ? { cfg: m.cfg, log: m.runner.log, skins: this.renderer.skins } : null;
@@ -630,8 +637,8 @@ class App {
       this.potgReel = potg && src ? this.prerollPOTG(src, potg) : null;
       const report = s.myTeam >= 0 ? reportCard(m.game, s.myTeam, m.hud.stats) : null;
       const args = [this, m.game, s.myTeam,
-        s.cup ? () => showCup(this) : s.mode === 'ai' ? () => this.startVsAI(s.gameMode === 'rush' ? 'rush' : 'classic') : s.mode === 'watch' ? () => this.watch() : null,
-        () => this.menu(), { progress: progressPanel(sum, cupOut), ladder, social: socialPanel(this, s), againLabel: s.cup ? 'Back to bracket' : null, potg: this.potgReel ? potg : null, report,
+        s.cup ? () => showCup(this) : s.mode === 'ai' ? () => { if (s.rival) this.rivalRoll = { tier: s.aiLevel, id: s.rival }; this.startVsAI(s.gameMode === 'rush' ? 'rush' : 'classic'); } : s.mode === 'watch' ? () => this.watch() : null,
+        () => this.menu(), { progress: progressPanel(sum, cupOut), rival: s.myTeam >= 0 && !s.wasOnline ? rivalPanel(sum, s, won) : null, ladder, social: socialPanel(this, s), againLabel: s.cup ? 'Back to bracket' : s.rival && RIVAL_BY_ID[s.rival] && !s.wasOnline ? `Rematch ${RIVAL_BY_ID[s.rival].name}` : null, potg: this.potgReel ? potg : null, report,
           onPOTG: () => this.playPOTG(), onClip: potg && src && clipSupport() ? () => saveClip(src, potg, s.names, this.mapCanvas(m.game.world)) : null,
           analytics, onAnalysis: analytics ? () => showAnalysis(analytics, { title: 'Match analysis', onTheater: this.lastReplay() ? () => this.watchReplay(null, { back: () => this.backToResults() }) : null }) : null,
           onReplay: () => this.watchReplay(null, { back: () => this.backToResults() }), share: sum ? () => shareMatch(profile.d.history[0], { name: this.name, rank: profile.rank.label }, this.lastReplay()) : null }];

@@ -23,6 +23,8 @@ import { careerTab } from './career.js';
 import { showAnalysis } from './analytics.js';
 import { loadLib } from './replays.js';
 import { friendsTab, socialBadge, showPlayer } from './social.js';
+import { rivalChip, showRivals, nextRival } from './rivals.js';
+import { RIVAL_BY_ID } from '../data/rivals.js';
 
 const screen = () => document.getElementById('screen');
 const item = (n) => `assets/img/${n}.png`;
@@ -68,8 +70,10 @@ export function showHome(app) {
     h('div', { class: 'h2main' },
       h('div', { class: 'h2card h2ai' },
         newbie ? h('span', { class: 'h2start' }, 'Start here') : null,
-        h('div', { class: 'h2h' }, h('b', {}, 'Play vs AI'), h('small', {}, 'Ranked 5v5 · 15 min · climbs your tier')),
-        h('div', { class: 'seg3', role: 'radiogroup', 'aria-label': 'AI difficulty' }, ...DIFF.map((l, i) => h('button', { class: 'chip' + (app.aiLevel === i ? ' on' : ''), role: 'radio', 'aria-checked': String(app.aiLevel === i), onclick: () => { app.aiLevel = i; showHome(app); } }, l))),
+        h('div', { class: 'h2aihead' }, h('div', { class: 'h2h' }, h('b', {}, 'Play vs AI'), h('small', {}, 'Ranked 5v5 · vs a rival coach')),
+          rivalChip(app, () => { audio.sfx('move', 0.5); showRivals(app); })),
+        h('div', { class: 'seg3', role: 'radiogroup', 'aria-label': 'AI difficulty' }, ...DIFF.map((l, i) => h('button', { class: 'chip' + (app.aiLevel === i ? ' on' : ''), role: 'radio', 'aria-checked': String(app.aiLevel === i),
+          onclick: () => { app.aiLevel = i; if (app.rivalPick && RIVAL_BY_ID[app.rivalPick].tier !== i) app.rivalPick = null; showHome(app); } }, l))),
         h('div', { class: 'maprow' }, ...[['random', 'Random'], ...MAPS.map((m) => [m.id, m.id[0].toUpperCase() + m.id.slice(1)])].map(([id, l]) =>
           h('button', { class: 'mapchip' + (mapPick === id ? ' on' : ''), title: id === 'random' ? `Random (${MAP_BY_ID[s.map].name} is featured)` : `${MAP_BY_ID[id].name}: ${MAP_BY_ID[id].blurb}`, onclick: () => { app.mapPref = id; showHome(app); } },
             id === 'random' ? h('span', { class: 'q' }, '?') : mapThumb(id), h('span', {}, l)))),
@@ -84,7 +88,7 @@ export function showHome(app) {
           h('button', { class: 'chip', title: 'Join a friend\'s room code', onclick: () => app.joinScreen() }, 'Join'))),
       h('div', { class: 'h2side' },
         h('button', { class: 'h2card h2rush', onclick: () => app.startVsAI('rush') },
-          h('span', { class: 'h2h' }, h('b', {}, 'Lane Rush'), h('small', {}, `One lane · ~7 min · vs ${DIFF[app.aiLevel]} AI`)),
+          h('span', { class: 'h2h' }, h('b', {}, 'Lane Rush'), h('small', {}, `One lane · ~7 min · vs ${nextRival(app).name}`)),
           h('span', { class: 'h2arrow' }, 'Play ›')),
         h('button', { class: 'h2card h2new' + (unseen ? ' unseen' : ''), onclick: () => showPatch(app) },
           h('span', { class: 'h2h' }, h('small', { class: 'kick' }, unseen ? 'NEW' : 'PATCH NOTES'), h('b', {}, `What's new in ${pt.version}`)),

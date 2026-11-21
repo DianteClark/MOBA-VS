@@ -2,9 +2,9 @@
 import { h, mount, face, icon, fmtTime } from './dom.js';
 import { HEROES, HERO_BY_ID, ROLES, ROLE_LABEL, matchupScore, PERSONALITIES } from '../data/heroes.js';
 import { TACTICS, TACTIC_IDS } from '../data/tactics.js';
-import { PLANS } from '../presets.js';
+import { PLAN_IDS, PLAN_INFO, planLine } from '../data/plans.js';
 import { BUILDS } from '../data/items.js';
-import { aiPrep } from '../sim/draft.js';
+import { aiPrep, recommendPlan } from '../sim/draft.js';
 import { TEAM_NAME, DRAGON_INFO, CLANS } from '../sim/constants.js';
 import { MAP_BY_ID } from '../maps/defs.js';
 import { World, N as GN } from '../sim/world.js';
@@ -130,16 +130,21 @@ export function showPrep(app, prep, enemyIds, left, onChange, onReady, ready) {
     return Object.entries(c).sort((a, b) => b[1] - a[1]).map(([k, n]) => { const tier = CLANS[k].tiers.filter((t) => n >= t.n).pop(); return h('div', { class: 'cchip' + (tier ? ' on' : ''), style: { '--cc': CLANS[k].color } }, h('b', {}, `${CLANS[k].name} x${n}`), h('small', {}, tier ? tier.text : `${CLANS[k].tiers[0].n} needed: ${CLANS[k].tiers[0].text}`)); });
   })();
   const sec = (title, extra, ...kids) => h('div', { class: 'panel psec' }, h('div', { class: 'psh' }, h('span', {}, title), extra || null), ...kids);
-  const plan = PLANS[prep.plan] || PLANS.balanced;
+  // game plan: the recommended one (your comp vs theirs) is marked; the enemy only sees yours at kickoff
+  const rec = recommendPlan(myIds, enemyIds), plan = PLAN_INFO[prep.plan] || PLAN_INFO[rec.id];
   const summary = h('div', { class: 'psum' },
     h('div', { class: 'pminis' }, ...byRole.map(mini)),
     h('div', { class: 'pplan' },
-      h('div', { class: 'pp' }, h('small', {}, 'Plan'), h('b', {}, plan[0])),
+      h('button', { class: 'pp', disabled: ready, title: `${plan.desc} ${planLine(prep.plan)}. Tap to change.`, style: { '--pc': plan.color }, onclick: () => { if (!s.prepAdjust) toggleAdjust(); } },
+        h('small', {}, prep.plan === rec.id ? 'Plan · recommended' : 'Plan'), h('b', {}, h('img', { src: icon(plan.icon), alt: '' }), plan.name)),
       h('div', { class: 'pdeck' }, ...prep.deck.map((id) => h('span', { class: 'pdc', title: TACTICS[id].desc }, h('img', { src: icon(TACTICS[id].icon) }), TACTICS[id].name))),
       h('div', { class: 'pclans' }, clans)));
   const editors = adjust ? [
     sec('Lanes & builds', h('button', { class: 'btn small', onclick: autoSetup, title: 'Counter-builds, plan and deck picked for you' }, 'Auto counter-build'), h('div', { class: 'prep-cards' }, ...byRole.map(card))),
-    sec('Game plan', null, h('div', { class: 'plans' }, ...Object.entries(PLANS).map(([k, [nm, dsc]]) => h('button', { class: 'plan' + (prep.plan === k ? ' on' : ''), onclick: () => { prep.plan = k; audio.sfx('move', 0.4); onChange(); } }, h('b', {}, nm), h('small', {}, dsc))))),
+    sec('Game plan', h('small', { class: 'muted' }, 'Hidden from them until kickoff · one change at halftime'), h('div', { class: 'plans' }, ...PLAN_IDS.map((k) => { const P = PLAN_INFO[k];
+      return h('button', { class: 'plan' + (prep.plan === k ? ' on' : '') + (rec.id === k ? ' rec' : ''), style: { '--pc': P.color }, onclick: () => { prep.plan = k; audio.sfx('move', 0.4); onChange(); } },
+        h('b', {}, h('img', { src: icon(P.icon), alt: '' }), P.name), h('small', {}, P.desc), h('small', { class: 'pvs' }, planLine(k)),
+        rec.id === k ? h('span', { class: 'prec' }, '★ ' + rec.why) : null); }))),
     sec('Tactic deck', h('span', { class: 'dcount' + (prep.deck.length === 3 ? ' full' : '') }, `${prep.deck.length}/3`),
       h('div', { class: 'deck' }, ...TACTIC_IDS.map((id) => {
         const t = TACTICS[id], on = prep.deck.includes(id);
@@ -210,6 +215,7 @@ export function showResults(app, g, myTeam, onAgain, onMenu, extra = {}) {
   mount(screen(), h('div', { class: 'results' },
     h('div', { class: 'verdict ' + vcls }, verdict),
     h('div', { class: 'vsub muted' }, timeout ? `Decided on time: ${timeTiebreak(g)} · ` : '', `Game length ${fmtTime(g.time)}`),
+    extra.rival || null,
     extra.progress || null,
     potgEl || repEl ? h('div', { class: 'rrow' }, potgEl, repEl) : null,
     mvpCard,

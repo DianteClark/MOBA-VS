@@ -10,6 +10,8 @@ import { MOMENTS } from '../sim/moments-coach.js';
 import { HERO_BY_ID, ROLE_LABEL } from '../data/heroes.js';
 import { BUILDS } from '../data/items.js';
 import { h } from './dom.js';
+import { normPlan } from '../sim/plans.js';
+import { planLines } from './plans.js';
 
 const D = typeof document !== 'undefined'; // node (tools) has no DOM: only the recorder and analyze() run there
 const LANE = { top: 'Top', mid: 'Mid', bot: 'Bot' };
@@ -98,6 +100,9 @@ export class MatchRecorder {
       gold, ev: this.ev.slice(), missed: this.missed.slice(),
       calls: g.callLog.filter((c) => c.type !== 'tactic').map((c) => [r1(c.t / 20), c.team, c.type, c.type === 'permit' ? name(c.target) || name(c.hero) : c.lane || c.obj || '', c.result || 'expired', c.why || '', c.kind || '']),
       cc: extra.cc || null,
+      // game plans (v22): [start, end, halftime switch second] per team, the clock scale, and Protect the Carry's carry
+      plans: g.teams.map((t) => [normPlan(g.cfg.teams[t.id].plan), t.plan, t.planAt ? r1(t.planAt / 20) : 0]), k: g.rules.k || 1,
+      carry: g.teams.map((t) => (t.planCarry && t.planCarry.heroId) || ''),
     };
   }
 }
@@ -353,6 +358,7 @@ export function analysisCard(A, onOpen) {
     h('div', { class: 'rth' }, h('b', {}, 'Match story'), h('span', { class: 'rstats' }, 'Gold lead · Blue above, Red below'), h('button', { class: 'btn small anbtn', onclick: onOpen, title: 'Turning point, damage, calls and the full timeline' }, 'Analysis')),
     graphBox(A, d, { small: true }),
     d.turn ? h('div', { class: 'aturn' }, h('b', {}, 'Turning point'), h('span', {}, d.turn.text)) : null,
+    planLines(A),
     sum.length ? h('div', { class: 'asum muted' }, sum.join(' · ')) : null);
 }
 
@@ -398,6 +404,7 @@ function storyTab(A, d) {
   return h('div', { class: 'astory' },
     h('div', { class: 'asleft' }, graphBox(A, d, {}), legend,
       d.turn ? h('div', { class: 'aturn big' }, h('b', {}, `Turning point · ${d.turn.at}`), h('span', {}, d.turn.text)) : h('div', { class: 'aturn big' }, h('b', {}, 'No clear turning point'), h('span', {}, 'Nobody pulled away on gold.')),
+      planLines(A),
       h('div', { class: 'atiles' }, tile('Biggest lead', `${d.lead.max >= -d.lead.min ? 'Blue' : 'Red'} +${kGold(Math.max(d.lead.max, -d.lead.min))}`), tile('Fights', String(d.fights.length)), tile('Aces', String(d.fights.filter((f) => f.ace >= 0).length)),
         tile('Objectives', `${A.ev.filter((e) => e[1] === 'ob' && e[2] === 0).length} - ${A.ev.filter((e) => e[1] === 'ob' && e[2] === 1).length}`))),
     h('div', { class: 'tl' }, h('div', { class: 'tlh' }, 'Key moments'), rows.length ? rows : h('div', { class: 'muted' }, 'A quiet game.')));

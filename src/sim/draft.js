@@ -52,8 +52,9 @@ export function apply(d, team, heroId) {
   return true;
 }
 
-// AI / timeout pick. Deterministic given state (+ optional rng).
-export function autoChoice(d, team, rng, skill = 1) {
+// AI / timeout pick. Deterministic given state (+ optional rng). pref(heroDef, 'pick'|'ban') adds a rival coach's
+// habits (favourite heroes, preferred tags, ban style) to the score.
+export function autoChoice(d, team, rng, skill = 1, pref = null) {
   const t = currentTurn(d); if (!t) return null;
   const avail = HEROES.filter((h) => !taken(d).has(h.id));
   const enemy = d.picks[1 - team].map((id) => HERO_BY_ID[id]);
@@ -72,6 +73,7 @@ export function autoChoice(d, team, rng, skill = 1) {
       s = matchupScore(h, myHeroes).score * 2 + (h.tags.includes('scaling') ? 1 : 0) + (h.tags.includes('burst') ? 0.5 : 0);
       if (!assignRoles([...d.picks[1 - team], h.id])) s -= 4; // they can't use it anyway
     }
+    if (pref && s > -Infinity) s += pref(h, t.act);
     return s + (rng ? rng.next() * (skill >= 1 ? 1.5 : 4) : 0);
   };
   let best = null, bs = -Infinity;
