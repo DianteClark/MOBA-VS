@@ -414,7 +414,13 @@ export function heroThink(g, h) {
     case 'defend': {
       const nearIt = dist2(h, task) < (h.defIn ? 480 : 300) ** 2; h.defIn = nearIt;
       if (!nearIt) { h.why = 'defend base'; walk(g, h, task); return; }
-      h.why = 'defend: clear'; if (!farmAround(g, h, 520, true)) { h.task.until = Math.min(h.task.until, g.tick + sec(1)); h.vx = h.vy = 0; }
+      h.why = 'defend: clear';
+      if (!farmAround(g, h, 520, true)) {
+        // nothing to clear: stand between the structure and the closest visible attacker (inside tower cover)
+        const foe = ctx(g, h.team).enemies.filter((e) => dist2(e, task) < 700 * 700).sort((a, b) => dist2(a, task) - dist2(b, task))[0];
+        if (foe) { const d = norm(foe.x - task.x, foe.y - task.y); h.why = 'defend: guard'; if (arrive(g, h, g.world.nearestOpen({ x: task.x + d.x * 170, y: task.y + d.y * 170 }), 30, 90)) h.vx = h.vy = 0; }
+        else { h.task.until = Math.min(h.task.until, g.tick + sec(1)); h.vx = h.vy = 0; }
+      }
       return;
     }
     default:
@@ -880,6 +886,9 @@ function doLane(g, h, lane, push) {
   }
   const back = h.def.ranged ? 0.05 : 0.025;
   // stand just behind where the waves will clash (not back at base waiting for our own wave)
+  // nobody contesting this lane right now: walk up with the wave and push it (pressure, not standing around)
+  const C0 = ctx(g, h.team), quiet = !push && fl.hasWave && !C0.enemies.some((e) => dist2(e, h) < 1000 * 1000) && fl.foe > fl.prog + 0.1;
+  if (quiet) push = true;
   let prog = Math.min(fl.hasWave ? fl.prog : 1, fl.meet) - back;
   if (!fl.hasWave && fl.foe > 1) prog = fl.towerProg - 0.03;
   if (push && fl.hasWave) prog = fl.prog - 0.005;
@@ -948,7 +957,7 @@ function doJungle(g, h) {
   if (best) { h.jgCamp = best.key; h.why = 'jungle: to ' + best.def.name; walk(g, h, best); return; }
   h.jgCamp = null;
   // nothing up: wait at the camp that comes back first if it is close in time, else help a lane
-  if (next && nt < 22) { h.why = 'jungle: wait for ' + next.def.name; if (arrive(g, h, next, 80, 160)) h.vx = h.vy = 0; return; }
+  if (next && nt < 12) { h.why = 'jungle: wait for ' + next.def.name; if (arrive(g, h, next, 80, 160)) h.vx = h.vy = 0; return; }
   const L = g.teams[h.team].lanes, need = L && g.world.laneNames.find((l) => L[l] && L[l].need);
   doLane(g, h, need || h.lane || (g.time > 540 || g.world.laneNames.length === 1 ? 'mid' : (h.team === BLUE ? 'bot' : 'top')), false);
 }

@@ -96,7 +96,7 @@ async function runGames(ids, perf) {
             if (!e.alive || e.team === h.team) continue;
             if (e.type === 'minion' || e.type === 'mob' || e.type === 'summon' || (e.type === 'objective') || (e.type === 'hero' && g.vision[h.team].has(e.id)) || (e.structure && g.isTargetable(e) && e.type !== 'nexus' || e.type === 'nexus' && g.isTargetable(e))) { useful = true; break; }
           }
-          if (!useful) { both('idle', C.DT); add(out.idleBy || (out.idleBy = {}), h.task.kind, C.DT); }
+          if (!useful) { both('idle', C.DT); add(out.idleBy || (out.idleBy = {}), process.env.V ? (h.why || h.task.kind).replace(/ [A-Z][a-z]+( [A-Z][a-z]+)?$/, '') : h.task.kind, C.DT); }
         }
         // ── reversals (out of combat walking) ──
         const walking = h._wgT === now - 1; // set during the step that just ran
