@@ -1,6 +1,8 @@
 // Balance scan: AI-vs-AI self-play with balanced hero coverage, run on worker threads.
 //   node tools/balance.mjs [games=60] [workers=2] [--seed N] [--smart] [--json out.json] [--log games.jsonl] [--quiet]
 //   node tools/balance.mjs --from a.jsonl[,b.jsonl] [--json out.json]   (re-aggregate saved games)
+//   --nudge K   also move each hero's TUNE multiplier toward 50% (delta = (0.5 - shrunk win rate) * K,
+//               max ±6% per pass, clamp 0.8-1.2) and rewrite src/data/tuning.js (same format as tune.mjs)
 // Each game draws heroes from shuffled per-role decks so every hero gets the same number of games.
 // Builds are random from each hero's list (so every build gets played); --smart uses aiPrep
 // (situational builds) instead.
@@ -44,7 +46,7 @@ if (!isMainThread) {
   const args = process.argv.slice(2);
   const flag = (k) => args.includes('--' + k);
   const opt = (k, d) => { const i = args.indexOf('--' + k); return i >= 0 ? args[i + 1] : d; };
-  const pos = args.filter((a, i) => !a.startsWith('--') && !['--seed', '--json', '--log', '--from'].includes(args[i - 1]));
+  const pos = args.filter((a, i) => !a.startsWith('--') && !['--seed', '--json', '--log', '--from', '--nudge'].includes(args[i - 1]));
   const N = +(pos[0] || 60), NW = +(pos[1] || 2), seed0 = +opt('seed', 9000);
   const { HEROES, ROLES, HERO_BY_ID } = await import('../src/data/heroes.js');
   const { BUILDS } = await import('../src/data/items.js');
@@ -122,4 +124,19 @@ if (!isMainThread) {
   console.log(`\nRange sanity: hero attack range cap ${cap} (towers ${RANGE.tower}). Would exceed without cap: ${over.map((r) => `${r.id} ${r.max}`).join(', ') || 'none'}`);
   const out = opt('json', null);
   if (out) writeFileSync(out, JSON.stringify({ n, blue, len, timeouts, ev, H, B: Object.fromEntries(Object.entries(B).map(([k, v]) => [k, { g: v.g, w: v.w, heroes: [...v.heroes] }])), HB, C, rangeRows, cap }, null, 1));
+  const K = +opt('nudge', 0);
+  if (K) {
+    const { TUNE } = await import('../src/data/tuning.js');
+    const tune = Object.fromEntries(HEROES.map((h) => [h.id, TUNE[h.id] || 1]));
+    const moved = [];
+    for (const h of HEROES) {
+      const s = H[h.id]; if (!s) continue;
+      const rate = (s.w + 4) / (s.g + 8), d = Math.max(-0.06, Math.min(0.06, (0.5 - rate) * K));
+      const v = Math.max(0.8, Math.min(1.2, +(tune[h.id] * (1 + d)).toFixed(3)));
+      if (v !== tune[h.id]) moved.push(`${h.id} ${tune[h.id]}->${v}`); tune[h.id] = v;
+    }
+    const body = Object.entries(tune).filter(([, v]) => v !== 1).map(([k, v]) => `  ${k}: ${v},`).join('\n');
+    writeFileSync(new URL('../src/data/tuning.js', import.meta.url), `// Per-hero power multipliers produced by tools/tune.mjs (self-play balance).\n// 1.00 = untouched. Applied as +/- damage and a little +/- health.\nexport const TUNE = {\n${body}\n};\n`);
+    console.log(`\nTUNE nudged (K=${K}): ${moved.join(', ')}`);
+  }
 }
