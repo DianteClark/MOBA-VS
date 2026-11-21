@@ -1,7 +1,7 @@
 // The deterministic match simulation. Same seed + same commands => same game.
 import { Rng, hashInts } from './rng.js';
 import { dist2, dist, norm, r2 } from './geom.js';
-import { DT, sec, BLUE, RED, NEUTRAL, T, GOLD, XP, xpNeeded, VISION, CMD, DRAGONS, MATCH_SECONDS, RANGE, CLANS, WEATHER, FINAL, HALFTIME, PACE, MOMENTUM, PERMIT } from './constants.js';
+import { DT, sec, BLUE, RED, NEUTRAL, T, GOLD, XP, xpNeeded, VISION, CMD, DRAGONS, RANGE, CLANS, WEATHER, HALFTIME, MOMENTUM, PERMIT } from './constants.js';
 import { LEASH } from './constants.js';
 import { World, S as MAP_SIZE, C as CELL, N as GRID_N } from './world.js';
 import { MAP_BY_ID } from '../maps/defs.js';
@@ -11,6 +11,8 @@ import { TUNE } from '../data/tuning.js';
 import { BUILDS } from '../data/items.js';
 import { heroThink, heroMacro, laneBrain } from './ai.js';
 import { Coach } from './coach.js';
+import { rulesFor } from './modes.js';
+import { applyMoment } from './moments-coach.js';
 
 // Champion-vs-champion damage scale: keeps fights readable and lanes from snowballing at level 1.
 const STEER_K = +(globalThis.process?.env?.SK || 0.45);
@@ -52,6 +54,7 @@ export class Game {
   constructor(cfg) {
     this.cfg = cfg;
     this.rng = new Rng(cfg.seed >>> 0);
+    this.mode = cfg.mode || 'classic'; this.rules = rulesFor(this.mode); this.T = this.rules.T;
     this.tick = 0;
     this.nextId = 1;
     this.units = [];          // everything that can be hit
@@ -71,17 +74,17 @@ export class Game {
       charges: 1, kills: 0, towers: 0, dragons: [], soul: null, heraldEye: 0, baronUntil: 0, elderUntil: 0,
       focus: null, call: null, heroes: [], goldHistory: [], invadeCamp: null,
       deck: (cfg.teams[t].deck || DEFAULT_DECK).slice(0, 3).map((id) => ({ id, used: false })), siegeWaves: {}, siegeUntil: 0, fortifyUntil: 0, pactUntil: 0, swapUntil: 0,
-      momentum: 0, surgeUntil: 0, permitCd: 0,
+      momentum: 0, surgeUntil: 0, permitCd: 0, moments: {}, momentCd: 0, allOut: 0,
     }));
     this.world = new World(MAP_BY_ID[cfg.map] || MAP_BY_ID.sakura);
     this.visGrid = [new Uint8Array(GRID_N * GRID_N), new Uint8Array(GRID_N * GRID_N)];
     this.camps = [];
     this.objectives = { dragon: null, herald: null, baron: null };
-    this.objTimers = { dragon: sec(T.dragonFirst), herald: sec(T.heraldFirst), baron: sec(T.baronFirst) };
+    this.objTimers = { dragon: sec(this.T.dragonFirst), herald: sec(this.T.heraldFirst), baron: sec(this.T.baronFirst) };
     this.dragonQueue = [];
     this.nextDragon = this.rollDragon();
     this.waveCount = 0;
-    this.nextWave = sec(T.firstWave);
+    this.nextWave = sec(this.T.firstWave);
     this.coaches = [null, null];
     this.setupStructures();
     this.setupCamps();
@@ -107,14 +110,16 @@ export class Game {
   }
 
   get time() { return this.tick * DT; }
-  get timeLeft() { return Math.max(0, MATCH_SECONDS - this.time); }
-  get siegeRamp() { return 1 + Math.max(0, this.time - PACE.rampFrom) / PACE.rampPer; }
-  get finalPhase() { return this.time >= FINAL.at; }
-  get finalMult() { return this.time >= FINAL.at ? FINAL.gold : 1; }
-  get halftimeTick() { return sec(HALFTIME.at); }
+  get timeLeft() { return Math.max(0, this.rules.seconds - this.time); }
+  get siegeRamp() { return 1 + Math.max(0, this.time - this.rules.pace.rampFrom) / this.rules.pace.rampPer; }
+  get finalPhase() { return this.time >= this.rules.final.at; }
+  get finalMult() { return this.time >= this.rules.final.at ? this.rules.final.gold : 1; }
+  get halftimeTick() { return this.rules.halftime ? sec(this.rules.halftime) : -1; }
+  // Minutes on a classic-match clock (side modes run their scaling faster).
+  get gameMinute() { return this.time / 60 * this.rules.timeScale; }
   get wx() { return WEATHER[this.weatherList[Math.max(0, this.weatherIdx)]] || WEATHER.clear; }
   updateWeather() {
-    const idx = Math.min(this.weatherList.length - 1, Math.floor(this.time / T.weatherPhase));
+    const idx = Math.min(this.weatherList.length - 1, Math.floor(this.time / this.T.weatherPhase));
     if (idx !== this.weatherIdx) { this.weatherIdx = idx; this.emit({ type: 'weather', weather: this.weatherList[idx] }); }
   }
   towersStanding(team) { let n = 0; for (const u of this.units) if (u.type === 'tower' && u.team === team && u.alive) n++; return n; }
@@ -198,7 +203,7 @@ export class Game {
   }
 
   updateShrines() {
-    if (this.time < T.shrineUnlock) return;
+    if (this.time < this.T.shrineUnlock) return;
     const step = 5 * DT;
     for (const sh of this.shrines) {
       const n = [0, 0];
@@ -234,6 +239,7 @@ export class Game {
       const t = s.team, pos = { x: s.x, y: s.y };
       const base = s.kind === 'nexus' ? { hp: 3600, ad: 0, range: 0 } : s.kind === 'inhib' ? { hp: 2000, ad: 0, range: 0 }
         : { hp: [0, 2300, 2500, 2700, 2200][s.tier], ad: 160, range: RANGE.tower };
+      base.hp *= this.rules.towerHp;
       this.addUnit({ type: s.kind === 'tower' ? 'tower' : s.kind, team: t, x: pos.x, y: pos.y, tier: s.tier || 0, lane: s.lane,
         maxHp: base.hp, hp: base.hp, radius: s.kind === 'nexus' ? 50 : 34, structure: true,
         stats: { ad: base.ad, ap: 0, armor: 40, mr: 40, as: 0.83, range: base.range, ms: 0, pen: 0 }, streak: 0 });
@@ -250,11 +256,13 @@ export class Game {
   spawnHero(team, spec) {
     const def = HERO_BY_ID[spec.id];
     const f = this.world.fountain[team];
+    const lane = this.world.laneNames.length === 1 ? this.world.laneNames[0] : ROLE_LANE[spec.role]; // single-lane maps: everyone lanes together
+    const gold0 = this.rules.startGold || GOLD.start;
     const h = this.addUnit({
-      type: 'hero', team, def, heroId: def.id, role: spec.role, lane: ROLE_LANE[spec.role], homeLane: ROLE_LANE[spec.role],
+      type: 'hero', team, def, heroId: def.id, role: spec.role, lane, homeLane: lane,
       build: spec.build || def.rec, items: [], x: f.x + (this.teams[team].heroes.length - 2) * 22, y: f.y - (this.teams[team].heroes.length - 2) * 22,
-      level: 1, xp: 0, gold: GOLD.start, radius: 14, cds: [0, 0, 0], castLock: 0, dash: null, every3: 0, passiveCd: 0,
-      kills: 0, deaths: 0, assists: 0, cs: 0, dmgHeroes: 0, dmgTaken: 0, healed: 0, goldEarned: GOLD.start, streak: 0,
+      level: this.rules.startLevel, xp: 0, gold: gold0, radius: 14, cds: [0, 0, 0], castLock: 0, dash: null, every3: 0, passiveCd: 0,
+      kills: 0, deaths: 0, assists: 0, cs: 0, dmgHeroes: 0, dmgTaken: 0, healed: 0, goldEarned: gold0, streak: 0,
       respawnAt: 0, recallAt: 0, flashCd: 0, task: { kind: 'idle' }, dmgBy: {}, lowShieldCd: 0, smiteCd: 0, wardCd: sec(50), lastHurtByHero: -999,
       stats: null, maxHp: 1, hp: 1, trust: 50, tiltUntil: 0, pendingCall: null, stealthUntil: 0, ambushUntil: 0, revealUntil: 0,
     });
@@ -368,10 +376,10 @@ export class Game {
     const next = BUILDS[h.build].items.find((it) => !h.items.some((o) => o.name === it.name));
     return next ? next.cost : Infinity;
   }
-  giveGold(h, g) { h.gold += g; h.goldEarned += g; }
+  giveGold(h, g) { g *= this.rules.gold; h.gold += g; h.goldEarned += g; }
   giveXp(h, x) {
     if (h.level >= XP.maxLevel) return;
-    h.xp += x;
+    h.xp += x * this.rules.xp;
     while (h.level < XP.maxLevel && h.xp >= xpNeeded(h.level)) {
       h.xp -= xpNeeded(h.level); h.level++;
       this.recalc(h); h.hp = Math.min(h.maxHp, h.hp + h.def.base.hpL * 0.6);
@@ -413,7 +421,7 @@ export class Game {
       }
       case 'shrine': {
         const target = this.shrines.filter((x) => x.owner !== c.team).sort((a, b) => (c.shrine === a.id ? -1 : 0) - (c.shrine === b.id ? -1 : 0) || dist2(a, this.world.fountain[c.team]) - dist2(b, this.world.fountain[c.team]))[0];
-        if (!target || this.time < T.shrineUnlock) { ok = false; break; }
+        if (!target || this.time < this.T.shrineUnlock) { ok = false; break; }
         const pick = alive.slice().sort((a, b) => (a.role === 'jungle' ? -1 : 0) - (b.role === 'jungle' ? -1 : 0) || dist2(a, target) - dist2(b, target)).slice(0, 2);
         for (const h of pick) this.setCallTask(h, { kind: 'shrine', shrine: target.id, until: until(25), call: true });
         break;
@@ -464,6 +472,7 @@ export class Game {
         break;
       }
       case 'tactic': ok = this.playTactic(c); break;
+      case 'moment': ok = applyMoment(this, c); break;
       case 'ult': {
         // Ult calls: 'save' holds ultimates for a kill or self-defence; 'go' fires them in the next fight.
         if (c.mode !== 'save' && c.mode !== 'go' && c.mode !== 'free') { ok = false; break; }
@@ -474,8 +483,8 @@ export class Game {
       case 'plan': if (!['balanced', 'aggressive', 'scaling'].includes(c.plan)) { ok = false; break; } team.plan = c.plan; break;
       case 'redraw': {
         // Halftime only: swap one unused tactic card for another not in the deck.
-        const ht = sec(HALFTIME.at), now = this.tick;
-        if (now < ht || now > ht + sec(HALFTIME.window) || team.redrawn || !TACTICS[c.to] || team.deck.some((d) => d.id === c.to)) { ok = false; break; }
+        const ht = this.halftimeTick, now = this.tick;
+        if (ht < 0 || now < ht || now > ht + sec(HALFTIME.window) || team.redrawn || !TACTICS[c.to] || team.deck.some((d) => d.id === c.to)) { ok = false; break; }
         const d = team.deck.find((x) => x.id === c.card && !x.used); if (!d) { ok = false; break; }
         d.id = c.to; team.redrawn = true; break;
       }
@@ -586,7 +595,7 @@ export class Game {
   // An objective can be called if it is up or wakes within 25s.
   objAvailable(o) {
     const u = this.objectives[o]; if (u && u.alive) return true;
-    const t = this.objTimers[o]; return !!t && t - this.tick <= sec(25) && (o !== 'herald' || this.time < T.heraldDespawn);
+    const t = this.objTimers[o]; return !!t && t - this.tick <= sec(25) && (o !== 'herald' || this.time < this.T.heraldDespawn);
   }
 
   byId(id) { for (const u of this.units) if (u.id === id) return u; return null; }
@@ -609,9 +618,9 @@ export class Game {
     }
 
     this.updateWeather();
-    if (now === sec(FINAL.at)) this.emit({ type: 'finalPhase' });
-    if (now === sec(PACE.wrathFrom)) this.emit({ type: 'wrath' });
-    if (now === sec(HALFTIME.at)) this.emit({ type: 'halftime' });
+    if (now === sec(this.rules.final.at)) this.emit({ type: 'finalPhase' });
+    if (now === sec(this.rules.pace.wrathFrom)) this.emit({ type: 'wrath' });
+    if (now === this.halftimeTick) this.emit({ type: 'halftime' });
     if (now % 5 === 0) this.updateShrines();
     this.spawnWaves();
     this.updateCamps();
@@ -644,7 +653,7 @@ export class Game {
     this.separate();
     this.fountain();
 
-    if (!this.over && this.time >= MATCH_SECONDS) this.timeUp();
+    if (!this.over && this.time >= this.rules.seconds) this.timeUp();
     // cleanup
     if (now % 20 === 0) {
       if (this.callLog.length) this.resolveCalls({ type: 'tick' });
@@ -658,21 +667,24 @@ export class Game {
   // ───────────────────────── waves ─────────────────────────
   spawnWaves() {
     if (this.tick < this.nextWave) return;
-    this.nextWave += sec(T.waveEvery);
+    this.nextWave += sec(this.T.waveEvery);
     this.waveCount++;
-    const minute = this.time / 60;
+    const minute = this.gameMinute;
     for (let t = 0; t < 2; t++) for (const ln of this.world.laneNames) {
       const kinds = ['melee', 'melee', 'melee', 'caster', 'caster', 'caster'];
-      if (this.waveCount % T.siegeEvery === 0 || this.time >= PACE.siegeAllFrom) kinds.splice(3, 0, 'siege');
-      if (this.time >= PACE.wrathFrom) kinds.unshift('super');
+      if (this.waveCount % this.T.siegeEvery === 0 || this.time >= this.rules.pace.siegeAllFrom) kinds.splice(3, 0, 'siege');
+      if (this.time >= this.rules.pace.wrathFrom) kinds.unshift('super');
       const enemyInhibDown = this.units.some((u) => u.type === 'inhib' && u.team !== t && u.lane === ln && !u.alive);
       if (enemyInhibDown) kinds.unshift('super', 'super');
       let baron = this.teams[t].heroes.some((h) => h.alive && h.baronUntil > this.tick);
       if (this.teams[t].siegeWaves[ln] > 0) { this.teams[t].siegeWaves[ln]--; baron = true; }
-      kinds.forEach((k, i) => this.spawnMinion(t, ln, k, i, minute, baron));
+      const allOut = this.teams[t].allOut > 0; // Coach Moment: All-Out Push
+      if (allOut) kinds.unshift('super');
+      kinds.forEach((k, i) => this.spawnMinion(t, ln, k, i, minute, baron, allOut));
     }
+    for (const tm of this.teams) if (tm.allOut > 0) tm.allOut--;
   }
-  spawnMinion(team, lane, kind, i, minute, baron) {
+  spawnMinion(team, lane, kind, i, minute, baron, allOut) {
     const pts = this.world.lanes[lane];
     const start = team === BLUE ? pts[0] : pts[pts.length - 1];
     const nextIdx = team === BLUE ? 1 : pts.length - 2;
@@ -681,11 +693,11 @@ export class Game {
     const S = { melee: { hp: 480, ad: 14, range: 46, as: 1.0, armor: 0, mr: 0 }, caster: { hp: 300, ad: 24, range: 165, as: 0.67, armor: 0, mr: 0 },
       siege: { hp: 900, ad: 42, range: 210, as: 0.5, armor: 25, mr: 0 }, super: { hp: 1600, ad: 120, range: 60, as: 0.85, armor: 40, mr: 0 } }[kind];
     const growth = 1 + minute * 0.055;
-    const bm = baron ? 1.5 : 1;
+    const bm = (baron ? 1.5 : 1) * (allOut ? 1.6 : 1);
     const hp = S.hp * growth * bm;
     this.addUnit({ type: 'minion', kind, team, lane, x: start.x + d.x * (60 - back) + (i % 2 ? 6 : -6), y: start.y + d.y * (60 - back), wp: nextIdx,
-      maxHp: hp, hp, radius: kind === 'siege' || kind === 'super' ? 12 : 9, empowered: baron,
-      stats: { ad: S.ad * growth * bm, ap: 0, armor: S.armor * (baron ? 1.5 : 1), mr: S.mr, as: S.as, range: S.range, ms: 72, pen: 0 } });
+      maxHp: hp, hp, radius: kind === 'siege' || kind === 'super' ? 12 : 9, empowered: baron || allOut, allOut: !!allOut,
+      stats: { ad: S.ad * growth * bm, ap: 0, armor: S.armor * (baron ? 1.5 : 1), mr: S.mr, as: S.as, range: S.range, ms: allOut ? 84 : 72, pen: 0 } });
   }
   spawnSummon(team, lane) {
     // Herald charges down the lane from the team's furthest allied presence.
@@ -708,7 +720,7 @@ export class Game {
 
   // ───────────────────────── jungle ─────────────────────────
   updateCamps() {
-    const minute = this.time / 60;
+    const minute = this.gameMinute;
     for (const c of this.camps) {
       if (c.mobs.length) { c.mobs = c.mobs.filter((m) => m.alive); if (!c.mobs.length) c.respawnAt = this.tick + sec(c.def.buff ? T.buffRespawn : T.campRespawn); continue; }
       if (this.tick >= c.respawnAt && c.respawnAt > 0) {
@@ -727,7 +739,7 @@ export class Game {
   }
 
   updateObjectivesSpawn() {
-    const now = this.tick, minute = this.time / 60;
+    const now = this.tick, minute = this.gameMinute;
     const ob = this.objectives;
     if (!ob.dragon && this.objTimers.dragon && now >= this.objTimers.dragon) {
       const elder = this.teams.some((t) => t.soul);
@@ -739,7 +751,7 @@ export class Game {
       this.emit({ type: 'spawn', obj: 'dragon', element: el });
     }
     if (!ob.herald && this.objTimers.herald && now >= this.objTimers.herald && !ob.baron) {
-      if (this.time < T.heraldDespawn - 20) {
+      if (this.time < this.T.heraldDespawn - 20) {
         const hp = 5000 + minute * 100;
         ob.herald = this.addUnit({ type: 'objective', kind: 'herald', team: NEUTRAL, x: this.world.pits.kraken.x, y: this.world.pits.kraken.y, home: { ...this.world.pits.kraken },
           maxHp: hp, hp, radius: 26, big: true, boss: true, stats: { ad: 80, ap: 0, armor: 50, mr: 50, as: 0.6, range: 90, ms: 80, pen: 0 } });
@@ -747,7 +759,7 @@ export class Game {
       }
       this.objTimers.herald = 0;
     }
-    if (ob.herald && ob.herald.alive && this.time >= T.heraldDespawn) { ob.herald.alive = false; ob.herald = null; this.emit({ type: 'despawn', obj: 'herald' }); }
+    if (ob.herald && ob.herald.alive && this.time >= this.T.heraldDespawn) { ob.herald.alive = false; ob.herald = null; this.emit({ type: 'despawn', obj: 'herald' }); }
     if (!ob.baron && this.objTimers.baron && now >= this.objTimers.baron && !(ob.herald && ob.herald.alive)) {
       const hp = 9000 + Math.max(0, minute - 9) * 220;
       ob.baron = this.addUnit({ type: 'objective', kind: 'baron', team: NEUTRAL, x: this.world.pits.kraken.x, y: this.world.pits.kraken.y, home: { ...this.world.pits.kraken },
@@ -820,10 +832,10 @@ export class Game {
       if (tgt.structure && !flags.summon) {
         // Backdoor protection: heroes deal reduced damage without minion cover.
         const cover = this.grid.query(tgt.x, tgt.y, 450).some((u) => (u.type === 'minion' || u.type === 'summon') && u.team === src.team && u.alive);
-        if (!cover && this.time < PACE.backdoorOffFrom) amt *= 0.5;
+        if (!cover && this.time < this.rules.pace.backdoorOffFrom) amt *= 0.5;
       }
     }
-    if (tgt.structure) amt *= this.siegeRamp;
+    if (tgt.structure) amt *= this.siegeRamp * (src && src.type === 'minion' ? this.rules.minionSiege : 1);
     if (tgt.structure && tgt.team < 2 && this.teams[tgt.team].fortifyUntil > this.tick) amt *= 0.6;
     if (type !== 'true') {
       const res = type === 'phys' ? (tgt.stats.armor || 0) : (tgt.stats.mr || 0);
@@ -1519,7 +1531,7 @@ export class Game {
         if (u.task.call) this.addTrust(u, -8, 'died on call');
         if (u.pers.tilts) { u.tiltUntil = now + sec(60); this.addTrust(u, -4, 'tilted'); }
         u.pendingCall = null; u.stealthUntil = 0;
-        u.respawnAt = now + sec(Math.min(40, (4 + u.level * 1.7 + Math.max(0, this.time / 60 - 10) * 0.6) * (this.finalPhase ? FINAL.respawn : 1)));
+        u.respawnAt = now + sec(Math.min(40, (4 + u.level * 1.7 + Math.max(0, this.time / 60 - 10) * 0.6) * (this.finalPhase ? this.rules.final.respawn : 1) * this.rules.respawn));
         u.dash = null; u.recallAt = 0; u.burns = []; u.task = { kind: 'idle' };
         const assists = [];
         for (const k in u.dmgBy) { const a = this.byId(+k); if (a && a !== killer && u.dmgBy[k] > now - sec(10) && a.team !== u.team) assists.push(a); }
@@ -1573,7 +1585,7 @@ export class Game {
         for (const h of tm.heroes) if (h.alive) { this.giveGold(h, GOLD.objectiveTeam * this.finalMult); this.giveXp(h, 120); this.addTrust(h, 3, 'objective'); }
         this.addMomentum(team, MOMENTUM.objective);
         if (u.kind === 'dragon') {
-          if (u.element === 'elder') { for (const h of tm.heroes) if (h.alive) h.elderUntil = now + sec(T.elderBuff); this.objTimers.dragon = now + sec(T.elderRespawn); }
+          if (u.element === 'elder') { for (const h of tm.heroes) if (h.alive) h.elderUntil = now + sec(this.T.elderBuff); this.objTimers.dragon = now + sec(this.T.elderRespawn); }
           else {
             tm.dragons.push(u.element);
             if (tm.dragons.length >= 4 && !tm.soul) {
@@ -1582,16 +1594,16 @@ export class Game {
               tm.soul = best; this.emit({ type: 'soul', team, element: best });
             }
             this.nextDragon = this.rollDragon();
-            this.objTimers.dragon = now + sec(this.teams.some((t) => t.soul) ? T.elderRespawn : T.dragonRespawn);
+            this.objTimers.dragon = now + sec(this.teams.some((t) => t.soul) ? this.T.elderRespawn : this.T.dragonRespawn);
           }
           for (const h of tm.heroes) this.recalc(h);
         } else if (u.kind === 'herald') {
-          tm.heraldEye = now + sec(T.heraldEye);
-          if (this.time + T.heraldRespawn < T.heraldDespawn) this.objTimers.herald = now + sec(T.heraldRespawn);
+          tm.heraldEye = now + sec(this.T.heraldEye);
+          if (this.time + this.T.heraldRespawn < this.T.heraldDespawn) this.objTimers.herald = now + sec(this.T.heraldRespawn);
         } else if (u.kind === 'baron') {
-          for (const h of tm.heroes) if (h.alive) { h.baronUntil = now + sec(T.baronBuff); this.recalc(h); }
-          tm.baronUntil = now + sec(T.baronBuff);
-          this.objTimers.baron = now + sec(T.baronRespawn);
+          for (const h of tm.heroes) if (h.alive) { h.baronUntil = now + sec(this.T.baronBuff); this.recalc(h); }
+          tm.baronUntil = now + sec(this.T.baronBuff);
+          this.objTimers.baron = now + sec(this.T.baronRespawn);
         }
         const ev = { type: 'objective', obj: u.kind, element: u.element, team, killer: killer ? killer.id : 0, steal: smite };
         this.emit(ev); this.resolveCalls(ev);
@@ -1603,7 +1615,7 @@ export class Game {
         for (const h of this.teams[team].heroes) this.giveGold(h, (u.type === 'tower' ? GOLD.tower : GOLD.inhib) * this.finalMult);
         if (u.type === 'tower') this.teams[team].towers++;
         this.addMomentum(team, MOMENTUM.tower);
-        if (u.type === 'inhib') u.respawnAt = now + sec(T.inhibRespawn);
+        if (u.type === 'inhib') u.respawnAt = now + sec(this.T.inhibRespawn);
         const sev = { type: u.type === 'tower' ? 'tower' : 'inhib', team, lane: u.lane, tier: u.tier, x: u.x, y: u.y };
         this.emit(sev); this.resolveCalls(sev);
         break;
@@ -1641,7 +1653,7 @@ export class Game {
     let h = 2166136261 >>> 0;
     h = hashInts(h, this.tick, this.units.length, this.projectiles.length, this.rng.state());
     for (const u of this.units) if (u.alive) h = hashInts(h, u.id, r2(u.x), r2(u.y), r2(u.hp));
-    for (const t of this.teams) { h = hashInts(h, r2(t.momentum), t.surgeUntil); for (const x of t.heroes) h = hashInts(h, r2(x.gold), x.level, x.items.length); }
+    for (const t of this.teams) { h = hashInts(h, r2(t.momentum), t.surgeUntil, t.momentCd, t.allOut); for (const x of t.heroes) h = hashInts(h, r2(x.gold), x.level, x.items.length); }
     return h >>> 0;
   }
 

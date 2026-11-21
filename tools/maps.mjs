@@ -1,11 +1,11 @@
 // Validate every map: connectivity of all key points, and dump a PPM preview per map.
 //   node tools/maps.mjs [outDir]
 import { writeFileSync } from 'node:fs';
-import { MAPS } from '../src/maps/defs.js';
+import { MAPS, RUSH_MAPS } from '../src/maps/defs.js';
 import { World, N, C } from '../src/sim/world.js';
 const out = process.argv[2];
 let bad = 0;
-for (const def of MAPS) {
+for (const def of [...MAPS, ...RUSH_MAPS]) {
   const w = new World(def);
   const seen = new Uint8Array(N * N); const q = [];
   const s = w.nearestOpen(w.fountain[0]); const s0 = w.idx(s.x, s.y); seen[s0] = 1; q.push(s0);
@@ -17,7 +17,8 @@ for (const def of MAPS) {
   for (const [n, p] of pts) { const o = w.nearestOpen(p); if (!seen[w.idx(o.x, o.y)] || Math.hypot(o.x - p.x, o.y - p.y) > 60) { console.log(`  ✘ ${def.id}: ${n} unreachable`); miss++; } }
   bad += miss;
   const open = w.walk.reduce((a, b) => a + b, 0), brush = w.brush.reduce((a, b) => a + b, 0);
-  const t0 = Date.now(); let plen = 0; for (let k = 0; k < 50; k++) { const p = w.findPath(w.fountain[0].x, w.fountain[0].y, w.camps[k % w.camps.length].x, w.camps[k % w.camps.length].y); plen += p.length; } const ms = (Date.now() - t0) / 50;
+  const goals = w.camps.length ? w.camps : [w.pits.kami, w.pits.kraken, w.fountain[1]];
+  const t0 = Date.now(); let plen = 0; for (let k = 0; k < 50; k++) { const p = w.findPath(w.fountain[0].x, w.fountain[0].y, goals[k % goals.length].x, goals[k % goals.length].y); plen += p.length; } const ms = (Date.now() - t0) / 50;
   console.log(`${def.name}: open ${(open / N / N * 100).toFixed(0)}%, brush cells ${brush}, structures ${w.structures.length}, A* ${ms.toFixed(2)}ms avg, ${miss ? 'ISSUES' : 'all reachable ✔'}`);
   if (out) {
     const px = 4, Wd = N * px; const buf = Buffer.alloc(Wd * Wd * 3);

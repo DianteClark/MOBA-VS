@@ -64,7 +64,7 @@ async function runGames(ids, perf) {
     const R = (h) => out.role[h.role] || (out.role[h.role] = {});
     let ev = 0;
     const towerSeen = new Map(), s0 = new Map(), leashT = new Map();
-    while (!g.over && g.time < C.MATCH_SECONDS + 1) {
+    while (!g.over && g.time < (g.rules ? g.rules.seconds : C.MATCH_SECONDS) + 1) {
       const t0 = perf ? performance.now() : 0;
       g.step([]); g.fx.length = 0;
       if (perf) { out.tickMs.push(performance.now() - t0); continue; }
