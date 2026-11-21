@@ -1,8 +1,15 @@
-// Validate every map: connectivity of all key points, and dump a PPM preview per map.
+// Validate every map: connectivity of all key points, no objective pit / jungle camp inside tower
+// range (with a safety margin), and dump a PPM preview per map.
 //   node tools/maps.mjs [outDir]
 import { writeFileSync } from 'node:fs';
 import { MAPS } from '../src/maps/defs.js';
 import { World, N, C } from '../src/sim/world.js';
+import { RANGE } from '../src/sim/constants.js';
+// A tower acquires heroes whose centre is within RANGE.tower + 14 (see Game.updateTower).
+const REACH = RANGE.tower + 14;
+// Pits: the whole pit (r 150) stays out of reach, plus a 60px margin for heroes fighting at its rim.
+// Camps: mobs spread ~34px from the camp centre, plus a 42px margin.
+const PIT_CLEAR = REACH + 150 + 60, CAMP_CLEAR = REACH + 34 + 42;
 const out = process.argv[2];
 let bad = 0;
 for (const def of MAPS) {
@@ -14,11 +21,18 @@ for (const def of MAPS) {
   for (const ln of w.laneNames) for (let k = 0; k <= 20; k++) pts.push([`${ln}@${k / 20}`, w.lanePoint(ln, k / 20)]);
   for (const st of w.structures) { const near = [[0, 40], [40, 0], [0, -40], [-40, 0], [50, 50], [-50, -50], [50, -50], [-50, 50]].some(([dx, dy]) => w.isWalk(st.x + dx, st.y + dy) && seen[w.idx(st.x + dx, st.y + dy)]); if (!near) { console.log(`  ✘ ${def.id}: structure ${st.kind} ${st.lane} t${st.team} unreachable`); bad++; } }
   let miss = 0;
+  const towers = w.structures.filter((st) => st.kind === 'tower');
+  const clearOf = (p) => Math.min(...towers.map((t) => Math.hypot(t.x - p.x, t.y - p.y)));
+  let minPit = 1e9, minCamp = 1e9;
+  for (const [n, p, need] of [['kraken pit', w.pits.kraken, PIT_CLEAR], ['kami pit', w.pits.kami, PIT_CLEAR], ...w.camps.map((c) => ['camp ' + c.id + c.side, c, CAMP_CLEAR])]) {
+    const d = clearOf(p); if (need === PIT_CLEAR) minPit = Math.min(minPit, d); else minCamp = Math.min(minCamp, d);
+    if (d < need) { console.log(`  ✘ ${def.id}: ${n} only ${Math.round(d)}px from a tower (needs ${need})`); miss++; }
+  }
   for (const [n, p] of pts) { const o = w.nearestOpen(p); if (!seen[w.idx(o.x, o.y)] || Math.hypot(o.x - p.x, o.y - p.y) > 60) { console.log(`  ✘ ${def.id}: ${n} unreachable`); miss++; } }
   bad += miss;
   const open = w.walk.reduce((a, b) => a + b, 0), brush = w.brush.reduce((a, b) => a + b, 0);
   const t0 = Date.now(); let plen = 0; for (let k = 0; k < 50; k++) { const p = w.findPath(w.fountain[0].x, w.fountain[0].y, w.camps[k % w.camps.length].x, w.camps[k % w.camps.length].y); plen += p.length; } const ms = (Date.now() - t0) / 50;
-  console.log(`${def.name}: open ${(open / N / N * 100).toFixed(0)}%, brush cells ${brush}, structures ${w.structures.length}, A* ${ms.toFixed(2)}ms avg, ${miss ? 'ISSUES' : 'all reachable ✔'}`);
+  console.log(`${def.name}: open ${(open / N / N * 100).toFixed(0)}%, brush cells ${brush}, structures ${w.structures.length}, A* ${ms.toFixed(2)}ms avg, tower clearance pit ${Math.round(minPit)}/${PIT_CLEAR} camp ${Math.round(minCamp)}/${CAMP_CLEAR}, ${miss ? 'ISSUES' : 'all reachable ✔'}`);
   if (out) {
     const px = 4, Wd = N * px; const buf = Buffer.alloc(Wd * Wd * 3);
     const col = { 0: [30, 60, 30], 1: [110, 170, 70], 2: [170, 120, 80], 3: [80, 150, 200], 4: [140, 140, 170], 5: [110, 100, 90], 6: [230, 200, 90], 7: [130, 180, 90] };
