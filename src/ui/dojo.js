@@ -86,6 +86,7 @@ function heroPage(app, id) {
         h('button', { class: 'navb', title: 'Next hero', onclick: () => showDojo(app, { hero: step(1) }) }, '›')),
       animBtns,
       h('div', { class: 'dh-name' }, h('h2', {}, x.name), h('div', { class: 'muted' }, x.title)),
+      x.lore ? h('p', { class: 'muted small' }, x.lore) : null,
       h('div', { class: 'chips' }, h('span', { class: 'chipx', style: { '--cc': clan.color }, title: clan.tiers.map((q) => `${q.n}+: ${q.text}`).join(' · ') }, clan.name),
         h('span', { class: 'chipx', style: { '--cc': pers.color } }, pers.name)),
       h('div', { class: 'chips' }, h('span', { class: 'chipx plain' }, ROLE_LABEL[x.role] + (x.flex.length ? ' · flex ' + x.flex.map((q) => ROLE_LABEL[q]).join('/') : '')),

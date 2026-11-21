@@ -20,7 +20,7 @@
 | Phase | What you do |
 |---|---|
 | Lobby | Host gets a 5-letter room code (or play vs AI / watch AI vs AI). Pick a map or Random. |
-| **Draft** | Tournament bans/picks from 40 heroes, 5 roles. Bans are always manual (with suggested bans). With an active **lineup**, your picks lock in automatically (backup if the main is gone, a 3-hero prompt if both are). |
+| **Draft** | Tournament bans/picks from 60 heroes, 5 roles. Bans are always manual (with suggested bans). With an active **lineup**, your picks lock in automatically (backup if the main is gone, a 3-hero prompt if both are). |
 | **Prep** | A quick confirm: lanes, builds, team plan and **3 tactic cards** come prefilled from your lineup; *Adjust* opens the editors. |
 | **Match** | 15:00 countdown. Make calls with your command charges; play your tactic cards. |
 | Results | Play of the Game (replayed from the match replay), coach report card (Calls / Objectives / Macro grades + one tip), MVP, stats, gold-lead graph, call log with outcomes. |
@@ -57,12 +57,15 @@ Objectives are **only started by your calls**. Junglers auto-smite to secure (or
 
 ## 5. Heroes
 
-40 heroes (8 per clan) across five roles (Top, Jungle, Mid, Bot, Support), many with a flex role. Each has a passive, two abilities and an ultimate (level 5), all data-driven.
+60 heroes (12 per clan, 12 per role) across five roles (Top, Jungle, Mid, Bot, Support), many with a flex role. Each has a passive, two abilities and an ultimate (level 5), all data-driven, plus a one-line lore.
 
-* **Range tiers:** melee 55, short 150, long 180. Towers 255 out-range every hero. Ability ranges are capped.
+* **Range tiers:** melee 55, short 150, long 180. Towers 255 out-range every hero (hero attack range is capped at 210 after buffs and items). Ability ranges are capped.
 * **Clans:** Shinobi, Beast, Spirit, Iron, Wild. 2+ and 3+ of a clan give team bonuses.
 * **Personalities:** Reckless, Cautious, Greedy, Loyal, Hothead, Calm. These shape aggression, discipline, dodging, reaction time, greed, peel, and how fast they trust you.
-* **Builds:** Burst, Burn, Tank, Sustain, Crit, Haste, Guardian (5 items each). Pivot mid-game with a call.
+* **Builds:** Burst, Burn, Tank, Sustain, Crit, Haste, Guardian, **Pierce** (armor shred, anti-tank), **Siege** (structures + wave clear, split-push), **Spellblade** (haste; spells charge the next attack) and **Warden** (vision, bodyguard shields, peel). 5 items each; every hero has 3+ builds with one recommended (★). Each build has Good at / Weak to / Best on text. The AI picks builds against the enemy comp (`chooseBuild` in `src/sim/draft.js`) and its coach pivots mid-game (Pierce vs stacked armor, Burn vs healing, Warden vs a fed diver). Pivot mid-game with a call.
+* **Status effects** (`src/sim/effects.js`): stun, knock-up, root (can't move or dash, can attack), slow, **silence** (no abilities), **fear** (runs away), **shred** (armor and MR down), **mark** (next ally hit +X%), **grievous wounds** (-40% healing), shields, plus tenacity. Shown as tiny pips beside the HP bar, a ground ring for roots and a reticle over marked heroes.
+* **Duos** (`src/data/synergy.js`): 17 thematic pairs (Two Blades, Shield Wall, Wildfire, ...). Together and near each other they get a small bonus; hitting the same enemy within 2s fires a duo combo (burst / shield / rush, 25s cooldown) and a `duo` sim event.
+* **Team comps:** Dive, Poke, Protect, Split, Teamfight, Pick, counted from hero tags. 3+ heroes of one archetype gives a small team bonus (e.g. Split +15% structure damage). `compOf(heroIds)` returns the archetype and progress for the draft.
 
 ### Dojo
 Browse every hero: animated sprite, abilities in plain English, 0-10 ratings (Damage, Toughness, Control, Mobility, Range, Sustain, Difficulty; computed from hero data in `src/data/herostats.js` and spread across the roster), Strong vs / Weak vs, your own record, and skins.

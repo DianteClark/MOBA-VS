@@ -55,7 +55,15 @@ export class Coach {
     if (ready('build') && g.time > 240 * k) {
       cd('build', 60);
       const tanks = them.heroes.filter((h) => h.items.filter((i) => i.stats.armor || i.stats.mr).length >= 2).length;
-      for (const h of me.heroes) if (h.build === 'burst' && tanks >= 2 && h.def.builds.includes('burn') && h.items.length < 4) { this.issue({ type: 'build', hero: h.id, build: 'burn' }); break; }
+      const healers = them.heroes.filter((h) => h.healed > 800 || h.items.some((i) => i.stats.omnivamp || i.stats.healPower)).length;
+      const fed = them.heroes.filter((h) => h.kills >= h.deaths + 4 && (h.def.tags.includes('dive') || h.def.tags.includes('burst'))).length;
+      for (const h of me.heroes) {
+        if (h.items.length >= 4) continue;
+        const want = tanks >= 2 && (h.build === 'burst' || h.build === 'crit') ? (h.def.builds.includes('pierce') ? 'pierce' : h.def.builds.includes('burn') ? 'burn' : null)
+          : healers >= 2 && h.build !== 'burn' && h.def.builds.includes('burn') ? 'burn'
+          : fed >= 1 && (h.def.cls === 'support' || h.def.cls === 'tank') && h.build !== 'warden' && h.def.builds.includes('warden') ? 'warden' : null;
+        if (want && want !== h.build) { this.issue({ type: 'build', hero: h.id, build: want }); break; }
+      }
     }
     // Objectives
     const takeObj = (obj, minAlive, extra) => {
