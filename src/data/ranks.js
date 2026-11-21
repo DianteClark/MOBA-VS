@@ -39,17 +39,17 @@ export const AI_ELO = [920, 1180, 1420];
 export const AI_CAP = [1149, 1449, 1749]; // Easy tops out at Silver I, Normal at Platinum I, Hard at Master I (Kami is online only)
 export const CUP_ELO = [1000, 1250, 1500];
 // Which results move the rating.
-export const RATED = { ai0: true, ai1: true, ai2: true, cup: true, online: true, casual: false, rush: false, rushOnline: false };
+export const RATED = { ai0: true, ai1: true, ai2: true, cup: true, online: true, casual: false, rush: false, rushOnline: false, coop: false, coop2: false };
 
 // End-of-season rewards: reaching a tier (peak rating, 5+ rated matches) earns every reward up to it.
 export const MIN_RATED_GAMES = 5;
 export const SEASON_REWARDS = {
   bronze: [{ kind: 'border', id: 'bronze' }],
   silver: [{ kind: 'border', id: 'silver' }, { kind: 'title', id: 'rankSilver' }],
-  gold: [{ kind: 'border', id: 'gold' }, { kind: 'banner', id: 'rankGold' }],
+  gold: [{ kind: 'border', id: 'gold' }, { kind: 'banner', id: 'rankGold' }, { kind: 'skin', id: 'leg_grok' }],
   platinum: [{ kind: 'border', id: 'platinum' }, { kind: 'skin', id: 'platinum' }],
-  diamond: [{ kind: 'border', id: 'diamond' }, { kind: 'banner', id: 'rankDiamond' }, { kind: 'title', id: 'rankDiamond' }],
-  master: [{ kind: 'border', id: 'master' }, { kind: 'skin', id: 'master' }, { kind: 'title', id: 'rankMaster' }],
+  diamond: [{ kind: 'border', id: 'diamond' }, { kind: 'banner', id: 'rankDiamond' }, { kind: 'title', id: 'rankDiamond' }, { kind: 'skin', id: 'leg_ruga' }],
+  master: [{ kind: 'border', id: 'master' }, { kind: 'skin', id: 'master' }, { kind: 'title', id: 'rankMaster' }, { kind: 'skin', id: 'leg_hoshi' }],
   kami: [{ kind: 'border', id: 'kami' }, { kind: 'banner', id: 'rankKami' }, { kind: 'skin', id: 'kami' }, { kind: 'title', id: 'rankKami' }],
 };
 // Older profiles stored borders with the previous tier names.

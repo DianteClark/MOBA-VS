@@ -1,10 +1,11 @@
 // Dojo: browse the roster (hero pages with ratings, abilities, matchups, skins) and edit lineup presets.
-import { h, mount, face, icon, toast, emptyState } from './dom.js';
+import { h, mount, face, icon, emptyState } from './dom.js';
 import { HEROES, HERO_BY_ID, ROLES, ROLE_LABEL, PERSONALITIES } from '../data/heroes.js';
 import { CLANS } from '../sim/constants.js';
 import { BUILDS } from '../data/items.js';
 import { TACTICS, TACTIC_IDS } from '../data/tactics.js';
-import { SKINS, TRACK } from '../data/seasons.js';
+import { SKINS } from '../data/seasons.js';
+import { skinViewer, heroSkinKeys } from './collection.js';
 import { matchups } from '../data/herostats.js';
 import { PLANS, presetIssues, presetRole, newPreset } from '../presets.js';
 import { profile } from '../profile.js';
@@ -16,7 +17,6 @@ import { buildGuide, buildLine } from './buildguide.js';
 import { masteryPanel } from './mastery.js';
 import { masteryBadge } from './badges.js';
 import { duoSection } from './comp.js';
-import { SEASON_REWARDS, tierById } from '../data/ranks.js';
 import { searchBox, applySearch } from './herosearch.js';
 
 const screen = () => document.getElementById('screen');
@@ -73,24 +73,21 @@ function heroPage(app, id) {
   const animBtns = h('div', { class: 'animbtns' }, ...[['idle', 'Idle'], ['walk', 'Walk'], ['attack', 'Attack']].map(([k, l]) => h('button', { class: 'chip' + (k === 'walk' ? ' on' : ''),
     onclick: (e) => { sprite.anim = k; for (const b of e.target.parentNode.children) b.classList.toggle('on', b === e.target); } }, l)));
   const muRow = (q) => h('button', { class: 'murow', onclick: () => { tap(); showDojo(app, { hero: q.id }); } }, h('img', { src: face(q.id) }), h('b', {}, HERO_BY_ID[q.id].name), h('small', {}, q.note));
-  const skins = h('div', { class: 'dskins' }, ...Object.entries(SKINS).map(([k, sk]) => {
-    const have = profile.hasSkin(id, k), lvl = Object.entries(TRACK).find(([, rw]) => rw.kind === 'skin' && rw.id === k);
-    const rank = Object.entries(SEASON_REWARDS).find(([, list]) => list.some((rw) => rw.kind === 'skin' && rw.id === k));
-    const how = sk.mastery ? `${x.name} Mastery ${sk.mastery}` : rank ? `${tierById(rank[0]).name} season reward` : `Season Pass level ${lvl ? lvl[0] : '?'}`;
-    const short = sk.mastery ? `M${sk.mastery}` : rank ? tierById(rank[0]).name : `Lv ${lvl ? lvl[0] : '?'}`;
-    return h('button', { class: 'skinopt' + (equipped === k ? ' on' : '') + (have ? '' : ' locked'), title: sk.name,
-      onclick: () => {
-        sprite.skin = k;
-        if (!have) { toast(`${sk.name}: unlocks with ${how}`); return; }
-        profile.equipSkin(id, k); audio.sfx('accept', 0.5); showDojo(app, { keepScroll: true });
-      } },
-      heroStill(id, k, 40), h('b', {}, sk.name), h('small', {}, have ? (equipped === k ? 'Equipped' : 'Equip') : short));
+  // Skins: the hero's own (Signature, Legendary) and owned palette tints; tap for the skin viewer
+  const viewer = (k) => { tap(); skinViewer(id, () => showDojo(app, { keepScroll: true }), k); };
+  const skins = h('div', { class: 'dskins' }, ...heroSkinKeys(id).filter((k) => SKINS[k].hero || k === 'base' || profile.hasSkin(id, k)).map((k) => {
+    const sk = SKINS[k], have = profile.hasSkin(id, k);
+    return h('button', { class: 'skinopt' + (equipped === k ? ' on' : '') + (have ? '' : ' locked') + (sk.hero ? ' t-' + sk.tier : ''), title: k === 'base' ? 'Classic' : sk.name,
+      onmouseenter: () => { sprite.skin = k; }, onmouseleave: () => { sprite.skin = equipped; }, onclick: () => viewer(k) },
+      heroStill(id, k, 40), h('b', {}, k === 'base' ? 'Classic' : sk.hero ? (sk.tier === 'legendary' ? 'Legendary' : 'Signature') : sk.name),
+      h('small', {}, equipped === k ? 'Equipped' : have ? 'Owned' : sk.mastery ? `M${sk.mastery}` : 'Locked'));
   }));
   return h('div', { class: 'dhero', style: { '--cc': clan.color } },
     h('div', { class: 'dh-left' },
       h('div', { class: 'stage' }, h('button', { class: 'navb', title: 'Previous hero', onclick: () => showDojo(app, { hero: step(-1) }) }, '‹'), sprite,
         h('button', { class: 'navb', title: 'Next hero', onclick: () => showDojo(app, { hero: step(1) }) }, '›')),
       animBtns,
+      h('button', { class: 'chip dskinbtn', title: 'Preview and equip this hero\'s skins', onclick: () => viewer(equipped) }, `Skins ${heroSkinKeys(id).filter((k) => profile.hasSkin(id, k)).length}/${heroSkinKeys(id).length} ›`),
       h('div', { class: 'dh-name' }, h('h2', {}, x.name), h('div', { class: 'muted' }, x.title)),
       x.lore ? h('p', { class: 'muted small' }, x.lore) : null,
       h('div', { class: 'chips' }, h('span', { class: 'chipx', style: { '--cc': clan.color }, title: clan.tiers.map((q) => `${q.n}+: ${q.text}`).join(' · ') }, clan.name),
@@ -111,7 +108,8 @@ function heroPage(app, id) {
       h('div', { class: 'dsec' }, h('div', { class: 'dsh' }, 'Builds'), h('div', { class: 'chips' }, ...x.builds.map((b) => h('span', { class: 'chipx', style: { '--cc': BUILDS[b].color }, title: buildLine(b), 'data-build': b, 'data-build-info': true }, BUILDS[b].name + (b === x.rec ? ' ★' : ''))))),
       duoSection(id, (pid) => { tap(); showDojo(app, { hero: pid }); }),
       masteryPanel(id),
-      h('div', { class: 'dsec' }, h('div', { class: 'dsh' }, 'Skins'), skins, h('small', { class: 'muted' }, 'Skins show on this hero in every match. Online, your opponent sees them too.'))));
+      h('div', { class: 'dsec' }, h('div', { class: 'dsh row', style: { justifyContent: 'space-between' } }, 'Skins', h('button', { class: 'chip', onclick: () => viewer(equipped) }, 'Skin viewer')), skins,
+        h('small', { class: 'muted' }, 'Skins change only the look: same hitbox, same effects. They show in every match, and online your opponent sees them too.'))));
 }
 
 // ───────────── lineups ─────────────

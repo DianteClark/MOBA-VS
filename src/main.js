@@ -19,7 +19,9 @@ import { showLobby, showPrep, showResults, startParade, stopParade } from './ui/
 import { DraftView, AUTO_GRACE } from './ui/draftview.js';
 import { Hud } from './ui/hud.js';
 import { TEAM_COL } from './render/palette.js';
-import { toast, h } from './ui/dom.js';
+import { toast, h, setFaceSkins } from './ui/dom.js';
+import { myLooks, cleanLooks, cleanSkins, matchSkins, faceMap } from './looks.js';
+import { achToasts, resultEmotes } from './ui/collection.js';
 import { audio } from './audio.js';
 import { matchAudio } from './audio-match.js';
 import { DEFAULT_DECK } from './data/tactics.js';
@@ -29,6 +31,8 @@ import { showHome, showCup, progressPanel } from './ui/home.js';
 import { shareMatch } from './ui/share.js';
 import { ping, ensureAccount, fetchMe, getAccount, reportMatch, matchStatus, newMatchId, findQueue, cancelQueue } from './net/online.js';
 import { showShared, showSearch } from './ui/online.js';
+import { showWeekendCup } from './ui/cups.js';
+import { packReplay } from './net/replaypack.js';
 import { startSocial, matchPresence, lobbyInvite, closeInvites, showInviteLink, socialPanel, onRematch, rematchGone } from './ui/social.js';
 import { profile } from './profile.js';
 import { newCup, recordCup, myMatch } from './cup.js';
@@ -43,8 +47,11 @@ import { Theater } from './ui/theater.js';
 import { loadLib, storeMatch } from './ui/replays.js';
 import { nextRival, rivalPlayed, rivalPref, rivalPrep, rivalStyle, rivalPanel } from './ui/rivals.js';
 import { RIVAL_BY_ID } from './data/rivals.js';
+import { hostCoop, onCoopNet, enterAsGuest, myDraftTurn, applyDraft, draftAuto, aiDraftTurn, coopPrep, myHeroIds, sendPrep, seatReady, flushPendingPreps,
+  coopCfg, runnerOpts, startedRunner, soloFallback, historyCoop } from './coop-room.js';
+import { coopResults } from './ui/coop.js';
 
-const VERSION = 21; // bump whenever the sim or balance changes (peers must match)
+const VERSION = 22; // bump whenever the sim or balance changes (peers must match)
 const PREP_SECONDS = 60;
 
 class App {
@@ -56,6 +63,7 @@ class App {
     this.session = null; this.net = null; this.match = null; this.mapPref = 'random';
     this.bgCanvas = document.getElementById('bg');
   }
+  get version() { return VERSION; }
   // Painted map canvases are cached per map id (painting takes a moment on phones).
   mapCanvas(world) {
     this.mapCache = this.mapCache || {};
@@ -136,6 +144,7 @@ class App {
     closeInvites(this);
     this.cleanupNet();
     this.session = null;
+    setFaceSkins(null);
     this.showScreen(true);
     audio.music('menu');
     showHome(this);
@@ -223,14 +232,16 @@ class App {
       this.pendingPeer = null;
       this.net = { peer, t: transport };
       const seed = (Math.random() * 2 ** 31) >>> 0, gameMode = opts.gameMode || (this.queueMode === 'rush' ? 'rush' : 'classic');
-      this.session = { mode: 'host', gameMode, myTeam: 0, seed, mapId: this.pickMap(seed, gameMode), names: [this.name, 'Guest'], rng: new Rng(seed), ranked: !!opts.ranked, queue: opts.queue || 'private' };
+      this.session = { mode: 'host', gameMode, myTeam: 0, seed, mapId: opts.mapId || this.pickMap(seed, gameMode), names: [this.name, 'Guest'], rng: new Rng(seed), ranked: !!opts.ranked, queue: opts.queue || 'private', wcup: opts.wcup || null };
       this.wireNet();
-      transport.send({ t: 'hello', v: VERSION, name: this.name, seed, pid: getAccount() && getAccount().id, elo: profile.elo });
+      transport.send({ t: 'hello', v: VERSION, name: this.name, seed, pid: getAccount() && getAccount().id, elo: profile.elo, looks: myLooks() });
     } catch (e) {
       if (!live() || opts.quiet) return;
       showLobby(this, { code, status: 'Could not open room: ' + (e.message || e.type || e), onCancel: cancel, extra });
     }
   }
+  // Co-op room: two coaches share a team, vs the AI or 2v2 (src/coop-room.js).
+  hostCoop(opts = {}) { stopParade(); hostCoop(this, opts); }
   joinScreen(prefill, opts = {}) {
     const cancel = () => this.menu();
     const go = async (code) => {
@@ -243,9 +254,9 @@ class App {
         if (this.lobbyId !== id) { try { transport.close(); } catch { /* ignore */ } try { peer.destroy(); } catch { /* ignore */ } return; }
         this.pendingPeer = null;
         this.net = { peer, t: transport };
-        this.session = { mode: 'join', gameMode: 'classic', myTeam: 1, seed: 0, names: ['Host', this.name], rng: null, ranked: !!opts.ranked, queue: opts.queue || 'private' };
+        this.session = { mode: 'join', gameMode: 'classic', myTeam: 1, seed: 0, names: ['Host', this.name], rng: null, ranked: !!opts.ranked, queue: opts.queue || 'private', wcup: opts.wcup || null };
         this.wireNet();
-        transport.send({ t: 'hello', v: VERSION, name: this.name, pid: getAccount() && getAccount().id, elo: profile.elo, ranked: !!this.session.ranked });
+        transport.send({ t: 'hello', v: VERSION, name: this.name, pid: getAccount() && getAccount().id, elo: profile.elo, ranked: !!this.session.ranked, looks: myLooks() });
         showLobby(this, { joining: true, code, status: 'Connected! Waiting for host…', onJoin: go, onCancel: cancel });
       } catch (e) {
         if (this.lobbyId !== id) return;
@@ -296,19 +307,26 @@ class App {
   }
   onNet(m) {
     const s = this.session; if (!s) return;
+    if (s.mode === 'coop') { onCoopNet(this, m); return; }
     switch (m.t) {
+      case 'room': // the room we joined is a co-op room
+        if (s.mode === 'join') enterAsGuest(this, m);
+        break;
+      case 'closed':
+        if (s.mode === 'join') { toast(m.why || 'That room is closed.', 3000); this.menu(); }
+        break;
       case 'hello':
         if (m.v !== VERSION) { toast('Version mismatch — both players should refresh.'); return; }
         if (s.mode === 'host') {
-          s.names[1] = m.name || 'Guest'; s.oppId = m.pid || null; s.matchId = newMatchId(); s.oppElo = m.elo || null;
+          s.names[1] = m.name || 'Guest'; s.oppId = m.pid || null; s.matchId = (s.wcup && s.wcup.match) || newMatchId(); s.oppElo = m.elo || null; s.oppLooks = cleanLooks(m.looks); // a cup match keeps the server's id
           s.ranked = !!(s.ranked && m.ranked); // rated only when both coaches opted in (queue or Ranked invite)
-          this.net.t.send({ t: 'start', seed: s.seed, names: s.names, map: s.mapId, mode: s.gameMode, match: s.matchId, pid: getAccount() && getAccount().id, elo: profile.elo, ranked: s.ranked });
+          this.net.t.send({ t: 'start', seed: s.seed, names: s.names, map: s.mapId, mode: s.gameMode, match: s.matchId, pid: getAccount() && getAccount().id, elo: profile.elo, ranked: s.ranked, looks: myLooks() });
           this.startDraft();
         }
         else if (s.mode === 'join' && m.seed !== undefined) { s.seed = m.seed; }
         break;
       case 'start':
-        if (s.mode === 'join') { s.seed = m.seed; s.mapId = m.map; s.gameMode = m.mode === 'rush' ? 'rush' : 'classic'; s.names = m.names; s.names[1] = this.name; s.rng = new Rng(s.seed); s.matchId = m.match || null; s.oppId = m.pid || null; s.oppElo = m.elo || null; s.ranked = !!(s.ranked && m.ranked); this.startDraft(); }
+        if (s.mode === 'join') { s.seed = m.seed; s.mapId = m.map; s.gameMode = m.mode === 'rush' ? 'rush' : 'classic'; s.names = m.names; s.names[1] = this.name; s.rng = new Rng(s.seed); s.matchId = (s.wcup && s.wcup.match) || m.match || null; s.oppId = m.pid || null; s.oppElo = m.elo || null; s.oppLooks = cleanLooks(m.looks); s.ranked = !!(s.ranked && m.ranked); this.startDraft(); }
         break;
       case 'rm': // rematch asked / accepted on the results screen
         onRematch(this, m);
@@ -342,11 +360,18 @@ class App {
     if (this.replayFromResults()) { this.cleanupNet(); return; } // online results' Play of the Game / replay
     if (!this.session || this.session.mode === 'ai' || this.session.mode === 'watch') return;
     if (this.session.finished || (this.match && this.match.game.over)) { this.cleanupNet(); return; }
+    if (this.session.mode === 'coop') {
+      // a co-op guest lost the host: mid-match, play on alone; before it, the room is gone
+      if (this.session.host) return;
+      if (this.match) { soloFallback(this, LocalRunner); this.cleanupNet(); return; }
+      toast('The host closed the co-op room.', 3000); this.menu(); return;
+    }
     if (this.match && !this.match.game.over) {
       // Keep playing: the AI coach takes over the opponent.
       toast('Opponent disconnected — AI coach takes over.', 3500);
       const g = this.match.game, enemy = 1 - this.session.myTeam;
       g.coaches[enemy] = new Coach(g, enemy, 1);
+      this.session.aiTakeover = [[g.tick, enemy]]; // part of the uploaded replay (anti-cheat re-simulation)
       const old = this.match.runner, r = new LocalRunner(g, this.session.myTeam); r.acc = old.acc;
       r.log = old.log; r.htDone = old.htDone; r.ht = old.ht; if (r.ht) r.ht.them = true; r.onHalftime = old.onHalftime; r.onHalftimeEnd = old.onHalftimeEnd;
       this.match.runner = r; this.match.hud.runner = r; this.match.hud.disableChat();
@@ -373,7 +398,7 @@ class App {
     const s = this.session;
     s.draft = newDraft(); s.turnStart = performance.now(); s.turnLeft = TURN_SECONDS;
     // The active lineup is frozen for this draft (auto-picks, prep builds/plan/deck).
-    const pre = profile.activePreset; s.preset = pre ? JSON.parse(JSON.stringify(pre)) : null;
+    const pre = profile.activePreset; s.preset = pre && s.mode !== 'coop' ? JSON.parse(JSON.stringify(pre)) : null; // co-op: each coach picks for their roles
     this.showScreen(true);
     audio.music('draft');
     this.draftView = new DraftView(this);
@@ -392,11 +417,22 @@ class App {
     // Preset auto-pick lands after a short grace (the coach can tap another hero to override).
     if (s.autoPick && s.autoPick.turn === s.draft.turn && performance.now() >= s.autoPick.at) { this.lockAutoPick(); return; }
     // Timeout: the acting side auto-locks (the local player for their own turns).
-    if (s.turnLeft <= 0 && t.team === s.myTeam) this.draftAct(s.pickPrompt && s.pickPrompt.recs[0] || autoChoice(s.draft, t.team, s.rng, 1));
+    if (s.turnLeft <= 0 && this.myDraftTurn()) this.draftAct(s.mode === 'coop' ? draftAuto(s) : s.pickPrompt && s.pickPrompt.recs[0] || autoChoice(s.draft, t.team, s.rng, 1));
   }
+  // Is it this coach's draft turn? (Co-op: the team's turn and this coach's seat.)
+  myDraftTurn() { const s = this.session, t = currentTurn(s.draft); return s.mode === 'coop' ? myDraftTurn(s) : !!t && t.team === s.myTeam; }
   // Every local pick/ban (manual, auto-pick, timeout) goes through here, so online drafts stay in lockstep.
   draftAct(heroId) {
     const s = this.session, t = currentTurn(s.draft);
+    if (s.mode === 'coop') {
+      const turn = s.draft.turn;
+      if (!myDraftTurn(s) || !applyDraft(s, s.myTeam, s.mySeat, heroId)) return false;
+      audio.sfx('lockin');
+      this.net.t.send({ t: 'draft', team: s.myTeam, seat: s.mySeat, hero: heroId, turn, p: s.slot });
+      this.draftView.sel = null;
+      this.afterDraftAct();
+      return true;
+    }
     if (!t || t.team !== s.myTeam) return false;
     const turn = s.draft.turn;
     if (!draftApply(s.draft, s.myTeam, heroId)) return false;
@@ -433,6 +469,7 @@ class App {
   cancelAutoPick() { const s = this.session; if (s && s.autoPick) { s.autoPick = null; toast('Auto-pick off for this turn: choose your hero', 1600); } }
   maybeAiDraft() {
     const s = this.session;
+    if (s.mode === 'coop') { aiDraftTurn(this); return; }
     if (s.mode !== 'ai') return;
     const t = currentTurn(s.draft);
     if (!t || t.team === s.myTeam) return;
@@ -450,28 +487,32 @@ class App {
   startPrep() {
     const s = this.session, me = s.myTeam, d = s.draft;
     s.preps = [null, null]; s.ready = [false, false];
-    const pp = prepFromPreset(d.picks[me], d.picks[1 - me], s.preset, s.gameMode);
+    const coop = s.mode === 'coop';
+    const pp = coop ? { prep: coopPrep(s), fromPreset: [] } : prepFromPreset(d.picks[me], d.picks[1 - me], s.preset, s.gameMode);
     s.myPrep = pp.prep; s.prepFromPreset = pp.fromPreset; s.prepAdjust = false;
-    s.myPrep.skins = profile.skinsFor(d.picks[me]);
+    s.myPrep.skins = profile.skinsFor(coop ? myHeroIds(s) : d.picks[me]);
     if (s.mode === 'ai') { const rv = s.rival && RIVAL_BY_ID[s.rival]; s.preps[1 - me] = rv ? rivalPrep(rv, d.picks[1 - me], d.picks[me], s.rng, s.gameMode) : aiPrep(d.picks[1 - me], d.picks[me], s.gameMode); s.ready[1 - me] = true; }
     if (s.pendingPrep) { s.preps[s.pendingPrep.team] = s.pendingPrep.prep; s.ready[s.pendingPrep.team] = true; s.pendingPrep = null; }
     s.prepEnd = performance.now() + PREP_SECONDS * 1000;
-    const render = () => showPrep(this, s.myPrep, d.picks[1 - me], (s.prepEnd - performance.now()) / 1000, render, () => this.prepReady(), s.ready[me]);
+    const meReady = () => (coop ? seatReady(s, me, s.mySeat) : s.ready[me]);
+    const render = () => showPrep(this, s.myPrep, d.picks[1 - me], (s.prepEnd - performance.now()) / 1000, render, () => this.prepReady(), meReady());
     this.renderPrep = render;
     render();
+    if (coop) flushPendingPreps(this);
     clearInterval(this.prepTimer);
     this.prepTimer = setInterval(() => {
       if (this.session !== s) { clearInterval(this.prepTimer); return; }
       const left = (s.prepEnd - performance.now()) / 1000;
       const el = document.getElementById('ptimer'); if (el) el.textContent = String(Math.max(0, Math.ceil(left)));
-      if (left <= 0 && !s.ready[me]) this.prepReady();
+      if (left <= 0 && !meReady()) this.prepReady();
     }, 250);
   }
   prepReady() {
     const s = this.session, me = s.myTeam;
-    if (s.ready[me]) return;
+    if (s.mode === 'coop' ? seatReady(s, me, s.mySeat) : s.ready[me]) return;
     const deck = s.myPrep.deck || (s.myPrep.deck = []);
     for (const id of DEFAULT_DECK) if (deck.length < 3 && !deck.includes(id)) deck.push(id);
+    if (s.mode === 'coop') { audio.sfx('accept'); sendPrep(this, JSON.parse(JSON.stringify(s.myPrep))); this.renderPrep(); return; }
     s.preps[me] = JSON.parse(JSON.stringify(s.myPrep)); s.ready[me] = true;
     audio.sfx('accept');
     if (this.net) this.net.t.send({ t: 'prep', team: me, prep: s.preps[me] });
@@ -492,9 +533,10 @@ class App {
     const cfg = s.replay ? JSON.parse(JSON.stringify(s.replay.cfg)) : {
       seed: s.seed, map: s.mapId, ...(s.gameMode === 'rush' ? { mode: 'rush' } : {}),
       teams: [0, 1].map((t) => ({ heroes: s.preps[t].heroes, plan: s.preps[t].plan, deck: s.preps[t].deck, name: s.names[t] })),
-      coach: s.mode === 'ai' ? [s.myTeam !== 0, s.myTeam !== 1] : s.mode === 'watch' ? [true, true] : [false, false],
+      coach: s.mode === 'coop' ? s.ai.slice() : s.mode === 'ai' ? [s.myTeam !== 0, s.myTeam !== 1] : s.mode === 'watch' ? [true, true] : [false, false],
       coachLevel: [s.aiLevel ?? this.aiLevel, s.aiLevel ?? this.aiLevel],
       ...(s.rival && RIVAL_BY_ID[s.rival] ? { coachStyle: [0, 1].map((t) => (t === s.myTeam ? null : rivalStyle(RIVAL_BY_ID[s.rival]))) } : {}),
+      ...(s.mode === 'coop' ? { coop: coopCfg(s) } : {}),
     };
     const cfgSaved = JSON.parse(JSON.stringify(cfg));
     const pre = s.prebuilt; s.prebuilt = null; // Play of the Game: a game already fast-forwarded to the highlight
@@ -513,7 +555,8 @@ class App {
     }
     this.renderer.resize(true);
     this.renderer.attach(game, s.myTeam, this.mapCanvas(game.world));
-    this.renderer.skins = s.replay ? s.replay.skins || [{}, {}] : [0, 1].map((t) => (s.preps[t] && s.preps[t].skins) || {});
+    this.renderer.skins = s.replay ? (s.replay.skins || [{}, {}]).map(cleanSkins) : matchSkins(s);
+    setFaceSkins(faceMap(this.renderer.skins)); // HUD, results and share card portraits
     this.minimap.resize();
     refit();
     this.renderer.fogOn = s.myTeam >= 0;
@@ -523,8 +566,9 @@ class App {
     const short = Math.min(window.innerWidth, window.innerHeight);
     this.renderer.cam.zoom = short < 600 ? Math.max(0.5, Math.min(0.9, short / 620)) : window.innerWidth < 1100 ? 0.95 : 1.25;
     this.renderer.follow = null;
-    const runner = pre ? pre.runner : this.net ? new LockstepRunner(game, s.myTeam, this.net.t)
+    const runner = pre ? pre.runner : this.net ? new LockstepRunner(game, s.myTeam, this.net.t, s.mode === 'coop' ? runnerOpts(s) : {})
       : new LocalRunner(game, s.myTeam, { noHalftime: s.mode === 'watch', script: s.replay ? s.replay.log : null });
+    if (!pre && s.mode === 'coop' && runner.online) startedRunner(this, runner);
     runner.onHalftime = (ht) => showHalftime(this, game, s.myTeam, runner, ht);
     runner.onHalftimeEnd = () => hideHalftime();
     if (runner.online) runner.onDesync = (k) => { console.warn('desync at', k); toast('Warning: games out of sync (tick ' + k + ')', 4000); };
@@ -594,7 +638,7 @@ class App {
       this.session.finished = true;
       setTimeout(() => this.endMatch(won, m), 4800);
     }
-    if (m.runner.online && m.runner.waiting && performance.now() - m.runner.lastRemote > 5000 && !m.warned) { m.warned = true; toast('Waiting for opponent…', 2500); }
+    if (m.runner.online && m.runner.waiting && performance.now() - m.runner.lastRemote > 5000 && !m.warned) { m.warned = true; toast(this.session.mode === 'coop' ? 'Waiting for the other coaches…' : 'Waiting for opponent…', 2500); }
     if (m.runner.online && !m.runner.waiting) m.warned = false;
     requestAnimationFrame((t) => this.frame(t));
   }
@@ -625,8 +669,10 @@ class App {
       try {
         profile.lastNames = s.names;
         sum = profile.record({ game: m.game, myTeam: s.myTeam, mode: s.mode === 'ai' && !s.wasOnline ? 'ai' : 'online', aiLevel: s.aiLevel ?? this.aiLevel, cup: !!s.cup,
-          ranked: !!s.ranked, oppElo: s.oppElo, potgHero: potg && potg.team === s.myTeam ? potg.heroId : null, analytics, rival: s.rival && !s.wasOnline && !s.replay ? s.rival : null });
+          ranked: !!s.ranked, oppElo: s.oppElo, potgHero: potg && potg.team === s.myTeam ? potg.heroId : null, analytics, rival: s.rival && !s.wasOnline && !s.replay ? s.rival : null,
+          coop: s.mode === 'coop' ? { kind: s.kind, heroes: myHeroIds(s), info: historyCoop(s) } : null });
         if (s.cup && profile.d.cup) cupOut = recordCup(profile.d.cup, m.game.winner === s.myTeam);
+        if (sum && sum.ach) { sum.ach.push(...profile.checkState()); if (sum.ach.length) profile.save(); } // e.g. the Cup trophy just won
       } catch (e) { console.error(e); }
       if (s.rival && !s.replay) rivalPlayed(this, s.rival);
       if (!s.replay && m.cfg) this.saveReplay(m, s, analytics, sum && profile.d.history[0] ? profile.d.history[0].t : Date.now());
@@ -637,14 +683,16 @@ class App {
       this.potgReel = potg && src ? this.prerollPOTG(src, potg) : null;
       const report = s.myTeam >= 0 ? reportCard(m.game, s.myTeam, m.hud.stats) : null;
       const args = [this, m.game, s.myTeam,
-        s.cup ? () => showCup(this) : s.mode === 'ai' ? () => { if (s.rival) this.rivalRoll = { tier: s.aiLevel, id: s.rival }; this.startVsAI(s.gameMode === 'rush' ? 'rush' : 'classic'); } : s.mode === 'watch' ? () => this.watch() : null,
-        () => this.menu(), { progress: progressPanel(sum, cupOut), rival: s.myTeam >= 0 && !s.wasOnline ? rivalPanel(sum, s, won) : null, ladder, social: socialPanel(this, s), againLabel: s.cup ? 'Back to bracket' : s.rival && RIVAL_BY_ID[s.rival] && !s.wasOnline ? `Rematch ${RIVAL_BY_ID[s.rival].name}` : null, potg: this.potgReel ? potg : null, report,
+        s.wcup ? () => showWeekendCup(this) : s.cup ? () => showCup(this) : s.mode === 'ai' ? () => { if (s.rival) this.rivalRoll = { tier: s.aiLevel, id: s.rival }; this.startVsAI(s.gameMode === 'rush' ? 'rush' : 'classic'); } : s.mode === 'watch' ? () => this.watch() : null,
+        () => this.menu(), { progress: progressPanel(sum, cupOut), rival: s.myTeam >= 0 && !s.wasOnline ? rivalPanel(sum, s, won) : null, ladder, social: s.wcup ? null : s.mode === 'coop' ? coopResults(this, s, m.game) : socialPanel(this, s), againLabel: s.cup || s.wcup ? 'Back to bracket' : s.rival && RIVAL_BY_ID[s.rival] && !s.wasOnline ? `Rematch ${RIVAL_BY_ID[s.rival].name}` : null, potg: this.potgReel ? potg : null, report,
           onPOTG: () => this.playPOTG(), onClip: potg && src && clipSupport() ? () => saveClip(src, potg, s.names, this.mapCanvas(m.game.world)) : null,
           analytics, onAnalysis: analytics ? () => showAnalysis(analytics, { title: 'Match analysis', onTheater: this.lastReplay() ? () => this.watchReplay(null, { back: () => this.backToResults() }) : null }) : null,
-          onReplay: () => this.watchReplay(null, { back: () => this.backToResults() }), share: sum ? () => shareMatch(profile.d.history[0], { name: this.name, rank: profile.rank.label }, this.lastReplay()) : null }];
+          emotes: resultEmotes(s), onReplay: () => this.watchReplay(null, { back: () => this.backToResults() }), share: sum ? () => shareMatch(profile.d.history[0], { name: this.name, rank: profile.rank.label, border: profile.border }, this.lastReplay()) : null }];
       this.lastResults = { args, session: s, src, potg };
       showResults(...args);
+      if (s.mode === 'coop') this.cleanupNet(); // no rematch in co-op: the room closes with the results
       if (sum) setTimeout(() => rankMoment(sum), 900);
+      if (sum && sum.ach && sum.ach.length) achToasts(sum.ach, sum.promoted ? 3200 : 1400);
       // confetti only for a real win of your own (a promotion brings its own with the rank card)
       if (won && s.myTeam >= 0 && !s.replay && !(sum && sum.promoted)) setTimeout(() => confetti(), 350);
     });
@@ -714,27 +762,32 @@ class App {
     const myTeam = 1 - old.myTeam, seed = (Math.random() * 2 ** 31) >>> 0, gameMode = old.gameMode === 'rush' ? 'rush' : 'classic';
     const names = [0, 1].map((t) => (t === myTeam ? this.name : old.names[1 - old.myTeam]));
     const s = this.session = { mode: 'host', gameMode, myTeam, seed, mapId: this.pickMap(seed, gameMode), names, rng: new Rng(seed), ranked: !!old.ranked, queue: old.queue,
-      oppId: old.oppId, oppElo: oppElo || old.oppElo, matchId: newMatchId() };
-    this.net.t.send({ t: 'rmstart', seed, names, map: s.mapId, mode: gameMode, match: s.matchId, team: 1 - myTeam, ranked: s.ranked, elo: profile.elo });
+      oppId: old.oppId, oppElo: oppElo || old.oppElo, oppLooks: old.oppLooks, matchId: newMatchId() };
+    this.net.t.send({ t: 'rmstart', seed, names, map: s.mapId, mode: gameMode, match: s.matchId, team: 1 - myTeam, ranked: s.ranked, elo: profile.elo, looks: myLooks() });
     this.startDraft(); // like a fresh 'start': both drafts open at once, so no draft message can arrive early
   }
   joinRematch(m, old) {
     const myTeam = m.team === 0 ? 0 : 1;
     const s = this.session = { mode: 'join', gameMode: m.mode === 'rush' ? 'rush' : 'classic', myTeam, seed: m.seed, mapId: m.map, names: m.names, rng: new Rng(m.seed),
-      ranked: !!(old.ranked && m.ranked), queue: old.queue, oppId: old.oppId, oppElo: m.elo || old.oppElo, matchId: m.match || null };
+      ranked: !!(old.ranked && m.ranked), queue: old.queue, oppId: old.oppId, oppElo: m.elo || old.oppElo, oppLooks: cleanLooks(m.looks) || old.oppLooks, matchId: m.match || null };
     s.names[myTeam] = this.name;
     this.startDraft();
   }
   // Online ladder: both players report; the server counts the match when the reports agree.
   async reportOnline(m, s) {
     const g = m.game, season = profile.season.id;
-    const body = { match: s.matchId, season, side: s.myTeam, opponent: s.oppId, winner: g.winner, checksum: String(g.checksum()), mode: s.queue === 'ranked' && s.ranked ? 'ranked' : s.gameMode === 'rush' ? 'rush' : 'casual',
+    const body = { match: s.matchId, season, side: s.myTeam, opponent: s.oppId, winner: g.winner, checksum: String(g.checksum()), mode: s.wcup ? 'cup' : s.queue === 'ranked' && s.ranked ? 'ranked' : s.gameMode === 'rush' ? 'rush' : 'casual',
       summary: { picks: [0, 1].map((t) => g.teams[t].heroes.map((x) => x.heroId)), kills: [g.teams[0].kills, g.teams[1].kills], len: Math.round(g.time) } };
     try {
+      // ranked and cup results carry the command log for server-side replay verification
+      if (m.cfg && (body.mode === 'ranked' || body.mode === 'cup')) body.replay = await packReplay(VERSION, m.cfg, m.runner.log, s.aiTakeover);
       let r = await reportMatch(body);
-      for (let i = 0; i < 6 && r && r.status === 'pending'; i++) { await new Promise((res) => setTimeout(res, 2500)); const st = await matchStatus(s.matchId); if (st.status !== 'pending') r = { ...r, ...st }; }
-      return r && { ...r, mySide: s.myTeam, casual: body.mode !== 'ranked' };
-    } catch (e) { return { status: 'offline', error: String(e.message || e), casual: body.mode !== 'ranked' }; }
+      for (let i = 0; i < 6 && r && r.status === 'pending'; i++) {
+        await new Promise((res) => setTimeout(res, 2500)); const st = await matchStatus(s.matchId);
+        if (st.status !== 'pending') r = r.cup ? { ...r, status: st.status === 'disputed' ? 'replay' : 'decided', advanced: st.winner === s.myTeam } : { ...r, ...st };
+      }
+      return r && { ...r, mySide: s.myTeam, casual: body.mode !== 'ranked' && body.mode !== 'cup' };
+    } catch (e) { return { status: 'offline', error: String(e.message || e), casual: body.mode !== 'ranked' && body.mode !== 'cup', cup: body.mode === 'cup' }; }
   }
   // Replays: config + command log is enough to re-run the whole match deterministically. The last few are kept
   // with their analytics (src/ui/replays.js); `id` links one to its match-history entry.
@@ -763,7 +816,7 @@ class App {
     if (this.session && this.session.potg) { this.endPOTG(); return; }
     if (this.match && this.match.theater) { this.match.theater.exit(); return; }
     if (!confirm('Leave this match?')) return;
-    if (this.net) this.net.t.send({ t: 'quit' });
+    if (this.net) this.net.t.send(this.session && this.session.mode === 'coop' ? { t: 'quit', p: this.session.slot } : { t: 'quit' });
     const m = this.match; this.match = null;
     if (m) { m.game.over = true; this.teardownMatch(m); }
     this.menu();

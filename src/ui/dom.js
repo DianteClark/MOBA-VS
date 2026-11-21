@@ -22,7 +22,10 @@ export function emptyState(img, title, text, action) {
   return h('div', { class: 'empty-state' }, img ? h('img', { src: img, alt: '' }) : null, h('b', {}, title), text ? h('p', {}, text) : null,
     action ? h('button', { class: 'btn', onclick: action.onclick }, action.label) : null);
 }
-export const face = (id) => `assets/img/faces/${id}.png`;
+// Portraits: during a match (and its results) a hero in a skin shows its skinned face (data URL, set by setFaceSkins).
+const FACE_SKIN = {};
+export const face = (id) => FACE_SKIN[id] || `assets/img/faces/${id}.png`;
+export function setFaceSkins(map) { for (const k of Object.keys(FACE_SKIN)) delete FACE_SKIN[k]; Object.assign(FACE_SKIN, map || {}); }
 // Boss portraits: every Kami element has its own face; the Oni and the Kraken have one each.
 const KAMI_FACE = { infernal: 'kami_infernal', ocean: 'kami_ocean', mountain: 'kami_mountain', cloud: 'kami_cloud', elder: 'kami_elder' };
 export const bossFace = (k, el) => `assets/img/boss/${k === 'dragon' ? KAMI_FACE[el] || 'kami_elder' : k === 'herald' ? 'herald_faceset' : 'baron_faceset'}.png`;
@@ -34,5 +37,5 @@ export const setText = (el, v) => { v = String(v); if (el.textContent !== v) el.
 export const setCss = (el, k, v) => { const c = el._css || (el._css = {}); if (c[k] !== v) { c[k] = v; if (k.startsWith('--')) el.style.setProperty(k, v); else el.style[k] = v; } };
 export const setOff = (el, off) => { if (el.disabled !== off) el.disabled = off; };
 // History / share-card label for a profile history `mode` key.
-export const MODE_LABEL = { ai0: 'vs Easy AI', ai1: 'vs Normal AI', ai2: 'vs Hard AI', online: 'Online Ranked', casual: 'Online Casual', rush: 'Lane Rush vs AI', rushOnline: 'Lane Rush Online', cup: 'Season Cup' };
+export const MODE_LABEL = { ai0: 'vs Easy AI', ai1: 'vs Normal AI', ai2: 'vs Hard AI', online: 'Online Ranked', casual: 'Online Casual', rush: 'Lane Rush vs AI', rushOnline: 'Lane Rush Online', cup: 'Season Cup', coop: 'Co-op vs AI', coop2: 'Co-op 2v2' };
 export const fmtTime = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;

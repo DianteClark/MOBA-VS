@@ -1,4 +1,6 @@
 // Seasons: themes, ranks and the reward track.
+import { HERO_SKINS, legKey } from './skins.js';
+import { EMOTES, BANNERS_EXTRA, BORDERS } from './cosmetics.js';
 // Dates are UTC days. The season balancer (tools/season.mjs + .github/workflows/season.yml)
 // re-tunes heroes when a season ends and appends patch notes (src/data/patchnotes.js).
 export const SEASONS = [
@@ -46,6 +48,8 @@ export const SKINS = {
   mastery: { name: 'Mastery Jade', recolor: { hue: 120, sat: 1.15, light: 0.04 }, swatch: '#6fdc8c', mastery: 6 },
   sensei: { name: 'Sensei Gold', recolor: { hue: 45, sat: 1.5, light: 0.12 }, swatch: '#ffe08a', mastery: 10 },
 };
+// Unique hero skins (Signature: hero mastery; Legendary: achievements, pass, rank): src/data/skins.js
+Object.assign(SKINS, HERO_SKINS);
 export const BANNERS = {
   plain: { name: 'Wanderer', bg: 'linear-gradient(135deg, #2a2236, #1a1522)' },
   sakura: { name: 'Sakura', bg: 'linear-gradient(135deg, #5a2440, #2a1530 60%, #3a1a2a)' },
@@ -57,6 +61,7 @@ export const BANNERS = {
   rankDiamond: { name: 'Diamond Sky', bg: 'linear-gradient(160deg, #1c3a7a, #0c1430 55%, #3a6ac0)' },
   rankKami: { name: 'Kami Ascendant', bg: 'radial-gradient(circle at 30% 20%, #ff9ab0, #6a1030 45%, #1a0610 80%)' },
 };
+Object.assign(BANNERS, BANNERS_EXTRA); // achievement banners (src/data/cosmetics.js)
 export const TITLES = {
   rookie: 'Rookie Coach', shotcaller: 'Shotcaller', whisperer: 'Kami Whisperer', tamer: 'Oni Tamer', tactician: 'Grand Tactician',
   legend1: 'Legend of Blossom Rising', champ: 'Cup Champion', tripleChamp: 'Three-Cup Dynasty',
@@ -66,14 +71,19 @@ export const TITLES = {
 export const TRACK = {
   2: { kind: 'title', id: 'shotcaller' },
   3: { kind: 'skin', id: 'spirit' },
+  4: { kind: 'skin', id: legKey('kaze') },
   5: { kind: 'banner', id: 'sakura' },
   6: { kind: 'skin', id: 'sakura' },
+  7: { kind: 'emote', id: 'wink' },
   8: { kind: 'title', id: 'whisperer' },
   9: { kind: 'skin', id: 'shadow' },
+  10: { kind: 'skin', id: legKey('sling') },
   11: { kind: 'banner', id: 'ember' },
   12: { kind: 'skin', id: 'frost' },
+  13: { kind: 'emote', id: 'smug' },
   14: { kind: 'title', id: 'tamer' },
   15: { kind: 'banner', id: 'night' },
+  16: { kind: 'skin', id: legKey('brawlo') },
   17: { kind: 'skin', id: 'crimson' },
   18: { kind: 'banner', id: 'jade' },
   19: { kind: 'title', id: 'tactician' },
@@ -81,9 +91,10 @@ export const TRACK = {
 };
 export function rewardName(r) {
   if (!r) return '';
-  if (r.kind === 'skin') return `${SKINS[r.id].name} skin`;
+  if (r.kind === 'skin') return SKINS[r.id].hero ? `${SKINS[r.id].name} (${SKINS[r.id].tier === 'legendary' ? 'Legendary' : 'Signature'} skin)` : `${SKINS[r.id].name} skin`;
+  if (r.kind === 'emote') return `${(EMOTES[r.id] || { name: r.id }).name} emote`;
   if (r.kind === 'banner') return `${BANNERS[r.id].name} banner`;
   if (r.kind === 'title') return `Title: ${TITLES[r.id] || r.name || r.id}`;
-  if (r.kind === 'border') return `${r.id[0].toUpperCase() + r.id.slice(1)} border`;
+  if (r.kind === 'border') return `${BORDERS[r.id] ? BORDERS[r.id].name : r.id[0].toUpperCase() + r.id.slice(1)} border`;
   return '';
 }
