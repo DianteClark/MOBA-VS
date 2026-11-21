@@ -323,16 +323,22 @@ function contestTarget(g, h, C) {
   }
   return null;
 }
+// Help only real fights we can reach in time: both sides trading (or the ally being dived), short ETA,
+// and not while half-way through a camp. A help that found the fight already over cools down 6s.
 function helpTarget(g, h, C) {
-  if (h.hp / h.maxHp < 0.45) return null;
-  const range = h.role === 'jungle' ? 1100 : h.role === 'support' ? 900 : 650;
+  if (h.hp / h.maxHp < 0.45 || h.helpCd > g.tick) return null;
+  const now = g.tick, eta = h.role === 'jungle' || h.role === 'support' ? 3.2 : 2.2;
+  const midCamp = h.role === 'jungle' && g.grid.query(h.x, h.y, 260).some((m) => m.type === 'mob' && m.alive && m.hp < m.maxHp);
   let best = null, bs = 0;
   for (const a of C.allies) {
-    if (a === h || g.tick - a.lastHurtByHero > sec(1.5)) continue;
-    const d = dist(a, h); if (d > range) continue;
+    if (a === h || now - a.lastHurtByHero > sec(1.5)) continue;
+    const ahp = a.hp / a.maxHp, dived = ahp < 0.5;
+    if (!(now - a.lastHitHero < sec(1.5) || dived)) continue; // one-sided poke is not a fight
+    if (midCamp && ahp > 0.4) continue;
+    const d = g.world.pathDist(a, h), t = d / Math.max(200, h.stats.ms); if (t > eta) continue;
     const foes = C.enemies.filter((e) => dist2(e, a) < 600 * 600);
     if (!foes.length || foes.length > 3) continue;
-    const s = (1 - a.hp / a.maxHp) + 1 - d / range;
+    const s = (1 - ahp) + 1 - t / eta;
     if (s > bs) { bs = s; best = a; }
   }
   return best;
@@ -401,14 +407,17 @@ export function heroThink(g, h) {
       if (!x || !x.alive || !seen) { h.task = { kind: 'idle' }; return; }
       h.why = 'hunt ' + x.def.name; g.moveToward(h, C.enemies.includes(x) ? x : seen, true, h.stats.range * 0.8); return;
     }
-    case 'help': { const a = g.byId(task.ally); if (!a || !a.alive || g.tick - a.lastHurtByHero > sec(3)) { h.task = { kind: 'idle' }; h.why = 'help: fight over'; return; } h.why = 'help ' + a.def.name; if (dist2(h, a) > 220 * 220) walk(g, h, a, true, 150); return; }
+    case 'help': { const a = g.byId(task.ally); if (!a || !a.alive || g.tick - a.lastHurtByHero > sec(3)) { if (g.tick - h.lastHitHero > sec(5)) h.helpCd = g.tick + sec(6); h.task = { kind: 'idle' }; h.why = 'help: fight over'; return; } h.why = 'help ' + a.def.name; if (dist2(h, a) > 220 * 220) walk(g, h, a, true, 150); return; }
     case 'defend': {
       const nearIt = dist2(h, task) < (h.defIn ? 480 : 300) ** 2; h.defIn = nearIt;
       if (!nearIt) { h.why = 'defend base'; walk(g, h, task); return; }
       h.why = 'defend: clear'; if (!farmAround(g, h, 520, true)) { h.task.until = Math.min(h.task.until, g.tick + sec(1)); h.vx = h.vy = 0; }
       return;
     }
-    default: return doLane(g, h, h.lane || 'mid', false);
+    default:
+      // no task (one just ended): decide now instead of drifting toward a lane for up to 0.5s
+      if (task.kind === 'idle' && !h._reMacro) { h._reMacro = true; heroMacro(g, h); h._reMacro = false; if (h.task.kind !== 'idle') return heroThink(g, h); }
+      h.why = 'idle'; return doLane(g, h, h.lane || 'mid', false);
   }
 }
 

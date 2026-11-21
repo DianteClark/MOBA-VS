@@ -16,7 +16,8 @@
 //               or death on either side
 //   leash       samples (every 0.5s) of a minion > LEASH.minion+40 off its lane, or a monster /
 //               objective farther than its leash (+40) from home. Must be 0 after the leash work.
-// --perf runs 1 game per map in one process without instrumentation and reports CPU ms per tick
+// --lite plays games without instrumentation and prints only side win rate and how/when games end
+// (use --from=K to offset the seeds). --perf runs 1 game per map in one process without instrumentation and reports CPU ms per tick
 // (process user time: robust on a busy machine) plus wall-clock mean / p99 per tick.
 import { fork } from 'node:child_process';
 import { performance } from 'node:perf_hooks';
@@ -70,11 +71,11 @@ async function runGames(ids, perf) {
     while (!g.over && g.time < (g.rules ? g.rules.seconds : C.MATCH_SECONDS) + 1) {
       const t0 = perf ? performance.now() : 0, c0 = perf ? process.cpuUsage().user : 0;
       g.step([]); g.fx.length = 0;
-      if (perf) { out.tickMs.push(performance.now() - t0); out.cpuUs = (out.cpuUs || 0) + process.cpuUsage().user - c0; continue; }
+      if (perf) { if (perf === true) { out.tickMs.push(performance.now() - t0); out.cpuUs = (out.cpuUs || 0) + process.cpuUsage().user - c0; } continue; }
       const now = g.tick;
       for (const tm of g.teams) for (const h of tm.heroes) {
         let s = S.get(h.id);
-        if (!s) { s = { x: h.x, y: h.y, vx: 0, vy: 0, kind: h.task.kind, kindT: now, prevKind: null, trip: null, goals: [], prog: { x: h.x, y: h.y, t: now }, ep: null }; S.set(h.id, s); }
+        if (!s) { s = { out, x: h.x, y: h.y, vx: 0, vy: 0, kind: h.task.kind, kindT: now, prevKind: null, trip: null, goals: [], prog: { x: h.x, y: h.y, t: now }, ep: null }; S.set(h.id, s); }
         const r = R(h), sd = g.teams[h.team] === tm ? out.side[h.team] : null;
         const both = (k, v) => { add(r, k, v); add(sd, k, v); };
         const mx = h.x - s.x, my = h.y - s.y, d = Math.sqrt(mx * mx + my * my); s.x = h.x; s.y = h.y;
@@ -133,7 +134,7 @@ async function runGames(ids, perf) {
           if (!s.ep) s.ep = { t0: now, last: now, k: h.kills + h.assists, dth: h.deaths, fled: false };
           s.ep.last = now;
         }
-        if (s.ep) { if (h.fleeUntil > now) s.ep.fled = true; if (now - s.ep.last > 100) s.ep = closeEp(h, s, both); }
+        if (s.ep) { if (h.fleeUntil > now && !s.ep.fled) { s.ep.fled = true; s.ep.fw = (h.why || '').replace(/ [A-Z][a-z]+( [A-Z][a-z]+)?$/, ''); } if (now - s.ep.last > 100) s.ep = closeEp(h, s, both); }
       }
       // ── towers: minion sieges with nobody home ──
       if (now % 5 === 0) for (const u of g.units) {
@@ -167,7 +168,7 @@ async function runGames(ids, perf) {
     }
     out.games++; out.mins += g.time / 60; out.endMin.push(g.time / 60);
     if (g.winner === 0) out.blue++;
-    if (g.over && !g.events.some((e) => e.type === 'victory' && e.timeout)) out.crystal++;
+    if (g.over && !g.events.some((e) => e.type === 'victory' && e.timeout)) { out.crystal++; if (g.time >= 720) out.crystal12 = (out.crystal12 || 0) + 1; }
   }
   return out;
 }
@@ -182,7 +183,7 @@ function closeEp(h, s, both) {
   const died = h.deaths > ep.dth, scored = h.kills + h.assists > ep.k;
   if (ep.last - ep.t0 >= 40 || died) {
     both('fights', 1);
-    if (!died && !scored && ep.fled) both('abandoned', 1);
+    if (!died && !scored && ep.fled) { both('abandoned', 1); const w = s.out.why || (s.out.why = {}), k = 'abandon:' + ep.fw; w[k] = (w[k] || 0) + 1; }
   }
   return null;
 }
@@ -192,20 +193,25 @@ const isWorker = process.env.WASTE_WORKER;
 if (isWorker) {
   process.on('message', async (m) => { const r = await runGames(m.ids, m.perf); process.send(r, () => process.exit(0)); });
 } else {
-  const perf = !!flag('perf', false);
-  const ids = perf ? [0, 1, 2, 3] : Array.from({ length: N }, (_, i) => i);
+  const lite = !!flag('lite', false), perf = !!flag('perf', false);
+  const ids = perf ? [0, 1, 2, 3] : Array.from({ length: N }, (_, i) => i + +flag('from', 0));
   const W = perf ? 1 : Math.min(WORKERS, ids.length);
   const t0 = Date.now();
   const parts = await Promise.all(Array.from({ length: W }, (_, w) => new Promise((res, rej) => {
     const c = fork(fileURLToPath(import.meta.url), [], { env: { ...process.env, WASTE_WORKER: '1', WASTE_MODE: MODE } });
     c.on('message', res); c.on('error', rej);
-    c.send({ ids: ids.filter((_, i) => i % W === w), perf });
+    c.send({ ids: ids.filter((_, i) => i % W === w), perf: perf || (lite ? 'lite' : false) });
   })));
   const M = merge(parts);
   if (perf) {
     const t = M.tickMs.sort((a, b) => a - b);
     const mean = t.reduce((a, b) => a + b, 0) / t.length;
     console.log(`perf: ${M.games} games, ${t.length} ticks | CPU ms/tick ${(M.cpuUs / 1000 / t.length).toFixed(3)} | wall ms/tick mean ${mean.toFixed(3)} | p50 ${t[t.length >> 1].toFixed(3)} | p99 ${t[Math.floor(t.length * 0.99)].toFixed(3)} | max ${t[t.length - 1].toFixed(1)}`);
+    process.exit(0);
+  }
+  if (lite) {
+    const em = M.endMin.slice().sort((a, b) => a - b);
+    console.log(`lite: ${M.games} games | blue wins ${(100 * M.blue / M.games).toFixed(1)}% | ended at a Crystal ${(100 * M.crystal / M.games).toFixed(1)}% | Crystal between 12-15 min ${(100 * M.crystal12 / M.games).toFixed(1)}% | median end ${em[em.length >> 1].toFixed(2)} min | ${((Date.now() - t0) / 1000).toFixed(0)}s`);
     process.exit(0);
   }
   const rows = summarize(M);
@@ -219,7 +225,7 @@ function merge(parts) {
   const M = { games: 0, mins: 0, blue: 0, crystal: 0, endMin: [], tickMs: [], role: {}, side: [{}, {}], idleBy: {}, openLane: {} };
   const addAll = (dst, src) => { for (const k in src || {}) if (typeof src[k] === 'number') dst[k] = (dst[k] || 0) + src[k]; };
   for (const p of parts) {
-    M.games += p.games; M.cpuUs = (M.cpuUs || 0) + (p.cpuUs || 0); M.mins += p.mins; M.blue += p.blue; M.crystal += p.crystal; M.endMin.push(...p.endMin); for (const x of p.tickMs) M.tickMs.push(x);
+    M.games += p.games; M.crystal12 = (M.crystal12 || 0) + (p.crystal12 || 0); M.cpuUs = (M.cpuUs || 0) + (p.cpuUs || 0); M.mins += p.mins; M.blue += p.blue; M.crystal += p.crystal; M.endMin.push(...p.endMin); for (const x of p.tickMs) M.tickMs.push(x);
     for (const r in p.role) addAll(M.role[r] || (M.role[r] = {}), p.role[r]);
     addAll(M.side[0], p.side[0]); addAll(M.side[1], p.side[1]); addAll(M.idleBy, p.idleBy); addAll(M.openLane, p.openLane); addAll(M.why || (M.why = {}), p.why);
     for (const k of ['leashMinion', 'leashMob', 'leashBoss', 'minionSamples', 'mobSamples']) M[k] = (M[k] || 0) + (p[k] || 0);
@@ -246,7 +252,7 @@ function summarize(M) {
   for (const s of [0, 1]) rows.sides[s ? 'red' : 'blue'] = { ...metrics(M.side[s], M.mins), openSecPerGame: (M.side[s].open || 0) / M.games, lostAlone: (M.side[s].lostAlone || 0) / M.games, towersLost: (M.side[s].towersLost || 0) / M.games };
   rows.recallsPerGame = ((M.side[0].recalls || 0) + (M.side[1].recalls || 0)) / M.games;
   rows.recallWastePerGame = ((M.side[0].recallWaste || 0) + (M.side[1].recallWaste || 0)) / M.games;
-  rows.why = Object.fromEntries(Object.entries(M.why || {}).sort((a, b) => b[1] - a[1]).slice(0, 14).map(([k, v]) => [k, +(v / M.games).toFixed(1)]));
+  rows.why = Object.fromEntries(Object.entries(M.why || {}).sort((a, b) => b[1] - a[1]).slice(0, 60).map(([k, v]) => [k, +(v / M.games).toFixed(1)]));
   rows.openSecPerGame = ((M.side[0].open || 0) + (M.side[1].open || 0)) / M.games;
   rows.openLane = Object.fromEntries(Object.entries(M.openLane).map(([k, v]) => [k, v / M.games]));
   rows.lostAlonePerGame = ((M.side[0].lostAlone || 0) + (M.side[1].lostAlone || 0)) / M.games;
