@@ -3,7 +3,7 @@
 //   · a hand of tactic cards · the decision tray (one slot) · a target sheet · a map ring menu
 //   · the charge + momentum meter (tap it when full for Kami Surge).
 // Everything here is built once and updated in place (no rebuilds while open = no flicker).
-import { h, mount, face, icon, fmtTime, toast } from './dom.js';
+import { h, mount, face, icon, fmtTime, toast, bossFace, kamiNow } from './dom.js';
 import { BUILDS } from '../data/items.js';
 import { TACTICS } from '../data/tactics.js';
 import { CMD, DRAGON_INFO, TICK_RATE, T, OBJ_NAME, MOMENTUM } from '../sim/constants.js';
@@ -13,7 +13,6 @@ import { audio } from '../audio.js';
 
 const LANES = ['top', 'mid', 'bot'];
 const LANE_L = { top: 'Top', mid: 'Mid', bot: 'Bot' };
-const BOSS_FACE = { dragon: 'boss/dragon_green_faceset', herald: 'boss/herald_faceset', baron: 'boss/baron_faceset' };
 export const CORE = [
   { id: 'gank', label: 'Gank', icon: 'Cut', key: 'g', tip: 'Your jungler ambushes a lane' },
   { id: 'objective', label: 'Objective', icon: 'OrbFire', key: 'o', tip: 'Team takes the Kami, Oni or Kraken' },
@@ -176,12 +175,13 @@ export class Dock {
     this.sheetEl.classList.remove('pop'); void this.sheetEl.offsetWidth; this.sheetEl.classList.add('pop');
     for (const f of this.live) f();
   }
-  // A big target tile. `sub` and `state` may be functions; they're refreshed in place.
+  // A big target tile. `img`, `sub` and `state` may be functions; they're refreshed in place.
   tile({ img, ico, title, sub, onclick, state, cls }) {
-    const subEl = h('small', {}, '');
-    const b = h('button', { class: 'tile ' + (cls || ''), onclick: () => { if (!b.disabled) onclick(); } },
-      img ? h('img', { src: img }) : ico ? h('img', { src: icon(ico) }) : null, h('div', {}, h('b', {}, title), subEl));
+    const subEl = h('small', {}, ''), imgOf = () => (typeof img === 'function' ? img() : img);
+    const imEl = img ? h('img', { src: imgOf() }) : ico ? h('img', { src: icon(ico) }) : null;
+    const b = h('button', { class: 'tile ' + (cls || ''), onclick: () => { if (!b.disabled) onclick(); } }, imEl, h('div', {}, h('b', {}, title), subEl));
     const upd = () => {
+      if (typeof img === 'function') { const src = imgOf(); if (imEl.getAttribute('src') !== src) imEl.setAttribute('src', src); }
       const s = typeof sub === 'function' ? sub() : sub || '';
       if (subEl.textContent !== s) subEl.textContent = s;
       const st = state ? state() : {};
@@ -216,8 +216,8 @@ export class Dock {
     }
     if (id === 'objective') {
       const obj = (k) => this.tile({
-        img: `assets/img/${BOSS_FACE[k]}.png`,
-        title: k === 'dragon' ? DRAGON_INFO[g.objectives.dragon ? g.objectives.dragon.element : g.teams.some((t) => t.soul) ? 'elder' : g.nextDragon].name : OBJ_NAME[k],
+        img: () => bossFace(k, kamiNow(g)),
+        title: k === 'dragon' ? DRAGON_INFO[kamiNow(g)].name : OBJ_NAME[k],
         sub: () => this.objStatus(k),
         state: () => ({ off: !g.objAvailable(k) || !this.afford('objective'), rec: !!(g.objectives[k] && g.objectives[k].alive) }),
         onclick: () => this.send({ type: 'objective', obj: k }),

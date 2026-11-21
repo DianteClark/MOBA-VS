@@ -3,6 +3,7 @@ import { loadAssets } from './render/assets.js';
 import { Renderer } from './render/renderer.js';
 import { Minimap } from './render/minimap.js';
 import { bindCamera } from './render/input.js';
+import { onViewport, refit } from './render/viewport.js';
 import { paintMap } from './render/mapgen.js';
 import { Game } from './sim/game.js';
 import { World } from './sim/world.js';
@@ -432,12 +433,13 @@ class App {
         onKey: (e) => this.match && this.match.hud.onKey(e),
         onClick: (w, sx, sy) => this.clickWorld(w, sx, sy),
       });
-      window.addEventListener('resize', () => { this.renderer.resize(); this.minimap.resize(); });
+      onViewport(() => { if (this.match) { this.renderer.resize(); this.minimap.resize(); } });
     }
-    this.renderer.resize();
+    this.renderer.resize(true);
     this.renderer.attach(game, s.myTeam, this.mapCanvas(game.world));
     this.renderer.skins = s.replay ? s.replay.skins || [{}, {}] : [0, 1].map((t) => (s.preps[t] && s.preps[t].skins) || {});
     this.minimap.resize();
+    refit();
     this.renderer.fogOn = s.myTeam >= 0;
     const home = game.world.fountain[Math.max(0, s.myTeam)];
     this.renderer.cam.x = home.x + (s.myTeam === 1 ? -300 : 300); this.renderer.cam.y = home.y + (s.myTeam === 1 ? 300 : -300);

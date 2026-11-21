@@ -19,9 +19,10 @@ export const PROJ = {
 };
 const UNITS = ['minion_blue_melee', 'minion_blue_caster', 'minion_blue_siege', 'minion_red_melee', 'minion_red_caster', 'minion_red_siege',
   'camp_bluebuff', 'camp_redbuff', 'camp_wolf', 'camp_raptor', 'camp_gromp', 'camp_krug'];
-const BOSS = ['dragon_green_body1', 'dragon_green_body2', 'dragon_green_bodyend', 'dragon_green_head', 'dragon_green_wing', 'dragon_green_faceset',
-  'dragon_blue_body1', 'dragon_blue_body2', 'dragon_blue_bodyend', 'dragon_blue_head', 'dragon_blue_wing', 'dragon_blue_faceset',
-  'herald_idle', 'herald_walk', 'herald_hit', 'herald_faceset', 'baron_idle', 'baron_attack', 'baron_hit', 'baron_faceset'];
+const BOSS = ['dragon_green_body1', 'dragon_green_body2', 'dragon_green_bodyend', 'dragon_green_head', 'dragon_green_wing',
+  'dragon_blue_body1', 'dragon_blue_body2', 'dragon_blue_bodyend', 'dragon_blue_head', 'dragon_blue_wing',
+  'herald_idle', 'herald_walk', 'herald_hit', 'herald_faceset', 'baron_idle', 'baron_attack', 'baron_hit', 'baron_faceset',
+  'kami_infernal', 'kami_ocean', 'kami_mountain', 'kami_cloud', 'kami_elder'];
 const TILES = ['TilesetTowers', 'TilesetNature', 'TilesetFloor', 'TilesetWater', 'TilesetFloorDetail'];
 
 function load(key, src) {
