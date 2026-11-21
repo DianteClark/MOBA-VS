@@ -111,13 +111,13 @@ Five plans, picked in prep, revealed to both sides at kickoff, switchable once a
 
 | Plan | Plays like | Beats | Loses to |
 |---|---|---|---|
-| Early Aggression | low risk before 8:00, deeper dives, more ganks, blind invades, early Oni/Kami calls; fades late | Scale, Split | Objectives, Protect |
+| Early Aggression | low risk before 8:00, deeper dives, more ganks, earlier invades, early Oni/Kami calls; fades late | Scale, Split | Objectives, Protect |
 | Scale | high risk early (no even fights), no invades, objectives only when 2 up; loose and grouped after 10:00 | Split, Objectives | Aggression, Protect |
 | Objective Control | everyone wards (×1.7 rate), brave near live pits, freer objective calls, wider contest reach | Protect, Aggression | Scale, Split |
-| Split Push | 1-3-1: one or two side laners (siege builds first) split from 6:00, the rest hold mid from 8:00 | Objectives, Protect | Aggression, Scale |
+| Split Push | 1-3-1: one or two side laners (siege builds first) split from 7:00, the rest hold mid from 9:00 | Objectives, Protect | Aggression, Scale |
 | Protect the Carry | the best-scaling carry plays safe; support + frontline walk with it from 7:00, peel ×1.8, allies run to its fights | Aggression, Scale | Objectives, Split |
 
-The recommended plan (`recommendPlan` in `src/sim/draft.js`) reads curves and tags of both comps. Results and the Analysis sheet judge each side's plan ("Your plan: Scale. It worked: you out-scaled them from 11:20"). `node tools/balance.mjs N W --plans --smart` reports plan win rates and the plan-vs-plan matrix.
+**Counter-plan edge:** a team whose plan beats the enemy's (table above) has read it and deals +5% damage (`planEdge`), all match; a halftime switch can take or lose the edge. The recommended plan (`recommendPlan` in `src/sim/draft.js`) reads curves and tags of both comps. Results and the Analysis sheet judge each side's plan ("Your plan: Scale. It worked: you out-scaled them from 11:20"). `node tools/balance.mjs N W --plans --smart` reports plan win rates and the plan-vs-plan matrix.
 
 ### Rival coaches (`src/data/rivals.js`, `src/ui/rivals.js`)
 Play vs AI is played against 12 named rivals, four per difficulty (Easy/Normal/Hard = coach level 0/1/2). Each has a portrait (pack facesets in `assets/img/coaches`), a personality, signature + halftime plans, favourite heroes and draft habits (pick bias, ban style: your best heroes / carries / counters), a Coach Moment habit (early / late; sent in the match cfg as `coachStyle`, so replays and the Play of the Game stay exact), a ladder rating and draft/results lines. The Rivals screen (from the Play vs AI card) picks or randomises a rival and shows your record; records live in `profile.d.rivals` (12 entries max, cloud-saved). A nemesis is the rival with 3+ wins over you and a 2+ lead.

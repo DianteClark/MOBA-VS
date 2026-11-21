@@ -137,11 +137,10 @@ export class Coach {
       if (this.issue({ type: 'group', lane })) { cd('group', g.time > 780 * k ? 25 : W.groupCd); return; }
     }
     // Invade when enemy jungler seen far away
-    // (Early Aggression invades sooner, more often, and also blind when their jungler is not seen nearby.)
-    if ((this.level >= 1 || W.invadeFree) && ready('invade') && charges >= 2 && g.camps.length && g.time > W.invadeFrom * k && g.time < 900 * k) {
+    // (Early Aggression invades sooner.)
+    if (this.level >= 1 && ready('invade') && charges >= 2 && g.camps.length && g.time > W.invadeFrom * k && g.time < 900 * k) {
       const ej = them.heroes.find((h) => h.role === 'jungle');
-      const blind = W.invadeFree && ej && !vis.has(ej.id) && jg && jg.alive && jg.hp / jg.maxHp > 0.7 && alive.length >= enemyAlive.length;
-      if (ej && (!ej.alive || blind || (vis.has(ej.id) && jg && dist2(ej, jg) > 1600 * 1600))) { if (this.issue({ type: 'invade' })) { cd('invade', W.invadeCd); return; } }
+      if (ej && (!ej.alive || (vis.has(ej.id) && jg && dist2(ej, jg) > 1600 * 1600))) { if (this.issue({ type: 'invade' })) { cd('invade', W.invadeCd); return; } }
     }
   }
 

@@ -11,7 +11,7 @@ export const PLAN_INFO = {
   objective: { name: 'Objective Control', short: 'Objectives', icon: 'Vision', color: '#5fe0c8',
     desc: 'Wards and setups around Kami, Oni and Kraken; fights at the pits.', strong: 'Stacks Kami and Kraken', weak: 'Side lanes get less attention' },
   split: { name: 'Split Push', short: 'Split', icon: 'Explosion', color: '#8be08b',
-    desc: '1-3-1: side laners push alone from 6:00 while three hold mid.', strong: 'Takes side towers', weak: 'Loses 5v4 fights' },
+    desc: '1-3-1: side laners push alone from 7:00 while three hold mid.', strong: 'Takes side towers', weak: 'Loses 5v4 fights' },
   protect: { name: 'Protect the Carry', short: 'Protect', icon: 'DefenseUpgrade', color: '#ffd84a',
     desc: 'Frontline and support peel and group around your best-scaling hero.', strong: 'Beats dives and picks', weak: 'Slow on the map' },
 };

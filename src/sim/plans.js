@@ -57,7 +57,7 @@ function planSplitters(g, team) {
     }).sort((a, b) => b.s - a.s || a.h.id - b.h.id);
     const out = [];
     if (c[0]) out.push({ id: c[0].h.id, lane: c[0].h.lane === 'mid' ? 'top' : c[0].h.lane });
-    if (c[1] && c[1].s >= 2) out.push({ id: c[1].h.id, lane: out[0] && out[0].lane === 'top' ? 'bot' : 'top' });
+    if (c[1] && c[1].s >= 3) out.push({ id: c[1].h.id, lane: out[0] && out[0].lane === 'top' ? 'bot' : 'top' });
     T.planSplit = out;
   }
   return T.planSplit;
@@ -68,7 +68,7 @@ function planSplitters(g, team) {
 export function planRisk(g, h) {
   const plan = g.teams[h.team].plan, m = g.gameMinute;
   switch (plan) {
-    case 'aggro': return m < EARLY ? 0.88 : m < SPIKE + 1 ? 0.97 : 1.02;
+    case 'aggro': return m < EARLY ? 0.88 : m < SPIKE + 1 ? 0.95 : 0.98;
     case 'scale': return m < EARLY + 1 ? 1.15 : m < SPIKE + 1 ? 0.98 : 0.88;
     case 'objective': {
       // brave around a live (or waking) objective, normal elsewhere
@@ -110,15 +110,15 @@ function splitterOf(g, h) {
   return planSplitters(g, h.team).find((s) => s.id === h.id) || null;
 }
 // Lane override for the plan's shape (null = the hero's own lane). Split: splitters take their side lane
-// from minute 6, the rest (not the jungler) hold mid from minute 8. Protect: the support walks with the carry
+// from minute 7, the rest (not the jungler) hold mid from minute 9. Protect: the support walks with the carry
 // from minute 7, the frontline joins from minute 10.
 export function planLane(g, h) {
   const plan = g.teams[h.team].plan, m = g.gameMinute;
   if (g.world.laneNames.length < 3) return null;
   if (plan === 'split') {
     const s = splitterOf(g, h);
-    if (s) return m >= 6 ? s.lane : null;
-    return m >= EARLY && h.role !== 'jungle' ? 'mid' : null;
+    if (s) return m >= 7 ? s.lane : null;
+    return m >= EARLY + 1 && h.role !== 'jungle' ? 'mid' : null;
   }
   if (plan === 'protect' && m >= 7) {
     const c = planCarry(g, h.team);
@@ -127,16 +127,16 @@ export function planLane(g, h) {
   }
   return null;
 }
-// Split plan: designated splitters push their side lane (as a 'split' task, not a call) from minute 6.
-export function planSplits(g, h) { const s = splitterOf(g, h); return !!s && g.gameMinute >= 6 && h.hp / h.maxHp > 0.45; }
+// Split plan: designated splitters push their side lane (as a 'split' task, not a call) from minute 7.
+export function planSplits(g, h) { const s = splitterOf(g, h); return !!s && g.gameMinute >= 7 && h.hp / h.maxHp > 0.5; }
 
 // ── team AI (coach.js) ──
 // Coach appetite per plan: invade window/cooldown, objective call conditions, gank cooldown and when to group.
 export function coachWeights(g, team) {
   const plan = g.teams[team].plan, m = g.gameMinute;
-  const w = { invadeFrom: 200, invadeCd: 120, invadeFree: false, objFree: false, objCd: 40, objWait: false, gankCd: 35, lateAt: 600, groupCd: 40, groupLane: null };
+  const w = { invadeFrom: 200, invadeCd: 120, objFree: false, objCd: 40, objWait: false, gankCd: 35, lateAt: 600, groupCd: 40, groupLane: null };
   if (plan === 'aggro') {
-    if (m < SPIKE) { w.invadeFrom = 150; w.invadeCd = 90; w.invadeFree = true; w.gankCd = 26; w.objFree = true; }
+    if (m < SPIKE) { w.invadeFrom = 150; w.invadeCd = 100; w.gankCd = 26; w.objFree = true; }
     else w.lateAt = 720;
   } else if (plan === 'scale') {
     if (m < EARLY + 1) { w.invadeFrom = 9999; w.gankCd = 60; w.objWait = true; }
@@ -144,7 +144,7 @@ export function coachWeights(g, team) {
   } else if (plan === 'objective') {
     w.objFree = true; w.objCd = 34;
   } else if (plan === 'split') {
-    w.groupLane = 'mid'; w.lateAt = 540; w.groupCd = 45;
+    w.groupLane = 'mid'; w.lateAt = 600; w.groupCd = 45;
   } else if (plan === 'protect') {
     const c = planCarry(g, team); w.groupLane = c && c.alive ? (c.task.lane || c.lane) : null; w.lateAt = 540; w.groupCd = 32;
   }
