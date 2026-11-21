@@ -22,7 +22,10 @@ export function emptyState(img, title, text, action) {
   return h('div', { class: 'empty-state' }, img ? h('img', { src: img, alt: '' }) : null, h('b', {}, title), text ? h('p', {}, text) : null,
     action ? h('button', { class: 'btn', onclick: action.onclick }, action.label) : null);
 }
-export const face = (id) => `assets/img/faces/${id}.png`;
+// Portraits: during a match (and its results) a hero in a skin shows its skinned face (data URL, set by setFaceSkins).
+const FACE_SKIN = {};
+export const face = (id) => FACE_SKIN[id] || `assets/img/faces/${id}.png`;
+export function setFaceSkins(map) { for (const k of Object.keys(FACE_SKIN)) delete FACE_SKIN[k]; Object.assign(FACE_SKIN, map || {}); }
 // Boss portraits: every Kami element has its own face; the Oni and the Kraken have one each.
 const KAMI_FACE = { infernal: 'kami_infernal', ocean: 'kami_ocean', mountain: 'kami_mountain', cloud: 'kami_cloud', elder: 'kami_elder' };
 export const bossFace = (k, el) => `assets/img/boss/${k === 'dragon' ? KAMI_FACE[el] || 'kami_elder' : k === 'herald' ? 'herald_faceset' : 'baron_faceset'}.png`;

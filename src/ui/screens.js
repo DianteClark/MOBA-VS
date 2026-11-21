@@ -186,7 +186,7 @@ export function showResults(app, g, myTeam, onAgain, onMenu, extra = {}) {
     h('td', { class: Math.round(x.dmgHeroes) === Math.round(best('dmgHeroes')) ? 'top' : '' }, Math.round(x.dmgHeroes)), h('td', { class: 'c-gold' }, Math.round(x.goldEarned)), h('td', { class: 'c-build', style: { color: BUILDS[x.build].color } }, BUILDS[x.build].name),
     h('td', { class: 'its c-items' }, ...x.items.map((it) => h('img', { src: icon(it.icon), title: it.name }))));
   const table = (t) => h('div', { class: 'panel rteam t' + t + (t === win ? ' won' : '') },
-    h('div', { class: 'rth' }, h('b', {}, `${TEAM_NAME[t]} · ${app.session.names[t]}`), t === win ? h('span', { class: 'wtag' }, 'WIN') : null,
+    h('div', { class: 'rth' }, h('b', {}, `${TEAM_NAME[t]} · ${app.session.names[t]}`), extra.emotes && extra.emotes[t] ? extra.emotes[t].cloneNode(true) : null, t === win ? h('span', { class: 'wtag' }, 'WIN') : null,
       h('span', { class: 'rstats' }, `${g.teams[t].kills} kills · ${g.teams[t].towers} towers · ${g.teams[t].dragons.length} kami${g.teams[t].soul ? ' + ' + DRAGON_INFO[g.teams[t].soul].name + ' blessing' : ''}`)),
     h('div', { class: 'tblwrap' }, h('table', { class: 'tbl' }, h('tr', {}, ...[['Hero'], ['Role', 'c-role'], ['Lv'], ['KDA'], ['CS'], ['Dmg'], ['Gold', 'c-gold'], ['Build', 'c-build'], ['Items', 'c-items']].map(([c, k]) => h('th', { class: k || '' }, c))), ...g.teams[t].heroes.map(row))));
   const timeout = g.events.find((e) => e.type === 'victory' && e.timeout);
@@ -208,7 +208,7 @@ export function showResults(app, g, myTeam, onAgain, onMenu, extra = {}) {
     h('div', { class: 'grades' }, ...rc.rows.map((r) => h('div', { class: 'grade g' + r.g }, h('b', {}, r.g), h('div', {}, h('span', {}, r.k), h('small', {}, r.d))))),
     h('div', { class: 'tip' }, h('span', {}, 'Tip'), rc.tip)) : null;
   mount(screen(), h('div', { class: 'results' },
-    h('div', { class: 'verdict ' + vcls }, verdict),
+    h('div', { class: 'verdict ' + vcls }, verdict, myTeam >= 0 && extra.emotes && extra.emotes[myTeam] ? extra.emotes[myTeam] : null),
     h('div', { class: 'vsub muted' }, timeout ? `Decided on time: ${timeTiebreak(g)} · ` : '', `Game length ${fmtTime(g.time)}`),
     extra.progress || null,
     potgEl || repEl ? h('div', { class: 'rrow' }, potgEl, repEl) : null,

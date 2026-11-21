@@ -1,0 +1,109 @@
+/* v22 cosmetics: skin viewer, Collection, Achievements, unlock toasts, borders, results emotes. */
+.svstage, .svthumb canvas, .colskin canvas, .svface canvas, .achrwi canvas, .achrwline canvas, .unlock canvas { image-rendering: pixelated; }
+
+/* coach-card borders (--bd1 ring, --bd2 outer ring); shine pulses slowly (off with Reduced effects) */
+.cbd { box-shadow: 0 0 0 2px var(--bd1), 0 0 0 4px var(--bd2), 0 3px 0 4px #000a !important; border-color: var(--bd1) !important; }
+.cbd.shine { animation: bdShine 2.6s ease-in-out infinite alternate; }
+@keyframes bdShine { to { box-shadow: 0 0 0 2px var(--bd1), 0 0 0 4px var(--bd2), 0 0 14px 4px var(--bd1), 0 3px 0 4px #000a; } }
+.reduce-motion .cbd.shine { animation: none; }
+.h2coach.cbd { margin: 4px; }
+.bdr { display: inline-block; width: 16px; height: 16px; background: #1e1928; }
+.bordercard.cbd { margin: 4px; align-items: center; justify-content: center; text-align: center; }
+
+/* skin viewer */
+.svpanel { width: min(660px, 100%); margin: auto; }
+.svbody { display: flex; gap: 12px; align-items: flex-start; }
+.svleft { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: none; }
+.svstagewrap { display: flex; align-items: center; gap: 4px; }
+.svstage { width: 176px; height: 176px; border: 2px solid var(--line); background: #120e18; box-shadow: inset 0 0 0 2px #0006, 0 3px 0 #000a; }
+.svright { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.svinfo { display: flex; flex-direction: column; gap: 5px; }
+.svtitle { display: flex; align-items: center; gap: 8px; }
+.svface canvas, .svface img { width: 48px; height: 48px; border: 2px solid var(--line); background: #1e1928; display: block; image-rendering: pixelated; }
+.svname { font-weight: normal; font-size: 17px; color: var(--ink); }
+.svtier { font-size: 10px; color: var(--muted); } .svtier.t-signature { color: #7de8d8; } .svtier.t-legendary { color: var(--gold); }
+.svhow { font-size: 11px; line-height: 1.35; }
+.svprog { display: flex; align-items: center; gap: 6px; } .svprog .pbar { flex: 1; }
+.svact .btn { min-width: 110px; } .svlock { color: var(--muted); font-size: 12px; border: 2px dashed var(--line); padding: 6px 12px; }
+.svstrip { display: flex; flex-wrap: wrap; gap: 5px; max-height: 106px; overflow-y: auto; padding: 2px; }
+.svthumb { position: relative; width: 44px; height: 44px; padding: 0; display: grid; place-items: center; cursor: pointer; background: #1e1928; border: 2px solid var(--line); }
+.svthumb.on { border-color: var(--gold); box-shadow: 0 0 8px #ffd84a66; }
+
+.svthumb.t-signature { border-color: #3a8a80; } .svthumb.t-legendary { border-color: #b8902a; }
+.svthumb.on.t-signature, .svthumb.on.t-legendary { border-color: var(--gold); }
+.svdot { position: absolute; right: 2px; top: 2px; width: 6px; height: 6px; background: var(--green); box-shadow: 0 0 0 1px #000; }
+@media (max-height: 420px) {
+  .svmodal { padding: 4px 8px; } .svpanel { padding: 6px 10px; }
+  .svstage { width: 150px; height: 150px; } .svstrip { max-height: 96px; }
+  .svpanel .mhead { margin-bottom: 0; font-size: 15px; } .svpanel .animbtns .chip { min-height: 28px; padding: 2px 8px; }
+}
+@media (max-width: 560px) { .svbody { flex-direction: column; align-items: stretch; } .svleft { align-self: center; } }
+
+/* Dojo skin chips by tier */
+.skinopt.t-signature { border-color: #3a8a80; } .skinopt.t-legendary { border-color: #b8902a; }
+.skinopt.on.t-signature, .skinopt.on.t-legendary { border-color: var(--gold); }
+
+/* Collection */
+.collection { gap: 8px; width: 100%; }
+.colchips { display: flex; gap: 5px; justify-content: center; flex-wrap: wrap; }
+.colchips small { color: var(--muted); font-size: 9px; } .colchips .on small { color: inherit; }
+.colfilter { align-self: center; }
+.colskins { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 6px; }
+.colskin { cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 4px; background: #1e1928; border: 2px solid var(--line); color: var(--ink); text-align: center; min-height: 92px; }
+.colskin b { font-weight: normal; font-size: 10px; line-height: 1.15; } .colskin small { font-size: 9px; color: var(--muted); }
+.colskin.t-signature { border-color: #2f6a64; } .colskin.t-legendary { border-color: #8a6a1a; background: linear-gradient(160deg, #2a2210, #1e1928 60%); }
+.colskin.on { border-color: var(--gold); box-shadow: 0 0 8px #ffd84a55; } .colskin.on small { color: var(--gold); }
+.colskin.locked b { color: var(--muted); }
+.colemotes { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 6px; }
+.colemote { cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 4px; background: #1e1928; border: 2px solid var(--line); color: var(--ink); }
+.colemote img { width: 28px; height: 26px; image-rendering: pixelated; } .colemote b { font-weight: normal; font-size: 10px; } .colemote small { font-size: 9px; color: var(--muted); }
+.colemote.on { border-color: var(--gold); } .colemote.on small { color: var(--gold); }
+.colemote.locked img { filter: brightness(0.55); } .colemote.locked b { color: var(--muted); }
+
+/* Achievements */
+.achtab { width: 100%; gap: 8px; }
+.achhead { display: flex; align-items: center; gap: 10px; } .achhead b { font-weight: normal; color: var(--gold); white-space: nowrap; } .achhead .pbar { flex: 1; }
+.achgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 6px; }
+.achcard { display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: #1e1928; border: 2px solid var(--line); }
+.achcard.got { border-color: #8a6a1a; background: linear-gradient(90deg, #2a2210, #1e1928 70%); }
+.achcard:not(.got) .achi { filter: grayscale(1) brightness(0.6); }
+.achi { width: 28px; height: 28px; image-rendering: pixelated; flex: none; }
+.achtx { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.achtx b { font-weight: normal; font-size: 12px; } .achcard.got .achtx b { color: var(--gold); } .achtx small { font-size: 10px; color: #cfc6d8; line-height: 1.25; }
+.achprog { display: flex; align-items: center; gap: 6px; } .achprog .pbar { flex: 1; } .achprog small { font-size: 9px; color: var(--muted); }
+.achside { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; flex: none; max-width: 120px; text-align: right; }
+.achside > small { font-size: 9px; }
+.achrw { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.achrwi { display: flex; align-items: center; gap: 4px; } .achrwi small { font-size: 9px; color: var(--muted); line-height: 1.1; }
+.rwemote { width: 18px; height: 17px; image-rendering: pixelated; }
+
+/* unlock toast: one at a time, top centre, under the safe area */
+/* unlock toast: one at a time, compact, bottom centre just above the results footer (clear of the verdict and the buttons) */
+.achtoast { position: fixed; left: 50%; bottom: calc(76px + var(--safe-b)); transform: translateX(-50%); z-index: 70; display: flex; align-items: center; gap: 8px; padding: 6px 10px 6px 8px;
+  background: rgba(20, 15, 28, 0.96); border: 2px solid var(--gold); box-shadow: 0 3px 0 #000a, 0 0 14px #ffd84a33; max-width: min(300px, calc(100vw - 24px)); cursor: pointer;
+  animation: achIn 0.34s cubic-bezier(.2,1.3,.4,1); }
+.achtoast .kick { font-size: 7px; letter-spacing: 1px; color: var(--gold); } .achtoast b { font-weight: normal; font-size: 12px; line-height: 1.15; }
+.achtoast .achrwline { display: flex; align-items: center; gap: 4px; } .achtoast .achrwline small { font-size: 9px; color: #cfc6d8; line-height: 1.15; }
+.achtoast .achrwline canvas, .achtoast .achrwline img { flex: none; }
+.achtoast .achi { width: 26px; height: 26px; }
+.achtoast.out { transition: opacity 0.25s, transform 0.25s; opacity: 0; transform: translate(-50%, 12px); }
+.achtoast.still { animation: none; } .achtoast.still.out { transition: none; }
+@keyframes achIn { from { transform: translate(-50%, 24px); opacity: 0; } }
+
+/* results: signature emotes */
+.results .verdict .remote { width: 0.62em; height: auto; vertical-align: 0.12em; margin-left: 0.22em; image-rendering: pixelated; filter: drop-shadow(0 3px 0 #000); animation: emoteIn 0.5s 0.55s both cubic-bezier(.2,1.6,.4,1); }
+.rth .remote { width: 18px; height: auto; image-rendering: pixelated; }
+@keyframes emoteIn { from { transform: scale(0) rotate(-30deg); opacity: 0; } }
+.achunlocks .unlock { border-color: #b8902a; }
+
+/* quick chat: owned emotes in a scrolling grid (two rows visible) */
+#qchat .qemotes { display: grid; grid-template-columns: repeat(6, 36px); justify-content: space-between; row-gap: 4px; max-height: 78px; overflow-y: auto; }
+.colnote { align-self: center; background: rgba(18, 14, 26, 0.82); padding: 3px 10px; max-width: 760px; }
+.colfilter { display: flex; gap: 4px; } .colfilter .chip { min-width: 64px; }
+/* locked looks stay visible (you can see what you are earning), just dimmed, with a lock pip */
+.colskin.locked canvas, .svthumb.locked canvas { filter: brightness(0.62) saturate(0.75); }
+.colskin.locked, .bordercard.cbd.locked { position: relative; }
+.colskin.locked::after, .svthumb.locked::after { content: ''; position: absolute; right: 3px; top: 3px; width: 7px; height: 6px; background: #a99fb3; box-shadow: 0 0 0 1px #000; border-radius: 1px; }
+.svthumb.locked::after { right: 2px; top: auto; bottom: 2px; }
+.bordercard.cbd.locked { filter: brightness(0.6) saturate(0.7) !important; opacity: 1; }
+.dskinbtn { align-self: stretch; min-height: 30px; font-size: 11px; color: var(--gold); border-color: #8a6a1a; }

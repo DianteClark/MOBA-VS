@@ -8,11 +8,13 @@ import { HERO_BY_ID } from './data/heroes.js';
 import { queueCloudSave } from './net/online.js';
 import { loadPresets, sanitize } from './presets.js';
 import { recordCareer } from './ui/career.js';
+import { FREE_EMOTES, EMOTES, BORDERS } from './data/cosmetics.js';
+import { ACH, matchContext } from './data/achievements.js';
 
 const KEY = 'mobavs_profile_v1';
 const fresh = () => ({
-  v: 1, seasons: {}, unlocked: { skins: ['base'], banners: ['plain'], titles: ['rookie'] },
-  equip: { banner: 'plain', title: 'rookie', skins: {} }, trophies: { gold: 0, silver: 0 }, borders: [],
+  v: 1, seasons: {}, unlocked: { skins: ['base'], banners: ['plain'], titles: ['rookie'], emotes: [...FREE_EMOTES], borders: [] },
+  equip: { banner: 'plain', title: 'rookie', skins: {}, emote: 'grin', border: null }, ach: { got: {}, roles: [] }, trophies: { gold: 0, silver: 0 }, borders: [],
   history: [], heroStats: {}, cup: null, seenPatch: '', lastSeason: 0, mastery: {},
 });
 
@@ -30,7 +32,21 @@ export class Profile {
     this.d = fresh();
     try { const raw = localStorage.getItem(KEY); if (raw) this.d = Object.assign(fresh(), JSON.parse(raw)); } catch { /* private mode: in-memory */ }
     this.d.presets = loadPresets(this.d.presets);
+    this.normalize();
     this.rollover();
+  }
+  // Saves from before emotes, achievement borders and achievements get their new fields (bounded, known keys only).
+  normalize() {
+    const d = this.d, u = d.unlocked || (d.unlocked = {}), e = d.equip || (d.equip = {});
+    for (const k of ['skins', 'banners', 'titles', 'emotes', 'borders']) if (!Array.isArray(u[k])) u[k] = [];
+    for (const k of FREE_EMOTES) if (!u.emotes.includes(k)) u.emotes.push(k);
+    u.emotes = u.emotes.filter((k) => EMOTES[k]); u.borders = u.borders.filter((k) => BORDERS[k]);
+    if (!e.skins || typeof e.skins !== 'object') e.skins = {};
+    if (!EMOTES[e.emote]) e.emote = 'grin';
+    if (e.border && !BORDERS[e.border]) e.border = null;
+    const a = d.ach && typeof d.ach === 'object' ? d.ach : {};
+    d.ach = { got: Object.fromEntries(Object.entries(a.got || {}).filter(([k]) => ACH.some((x) => x.id === k))), roles: (Array.isArray(a.roles) ? a.roles : []).slice(0, 5) };
+    this.checkState(); // retroactive: progress earned before achievements existed (no toasts)
   }
   // Saves locally and (when signed in) queues a cloud save of the whole profile.
   save(opts = {}) {
@@ -39,7 +55,7 @@ export class Profile {
     if (!opts.local) { let name = 'Coach'; try { name = localStorage.getItem('mobavs_name') || 'Coach'; } catch { /* ignore */ } queueCloudSave(name, this.d, this.d.savedAt); }
   }
   // Replace the local profile with a cloud copy (sign-in on a new device, or a newer save elsewhere).
-  adopt(d) { this.d = Object.assign(fresh(), d); this.d.presets = loadPresets(this.d.presets); this.rollover(); this.save({ keepTime: true, local: true }); }
+  adopt(d) { this.d = Object.assign(fresh(), d); this.d.presets = loadPresets(this.d.presets); this.normalize(); this.rollover(); this.save({ keepTime: true, local: true }); }
   get season() { return seasonAt(); }
   // Season record. elo/peakElo/rg (rated games) replaced the old RP fields; old saves convert once.
   ss(id = this.season.id) {
@@ -124,6 +140,13 @@ export class Profile {
       mastery.push({ id: x.heroId, gain: pts.total, parts: pts.parts, before: lvA, after: lvB, info: masteryInfo(m.pts), rewards });
     }
     try { recordCareer(this.d, game, myTeam, analytics); } catch (e) { console.error(e); }
+    // achievements: MVP roles seen, then every match and profile check
+    let ach = [];
+    try {
+      const mh = mvp && mvp.team === myTeam ? team.heroes.find((x) => x.heroId === mvp.id) : null;
+      if (mh && !this.d.ach.roles.includes(mh.role)) this.d.ach.roles.push(mh.role);
+      ach = this.checkMatch(matchContext({ game, myTeam, key, aiLevel, analytics, potgHero }));
+    } catch (e) { console.error(e); }
     this.d.history.unshift({
       t: Date.now(), season: season.id, mode: key, map: game.world.def.id, won, len: Math.round(game.time),
       picks: [0, 1].map((t) => game.teams[t].heroes.map((x) => x.heroId)), winner: game.winner, side: myTeam,
@@ -132,21 +155,45 @@ export class Profile {
       names: (this.lastNames || ['You', 'Rival']).slice(), mvp, crystal: !game.events.some((e) => e.type === 'victory' && e.timeout),
       rank: rankOf(s.elo).label, rpDelta: elo - before, cup: cup ? (profile_cupRound(this.d.cup)) : null,
       calls: game.callLog.filter((c) => c.team === myTeam && c.result === 'success').length,
+      emote: this.emote, sk: this.skinsFor(team.heroes.map((x) => x.heroId)), // share card: signature emote + skinned portraits
     });
     this.d.history.length = Math.min(this.d.history.length, 50);
     this.save();
     const rankAfter = rankOf(elo);
     return { won, rated, rg: s.rg, key, eloBefore: before, elo, delta: elo - before, rankBefore, rankAfter,
       promoted: rankAfter.step > rankBefore.step, demoted: rankAfter.step < rankBefore.step,
-      xp, xpParts, lvBefore, lvAfter, unlocks, mastery, capped: rated && key.startsWith('ai') && won && elo >= AI_CAP[aiLevel] };
+      xp, xpParts, lvBefore, lvAfter, unlocks, mastery, ach, capped: rated && key.startsWith('ai') && won && elo >= AI_CAP[aiLevel] };
   }
 
   // Mastery of one hero: { lv, pts, into, toNext, max }
   mastery(id) { return masteryInfo((this.d.mastery[id] || {}).pts || 0); }
   equipSkin(heroId, skin) { if (skin === 'base') delete this.d.equip.skins[heroId]; else this.d.equip.skins[heroId] = skin; this.save(); }
   skinsFor(ids) { const o = {}; for (const id of ids) { const s = this.d.equip.skins[id]; if (s && this.hasSkin(id, s)) o[id] = s; } return o; }
-  // Season/pass skins are account-wide; mastery tints only for heroes that reached the level.
-  hasSkin(heroId, s) { const k = SKINS[s]; if (!k) return false; if (k.mastery) return this.mastery(heroId).lv >= k.mastery; return s === 'base' || this.d.unlocked.skins.includes(s); }
+  // Season/pass skins are account-wide; mastery tints and Signature skins come with the hero's mastery level;
+  // hero skins only fit their own hero.
+  hasSkin(heroId, s) { const k = SKINS[s]; if (!k || (k.hero && k.hero !== heroId)) return false; if (k.mastery) return this.mastery(heroId).lv >= k.mastery; return s === 'base' || this.d.unlocked.skins.includes(s); }
+  hasEmote(id) { return !!EMOTES[id] && this.d.unlocked.emotes.includes(id); }
+  // Tier borders come from season ends (d.borders); the rest from achievements.
+  hasBorder(id) { const b = BORDERS[id]; if (!b) return false; return b.tier ? this.d.borders.some((x) => x.tier === id) : this.d.unlocked.borders.includes(id); }
+  get emote() { return this.hasEmote(this.d.equip.emote) ? this.d.equip.emote : 'grin'; }
+  get border() { return this.d.equip.border && this.hasBorder(this.d.equip.border) ? this.d.equip.border : null; }
+
+  // ── achievements (definitions: src/data/achievements.js) ──
+  hasAch(id) { return !!this.d.ach.got[id]; }
+  grantAch(a, out) { this.d.ach.got[a.id] = Date.now(); const got = []; this.unlock(a.reward, got); out.push({ id: a.id, name: a.name, reward: a.reward }); }
+  // After a match: the match checks plus the profile checks. Returns the newly earned ones.
+  checkMatch(m) {
+    const out = [];
+    if (m.my < 0) return out;
+    for (const a of ACH) if (!this.hasAch(a.id) && a.match) { let ok = false; try { ok = a.match(m); } catch (e) { console.error(e); } if (ok) this.grantAch(a, out); }
+    out.push(...this.checkState());
+    return out;
+  }
+  checkState() {
+    const out = [];
+    for (const a of ACH) if (!this.hasAch(a.id) && a.state) { let ok = false; try { ok = a.state(this.d, this); } catch (e) { console.error(e); } if (ok) this.grantAch(a, out); }
+    return out;
+  }
   // Lineup presets (Dojo → Lineups).
   get activePreset() { const p = this.d.presets; return p.active >= 0 ? p.slots[p.active] : null; }
   savePreset(i, preset) { this.d.presets.slots[i] = sanitize(preset); this.save(); }
