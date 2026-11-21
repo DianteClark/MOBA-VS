@@ -37,7 +37,6 @@ button { font-family: inherit; color: inherit; word-spacing: inherit; letter-spa
 h1, h2, h3 { margin: 0; font-weight: normal; }
 .title { font-size: clamp(42px, 10vw, 88px); letter-spacing: 3px; color: #ffe3a3; text-shadow: 0 4px 0 #6a2c12, 0 8px 0 #2a1608, 0 0 30px rgba(255, 170, 60, 0.5); text-align: center; line-height: 1; animation: bob 3s ease-in-out infinite; }
 @keyframes bob { 50% { transform: translateY(-4px); } }
-.subtitle { color: #f3c98f; font-size: 15px; text-align: center; margin-top: 10px; text-shadow: 0 2px 0 #000; }
 .face { width: 48px; height: 48px; flex: 0 0 48px; border: 6px solid transparent; border-image: url(../assets/img/ui/FacesetBox.png) 6 fill / 6px stretch; background: #182020; display: inline-block; position: relative; }
 .face img { width: 100%; height: 100%; display: block; }
 
@@ -646,7 +645,6 @@ canvas.graph { width: 100%; height: 150px; background: #120f18; border: 2px soli
 .tcell img { width: 18px; height: 18px; } .tcell .dot { width: 6px; height: 6px; background: #554; margin: 6px; }
 .sw { width: 18px; height: 18px; border: 2px solid #000; display: inline-block; } .bn { width: 26px; height: 16px; border: 1px solid #000; display: inline-block; }
 .tabs { display: flex; gap: 6px; justify-content: center; }
-.chip.gear { display: inline-flex; align-items: center; gap: 6px; } .chip.gear img { width: 16px; height: 16px; }
 .skinopt { cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 3px; background: #1e1928; border: 2px solid var(--line); color: var(--ink); padding: 6px; min-width: 84px; }
 .skinopt b { font-weight: normal; font-size: 11px; } .skinopt small { font-size: 9px; color: var(--muted); }
 .skinopt.on { border-color: var(--gold); } .skinopt.on small { color: var(--gold); }
@@ -681,10 +679,6 @@ canvas.graph { width: 100%; height: 150px; background: #120f18; border: 2px soli
 @keyframes pop { from { transform: scale(0.4); opacity: 0; } 70% { transform: scale(1.1); } }
 
 @media (max-width: 720px) {
-  .modes { grid-template-columns: 1fr; }
-  .mode.online .col { flex-direction: row !important; } .mode.online .col .btn { flex: 1; }
-  .sstrip { grid-template-columns: 1fr auto; } .sstrip .sinfo { grid-column: 1 / -1; grid-row: 2; } .sstrip .slv { grid-row: 1; grid-column: 2; min-width: 90px; } .sstrip .chev { display: none; }
-  .coach { gap: 8px; padding: 10px; }
   .track { grid-template-columns: repeat(5, 1fr); }
   .bracket { grid-template-columns: 1fr; gap: 6px; } .bcol { gap: 6px; } .bround { text-align: left; margin-top: 4px; }
   .shead { grid-template-columns: 70px 1fr 10px; } .shead h2 { font-size: 20px; }
@@ -881,7 +875,6 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 20px; border-radius: 
 .mpanel .deck { margin: 6px 0; }
 @media (max-height: 500px), (max-width: 760px) {
   .dojohead { grid-template-columns: 90px 1fr 60px; } .dojohead h2 { font-size: 16px; } .dojotabs .chip { min-width: 90px; min-height: 36px; font-size: 12px; }
-  .hometiles { gap: 8px; } .htile { min-height: 64px; padding: 6px 10px; } .htile .ht b { font-size: 17px; }
   .dhero { grid-template-columns: 210px minmax(0, 1fr); gap: 8px; }
   .dgrid { grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 5px; } .dcard img { width: 42px; height: 42px; } .dcard b { font-size: 10px; }
   .lhero { flex-basis: 112px; } .lhero img, .lhero .plus { width: 30px; height: 30px; flex-basis: 30px; } .lhero .ln { font-size: 11px; }
@@ -1116,7 +1109,7 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 20px; border-radius: 
 
 /* ═════════ v20: menu polish ═════════ */
 /* press feedback everywhere you can tap */
-.tile:active:not(:disabled), .tcard:active:not(:disabled), .sstrip:active, .hrow2:active, .mode .btn:active:not(:disabled) { transform: scale(0.97); }
+.tile:active:not(:disabled), .tcard:active:not(:disabled), .hrow2:active { transform: scale(0.97); }
 .btn:focus-visible, .chip:focus-visible, .tile:focus-visible, .call:focus-visible, .tcard:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 /* locked cosmetics read as locked (dimmed but solid), not as see-through glitches */
 .skinopt.locked, .bannercard.locked, .titlerow.locked { opacity: 1; filter: grayscale(0.85) brightness(0.55); }

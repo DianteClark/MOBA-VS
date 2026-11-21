@@ -16,7 +16,7 @@ function haystack(x) {
   return s;
 }
 // Every word of the query must appear (prefix of a word, so "sup" finds supports and "fire" finds Fire...).
-export function heroMatches(x, q) {
+function heroMatches(x, q) {
   const words = String(q || '').toLowerCase().trim().split(/\s+/).filter(Boolean);
   if (!words.length) return true;
   const s = ' ' + haystack(x);

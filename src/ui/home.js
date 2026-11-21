@@ -198,13 +198,21 @@ export function showCup(app) {
 }
 
 // ───────────── patch notes ─────────────
+// Newest patch open, older ones folded. A note's lead-in ("Lane Rush: ...") is highlighted for skimming.
+function noteLine(n) {
+  const m = /^([^:.]{2,42}):\s(.+)$/.exec(n);
+  return h('li', {}, m ? [h('b', { class: 'nlead' }, m[1] + ': '), m[2]] : n);
+}
 export function showPatch(app) {
   profile.d.seenPatch = PATCHES[0].version; profile.save();
   mount(screen(), h('div', { class: 'subscreen' }, h('div', { class: 'shead' }, back(app), h('h2', {}, 'Patch Notes'), h('div')),
-    ...PATCHES.map((pt) => h('div', { class: 'panel patch' },
-      h('div', { class: 'row', style: { justifyContent: 'space-between' } }, h('b', { class: 'gold' }, `v${pt.version} · ${pt.title}`), h('small', { class: 'muted' }, pt.date)),
-      h('ul', {}, ...pt.notes.map((n) => h('li', {}, n))),
-      pt.heroes.length ? h('div', { class: 'hchanges' }, ...pt.heroes.map((c) => h('div', { class: 'hc' }, h('img', { src: face(c.id) }), h('b', { class: c.dir > 0 ? 'up' : 'down' }, c.dir > 0 ? '▲' : '▼'), h('span', {}, h('b', {}, HERO_BY_ID[c.id] ? HERO_BY_ID[c.id].name : c.id), ' ', c.text)))) : null))));
+    ...PATCHES.map((pt, i) => {
+      const head = h('div', { class: 'row', style: { justifyContent: 'space-between' } }, h('b', { class: 'gold' }, `v${pt.version} · ${pt.title}`), h('small', { class: 'muted' }, pt.date));
+      const body = [h('ul', {}, ...pt.notes.map(noteLine)),
+        pt.heroes.length ? h('div', { class: 'hchanges' }, ...pt.heroes.map((c) => h('div', { class: 'hc' }, h('img', { src: face(c.id) }), h('b', { class: c.dir > 0 ? 'up' : 'down' }, c.dir > 0 ? '▲' : '▼'), h('span', {}, h('b', {}, HERO_BY_ID[c.id] ? HERO_BY_ID[c.id].name : c.id), ' ', c.text)))) : null];
+      return i === 0 ? h('div', { class: 'panel patch' }, head, body)
+        : h('details', { class: 'panel patch old' }, h('summary', {}, head), body);
+    })));
 }
 
 // ───────────── post-match progression (inside results) ─────────────
