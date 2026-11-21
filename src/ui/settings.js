@@ -14,7 +14,7 @@ const PALETTES = {
   // blue / orange: safe for deuteranopia, protanopia and tritanopia
   cb: { col: ['#3d9bff', '#ffa22e'], dark: ['#174a8a', '#8a4d0c'] },
 };
-const DEFAULTS = { music: 70, sfx: 80, colorblind: false, textSize: 'normal', reducedMotion: false, speed: 1, chatter: true, alerts: true, quality: 'auto', haptics: true, chatMute: false };
+const DEFAULTS = { master: 100, music: 70, sfx: 80, ui: 70, colorblind: false, textSize: 'normal', reducedMotion: false, speed: 1, chatter: true, alerts: true, quality: 'auto', haptics: true, chatMute: false };
 // Phones/tablets: touch-first devices. Used for default render resolution and HUD cadence.
 export const isTouch = (() => { try { return matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window; } catch { return false; } })();
 // Render resolution multiplier (canvas pixels per CSS pixel) for the chosen quality.
@@ -52,7 +52,7 @@ function applySettings() {
   root.style.setProperty('--ts', String(textScale()));
   root.classList.toggle('reduce-motion', !!settings.reducedMotion);
   root.classList.toggle('cb', !!settings.colorblind);
-  audio.setVolumes(settings.music / 100 * 0.5, settings.sfx / 100 * 0.7);
+  audio.setVolumes({ master: settings.master / 100, music: settings.music / 100 * 0.5, sfx: settings.sfx / 100 * 0.7, ui: settings.ui / 100 * 0.7 });
   for (const f of listeners) f(settings);
 }
 const listeners = new Set();
@@ -77,8 +77,10 @@ function body(rerender) {
   const sw = h('span', { class: 'swatches' }, h('i', { style: { background: TEAM_COL[0] } }), h('i', { style: { background: TEAM_COL[1] } }));
   return [
     h('div', { class: 'sgroup' }, h('div', { class: 'sgt' }, 'Sound'),
+      slider('Master', 'master', () => audio.sfx('coin', 1, 0)),
       slider('Music', 'music'),
-      slider('Effects', 'sfx', () => audio.sfx('coin', 1, 0)),
+      slider('Effects', 'sfx', () => audio.sfx('hit_m1', 1, 0)),
+      slider('Menu sounds', 'ui', () => audio.ui('tap')),
       h('div', { class: 'srow' }, h('span', { class: 'slab' }, 'Mute everything'),
         h('div', { class: 'sctl' }, h('button', { class: 'tog' + (audio.muted ? ' on' : ''), role: 'switch', onclick: () => { audio.setMuted(!audio.muted); rerender(); } }, h('i'))))),
     h('div', { class: 'sgroup' }, h('div', { class: 'sgt' }, 'Display'),

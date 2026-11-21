@@ -21,6 +21,7 @@ import { Hud } from './ui/hud.js';
 import { TEAM_COL } from './render/palette.js';
 import { toast, h } from './ui/dom.js';
 import { audio } from './audio.js';
+import { matchAudio } from './audio-match.js';
 import { DEFAULT_DECK } from './data/tactics.js';
 import { fpsCap } from './ui/settings.js';
 import { showHalftime, hideHalftime } from './ui/halftime.js';
@@ -34,7 +35,7 @@ import { findPOTG, reportCard } from './ui/moments.js';
 import { rankMoment } from './ui/ranks.js';
 import { installBuildTips } from './ui/buildguide.js';
 import { saveClip, clipSupport } from './ui/clip.js';
-import { installPressSounds, tokRecent, confetti } from './ui/juice.js';
+import { installPressSounds, confetti } from './ui/juice.js';
 
 const VERSION = 20; // bump whenever the sim or balance changes (peers must match)
 const PREP_SECONDS = 60;
@@ -64,7 +65,6 @@ class App {
 
   async boot() {
     audio.init();
-    audio.pressed = tokRecent;
     installPressSounds();
     // Menu transitions: a new screen slides in; re-rendering the same screen (a toggle, a tab, a draft pick) does not.
     const scr = document.getElementById('screen'); let lastView = '';
@@ -469,7 +469,6 @@ class App {
     const pre = s.prebuilt; s.prebuilt = null; // Play of the Game: a game already fast-forwarded to the highlight
     const game = pre ? pre.game : new Game(cfg);
     this.showScreen(false);
-    audio.music(Math.random() < 0.5 ? 'match' : 'match2');
     const canvas = document.getElementById('game'), mmc = document.getElementById('mm');
     if (!this.renderer) {
       this.renderer = new Renderer(canvas);
@@ -505,6 +504,7 @@ class App {
       hud.banner('PLAY OF THE GAME', '#ffd84a', 1600, null, true); hud.banner(p.title.toUpperCase(), TEAM_COL[p.team] || '#ffd84a', 1800);
     }
     this.match = { game, runner, hud, ended: false, cfg: cfgSaved };
+    matchAudio.attach(game, this.renderer, runner, s.myTeam);
     this.lastFrame = performance.now();
     requestAnimationFrame((t) => this.frame(t));
     // Hidden tabs stop requestAnimationFrame: keep the lockstep sim ticking so the opponent never stalls.
@@ -538,11 +538,12 @@ class App {
     const raw = (now - this.lastFrame) / 1000; this.lastFrame = now;
     const dt = Math.min(0.1, raw);
     const r = this.renderer;
-    m.runner.update(m.runner.online ? Math.min(1, raw) : dt, () => r.snapshot(), () => r.consume());
+    m.runner.update(m.runner.online ? Math.min(1, raw) : dt, () => r.snapshot(), () => { matchAudio.consume(); r.consume(); });
     this.camCtl.update(dt);
     r.draw(m.runner.alpha, dt);
     this.minimap.draw();
     m.hud.update(dt);
+    matchAudio.frame();
     const potg = this.session && this.session.potg;
     if (potg) {
       if (!m.ended && (m.game.tick >= potg.end || m.game.over)) { m.ended = true; setTimeout(() => { if (this.match === m) this.endPOTG(); }, 1200); }
@@ -564,6 +565,7 @@ class App {
   // Leaving a match: stop the hidden-tab ticker and tear the HUD down (listeners, alerts, chat, timers).
   teardownMatch(m) {
     clearInterval(this.bgTick);
+    matchAudio.detach();
     for (const id of ['scoreboard', 'halftime']) { const el = document.getElementById(id); if (el) el.remove(); }
     if (m && m.hud) m.hud.destroy();
   }

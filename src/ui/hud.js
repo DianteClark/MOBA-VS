@@ -444,7 +444,7 @@ export class Hud {
     const why = this.whyText(x); setText(d.why, why); d.why.classList.toggle('hidden', !why);
   }
 
-  // ───────────────────────── events → feeds / banners / audio ─────────────────────────
+  // ───────────────── events → feeds / banners (match sounds: src/audio-match.js) ─────────────────
   name(id) { const u = this.g.byId(id); return u && u.def ? u.def.name : '?'; }
   processEvents() {
     const g = this.g, ev = g.events;
@@ -458,7 +458,6 @@ export class Hud {
           if (!this.firstBlood) { this.firstBlood = true; this.banner('FIRST BLOOD', TEAM_COL[kt], 1800, killer ? face(killer.heroId) : null); }
           else if (e.shutdown) this.banner('SHUT DOWN', TEAM_COL[kt], 1500, killer ? face(killer.heroId) : null);
           if (g.teams[v.team].heroes.every((x) => !x.alive)) this.banner('ACE!', TEAM_COL[kt], 2000);
-          audio.sfx(kt === this.view || this.my < 0 ? 'impact' : 'death', 0.8);
           this.cast(e, kt);
           if (this.my >= 0) buzz(g.teams[v.team].heroes.every((x) => !x.alive) ? 'big' : kt === this.my ? 'kill' : 'death');
           break;
@@ -468,19 +467,18 @@ export class Hud {
           const nm = e.obj === 'dragon' ? DRAGON_INFO[e.element].name : OBJ_L[e.obj];
           this.ticker(`${TEAM_NAME[e.team]} ${e.steal ? 'STOLE' : 'took'} ${nm}${e.killer ? ' (' + this.name(e.killer) + ')' : ''}`, e.team === 0 ? 'b' : 'r', 3);
           this.banner(`${e.steal ? 'STOLEN! ' : ''}${nm.toUpperCase()}`, TEAM_COL[e.team], 2200, bossFace(e.obj, e.element));
-          audio.sfx('objective');
           this.cast(e, e.team);
           if (this.my >= 0 && (e.team === 0 || e.team === 1)) buzz(e.team === this.my ? 'objective' : 'objectiveLost');
           break;
         }
         case 'soul': this.banner(`${DRAGON_INFO[e.element].short.toUpperCase()} BLESSING`, TEAM_COL[e.team], 2400); this.cast(e, e.team); break;
-        case 'shrine': this.ticker(`${TEAM_NAME[e.team]} captured a shrine`, e.team === 0 ? 'b' : 'r', 2); audio.sfx('powerup', 0.6); break;
+        case 'shrine': this.ticker(`${TEAM_NAME[e.team]} captured a shrine`, e.team === 0 ? 'b' : 'r', 2); break;
         case 'weather': if (g.tick > 5) { const W_ = WEATHER[e.weather]; this.ticker(`Weather: ${W_.name}${W_.desc ? ' — ' + W_.desc : ''}`, 'n', 0); } break;
-        case 'tower': this.ticker(`${TEAM_NAME[e.team]} destroyed a ${LANE_L[e.lane] || 'base'} tower`, e.team === 0 ? 'b' : 'r', 2); audio.sfx('explosion', 0.7); break;
-        case 'inhib': this.ticker(`${TEAM_NAME[e.team]} broke the ${LANE_L[e.lane]} gate!`, e.team === 0 ? 'b' : 'r', 3); this.banner('GATE DESTROYED', TEAM_COL[e.team]); audio.sfx('explosion'); break;
+        case 'tower': this.ticker(`${TEAM_NAME[e.team]} destroyed a ${LANE_L[e.lane] || 'base'} tower`, e.team === 0 ? 'b' : 'r', 2); break;
+        case 'inhib': this.ticker(`${TEAM_NAME[e.team]} broke the ${LANE_L[e.lane]} gate!`, e.team === 0 ? 'b' : 'r', 3); this.banner('GATE DESTROYED', TEAM_COL[e.team]); break;
         case 'inhibRespawn': this.ticker(`${TEAM_NAME[e.team]} ${LANE_L[e.lane]} gate restored`, 'n', 0); break;
-        case 'spawn': this.ticker(`${e.obj === 'dragon' ? DRAGON_INFO[e.element].name : OBJ_L[e.obj]} has awakened`, 'act', 2); audio.sfx('alert', 0.5); break;
-        case 'heraldDrop': this.ticker(`${TEAM_NAME[e.team]} unleashed the Oni ${LANE_L[e.lane]}!`, e.team === 0 ? 'b' : 'r', 2); audio.sfx('explosion'); break;
+        case 'spawn': this.ticker(`${e.obj === 'dragon' ? DRAGON_INFO[e.element].name : OBJ_L[e.obj]} has awakened`, 'act', 2); break;
+        case 'heraldDrop': this.ticker(`${TEAM_NAME[e.team]} unleashed the Oni ${LANE_L[e.lane]}!`, e.team === 0 ? 'b' : 'r', 2); break;
         case 'call': {
           const c = e.call;
           if (c.type === 'ult' && c.mode === 'go' && (c.team === this.view || this.my < 0)) this.banner('ALL-IN!', TEAM_COL[c.team], 1200);
@@ -498,17 +496,15 @@ export class Hud {
         case 'momentumFull': if (e.team === this.my) this.dock.surgeOffer(); break;
         case 'moment': momentFx(this, e); break;
         case 'surge':
-          if (e.team === this.view || this.my < 0) { this.banner('KAMI SURGE', TEAM_COL[e.team], 1500); audio.sfx('powerup', 0.8); }
+          if (e.team === this.view || this.my < 0) { this.banner('KAMI SURGE', TEAM_COL[e.team], 1500); }
           else this.ticker('Enemy Kami Surge! +10% damage for 8s', 'danger', 3);
           break;
         case 'victory':
           if (e.timeout) this.banner(`TIME!  ${e.towers[0]} - ${e.towers[1]} TOWERS`, '#ffd84a', 1500, null, true);
           this.banner(this.my < 0 ? `${TEAM_NAME[e.team].toUpperCase()} WINS` : e.team === this.my ? 'VICTORY' : 'DEFEAT', e.team === this.my || this.my < 0 ? TEAM_COL[e.team] : '#ff5a5a', 4000, null, !e.timeout);
-          audio.sfx(e.team === this.my || this.my < 0 ? 'objective' : 'death');
           if (this.my >= 0) buzz(e.team === this.my ? 'big' : 'objectiveLost');
           break;
         case 'ultCast': {
-          if (e.team === this.view || this.my < 0) audio.sfx('magic', 0.5, 300);
           // fight cam: the first big ultimate after cutting to a fight plays in brief slow motion
           const fc = this.fightCam, x = g.byId(e.hero);
           if (fc && !fc.slowed && performance.now() < fc.until && x && (x.x - fc.x) ** 2 + (x.y - fc.y) ** 2 < 800 * 800 && !settings.reducedMotion) { fc.slowed = true; this.slow('fight', 0.35, 1300); }
@@ -516,8 +512,8 @@ export class Hud {
         }
         case 'pivot': if (e.team === this.view) this.ticker(`${this.name(e.hero)} will now build ${BUILDS[e.build].name}`, 'n', 0); break;
         case 'trust': if (e.team === this.view && this.my >= 0) { const x = g.byId(e.hero); this.ticker(e.tier === 2 ? `${x.def.name} is Inspired by your calls!` : e.tier === 0 ? `${x.def.name} is losing faith in your calls` : `${x.def.name} trusts you again`, e.tier === 0 ? 'danger' : 'n', 1); } break;
-        case 'tactic': if (e.team === this.view || this.my < 0) { this.banner(TACTICS[e.card].name.toUpperCase(), TEAM_COL[e.team], 1500); audio.sfx('powerup', 0.7); } break;
-        case 'finalPhase': this.banner('LAST STAND', '#ff8a3a', 2200, null); this.ticker(`Final ${Math.round(g.timeLeft / 60)} minutes: gold ×1.5, longer respawns. Every tower counts!`, 'act', 3); audio.sfx('alert', 0.8); break;
+        case 'tactic': if (e.team === this.view || this.my < 0) { this.banner(TACTICS[e.card].name.toUpperCase(), TEAM_COL[e.team], 1500); } break;
+        case 'finalPhase': this.banner('LAST STAND', '#ff8a3a', 2200, null); this.ticker(`Final ${Math.round(g.timeLeft / 60)} minutes: gold ×1.5, longer respawns. Every tower counts!`, 'act', 3); break;
         case 'stolenCamp': if (e.big && e.team !== this.view) this.ticker('Enemy invaded your jungle!', 'danger', 2); break;
       }
     }
