@@ -35,7 +35,7 @@ import { findPOTG, reportCard } from './ui/moments.js';
 import { rankMoment } from './ui/ranks.js';
 import { installBuildTips } from './ui/buildguide.js';
 import { saveClip, clipSupport } from './ui/clip.js';
-import { installPressSounds, tokRecent, confetti } from './ui/juice.js';
+import { installPressSounds, confetti } from './ui/juice.js';
 import { MatchRecorder, showAnalysis } from './ui/analytics.js';
 import { Theater } from './ui/theater.js';
 import { loadLib, storeMatch } from './ui/replays.js';
