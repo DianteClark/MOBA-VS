@@ -43,7 +43,7 @@ export function planCarry(g, team) {
   return T.planCarry;
 }
 // Split Push: one or two side laners (siege builds and split/siege heroes first; never the support or jungler).
-export function planSplitters(g, team) {
+function planSplitters(g, team) {
   const T = g.teams[team];
   if (!T.planSplit) {
     const c = T.heroes.filter((h) => h.role !== 'support' && h.role !== 'jungle').map((h) => {

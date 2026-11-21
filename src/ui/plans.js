@@ -40,7 +40,7 @@ export function planSwitch(hud, e) {
 // A.plans: [[start plan, end plan, halftime-switch second | 0], ...] per team; A.k clock scale; A.carry: protect carries.
 const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 const kg = (v) => (Math.abs(v) >= 1000 ? (Math.round(v / 100) / 10) + 'k' : String(Math.round(v)));
-export function planVerdict(A, T) {
+function planVerdict(A, T) {
   if (!A.plans || !A.plans[T]) return null;
   const [p0, p1, at] = A.plans[T], plan = p1 || p0, P = PLAN_INFO[plan]; if (!P) return null;
   const sg = T === 0 ? 1 : -1, G = A.gold, st = A.step || 5, k = A.k || 1, you = A.my >= 0 && A.my === T;
