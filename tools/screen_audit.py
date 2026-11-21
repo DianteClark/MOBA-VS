@@ -2,7 +2,7 @@
 # settings, profile, cup, matchmaking, lobby, how-to-play, patch notes), screenshots it and checks
 #   * no horizontal overflow (nothing pushes the page sideways),
 #   * every button / input sits inside the safe area (notch / Dynamic Island, home indicator),
-#   * no two buttons overlap, and no button label is clipped.
+#   * no two buttons overlap (buttons under a sticky bar, e.g. the results footer, are scrolled content), and no button label is clipped.
 #   python3 tools/screen_audit.py URL [outdir] [viewports]
 # viewports: as tools/ui_audit.py (WxH, WxH@L/R/T/B, or the presets iphones / desktop / all).
 # Default: 844x390 and 1366x768 plus the notched iPhone sizes.
@@ -67,8 +67,10 @@ CHECK = """([sl, sr]) => {
     const st = getComputedStyle(e);
     if (e.tagName === 'BUTTON' && e.scrollWidth > e.clientWidth + 2 && st.textOverflow !== 'ellipsis' && st.overflow !== 'visible') out.push(`clipped label: ${name}`);
   }
+  // a sticky bar (the results footer) covers content scrolling under it by design: only compare buttons on the same layer
+  const stuck = (e) => { for (let p = e; p && p !== sc; p = p.parentElement) { const ps = getComputedStyle(p).position; if (ps === 'sticky' || ps === 'fixed') return true; } return false; };
   for (let i = 0; i < els.length; i++) for (let j = i + 1; j < els.length; j++) {
-    const a = els[i], b = els[j]; if (a.contains(b) || b.contains(a)) continue;
+    const a = els[i], b = els[j]; if (a.contains(b) || b.contains(a) || stuck(a) !== stuck(b)) continue;
     const A = a.getBoundingClientRect(), B = b.getBoundingClientRect();
     const ox = Math.min(A.right, B.right) - Math.max(A.left, B.left), oy = Math.min(A.bottom, B.bottom) - Math.max(A.top, B.top);
     if (ox > 3 && oy > 3) out.push(`overlap: ${(a.textContent || a.className).trim().slice(0, 16)} x ${(b.textContent || b.className).trim().slice(0, 16)}`);
