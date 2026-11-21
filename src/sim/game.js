@@ -14,6 +14,7 @@ import { Coach } from './coach.js';
 import * as FX from './effects.js';
 import { rulesFor } from './modes.js';
 import { applyMoment } from './moments-coach.js';
+import { setupCoop, coopGate } from './coop.js';
 
 // Champion-vs-champion damage scale: keeps fights readable and lanes from snowballing at level 1.
 const STEER_K = +(globalThis.process?.env?.SK || 0.45);
@@ -101,6 +102,7 @@ export class Game {
     this.weatherIdx = -1;
     this.clanStats = [{}, {}];
     for (let t = 0; t < 2; t++) for (const h of cfg.teams[t].heroes) this.spawnHero(t, h);
+    if (cfg.coop) setupCoop(this); // co-op coaching: which coach owns which hero (src/sim/coop.js)
     for (let t = 0; t < 2; t++) {
       const counts = {};
       for (const h of this.teams[t].heroes) counts[h.def.clan] = (counts[h.def.clan] || 0) + 1;
@@ -410,6 +412,7 @@ export class Game {
   applyCommand(c) {
     this._callHeroes = [];
     const team = this.teams[c.team]; if (!team || this.over) return false;
+    if (team.coop) { const r = coopGate(this, c); if (r !== undefined) return r; }
     const cost = CMD.cost[c.type] ?? 1;
     if (team.charges + 1e-9 < cost) return false;
     const heroes = team.heroes;
@@ -537,7 +540,7 @@ export class Game {
     }
     if (ok) {
       team.charges -= cost;
-      const entry = { t: this.tick, team: c.team, type: c.type, lane: c.lane, obj: c.obj, hero: c.hero, target: c.target, build: c.build, card: c.card, mode: c.mode, plan: c.plan, kind: c.kind, result: null, heroes: this._callHeroes.slice() };
+      const entry = { t: this.tick, team: c.team, seat: c.seat, type: c.type, lane: c.lane, obj: c.obj, hero: c.hero, target: c.target, build: c.build, card: c.card, mode: c.mode, plan: c.plan, kind: c.kind, result: null, heroes: this._callHeroes.slice() };
       if (c.type === 'tactic') { entry.result = 'played'; entry.trusted = true; }
       if (['gank', 'objective', 'invade', 'group', 'shrine', 'tactic', 'permit'].includes(c.type)) {
         entry.i = this.callLog.length;
@@ -621,7 +624,7 @@ export class Game {
     if (this.over) return;
     const now = this.tick;
     // Commands are applied in a canonical order so both peers agree.
-    const cmds = commands.slice().sort((a, b) => a.team - b.team || (a.seq || 0) - (b.seq || 0));
+    const cmds = commands.slice().sort((a, b) => a.team - b.team || (a.seat || 0) - (b.seat || 0) || (a.seq || 0) - (b.seq || 0)); // seat: co-op coaches
     for (const c of cmds) this.applyCommand(c);
     // Fairness: units act in list order and damage lands immediately, so who goes first is a per-tick
     // coin (a hash of the tick: no RNG draw, no fixed period that unit cooldowns could lock onto).
