@@ -17,7 +17,8 @@ import { host, join, makeCode } from './net/peer.js';
 import { showLobby, showPrep, showResults, startParade, stopParade } from './ui/screens.js';
 import { DraftView, AUTO_GRACE } from './ui/draftview.js';
 import { Hud } from './ui/hud.js';
-import { toast } from './ui/dom.js';
+import { TEAM_COL } from './render/palette.js';
+import { toast, h } from './ui/dom.js';
 import { audio } from './audio.js';
 import { DEFAULT_DECK } from './data/tactics.js';
 import { fpsCap } from './ui/settings.js';
@@ -28,8 +29,9 @@ import { ping, ensureAccount, fetchMe, getAccount, reportMatch, matchStatus, new
 import { showShared, showSearch } from './ui/online.js';
 import { profile } from './profile.js';
 import { newCup, recordCup, myMatch } from './cup.js';
+import { findPOTG, reportCard } from './ui/moments.js';
 
-const VERSION = 5; // bump whenever the sim or balance changes (peers must match)
+const VERSION = 6; // bump whenever the sim or balance changes (peers must match)
 const PREP_SECONDS = 60;
 
 class App {
@@ -418,7 +420,8 @@ class App {
       coachLevel: [s.aiLevel ?? this.aiLevel, s.aiLevel ?? this.aiLevel],
     };
     const cfgSaved = JSON.parse(JSON.stringify(cfg));
-    const game = new Game(cfg);
+    const pre = s.prebuilt; s.prebuilt = null; // Play of the Game: a game already fast-forwarded to the highlight
+    const game = pre ? pre.game : new Game(cfg);
     this.showScreen(false);
     audio.music(Math.random() < 0.5 ? 'match' : 'match2');
     const canvas = document.getElementById('game'), mmc = document.getElementById('mm');
@@ -442,13 +445,17 @@ class App {
     const short = Math.min(window.innerWidth, window.innerHeight);
     this.renderer.cam.zoom = short < 600 ? Math.max(0.5, Math.min(0.9, short / 620)) : window.innerWidth < 1100 ? 0.95 : 1.25;
     this.renderer.follow = null;
-    const runner = this.net ? new LockstepRunner(game, s.myTeam, this.net.t)
+    const runner = pre ? pre.runner : this.net ? new LockstepRunner(game, s.myTeam, this.net.t)
       : new LocalRunner(game, s.myTeam, { noHalftime: s.mode === 'watch', script: s.replay ? s.replay.log : null });
     runner.onHalftime = (ht) => showHalftime(this, game, s.myTeam, runner, ht);
     runner.onHalftimeEnd = () => hideHalftime();
     if (runner.online) runner.onDesync = (k) => { console.warn('desync at', k); toast('Warning: games out of sync (tick ' + k + ')', 4000); };
     const hud = new Hud(this, game, runner, this.renderer, this.minimap, s.myTeam, s.mode);
     if (s.mode === 'watch') hud.toggleDirector();
+    if (s.potg) {
+      const p = s.potg; this.renderer.cam.x = p.x; this.renderer.cam.y = p.y; this.renderer.cam.zoom = Math.max(this.renderer.cam.zoom, short < 600 ? 0.8 : 1.3);
+      hud.banner('PLAY OF THE GAME', '#ffd84a', 1600, null, true); hud.banner(p.title.toUpperCase(), TEAM_COL[p.team] || '#ffd84a', 1800);
+    }
     this.match = { game, runner, hud, ended: false, cfg: cfgSaved };
     this.lastFrame = performance.now();
     requestAnimationFrame((t) => this.frame(t));
@@ -488,6 +495,11 @@ class App {
     r.draw(m.runner.alpha, dt);
     this.minimap.draw();
     m.hud.update(dt);
+    const potg = this.session && this.session.potg;
+    if (potg) {
+      if (!m.ended && (m.game.tick >= potg.end || m.game.over)) { m.ended = true; setTimeout(() => { if (this.match === m) this.endPOTG(); }, 1200); }
+      requestAnimationFrame((t) => this.frame(t)); return;
+    }
     if (m.game.over && !m.ended) {
       m.ended = true;
       // victory camera: fly to the fallen crystal (or the winning side's crystal on time-out)
@@ -518,10 +530,67 @@ class App {
         if (s.cup && profile.d.cup) cupOut = recordCup(profile.d.cup, m.game.winner === s.myTeam);
       } catch (e) { console.error(e); }
       if (sum && (sum.promoted || sum.unlocks.length)) setTimeout(() => audio.sfx('powerup', 0.8), 700);
-      showResults(this, m.game, s.myTeam,
+      // Play of the Game: found from the event log, replayed from the saved replay (cfg + command log)
+      let potg = null;
+      try { potg = findPOTG(m.game); } catch (e) { console.error(e); }
+      const src = s.replay ? s.replay : m.cfg ? { cfg: m.cfg, log: m.runner.log, skins: this.renderer.skins } : null;
+      if (potg && sum && profile.d.history[0]) { profile.d.history[0].potg = potg.title; profile.save(); }
+      this.potgReel = potg && src ? this.prerollPOTG(src, potg) : null;
+      const report = s.myTeam >= 0 ? reportCard(m.game, s.myTeam, m.hud.stats) : null;
+      const args = [this, m.game, s.myTeam,
         s.cup ? () => showCup(this) : s.mode === 'ai' ? () => this.startVsAI() : s.mode === 'watch' ? () => this.watch() : null,
-        () => this.menu(), { progress: progressPanel(sum, cupOut), ladder, againLabel: s.cup ? 'Back to bracket' : null,
-          share: sum ? () => shareMatch(profile.d.history[0], { name: this.name, rank: profile.rank.label }, this.lastReplay()) : null });
+        () => this.menu(), { progress: progressPanel(sum, cupOut), ladder, againLabel: s.cup ? 'Back to bracket' : null, potg: this.potgReel ? potg : null, report,
+          onPOTG: () => this.playPOTG(), share: sum ? () => shareMatch(profile.d.history[0], { name: this.name, rank: profile.rank.label }, this.lastReplay()) : null }];
+      this.lastResults = { args, session: s, src, potg };
+      showResults(...args);
+    });
+  }
+  // ───────────── Play of the Game ─────────────
+  // A fresh Game is fast-forwarded headlessly to the highlight in small background slices while the
+  // results screen is up, so the replay usually starts the moment it is tapped.
+  prerollPOTG(src, potg) {
+    const game = new Game(JSON.parse(JSON.stringify(src.cfg)));
+    const runner = new LocalRunner(game, -1, { noHalftime: true, script: src.log });
+    const reel = { game, runner, potg, skins: src.skins || [{}, {}], ready: false, stop: false };
+    const slice = (ms) => { const t0 = performance.now(); while (!reel.ready && performance.now() - t0 < ms) reel.ready = runner.skipTo(potg.start, 40); return reel.ready; };
+    const bg = () => { if (reel.stop || slice(10)) return; setTimeout(bg, 25); };
+    setTimeout(bg, 400);
+    reel.slice = slice;
+    return reel;
+  }
+  playPOTG() {
+    const reel = this.potgReel; if (!reel || reel.used) return;
+    reel.used = true; reel.stop = true;
+    const go = () => {
+      const prev = this.session;
+      this.session = { mode: 'watch', potg: reel.potg, replay: { cfg: reel.game.cfg, skins: reel.skins }, myTeam: -1, seed: prev.seed, mapId: prev.mapId, names: prev.names, rng: new Rng(1),
+        prebuilt: { game: reel.game, runner: reel.runner } };
+      this.fade(() => this.startMatch());
+    };
+    if (reel.ready) { go(); return; }
+    // still rewinding: show progress and finish at full speed
+    const box = h('div', { class: 'potgload' }, h('b', {}, 'Rewinding the tape…'), h('div', { class: 'barw' }, h('i')));
+    document.body.append(box);
+    const bar = box.querySelector('i');
+    const step = () => {
+      if (reel.slice(40)) { box.remove(); go(); return; }
+      bar.style.width = Math.round(reel.game.tick / Math.max(1, reel.potg.start) * 100) + '%';
+      requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }
+  endPOTG() {
+    const m = this.match; if (!m) return;
+    this.match = null;
+    for (const id of ['scoreboard']) { const el = document.getElementById(id); if (el) el.remove(); }
+    if (m) m.hud.destroy();
+    const lr = this.lastResults;
+    this.fade(() => {
+      this.showScreen(true);
+      if (!lr) { this.menu(); return; }
+      this.session = lr.session;
+      if (lr.src && lr.potg) this.potgReel = this.prerollPOTG(lr.src, lr.potg); // ready for "watch again"
+      showResults(...lr.args);
     });
   }
   // Online ladder: both players report; the server counts the match when the reports agree.
@@ -551,6 +620,7 @@ class App {
     this.fade(() => this.startMatch());
   }
   quitMatch() {
+    if (this.session && this.session.potg) { this.endPOTG(); return; }
     if (!confirm('Leave this match?')) return;
     if (this.net) this.net.t.send({ t: 'quit' });
     const m = this.match; this.match = null;

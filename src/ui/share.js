@@ -42,6 +42,7 @@ export async function drawShareCard(m, coach) {
   // coach line
   T(coach.name, 40, 300, 30, INK);
   T(`${m.rank || coach.rank}${m.rpDelta ? `  ${m.rpDelta > 0 ? '+' : ''}${m.rpDelta} RP` : ''}${m.calls ? `  ·  ${m.calls} calls paid off` : ''}`, 40, 334, 20, GOLD);
+  if (m.potg) T(`POTG: ${m.potg}`, 40, 368, 20, '#ffe3a3');
   // your five heroes
   const picks = m.picks[me], kda = (m.kda && m.kda[me]) || [];
   const sz = 120, gap = 26, x0 = (W - (sz * 5 + gap * 4)) / 2, y0 = H - 230;

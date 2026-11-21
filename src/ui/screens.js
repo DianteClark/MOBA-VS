@@ -186,9 +186,21 @@ export function showResults(app, g, myTeam, onAgain, onMenu, extra = {}) {
     h('div', { class: 'mvpinfo' }, h('div', { class: 'mvpname' }, mvp.def.name, h('small', {}, ` ${mvp.def.title}`)),
       h('div', { class: 'muted small' }, `${TEAM_NAME[mvp.team]} · ${ROLE_LABEL[mvp.role]} · ${PERSONALITIES[mvp.def.pers].name}`),
       h('div', { class: 'mvpstats' }, h('div', {}, h('b', {}, `${mvp.kills}/${mvp.deaths}/${mvp.assists}`), h('small', {}, 'KDA')), h('div', {}, h('b', {}, Math.round(mvp.dmgHeroes)), h('small', {}, 'damage')), h('div', {}, h('b', {}, mvp.cs), h('small', {}, 'CS')), h('div', {}, h('b', {}, `${Math.round(mvp.goldEarned / 100) / 10}k`), h('small', {}, 'gold'))))) : null;
+  // Play of the Game + coach report card (one compact row on wide screens)
+  const p = extra.potg;
+  const potgEl = p ? h('div', { class: 'panel potg t' + p.team },
+    h('div', { class: 'potg-l' }, h('small', {}, 'PLAY OF THE GAME'), h('b', {}, p.title), h('span', { class: 'muted' }, `at ${p.at} · ${p.kills} kill${p.kills === 1 ? '' : 's'}`)),
+    p.heroId ? h('img', { class: 'potg-f', src: face(p.heroId) }) : null,
+    h('button', { class: 'btn potgbtn', onclick: () => extra.onPOTG && extra.onPOTG() }, 'Watch')) : null;
+  const rc = extra.report;
+  const repEl = rc ? h('div', { class: 'panel report' },
+    h('div', { class: 'rth' }, h('b', {}, 'Coach report card')),
+    h('div', { class: 'grades' }, ...rc.rows.map((r) => h('div', { class: 'grade g' + r.g }, h('b', {}, r.g), h('div', {}, h('span', {}, r.k), h('small', {}, r.d))))),
+    h('div', { class: 'tip' }, h('span', {}, 'Tip'), rc.tip)) : null;
   mount(screen(), h('div', { class: 'results' },
     h('div', { class: 'verdict ' + vcls }, verdict),
     h('div', { class: 'vsub muted' }, timeout ? `Decided on time: towers ${g.towersStanding(0)} - ${g.towersStanding(1)} · ` : '', `Game length ${fmtTime(g.time)}`),
+    potgEl || repEl ? h('div', { class: 'rrow' }, potgEl, repEl) : null,
     mvpCard,
     extra.progress || null,
     extra.ladder ? ladderPanel(extra.ladder) : null,

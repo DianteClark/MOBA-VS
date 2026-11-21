@@ -1,11 +1,13 @@
 // In-match HUD. Layout is built from columns so panels never overlap:
-//   #leftcol  (my team + analyst feed)      #topcenter (score + objectives)      #rightcol (enemies + kill feed)
-//   #detail   (followed hero)               #cmdbar    (tactic cards + calls)    #brcol    (controls + minimap)
+//   #leftcol  (my team)                     #topcenter (score + objectives + one-line ticker)   #rightcol (enemies + kill feed)
+//   #detail   (followed hero)               #cmdbar    (decision tray + tactic cards + calls)  #brcol    (controls + minimap)
 import { h, mount, face, icon, fmtTime, toast } from './dom.js';
 import { BUILDS } from '../data/items.js';
 import { PERSONALITIES } from '../data/heroes.js';
 import { TACTICS } from '../data/tactics.js';
 import { CMD, DRAGON_INFO, TEAM_NAME, TICK_RATE, T, OBJ_NAME, WEATHER, CLANS, xpNeeded } from '../sim/constants.js';
+import { coachMoment, heroRequests, ASK_WEIGHT } from './moments.js';
+import { PRIO } from './tray.js';
 import { TEAM_COL } from '../render/renderer.js';
 import { audio } from '../audio.js';
 import { Dock } from './commands.js';
@@ -23,16 +25,23 @@ export class Hud {
     this.app = app; this.g = game; this.runner = runner; this.r = renderer; this.mm = minimap;
     this.my = myTeam; this.view = myTeam < 0 ? 0 : myTeam; this.mode = mode;
     this.evIdx = 0; this.director = false; this.sel = null;
-    this.lastDom = 0; this.lastAnalyst = 0; this.cool = {}; this.missing = {}; this.feedItems = []; this.kfItems = [];
+    this.lastDom = 0; this.lastAnalyst = 0; this.cool = {}; this.missing = {}; this.kfItems = []; this.tk = null; this.tkq = [];
+    this.slows = {}; this.cc = { n: 0, last: -1e9, keys: new Set() }; this.rq = { n: 0, last: -1e9 }; this.fightCam = null;
+    this.stats = { shrineOpen: 0, fullCharge: 0, coachCalls: 0, coachAnswered: 0, requests: 0, requestsYes: 0, lastTick: 0 };
     this.firstBlood = false;
-    this.el = { score: byId('scorebar'), obj: byId('objtimers'), mine: byId('myteam'), enemy: byId('enemyteam'), feed: byId('feed'), kf: byId('killfeed'),
+    this.el = { score: byId('scorebar'), obj: byId('objtimers'), mine: byId('myteam'), enemy: byId('enemyteam'), ticker: byId('ticker'), kf: byId('killfeed'),
       banner: byId('banner'), ctrl: byId('ctrl'), cmd: byId('cmdbar'), detail: byId('detail') };
-    mount(this.el.feed); mount(this.el.kf); mount(this.el.banner);
+    mount(this.el.ticker); mount(this.el.kf); mount(this.el.banner); this.el.ticker.classList.add('hidden');
     byId('rightcol').classList.remove('show');
     if (Hud.current && Hud.current !== this) Hud.current.destroy();
     Hud.current = this;
     if (!runner.online && mode !== 'watch') runner.speed = settings.speed || 1;
     this.build();
+    // joining a game already in progress (Play of the Game): skip its history, keep its tallies
+    if (game.tick > 0) {
+      this.evIdx = game.events.length;
+      for (const e of game.events) { if (e.type === 'kill') this.firstBlood = true; if (e.type === 'objective' && e.team >= 0 && e.team < 2) this.objTaken[e.team][e.obj]++; }
+    }
     this.alerts = new Alerts(this);
     this._popClose = (e) => { if (this.pop && !this.pop.el.contains(e.target)) this.closePop(); };
     window.addEventListener('pointerdown', this._popClose, true);
@@ -121,7 +130,7 @@ export class Hud {
     const W = this.g.world;
     if (c.obj) { const p = c.obj === 'dragon' ? W.pits.kami : W.pits.kraken; return [p.x, p.y]; }
     if (c.type === 'shrine' && c.shrine !== undefined) { const s = this.g.shrines[c.shrine]; return [s.x, s.y]; }
-    if (c.type === 'focus') { const u = this.g.byId(c.target); if (u) return [u.x, u.y]; }
+    if (c.type === 'focus' || (c.type === 'permit' && c.target)) { const u = this.g.byId(c.target); if (u) return [u.x, u.y]; }
     if (c.lane) { const p = W.lanePoint(c.lane, 0.5); return [p.x, p.y]; }
     return [this.r.cam.x, this.r.cam.y];
   }
@@ -131,6 +140,7 @@ export class Hud {
     const g = this.g, now = performance.now();
     this.processEvents();
     if (this.director) this.directorCam(dt);
+    this.applySlow();
     this.alerts.place();
     if (now - this.lastDom < (isTouch ? 180 : 120)) return;
     this.lastDom = now;
@@ -144,9 +154,10 @@ export class Hud {
     this.alerts.scan();
     if (this.pop) this.pop.upd();
     if (now - this.lastAnalyst > 1000) { this.lastAnalyst = now; this.analyst(); }
-    const fade = (list, ttl) => list.filter((f) => { if (now - f.t > (f.sticky ? 12000 : ttl)) { f.el.classList.add('out'); setTimeout(() => f.el.remove(), 300); return false; } return true; });
-    this.feedItems = fade(this.feedItems, 7000);
-    this.kfItems = fade(this.kfItems, 9000);
+    this.tickTicker();
+    // halftime: decisions wait until play resumes
+    if (this.holding() && this.my >= 0) { this.dock.tray.clear((it) => it.prio >= PRIO.request); this.unslow('call'); }
+    this.kfItems = this.kfItems.filter((f) => { if (now - f.t > 9000) { f.el.classList.add('out'); setTimeout(() => f.el.remove(), 300); return false; } return true; });
   }
 
   updateScore() {
@@ -408,52 +419,112 @@ export class Hud {
         case 'objective': {
           if (e.team === 0 || e.team === 1) this.objTaken[e.team][e.obj]++;
           const nm = e.obj === 'dragon' ? DRAGON_INFO[e.element].name : OBJ_L[e.obj];
-          this.feed(`${TEAM_NAME[e.team]} ${e.steal ? 'STOLE' : 'took'} ${nm}${e.killer ? ' (' + this.name(e.killer) + ')' : ''}`, e.team === 0 ? 'b' : 'r', true);
+          this.ticker(`${TEAM_NAME[e.team]} ${e.steal ? 'STOLE' : 'took'} ${nm}${e.killer ? ' (' + this.name(e.killer) + ')' : ''}`, e.team === 0 ? 'b' : 'r', 3);
           this.banner(`${e.steal ? 'STOLEN! ' : ''}${nm.toUpperCase()}`, TEAM_COL[e.team], 2200, `assets/img/${BOSS_FACE[e.obj]}.png`);
           audio.sfx('objective');
           break;
         }
         case 'soul': this.banner(`${DRAGON_INFO[e.element].short.toUpperCase()} BLESSING`, TEAM_COL[e.team], 2400); break;
-        case 'shrine': this.feed(`${TEAM_NAME[e.team]} captured a shrine`, e.team === 0 ? 'b' : 'r', true); audio.sfx('powerup', 0.6); break;
-        case 'weather': if (g.tick > 5) { const W_ = WEATHER[e.weather]; this.feed(`Weather: ${W_.name}${W_.desc ? ' — ' + W_.desc : ''}`, 'n'); } break;
-        case 'tower': this.feed(`${TEAM_NAME[e.team]} destroyed a ${LANE_L[e.lane] || 'base'} tower`, e.team === 0 ? 'b' : 'r'); audio.sfx('explosion', 0.7); break;
-        case 'inhib': this.feed(`${TEAM_NAME[e.team]} broke the ${LANE_L[e.lane]} gate!`, e.team === 0 ? 'b' : 'r', true); this.banner('GATE DESTROYED', TEAM_COL[e.team]); audio.sfx('explosion'); break;
-        case 'inhibRespawn': this.feed(`${TEAM_NAME[e.team]} ${LANE_L[e.lane]} gate restored`, 'n'); break;
-        case 'spawn': this.feed(`${e.obj === 'dragon' ? DRAGON_INFO[e.element].name : OBJ_L[e.obj]} has awakened`, 'n'); audio.sfx('alert', 0.5); break;
-        case 'heraldDrop': this.feed(`${TEAM_NAME[e.team]} unleashed the Oni ${LANE_L[e.lane]}!`, e.team === 0 ? 'b' : 'r'); audio.sfx('explosion'); break;
+        case 'shrine': this.ticker(`${TEAM_NAME[e.team]} captured a shrine`, e.team === 0 ? 'b' : 'r', 2); audio.sfx('powerup', 0.6); break;
+        case 'weather': if (g.tick > 5) { const W_ = WEATHER[e.weather]; this.ticker(`Weather: ${W_.name}${W_.desc ? ' — ' + W_.desc : ''}`, 'n', 0); } break;
+        case 'tower': this.ticker(`${TEAM_NAME[e.team]} destroyed a ${LANE_L[e.lane] || 'base'} tower`, e.team === 0 ? 'b' : 'r', 2); audio.sfx('explosion', 0.7); break;
+        case 'inhib': this.ticker(`${TEAM_NAME[e.team]} broke the ${LANE_L[e.lane]} gate!`, e.team === 0 ? 'b' : 'r', 3); this.banner('GATE DESTROYED', TEAM_COL[e.team]); audio.sfx('explosion'); break;
+        case 'inhibRespawn': this.ticker(`${TEAM_NAME[e.team]} ${LANE_L[e.lane]} gate restored`, 'n', 0); break;
+        case 'spawn': this.ticker(`${e.obj === 'dragon' ? DRAGON_INFO[e.element].name : OBJ_L[e.obj]} has awakened`, 'act', 2); audio.sfx('alert', 0.5); break;
+        case 'heraldDrop': this.ticker(`${TEAM_NAME[e.team]} unleashed the Oni ${LANE_L[e.lane]}!`, e.team === 0 ? 'b' : 'r', 2); audio.sfx('explosion'); break;
         case 'call': {
           const c = e.call;
-          if ((c.team !== this.view && this.my >= 0) || c.type === 'tactic') break;
+          if (c.type === 'ult' && c.mode === 'go' && (c.team === this.view || this.my < 0)) this.banner('ALL-IN!', TEAM_COL[c.team], 1200);
+          // spectators read both coaches' calls on the ticker; a coach sees their own call on the map (ping + emotes)
+          if (this.my >= 0 || c.type === 'tactic') break;
           const what = c.type === 'gank' ? `${c.hero ? this.name(c.hero) : 'Jungler'} gank ${LANE_L[c.lane]}` : c.type === 'objective' ? `Take ${OBJ_L[c.obj]}` : c.type === 'group' ? `Group ${LANE_L[c.lane]}` :
             c.type === 'split' ? `${this.name(c.hero)} split ${LANE_L[c.lane]}` : c.type === 'focus' ? `Focus ${this.name(c.target)}` : c.type === 'build' ? `${this.name(c.hero)} → ${BUILDS[c.build].name}` :
             c.type === 'herald' ? `Oni ${LANE_L[c.lane]}` : c.type === 'shrine' ? 'Capture shrine' : c.type === 'safe' ? 'Play safe' : c.type === 'reset' ? 'Reset' : c.type === 'invade' ? 'Invade' :
+            c.type === 'permit' ? `${this.name(c.hero)} green-lit` : c.type === 'surge' ? 'Kami Surge' :
             c.type === 'ult' ? ({ go: 'ALL-IN, ultimates fire next fight!', save: 'Hold ultimates', free: 'Ults: heroes choose' })[c.mode] : c.type === 'plan' ? `Plan: ${c.plan}` : c.type === 'redraw' ? 'Swapped a tactic card' : 'Cancel calls';
-          if (c.type === 'ult' && c.mode === 'go') this.banner('ALL-IN!', TEAM_COL[c.team], 1200);
-          this.feed(`${this.my < 0 ? TEAM_NAME[c.team] + ' call' : 'Call'}: ${what}`, c.team === 0 ? 'b' : 'r');
+          this.ticker(`${TEAM_NAME[c.team]} call: ${what}`, c.team === 0 ? 'b' : 'r', 0);
           break;
         }
+        case 'callResult': if (e.team === this.my) this.payoff(e); break;
+        case 'momentumFull': if (e.team === this.my) this.dock.surgeOffer(); break;
+        case 'surge':
+          if (e.team === this.view || this.my < 0) { this.banner('KAMI SURGE', TEAM_COL[e.team], 1500); audio.sfx('powerup', 0.8); }
+          else this.ticker('Enemy Kami Surge! +10% damage for 8s', 'danger', 3);
+          break;
         case 'victory':
           if (e.timeout) this.banner(`TIME!  ${e.towers[0]} - ${e.towers[1]} TOWERS`, '#ffd84a', 1500, null, true);
           this.banner(this.my < 0 ? `${TEAM_NAME[e.team].toUpperCase()} WINS` : e.team === this.my ? 'VICTORY' : 'DEFEAT', e.team === this.my || this.my < 0 ? TEAM_COL[e.team] : '#ff5a5a', 4000, null, !e.timeout);
           audio.sfx(e.team === this.my || this.my < 0 ? 'objective' : 'death');
           break;
-        case 'ultCast': if (e.team === this.view || this.my < 0) audio.sfx('magic', 0.5, 300); break;
-        case 'pivot': if (e.team === this.view) this.feed(`${this.name(e.hero)} will now build ${BUILDS[e.build].name}`, 'n'); break;
-        case 'trust': if (e.team === this.view && this.my >= 0) { const x = g.byId(e.hero); this.feed(e.tier === 2 ? `${x.def.name} is Inspired by your calls!` : e.tier === 0 ? `${x.def.name} is losing faith in your calls` : `${x.def.name} trusts you again`, e.tier === 0 ? 'r' : 's'); } break;
+        case 'ultCast': {
+          if (e.team === this.view || this.my < 0) audio.sfx('magic', 0.5, 300);
+          // fight cam: the first big ultimate after cutting to a fight plays in brief slow motion
+          const fc = this.fightCam, x = g.byId(e.hero);
+          if (fc && !fc.slowed && performance.now() < fc.until && x && (x.x - fc.x) ** 2 + (x.y - fc.y) ** 2 < 800 * 800 && !settings.reducedMotion) { fc.slowed = true; this.slow('fight', 0.35, 1300); }
+          break;
+        }
+        case 'pivot': if (e.team === this.view) this.ticker(`${this.name(e.hero)} will now build ${BUILDS[e.build].name}`, 'n', 0); break;
+        case 'trust': if (e.team === this.view && this.my >= 0) { const x = g.byId(e.hero); this.ticker(e.tier === 2 ? `${x.def.name} is Inspired by your calls!` : e.tier === 0 ? `${x.def.name} is losing faith in your calls` : `${x.def.name} trusts you again`, e.tier === 0 ? 'danger' : 'n', 1); } break;
         case 'tactic': if (e.team === this.view || this.my < 0) { this.banner(TACTICS[e.card].name.toUpperCase(), TEAM_COL[e.team], 1500); audio.sfx('powerup', 0.7); } break;
-        case 'finalPhase': this.banner('LAST STAND', '#ff8a3a', 2200, null); this.feed('Final 3 minutes: gold ×1.5, longer respawns. Every tower counts!', 's', true); audio.sfx('alert', 0.8); break;
-        case 'stolenCamp': if (e.big && e.team !== this.view) this.feed('Enemy invaded your jungle!', 'r'); break;
+        case 'finalPhase': this.banner('LAST STAND', '#ff8a3a', 2200, null); this.ticker('Final 3 minutes: gold ×1.5, longer respawns. Every tower counts!', 'act', 3); audio.sfx('alert', 0.8); break;
+        case 'stolenCamp': if (e.big && e.team !== this.view) this.ticker('Enemy invaded your jungle!', 'danger', 2); break;
       }
     }
   }
-  feed(text, cls = 'n', sticky, action) {
-    const el = h('div', { class: 'fitem ' + cls }, h('span', {}, text), action ? h('button', { class: 'btn', onclick: (ev) => { ev.stopPropagation(); action.fn(); el.remove(); } }, action.label) : null);
-    this.el.feed.prepend(el);
-    this.feedItems.push({ el, t: performance.now(), sticky });
-    while (this.el.feed.childElementCount > 5) this.el.feed.lastChild.remove();
+  // One-line priority ticker under the score. A more important line holds the slot for 2.5s;
+  // lesser lines queue briefly and are dropped if they go stale.
+  ticker(text, cls = 'n', prio = 1) {
+    const now = performance.now(), it = { text, cls, prio, t: now };
+    if (this.tk && now - this.tk.t < 2500 && this.tk.prio > prio) { this.tkq.push(it); if (this.tkq.length > 4) this.tkq.shift(); return; }
+    this.showTicker(it);
+  }
+  showTicker(it) {
+    it.shown = performance.now(); this.tk = it;
+    mount(this.el.ticker, h('div', { class: 'tline ' + it.cls }, it.text));
+    this.el.ticker.classList.remove('hidden');
+  }
+  tickTicker() {
+    if (!this.tk) return;
+    const now = performance.now();
+    this.tkq = this.tkq.filter((q) => now - q.t < 6000);
+    if (now - this.tk.shown > 2500 && this.tkq.length) { const nx = this.tkq.sort((a, b) => b.prio - a.prio || a.t - b.t).shift(); this.showTicker(nx); return; }
+    if (now - this.tk.shown > 6000) { this.tk = null; this.el.ticker.classList.add('hidden'); }
+  }
+  // ── call payoffs ──
+  payoff(e) {
+    const g = this.g, c = g.callLog[e.i]; if (!c) return;
+    const nm = (id) => this.name(id);
+    const what = { gank: 'Gank', objective: OBJ_L[c.obj] || 'Objective', group: `Push ${LANE_L[c.lane] || ''}`.trim(), shrine: 'Shrine', invade: 'Invade', permit: c.kind === 'split' ? `${nm(c.hero)}'s split` : `${nm(c.hero)}'s play` }[e.call] || 'Call';
+    const WHY = { stolen: 'stolen by their jungler', lostTower: 'we lost a tower there', lostHero: `we lost ${nm(c.lost)}`, died: `${nm(c.hero)} died`, gankerDied: `${nm(c.heroes[0])} died first`,
+      flashed: 'enemy flashed', recalled: 'target recalled', escaped: 'target escaped', empty: 'no one in lane', pickedOff: 'team got picked off', slow: 'ran out of time',
+      notStarted: 'team never got there', contested: 'shrine was contested', noTower: 'no tower fell', fizzled: 'it fizzled' };
+    const x = g.byId(e.hero), ok = e.result === 'success';
+    const p = ok ? { ok, head: 'CALL PAID OFF', text: `${what} · +${e.delta} trust`, img: x && x.heroId ? face(x.heroId) : null }
+      : { ok, head: `${what} failed:`, text: WHY[e.why] || e.result, img: null };
+    this.dock.payoff(p, (q) => this.ticker(`${q.head} ${q.text}`, q.ok ? 'act' : 'danger', 2));
+  }
+  // ── slow motion (vs AI only: runner speed; online: render-only for the fight cam) ──
+  slow(tag, k, ms) {
+    if (this.runner.online) { if (tag === 'fight') this.r.visSlow = { k, until: performance.now() + ms }; return; }
+    this.slows[tag] = { k, until: performance.now() + ms }; this.applySlow();
+  }
+  unslow(tag) { if (this.slows[tag]) { delete this.slows[tag]; this.applySlow(); } }
+  applySlow() {
+    if (this.runner.online) return;
+    const now = performance.now(); let k = 1;
+    for (const t in this.slows) { if (now > this.slows[t].until) delete this.slows[t]; else k = Math.min(k, this.slows[t].k); }
+    this.runner.slow = k;
+  }
+  holding() { const R = this.runner, g = this.g; return !!(R.ht && !R.htDone) || (g.tick >= g.halftimeTick - TICK_RATE * 4 && g.tick <= g.halftimeTick + TICK_RATE * 2); }
+  // ── fight cam: cut straight to a fight from its edge prompt ──
+  watchFight(x, y) {
+    const r = this.r; r.follow = null; r.panTo = null; r.cam.x = x; r.cam.y = y; r.clampCam();
+    this.director = false; this.refreshCtrl();
+    this.fightCam = { x, y, until: performance.now() + 7000, slowed: false };
+    audio.sfx('move', 0.6);
   }
   killfeed(killer, victim, assists) {
-    if (!this.el.kf.offsetParent) { this.feed(`${killer ? killer.def.name : 'Tower'} › ${victim.def.name}`, victim.team === 1 ? 'b' : 'r'); return; }
+    if (!this.el.kf.offsetParent) { this.ticker(`${killer ? killer.def.name : 'Tower'} › ${victim.def.name}`, victim.team === 1 ? 'b' : 'r', 1); return; }
     const side = (u) => u ? h('img', { src: face(u.heroId), style: { borderColor: TEAM_COL[u.team] } }) : h('span', { class: 'exec' }, 'Tower');
     const el = h('div', { class: 'kitem ' + (victim.team === 1 ? 'b' : 'r') }, side(killer), h('span', { class: 'sw' }, assists ? `+${assists}` : '›'), side(victim));
     this.el.kf.prepend(el); this.kfItems.push({ el, t: performance.now() });
@@ -484,11 +555,15 @@ export class Hud {
     const g = this.g, me = this.my, vis = g.vision[me], now = g.tick;
     const ready = (k, s) => { if ((this.cool[k] || 0) > now) return false; this.cool[k] = now + s * TICK_RATE; return true; };
     const mine = g.teams[me].heroes, enemy = g.teams[1 - me].heroes;
+    if (g.teams[me].charges >= CMD.maxCharges) this.stats.fullCharge += Math.max(0, now - this.stats.lastTick) / TICK_RATE;
+    this.stats.lastTick = now;
+    this.moments();
+    const carding = this.dock.tray.items.some((i) => i.prio >= PRIO.request);
     const jg = mine.find((x) => x.role === 'jungle');
     const deadEnemies = enemy.filter((x) => !x.alive && x.respawnAt - now > 15 * TICK_RATE);
     for (const k of ['dragon', 'baron', 'herald']) {
       const t = g.objTimers[k];
-      if (t && t - now > 0 && t - now < 30 * TICK_RATE && ready('spawnwarn' + k + t, 60)) this.feed(`${k === 'dragon' ? DRAGON_INFO[g.teams.some((x) => x.soul) ? 'elder' : g.nextDragon].name : OBJ_L[k]} awakens in 30s`, 'n');
+      if (t && t - now > 0 && t - now < 30 * TICK_RATE && ready('spawnwarn' + k + t, 60)) this.ticker(`${k === 'dragon' ? DRAGON_INFO[g.teams.some((x) => x.soul) ? 'elder' : g.nextDragon].name : OBJ_L[k]} awakens in 30s`, 'act', 1);
     }
     if (deadEnemies.length >= 2) {
       const best = ['baron', 'dragon', 'herald'].find((k) => g.objectives[k] && g.objectives[k].alive);
@@ -499,7 +574,7 @@ export class Hud {
     if (ej && ej.alive && vis.has(ej.id)) {
       const W = g.world, nearKraken = (ej.x - W.pits.kraken.x) ** 2 + (ej.y - W.pits.kraken.y) ** 2 < (ej.x - W.pits.kami.x) ** 2 + (ej.y - W.pits.kami.y) ** 2;
       const o = nearKraken ? g.objectives.dragon : (g.objectives.baron || g.objectives.herald);
-      if (o && o.alive && ready('ejspot', 40)) this.dock.suggest('ejspot', `Their jungler is far from ${OBJ_L[o.kind]}`, `Take ${OBJ_L[o.kind]}`, { type: 'objective', obj: o.kind }, { valid: () => o.alive });
+      if (o && o.alive && !carding && ready('ejspot', 40)) this.dock.suggest('ejspot', `Their jungler is far from ${OBJ_L[o.kind]}`, `Take ${OBJ_L[o.kind]}`, { type: 'objective', obj: o.kind }, { valid: () => o.alive });
     }
     if (jg && jg.alive && jg.task.kind === 'jungle') {
       for (const e of enemy) {
@@ -515,16 +590,46 @@ export class Hud {
       if (!e.alive || e.role === 'jungle' || vis.has(e.id)) { this.missing[e.id] = 0; continue; }
       const ls = g.lastSeen[me][e.id]; if (!ls) continue;
       const gone = (now - ls.t) / TICK_RATE;
-      if (gone > 8 && gone < 30 && g.time > 100 && !this.missing[e.id]) { this.missing[e.id] = 1; this.feed(`${e.def.name} is missing!`, 'r'); }
+      if (gone > 8 && gone < 30 && g.time > 100 && !this.missing[e.id]) { this.missing[e.id] = 1; this.ticker(`${e.def.name} is missing!`, 'danger', 2); }
     }
     for (const k of ['dragon', 'baron', 'herald']) {
       const o = g.objectives[k];
       if (!o || !o.alive || o.hp > o.maxHp * 0.95 || !vis.has(o.id)) continue;
       const on = enemy.filter((e) => e.alive && vis.has(e.id) && (e.x - o.x) ** 2 + (e.y - o.y) ** 2 < 500 * 500);
-      if (on.length && ready('contest' + k, 25)) this.dock.suggest('contest' + k, `Enemy is taking ${OBJ_L[k]}!`, 'Contest', { type: 'objective', obj: k }, { cls: 'bad', valid: () => o.alive });
+      if (on.length && !carding && ready('contest' + k, 25)) this.dock.suggest('contest' + k, `Enemy is taking ${OBJ_L[k]}!`, 'Contest', { type: 'objective', obj: k }, { cls: 'bad', valid: () => o.alive });
     }
-    for (const sh of g.shrines) if (sh.owner !== me && g.time > T.shrineUnlock && !enemy.some((e) => e.alive && vis.has(e.id) && (e.x - sh.x) ** 2 + (e.y - sh.y) ** 2 < 800 * 800) && ready('shr' + sh.id, 70))
+    for (const sh of g.shrines) if (sh.owner !== me && g.time > T.shrineUnlock && !enemy.some((e) => e.alive && vis.has(e.id) && (e.x - sh.x) ** 2 + (e.y - sh.y) ** 2 < 800 * 800) && ready('shr' + sh.id, 70)) {
+      this.stats.shrineOpen++;
       this.dock.suggest('shr' + sh.id, `${sh.id === me ? 'Home' : 'Far'} shrine is open`, 'Capture', { type: 'shrine', shrine: sh.id }, { valid: () => sh.owner !== me });
+    }
+  }
+  // Coach's Call moments and hero requests (rate-limited; never around halftime or with a sheet open).
+  moments() {
+    const g = this.g, me = this.my, now = g.tick, tray = this.dock.tray;
+    if (g.over || this.holding() || this.dock.sheetId || g.time < 75) return;
+    const cc = this.cc;
+    if (cc.n < 8 && now - cc.last >= 45 * TICK_RATE && !tray.items.some((i) => i.prio >= PRIO.call)) {
+      const m = coachMoment(g, me);
+      if (m && !cc.keys.has(m.key)) {
+        cc.keys.add(m.key); cc.last = now; cc.n++; this.stats.coachCalls++;
+        this.dock.coachCall(m, {
+          ttl: this.runner.online ? 7000 : 8000,
+          onShow: () => { this.slow('call', 0.25, 3000); this.mm.ping(m.at.x, m.at.y, '#ffd84a'); audio.sfx('alert', 0.7); },
+          onPick: () => { this.stats.coachAnswered++; },
+          onEnd: () => this.unslow('call'),
+        });
+        return;
+      }
+    }
+    const rq = this.rq;
+    if (rq.n < 10 && now - rq.last >= 40 * TICK_RATE && g.time > 120 && !tray.items.some((i) => i.prio >= PRIO.request)) {
+      for (const r of heroRequests(g, me)) {
+        if (Math.random() >= 0.12 * (ASK_WEIGHT[r.hero.def.pers] || 1)) continue;
+        rq.last = now; rq.n++; this.stats.requests++;
+        this.dock.request(r, { onYes: () => { this.stats.requestsYes++; } });
+        break;
+      }
+    }
   }
 
   directorCam(dt) {

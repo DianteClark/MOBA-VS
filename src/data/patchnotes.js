@@ -1,6 +1,23 @@
 // Patch notes, newest first. tools/season.mjs prepends an entry at each season rollover.
 export const PATCHES = [
   {
+    version: '5.1', season: 1, date: '2026-11-21', title: 'The Coach\'s Room',
+    notes: [
+      'Online: Find Match pairs you with real players (no bots; after 60s it tells you nobody is on). Host/Join stay as private friend games.',
+      'Global ladder: ranked matches count only when both players\' games agree on the result. Season leaderboard with your rank.',
+      'Accounts with no sign-up: your progress saves to the cloud, and a recovery code moves it to another device.',
+      'Share links open the game straight on your match card, with the replay.',
+      'Dojo: every hero with rating bars (Damage, Toughness, Control, Mobility, Range, Sustain, Difficulty), abilities explained, matchups and skins.',
+      'Lineups: 5 saved setups with a backup per role. Your picks lock in automatically; you only choose bans.',
+      'Coach\'s Calls: big moments slow time and give you 2-3 clear choices. Heroes also ask permission for risky plays.',
+      'Payoffs: see when a call paid off, or exactly why it failed.',
+      'Momentum fills from good play; spend it on a Kami Surge.',
+      'Play of the Game, fight cam, and a coach report card after every match.',
+      'Cleaner HUD: one decision tray above the calls, one ticker line, and calls that glow when they matter.',
+    ],
+    heroes: [],
+  },
+  {
     version: '5.0', season: 1, date: '2026-11-21', title: 'MOBA-VS 5.0',
     notes: [
       'Built for phones in landscape: a full-screen installable app (Add to Home Screen), a Menu dropdown, bigger tap targets, a wider camera, and both teams always on screen with enemy respawn timers.',

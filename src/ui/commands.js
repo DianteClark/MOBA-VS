@@ -1,10 +1,13 @@
 // Command dock: the coach's controls.
-//   six core calls · a hand of tactic cards · one-tap suggestions · a target sheet · a map ring menu.
+//   six core calls (context-aware: relevant ones glow gold, red when defending, irrelevant ones dim)
+//   · a hand of tactic cards · the decision tray (one slot) · a target sheet · a map ring menu
+//   · the charge + momentum meter (tap it when full for Kami Surge).
 // Everything here is built once and updated in place (no rebuilds while open = no flicker).
 import { h, mount, face, icon, fmtTime, toast } from './dom.js';
 import { BUILDS } from '../data/items.js';
 import { TACTICS } from '../data/tactics.js';
-import { CMD, DRAGON_INFO, TICK_RATE, T, OBJ_NAME } from '../sim/constants.js';
+import { CMD, DRAGON_INFO, TICK_RATE, T, OBJ_NAME, MOMENTUM } from '../sim/constants.js';
+import { Tray, PRIO } from './tray.js';
 import { TEAM_COL } from '../render/renderer.js';
 import { audio } from '../audio.js';
 
@@ -25,7 +28,7 @@ const CARD_KEYS = ['q', 'e', 't'];
 export class Dock {
   constructor(hud) {
     this.hud = hud; this.g = hud.g; this.my = hud.my;
-    this.sheetId = null; this.live = []; this.sugs = []; this.ganker = null;
+    this.sheetId = null; this.live = []; this.ganker = null;
     this.ringEl = document.getElementById('ring');
     this.build();
   }
@@ -37,13 +40,18 @@ export class Dock {
   // ───────────── static layout ─────────────
   build() {
     const el = this.hud.el.cmd;
+    const potg = this.hud.app.session && this.hud.app.session.potg;
+    if (potg) { mount(el, h('div', { class: 'spectate potgbar' }, h('b', {}, 'PLAY OF THE GAME'), h('span', {}, potg.title), h('button', { class: 'btn small', onclick: () => this.hud.app.endPOTG() }, 'Skip'))); return; }
     if (this.my < 0) { mount(el, h('div', { class: 'spectate' }, 'Spectating · drag to look around · tap a portrait to follow')); return; }
-    this.sugEl = h('div', { class: 'sugs' });
+    this.trayEl = h('div', { class: 'tray empty' });
+    this.tray = new Tray(this.trayEl);
     this.sheetEl = h('div', { class: 'sheet hidden' });
     this.cancelEl = h('button', { class: 'cancelpill hidden', onclick: () => this.send({ type: 'cancel' }) }, '✕ Cancel calls');
     this.pips = Array.from({ length: CMD.maxCharges }, () => h('div', { class: 'pip' }, h('i')));
     this.chargeTxt = h('span', { class: 'ctxt' }, '');
-    const meter = h('div', { class: 'meter', title: 'Command charges: +1 every 20s' }, h('div', { class: 'pips' }, this.pips), this.chargeTxt);
+    this.momFill = h('i');
+    this.meterEl = h('button', { class: 'meter', title: 'Command charges (+1 every 20s) and momentum. When momentum is full, tap for Kami Surge [V]', onclick: () => this.surge() },
+      h('div', { class: 'pips' }, this.pips), h('div', { class: 'mom' }, this.momFill), this.chargeTxt);
     this.cards = this.team.deck.map((d, i) => {
       const t = TACTICS[d.id];
       const b = h('button', { class: 'tcard', title: `${t.name}: ${t.desc} [${CARD_KEYS[i].toUpperCase()}]`, onclick: () => this.playCard(d.id) },
@@ -56,8 +64,8 @@ export class Dock {
         h('img', { src: icon(c.icon) }), h('span', { class: 'l' }, c.label), h('span', { class: 'cost' }, ...Array.from({ length: n }, () => h('i'))));
       b._id = c.id; return b;
     });
-    mount(el, this.sugEl, this.sheetEl, this.cancelEl,
-      h('div', { class: 'dock' }, h('div', { class: 'handrow' }, meter, h('div', { class: 'hand' }, this.cards), this.ultBtn = h('button', { class: 'ultbtn', title: 'Ultimates: let heroes choose → Hold them → All-in now [U]', onclick: () => this.cycleUlt() }, h('img', { src: icon('Death') }), h('span', { class: 'ul' }, 'Ults'), h('b', {}, 'Auto'))),
+    mount(el, this.trayEl, this.sheetEl, this.cancelEl,
+      h('div', { class: 'dock' }, h('div', { class: 'handrow' }, this.meterEl, h('div', { class: 'hand' }, this.cards), this.ultBtn = h('button', { class: 'ultbtn', title: 'Ultimates: let heroes choose → Hold them → All-in now [U]', onclick: () => this.cycleUlt() }, h('img', { src: icon('Death') }), h('span', { class: 'ul' }, 'Ults'), h('b', {}, 'Auto'))),
         h('div', { class: 'callrow' }, this.callBtns)));
     this.tick();
   }
@@ -67,12 +75,16 @@ export class Dock {
     if (this.my < 0) return;
     const g = this.g, team = this.team, c = team.charges;
     this.pips.forEach((p, i) => { const f = Math.max(0, Math.min(1, c - i)); p.firstChild.style.height = f * 100 + '%'; p.classList.toggle('full', f >= 1); });
-    const nextIn = c >= CMD.maxCharges ? '' : `+1 in ${Math.ceil((1 - (c % 1)) * CMD.regen)}s`;
+    const mom = Math.min(1, team.momentum / MOMENTUM.max), surging = team.surgeUntil > g.tick, full = mom >= 1 && !surging;
+    this.momFill.style.setProperty('--m', surging ? Math.max(0, (team.surgeUntil - g.tick) / (MOMENTUM.surgeSec * TICK_RATE)) : mom);
+    this.meterEl.classList.toggle('full', full); this.meterEl.classList.toggle('surging', surging);
+    const nextIn = full ? 'SURGE!' : surging ? 'Surging' : c >= CMD.maxCharges ? '' : `+1 in ${Math.ceil((1 - (c % 1)) * CMD.regen)}s`;
     if (this.chargeTxt.textContent !== nextIn) this.chargeTxt.textContent = nextIn;
     for (const b of this.callBtns) {
       b.disabled = !this.afford(CORE_COST[b._id]);
       b.classList.toggle('on', this.sheetId === b._id);
-      b.classList.toggle('hot', !!this.hotCall(b._id));
+      const rel = this.relevance(b._id);
+      b.classList.toggle('hot', rel === 'hot'); b.classList.toggle('danger', rel === 'danger'); b.classList.toggle('dim', rel === 'dim');
     }
     for (const b of this.cards) { b.disabled = b._d.used; b.classList.toggle('used', b._d.used); b.classList.toggle('on', this.sheetId === 'card:' + b._d.id); }
     const um = team.ultMode && team.ultMode.until > g.tick ? team.ultMode.mode : 'auto';
@@ -80,16 +92,41 @@ export class Dock {
     const active = this.alive().some((x) => (x.task && x.task.call) || x.pendingCall) || (team.focus && team.focus.until > g.tick);
     this.cancelEl.classList.toggle('hidden', !active);
     for (const f of this.live) f();
-    const now = performance.now();
-    this.sugs = this.sugs.filter((s) => { if (now > s.until || (s.valid && !s.valid())) { s.el.classList.add('out'); setTimeout(() => s.el.remove(), 250); return false; } return true; });
-    if (this.ring && now > this.ring.until) this.closeRing();
+    this.tray.tick();
+    if (this.ring && performance.now() > this.ring.until) this.closeRing();
   }
-  // Highlights a call button when there's a good reason to press it now.
-  hotCall(id) {
-    const g = this.g;
-    if (id === 'objective') return ['dragon', 'herald', 'baron'].some((k) => g.objectives[k] && g.objectives[k].alive);
-    if (id === 'shrine') return g.time > T.shrineUnlock && g.shrines.some((s) => s.owner !== this.my);
-    return false;
+  // Context: 'hot' (gold, act now), 'danger' (red), 'dim' (not useful right now) or ''.
+  relevance(id) {
+    const g = this.g, me = this.my, now = g.tick, alive = this.alive();
+    if (id === 'objective') {
+      if (['dragon', 'herald', 'baron'].some((k) => g.objectives[k] && g.objectives[k].alive)) return 'hot';
+      return ['dragon', 'herald', 'baron'].some((k) => g.objAvailable(k)) ? '' : 'dim';
+    }
+    if (id === 'shrine') return g.time < T.shrineUnlock || !g.shrines.some((s) => s.owner !== me) ? 'dim' : 'hot';
+    if (id === 'gank') {
+      const jg = alive.find((x) => x.role === 'jungle');
+      if (!jg) return 'dim';
+      return LANES.some((l) => this.laneInfo(l).deep) ? 'hot' : '';
+    }
+    if (id === 'safe') {
+      const hit = g.units.some((u) => u.structure && u.alive && u.team === me && u.lastHurt > now - TICK_RATE * 2 && g.grid.query(u.x, u.y, 500).some((e) => e.type === 'hero' && e.alive && e.team !== me));
+      return hit ? 'danger' : '';
+    }
+    if (id === 'reset') {
+      const avg = alive.reduce((a, x) => a + x.hp / x.maxHp, 0) / Math.max(1, alive.length);
+      return alive.length >= 3 && avg < 0.45 && alive.every((x) => now - x.lastCombat > TICK_RATE * 3) ? 'hot' : avg > 0.8 ? 'dim' : '';
+    }
+    if (id === 'push') {
+      const dead = g.teams[1 - me].heroes.filter((x) => !x.alive && x.respawnAt - now > TICK_RATE * 12).length;
+      return dead >= 2 && alive.length >= 3 ? 'hot' : alive.length < 3 ? 'dim' : '';
+    }
+    return '';
+  }
+  surge() {
+    const t = this.team;
+    if (t.surgeUntil > this.g.tick) return;
+    if (t.momentum < MOMENTUM.max) { toast(`Momentum ${Math.floor(t.momentum)}%: paid-off calls, kills and objectives fill it`); return; }
+    this.send({ type: 'surge' });
   }
 
   // ───────────── sending ─────────────
@@ -226,17 +263,49 @@ export class Dock {
     return a.find((x) => x.role === 'top') || a.filter((x) => x.role !== 'support').sort((p, q) => q.level - p.level)[0] || null;
   }
 
-  // ───────────── suggestions (one-tap) ─────────────
+  // ───────────── decision tray items ─────────────
+  costPips(n) { return h('span', { class: 'cost' }, ...Array.from({ length: n }, () => h('i'))); }
+  // A choice button: label (+ small sub line) and the call's cost pips; disabled when unaffordable.
+  choice(o, item, after) {
+    const n = o.cmd ? this.cost(o.cmd.type) : 0;
+    const b = h('button', { class: 'tch' + (o.cmd ? '' : ' no'), onclick: () => { if (o.cmd && !this.send(o.cmd)) return; after && after(o); this.tray.end(item, 'chosen'); } },
+      h('span', { class: 'tl' }, o.label), o.sub ? h('small', {}, o.sub) : null, n ? this.costPips(n) : null);
+    if (o.cmd && !this.afford(o.cmd.type)) b.disabled = true;
+    return b;
+  }
+  // One-tap analyst suggestion (lowest priority).
   suggest(key, text, label, cmd, opts = {}) {
-    if (this.my < 0 || this.sugs.some((s) => s.key === key)) return;
-    const el = h('div', { class: 'sug ' + (opts.cls || '') }, h('span', {}, text),
-      h('button', { onclick: () => { if (this.send(cmd)) { el.classList.add('out'); setTimeout(() => el.remove(), 250); this.sugs = this.sugs.filter((s) => s.el !== el); } } }, label, ...Array.from({ length: this.cost(cmd.type) }, () => h('i'))),
-      h('button', { class: 'no', title: 'Dismiss', onclick: () => { el.classList.add('out'); setTimeout(() => el.remove(), 250); this.sugs = this.sugs.filter((s) => s.el !== el); } }, '✕'),
-      h('div', { class: 'ttl' }));
-    this.sugEl.prepend(el);
-    this.sugs.unshift({ key, el, until: performance.now() + 12000, valid: opts.valid });
-    while (this.sugs.length > 2) { const s = this.sugs.pop(); s.el.remove(); }
-    audio.sfx('alert', 0.35);
+    if (this.my < 0 || this.tray.has(key)) return;
+    this.tray.push({ key, prio: opts.cls === 'bad' ? PRIO.danger : PRIO.sug, ttl: 12000, cls: 'sug ' + (opts.cls === 'bad' ? 'danger' : 'act'), valid: opts.valid,
+      build: (it) => [h('span', { class: 'tx' }, text), this.choice({ label, cmd }, it), h('button', { class: 'tx-x', title: 'Dismiss', onclick: () => this.tray.end(it, 'dismissed') }, 'x')],
+      onShow: () => audio.sfx('alert', 0.35) });
+  }
+  // Coach's Call: a decision card with 2-3 concrete options.
+  coachCall(m, hooks = {}) {
+    return this.tray.push({ key: m.key, prio: PRIO.call, ttl: hooks.ttl || 8000, cls: 'ccall ' + (m.danger ? 'danger' : 'act'),
+      build: (it) => [h('div', { class: 'tc-head' }, h('b', {}, "COACH'S CALL"), h('span', {}, m.title)), h('div', { class: 'tc-text' }, m.text),
+        h('div', { class: 'tc-opts' }, ...m.opts.map((o) => this.choice(o, it, hooks.onPick)))],
+      onShow: hooks.onShow, onEnd: hooks.onEnd });
+  }
+  // A hero asks for the green light: Yes sends the request's command, No costs nothing.
+  request(r, hooks = {}) {
+    return this.tray.push({ key: r.key, prio: PRIO.request, ttl: 9000, cls: 'req mine', valid: () => r.hero.alive && (!r.target || r.target.alive),
+      build: (it) => [h('img', { class: 'tface', src: face(r.hero.heroId) }), h('span', { class: 'tx' }, h('b', {}, r.hero.def.name + ': '), r.text),
+        this.choice({ label: 'Yes', cmd: r.cmd }, it, hooks.onYes), this.choice({ label: 'No', cmd: null }, it, hooks.onNo)],
+      onShow: () => audio.sfx('alert2', 0.45), onEnd: hooks.onEnd });
+  }
+  surgeOffer() {
+    const t = this.team;
+    this.tray.push({ key: 'surge' + this.g.tick, prio: PRIO.surge, ttl: 14000, cls: 'act surgeoffer', valid: () => t.momentum >= MOMENTUM.max && !(t.surgeUntil > this.g.tick),
+      build: (it) => [h('span', { class: 'tx' }, h('b', {}, 'Momentum full! '), `Kami Surge: +${Math.round(MOMENTUM.dmg * 100)}% damage, +${Math.round(MOMENTUM.ms * 100)}% speed, ${MOMENTUM.surgeSec}s`),
+        this.choice({ label: 'SURGE', cmd: { type: 'surge' } }, it), h('button', { class: 'tx-x', title: 'Later (tap the meter any time)', onclick: () => this.tray.end(it, 'dismissed') }, 'x')],
+      onShow: () => audio.sfx('powerup', 0.5) });
+  }
+  // A call resolved: a crisp payoff line (no buttons). Falls back to the ticker if it never gets the slot.
+  payoff(p, onStale) {
+    this.tray.push({ prio: PRIO.payoff, ttl: 3200, staleMs: 4500, cls: 'payoff ' + (p.ok ? 'win' : 'danger'),
+      build: () => [p.img ? h('img', { class: 'tface', src: p.img }) : null, h('b', { class: 'pbig' }, p.head), h('span', { class: 'tx' }, p.text)],
+      onShow: () => audio.sfx(p.ok ? 'coin' : 'cancel', 0.6), onEnd: (why) => { if (why === 'stale' && onStale) onStale(p); } });
   }
 
   // ───────────── map ring ─────────────
@@ -295,6 +364,7 @@ export class Dock {
     const i = CARD_KEYS.indexOf(k); if (i >= 0 && this.team.deck[i]) { this.playCard(this.team.deck[i].id); return true; }
     if (k === 'c') { this.send({ type: 'cancel' }); return true; }
     if (k === 'u') { this.cycleUlt(); return true; }
+    if (k === 'v') { this.surge(); return true; }
     return false;
   }
 }

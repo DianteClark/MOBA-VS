@@ -23,7 +23,7 @@
 | **Draft** | Tournament bans/picks from 40 heroes, 5 roles. Bans are always manual (with suggested bans). With an active **lineup**, your picks lock in automatically (backup if the main is gone, a 3-hero prompt if both are). |
 | **Prep** | A quick confirm: lanes, builds, team plan and **3 tactic cards** come prefilled from your lineup; *Adjust* opens the editors. |
 | **Match** | 15:00 countdown. Make calls with your command charges; play your tactic cards. |
-| Results | MVP, stats, gold-lead graph, call log with outcomes. |
+| Results | Play of the Game (replayed from the match replay), coach report card (Calls / Objectives / Macro grades + one tip), MVP, stats, gold-lead graph, call log with outcomes. |
 
 **Victory:** destroy the enemy Shrine Crystal, or have **more towers standing at 0:00**. Tiebreaks: Crystal HP, then kills, then gold.
 
@@ -73,9 +73,14 @@ Browse every hero: animated sprite, abilities in plain English, 0-10 ratings (Da
 ### Calls (command charges: max 3, +1 every 20s)
 Six big buttons: **Gank · Objective · Push · Shrine · Defend · Regroup**. Each opens one sheet of big target tiles (lanes show live hints like "Overextended!"; objectives show live timers) or fires instantly.
 * **Tap the map:** a call ring appears where you tapped, with only the calls that fit (lane → Gank/Push/Split/Oni, pit → Take it, shrine → Capture, enemy → Focus, enemy jungle → Invade).
-* **One-tap suggestions:** the analyst offers the right call at the right moment ("Mid overextended: Gank"), with a 12-second timer.
+* **Decision tray:** one slot directly above the call buttons, a priority queue (never stacked): Coach's Calls > hero requests > Kami Surge > call payoffs > one-tap analyst suggestions ("Mid overextended: Gank"). Gold = act now, red = danger, team colour = your hero.
+* **Coach's Call moments:** at key moments (objective waking or contested, enemy jungler spotted far from an objective, teamfight brewing, enemy tower low, enemy carry caught out) a card offers 2-3 concrete options that are ordinary calls (cost pips shown). Vs AI, time slows to 0.25x for up to 3s while it is up (runner speed only); online it is just a timed card. At least 45s apart, at most 8 a match, never around halftime.
+* **Heroes ask you:** "Kurai: I can solo-kill their mid. Go?" Yes sends a `permit` (a short green-lit solo task: hunt that target for 12s, or split-push a lane for 60s; free, one per team every 20s); No costs nothing. Reckless and hothead heroes ask most, cautious ones least. The outcome moves that hero's trust (+10 / -3).
+* **Payoffs:** when a call resolves the tray shows CALL PAID OFF (+trust) or a one-line reason ("Gank failed: enemy flashed / target recalled / jungler died first"). The sim records the reason.
+* **Context-aware buttons:** calls that fit the moment glow gold (Defend glows red while a structure is under attack); calls that cannot help right now dim.
+* **Momentum & Kami Surge:** a team meter (in the charge meter) fills from paid-off calls (+14), kills (+4), objectives (+18), towers (+10) and shrines (+8). Full: tap it for Kami Surge, +10% damage and +5% move speed for 8s for the whole team. The AI coach spends it on even-or-better fights in the open and objective races.
 * Tap your hero's portrait to change its build; tap an enemy portrait to Focus them. A Cancel pill appears while calls are active.
-* Keys: G O R K X B (calls), Q E T (cards), C (cancel), Esc.
+* Keys: G O R K X B (calls), Q E T (cards), U (ults), V (Kami Surge), C (cancel), Esc.
 
 ### Trust
 Each hero has trust 0–100. Successful calls raise it; deaths on your calls, stolen objectives and wasted calls lower it.
@@ -92,8 +97,11 @@ Auto (heroes decide) · **Hold** (save ultimates for kills/self-defence, 45s) ·
 ### Halftime (7:30) and Last Stand (12:00+)
 At 7:30 the match pauses (up to 20s, both coaches ready to skip): change plan, builds and swap one unused card. In the final 3 minutes gold rewards are ×1.5 and respawns ×1.25.
 
-### Analyst feed
-Only what your team can see: overextended laners (one-tap Gank), open shrines, enemy on an objective (Contest), missing enemies, numbers advantage.
+### Ticker, alerts and fight cam
+A single priority ticker line under the score (only what your team can see: missing enemies, objectives waking, captures, towers). Off-screen edge arrows show fights, structures and objectives under attack; a fight with 3+ heroes becomes "FIGHT AT KAMI, tap to watch": tapping cuts the camera there and the first big ultimate plays in brief slow motion (off with Reduced motion).
+
+### Play of the Game & report card
+At the end the event log is scanned for the ~12s window with the biggest swing for the winner (kills, ultimates, objectives, towers). The results screen replays it: a fresh game is fast-forwarded headlessly from the replay (config + command log) to the window, then shown with the director camera. The coach report card grades Calls, Objectives and Macro (S-D) and gives one concrete tip.
 
 ## 7. Seasons, ranks and the Cup
 

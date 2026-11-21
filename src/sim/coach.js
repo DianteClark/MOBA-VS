@@ -8,7 +8,7 @@ export class Coach {
   constructor(g, team, level = 1) {
     this.g = g; this.team = team; this.level = level; // 0 easy, 1 normal, 2 hard
     this.next = sec(20) + team * 7;
-    this.cooldown = { ult: 0, gank: 0, objective: 0, reset: 0, group: 0, focus: 0, herald: 0, build: 0, invade: 0, shrine: 0 };
+    this.cooldown = { surge: 0, ult: 0, gank: 0, objective: 0, reset: 0, group: 0, focus: 0, herald: 0, build: 0, invade: 0, shrine: 0 };
   }
   issue(c) { c.team = this.team; return this.g.applyCommand(c); }
 
@@ -28,6 +28,7 @@ export class Coach {
     const deadEnemies = them.heroes.filter((h) => !h.alive && h.respawnAt - now > sec(12)).length;
 
     if (this.useTactics(me, them, alive, visibleEnemies, deadEnemies)) return;
+    if (me.momentum >= 100 && ready('surge') && this.useSurge(me, alive, visibleEnemies)) { cd('surge', 10); return; }
     // Halftime adjustments: change plan by tower score, swap a weak card
     if (now >= g.halftimeTick && now < g.halftimeTick + sec(6) && !this.didHalftime) {
       this.didHalftime = true;
@@ -146,6 +147,25 @@ export class Coach {
     if (has('gate') && avgHp < 0.45 && !fighting && g.time > 300) return play({ card: 'gate' });
     if (has('bait') && fighting >= 2) { const tank = alive.find((h) => h.def.cls === 'tank' && h.hp / h.maxHp > 0.6); if (tank) return play({ card: 'bait', hero: tank.id }); }
     return false;
+  }
+
+  // Kami Surge: spend a full meter when it swings something: an even-or-better fight on open ground, an objective race,
+  // or a late base siege that can end the game.
+  useSurge(me, alive, vis) {
+    const g = this.g, now = g.tick;
+    if (alive.length < 3) return false;
+    const close = vis.filter((e) => alive.some((a) => (a.x - e.x) ** 2 + (a.y - e.y) ** 2 < 750 * 750));
+    const fighters = alive.filter((h) => now - h.lastCombat < sec(2) && close.some((e) => (h.x - e.x) ** 2 + (h.y - e.y) ** 2 < 700 * 700));
+    const hp = fighters.reduce((a, h) => a + h.hp / h.maxHp, 0) / Math.max(1, fighters.length);
+    // never into their towers: the fight has to be on open ground
+    const underTower = fighters.some((h) => g.units.some((u) => u.type === 'tower' && u.alive && u.team !== this.team && (u.x - h.x) ** 2 + (u.y - h.y) ** 2 < (u.stats.range + 60) ** 2));
+    const brawl = fighters.length >= 3 && close.length >= 2 && fighters.length >= close.length && hp > 0.45 && !underTower;
+    const objRace = ['dragon', 'baron', 'herald'].some((k) => { const o = g.objectives[k]; return o && o.alive && o.hp < o.maxHp * 0.7 && close.length >= 1 && alive.filter((a) => (a.x - o.x) ** 2 + (a.y - o.y) ** 2 < 600 * 600).length >= 3; });
+    // late close-out: grouped on their base (gate / base towers / Crystal) with at most one defender in sight
+    const closeOut = g.time > 660 && me.call && me.call.type === 'group' && close.length <= 1 && g.units.some((u) => u.alive && u.team !== this.team && (u.type === 'inhib' || u.type === 'nexus' || (u.type === 'tower' && u.tier >= 3))
+      && g.isTargetable(u) && alive.filter((a) => (a.x - u.x) ** 2 + (a.y - u.y) ** 2 < 600 * 600).length >= 3);
+    if (!brawl && !objRace && !closeOut) return false;
+    return this.issue({ type: 'surge' });
   }
 
   // The enemy lane with the fewest structures left standing (ties: mid).

@@ -1,7 +1,7 @@
 // The deterministic match simulation. Same seed + same commands => same game.
 import { Rng, hashInts } from './rng.js';
 import { dist2, dist, norm, r2 } from './geom.js';
-import { DT, sec, BLUE, RED, NEUTRAL, T, GOLD, XP, xpNeeded, VISION, CMD, DRAGONS, MATCH_SECONDS, RANGE, CLANS, WEATHER, FINAL, HALFTIME, PACE } from './constants.js';
+import { DT, sec, BLUE, RED, NEUTRAL, T, GOLD, XP, xpNeeded, VISION, CMD, DRAGONS, MATCH_SECONDS, RANGE, CLANS, WEATHER, FINAL, HALFTIME, PACE, MOMENTUM, PERMIT } from './constants.js';
 import { World, S as MAP_SIZE, C as CELL, N as GRID_N } from './world.js';
 import { MAP_BY_ID } from '../maps/defs.js';
 import { HERO_BY_ID, PERSONALITIES } from '../data/heroes.js';
@@ -70,6 +70,7 @@ export class Game {
       charges: 1, kills: 0, towers: 0, dragons: [], soul: null, heraldEye: 0, baronUntil: 0, elderUntil: 0,
       focus: null, call: null, heroes: [], goldHistory: [], invadeCamp: null,
       deck: (cfg.teams[t].deck || DEFAULT_DECK).slice(0, 3).map((id) => ({ id, used: false })), siegeWaves: {}, siegeUntil: 0, fortifyUntil: 0, pactUntil: 0, swapUntil: 0,
+      momentum: 0, surgeUntil: 0, permitCd: 0,
     }));
     this.world = new World(MAP_BY_ID[cfg.map] || MAP_BY_ID.sakura);
     this.visGrid = [new Uint8Array(GRID_N * GRID_N), new Uint8Array(GRID_N * GRID_N)];
@@ -207,6 +208,7 @@ export class Game {
         sh.progress += step * (1 + 0.25 * (n[who] - 1));
         if (sh.progress >= T.shrineCapture) {
           const prev = sh.owner; sh.owner = who; sh.progress = 0; sh.capTeam = -1;
+          this.addMomentum(who, MOMENTUM.shrine);
           const sev = { type: 'shrine', team: who, id: sh.id, prev }; this.emit(sev); this.resolveCalls(sev);
           for (const t of this.teams) for (const h of t.heroes) this.recalc(h);
         }
@@ -476,6 +478,31 @@ export class Game {
         const d = team.deck.find((x) => x.id === c.card && !x.used); if (!d) { ok = false; break; }
         d.id = c.to; team.redrawn = true; break;
       }
+      case 'permit': {
+        // A hero asked for the green light (UI request) and the coach said yes: a short, aggressive solo task.
+        const h = heroes.find((x) => x.id === c.hero);
+        if (!h || !h.alive || team.permitCd > this.tick || (c.kind !== 'fight' && c.kind !== 'split')) { ok = false; break; }
+        if (c.kind === 'fight') {
+          const tgt = this.units.find((u) => u.id === c.target && u.type === 'hero' && u.team !== c.team);
+          if (!tgt || !tgt.alive || !this.vision[c.team].has(tgt.id) || dist2(tgt, h) > PERMIT.range * PERMIT.range) { ok = false; break; }
+          h.task = { kind: 'permit', target: tgt.id, until: until(PERMIT.fight), call: true }; h.pendingCall = null;
+        } else {
+          if (!this.world.laneNames.includes(c.lane)) { ok = false; break; }
+          h.task = { kind: 'split', lane: c.lane, until: until(PERMIT.split), call: true }; h.pendingCall = null;
+        }
+        this._callHeroes.push(h.id);
+        this.fx.push({ kind: 'emote', id: h.id, e: 'up' });
+        team.permitCd = until(PERMIT.cooldown);
+        break;
+      }
+      case 'surge': {
+        // Kami Surge: spend a full momentum meter for a short team-wide power spike.
+        if (team.momentum < MOMENTUM.max || team.surgeUntil > this.tick || !alive.length) { ok = false; break; }
+        team.momentum = 0; team.surgeUntil = until(MOMENTUM.surgeSec);
+        for (const h of alive) { this.addBuff(h, { dmgPct: MOMENTUM.dmg, msPct: MOMENTUM.ms }, MOMENTUM.surgeSec, 'surge'); this.fx.push({ kind: 'fx', name: 'boost', x: h.x, y: h.y, s: 1.4, follow: h.id }); }
+        this.emit({ type: 'surge', team: c.team });
+        break;
+      }
       case 'cancel':
         for (const h of alive) { if (h.task.call) h.task = { kind: 'idle' }; h.pendingCall = null; }
         team.call = null; team.focus = null;
@@ -484,9 +511,13 @@ export class Game {
     }
     if (ok) {
       team.charges -= cost;
-      const entry = { t: this.tick, team: c.team, type: c.type, lane: c.lane, obj: c.obj, hero: c.hero, target: c.target, build: c.build, card: c.card, mode: c.mode, plan: c.plan, result: null, heroes: this._callHeroes.slice() };
+      const entry = { t: this.tick, team: c.team, type: c.type, lane: c.lane, obj: c.obj, hero: c.hero, target: c.target, build: c.build, card: c.card, mode: c.mode, plan: c.plan, kind: c.kind, result: null, heroes: this._callHeroes.slice() };
       if (c.type === 'tactic') { entry.result = 'played'; entry.trusted = true; }
-      if (['gank', 'objective', 'invade', 'group', 'shrine', 'tactic'].includes(c.type)) this.callLog.push(entry);
+      if (['gank', 'objective', 'invade', 'group', 'shrine', 'tactic', 'permit'].includes(c.type)) {
+        entry.i = this.callLog.length;
+        entry.d0 = entry.heroes.reduce((a, id) => a + this.byId(id).deaths, 0);
+        this.callLog.push(entry);
+      }
       this.emit({ type: 'call', team: c.team, call: entry });
     }
     return ok;
@@ -495,24 +526,60 @@ export class Game {
   resolveCalls(ev) {
     for (const c of this.callLog) {
       if (c.result) continue;
-      const life = c.type === 'objective' ? T.objectiveTimeout : c.type === 'group' ? T.groupTimeout + 10 : c.type === 'invade' ? 34 : c.type === 'shrine' ? 40 : T.gankTimeout + 4;
+      const life = c.type === 'objective' ? T.objectiveTimeout : c.type === 'group' ? T.groupTimeout + 10 : c.type === 'invade' ? 34 : c.type === 'shrine' ? 40
+        : c.type === 'permit' ? (c.kind === 'split' ? PERMIT.split : PERMIT.fight) + 2 : T.gankTimeout + 4;
       if (this.tick - c.t > sec(life)) c.result = 'expired';
       if (!c.result && ev.type === 'kill') {
         const v = this.byId(ev.victim);
         if (c.type === 'gank' && v && ev.killerTeam === c.team && this.laneOf(v) === c.lane) c.result = 'success';
-        else if (c.type === 'gank' && v && v.team === c.team && this.laneOf(v) === c.lane) c.result = 'traded';
+        else if (c.type === 'gank' && v && v.team === c.team && this.laneOf(v) === c.lane) { c.result = 'traded'; c.lost = v.id; }
+        else if (c.type === 'permit' && c.kind === 'fight' && ev.victim === c.target && ev.killerTeam === c.team) c.result = 'success';
+        else if (c.type === 'permit' && ev.victim === c.hero) { c.result = 'traded'; c.lost = c.hero; }
       }
       if (!c.result && ev.type === 'objective' && c.type === 'objective' && ev.obj === c.obj) c.result = ev.team === c.team ? 'success' : 'stolen';
       if (!c.result && ev.type === 'shrine' && c.type === 'shrine' && ev.team === c.team) c.result = 'success';
       if (!c.result && ev.type === 'stolenCamp' && c.type === 'invade' && ev.team === c.team) c.result = 'success';
-      if (!c.result && (ev.type === 'tower' || ev.type === 'inhib') && c.type === 'group' && ev.lane === c.lane) c.result = ev.team === c.team ? 'success' : 'traded';
+      if (!c.result && (ev.type === 'tower' || ev.type === 'inhib') && (c.type === 'group' || (c.type === 'permit' && c.kind === 'split')) && ev.lane === c.lane) c.result = ev.team === c.team ? 'success' : 'traded';
       if (!c.result && ev.type === 'kill' && c.type === 'group' && ev.killerTeam === c.team) { const v = this.byId(ev.victim); if (v && this.laneOf(v) === c.lane) c.result = 'success'; }
       if (c.result && !c.trusted) {
         c.trusted = true;
-        const delta = c.result === 'success' ? 8 : c.result === 'expired' ? -2 : -6;
+        const ok = c.result === 'success';
+        // A hero who asked for (and got) the green light cares more about how it went.
+        const delta = c.type === 'permit' ? (ok ? 10 : c.result === 'expired' ? -1 : -3) : ok ? 8 : c.result === 'expired' ? -2 : -6;
         for (const id of c.heroes || []) { const x = this.byId(id); if (x) this.addTrust(x, delta, c.result); }
+        if (!ok) c.why = this.callFailReason(c);
+        if (ok) this.addMomentum(c.team, MOMENTUM.call);
+        this.emit({ type: 'callResult', team: c.team, i: c.i, call: c.type, result: c.result, why: c.why || null, delta, hero: c.hero || (c.heroes && c.heroes[0]) || 0 });
       }
     }
+  }
+  // Why a call did not pay off (a short code; the HUD turns it into words). Read-only.
+  callFailReason(c) {
+    const died = (c.heroes || []).reduce((a, id) => a + this.byId(id).deaths, 0) > (c.d0 || 0);
+    const enemies = this.teams[1 - c.team].heroes;
+    if (c.result === 'stolen') return 'stolen';
+    if (c.result === 'traded') return c.type === 'group' || c.type === 'permit' && c.kind === 'split' ? 'lostTower' : c.lost === c.hero && c.type === 'permit' ? 'died' : 'lostHero';
+    if (c.type === 'gank') {
+      const g = this.byId(c.heroes && c.heroes[0]);
+      if (died || (g && !g.alive)) return 'gankerDied';
+      const inLane = enemies.filter((e) => e.alive && this.world.distToLane(c.lane, e) < 400);
+      if (inLane.some((e) => e.flashCd > c.t + sec(100))) return 'flashed';
+      for (let k = this.events.length - 1; k >= 0 && this.events[k].t >= c.t; k--) {
+        const e = this.events[k]; if (e.type === 'recalled' && e.team !== c.team) { const x = this.byId(e.hero); if (x && x.homeLane === c.lane) return 'recalled'; }
+      }
+      return inLane.length ? 'escaped' : 'empty';
+    }
+    if (c.type === 'permit') { const t = this.byId(c.target); return t && t.flashCd > c.t + sec(100) ? 'flashed' : 'escaped'; }
+    if (died) return 'pickedOff';
+    if (c.type === 'objective') { const o = this.objectives[c.obj]; return o && o.alive && o.hp < o.maxHp ? 'slow' : 'notStarted'; }
+    if (c.type === 'shrine') return 'contested';
+    if (c.type === 'group') return 'noTower';
+    return 'fizzled';
+  }
+  addMomentum(team, v) {
+    const t = this.teams[team]; if (!t || t.surgeUntil > this.tick) return;
+    const before = t.momentum; t.momentum = Math.min(MOMENTUM.max, t.momentum + v);
+    if (before < MOMENTUM.max && t.momentum >= MOMENTUM.max) this.emit({ type: 'momentumFull', team });
   }
   laneOf(u) { return this.world.closestLane(u); }
   // An objective can be called if it is up or wakes within 25s.
@@ -578,6 +645,7 @@ export class Game {
     if (!this.over && this.time >= MATCH_SECONDS) this.timeUp();
     // cleanup
     if (now % 20 === 0) {
+      if (this.callLog.length) this.resolveCalls({ type: 'tick' });
       this.units = this.units.filter((u) => u.alive || u.type === 'hero' || u.structure);
       this.wards = this.wards.filter((w) => w.until > now);
       if (now % 200 === 0) for (const t of this.teams) t.goldHistory.push(t.heroes.reduce((a, h) => a + h.goldEarned, 0));
@@ -1419,6 +1487,7 @@ export class Game {
           this.addTrust(killer, killer.pers.tilts ? 4 : 2, 'kill');
           this.giveGold(killer, (GOLD.kill + Math.min(5, Math.max(0, victimStreak - 1)) * GOLD.shutdownPerStreak) * this.finalMult);
           this.teams[killer.team].kills++;
+          this.addMomentum(killer.team, MOMENTUM.kill);
         } else if (killerTeam !== NEUTRAL && killerTeam !== u.team) this.teams[killerTeam].kills++;
         for (const a of assists) { a.assists++; this.giveGold(a, GOLD.assist / Math.max(1, assists.length) * 1.5); }
         const xp = XP.killBase + XP.killPerLevel * u.level;
@@ -1458,6 +1527,7 @@ export class Game {
         const tm = this.teams[team];
         const smite = src && src.smited === now;
         for (const h of tm.heroes) if (h.alive) { this.giveGold(h, GOLD.objectiveTeam * this.finalMult); this.giveXp(h, 120); this.addTrust(h, 3, 'objective'); }
+        this.addMomentum(team, MOMENTUM.objective);
         if (u.kind === 'dragon') {
           if (u.element === 'elder') { for (const h of tm.heroes) if (h.alive) h.elderUntil = now + sec(T.elderBuff); this.objTimers.dragon = now + sec(T.elderRespawn); }
           else {
@@ -1488,6 +1558,7 @@ export class Game {
         if (u.type === 'nexus') { this.over = true; this.winner = team; this.emit({ type: 'victory', team }); break; }
         for (const h of this.teams[team].heroes) this.giveGold(h, (u.type === 'tower' ? GOLD.tower : GOLD.inhib) * this.finalMult);
         if (u.type === 'tower') this.teams[team].towers++;
+        this.addMomentum(team, MOMENTUM.tower);
         if (u.type === 'inhib') u.respawnAt = now + sec(T.inhibRespawn);
         const sev = { type: u.type === 'tower' ? 'tower' : 'inhib', team, lane: u.lane, tier: u.tier, x: u.x, y: u.y };
         this.emit(sev); this.resolveCalls(sev);
@@ -1526,7 +1597,7 @@ export class Game {
     let h = 2166136261 >>> 0;
     h = hashInts(h, this.tick, this.units.length, this.projectiles.length, this.rng.state());
     for (const u of this.units) if (u.alive) h = hashInts(h, u.id, r2(u.x), r2(u.y), r2(u.hp));
-    for (const t of this.teams) for (const x of t.heroes) h = hashInts(h, r2(x.gold), x.level, x.items.length);
+    for (const t of this.teams) { h = hashInts(h, r2(t.momentum), t.surgeUntil); for (const x of t.heroes) h = hashInts(h, r2(x.gold), x.level, x.items.length); }
     return h >>> 0;
   }
 
