@@ -1,6 +1,8 @@
 // Balance scan: AI-vs-AI self-play with balanced hero coverage, run on worker threads.
 //   node tools/balance.mjs [games=60] [workers=2] [--seed N] [--smart] [--json out.json] [--log games.jsonl] [--quiet]
 //   node tools/balance.mjs --from a.jsonl[,b.jsonl] [--json out.json]   (re-aggregate saved games)
+//   --duos P    in a share P of games (default 0.5) one random cross-role duo is put on a random team, so
+//               every duo gets measured (reported with its members' overall win rates for comparison)
 //   --nudge K   also move each hero's TUNE multiplier toward 50% (delta = (0.5 - shrunk win rate) * K,
 //               max ±6% per pass, clamp 0.8-1.2) and rewrite src/data/tuning.js (same format as tune.mjs)
 // Each game draws heroes from shuffled per-role decks so every hero gets the same number of games.
@@ -52,6 +54,7 @@ if (!isMainThread) {
   const { BUILDS } = await import('../src/data/items.js');
   const { Rng } = await import('../src/sim/rng.js');
   const { RANGE } = await import('../src/sim/constants.js');
+  const { DUOS } = await import('../src/data/synergy.js');
 
   // Static range sanity: max basic-attack range (base + self buffs + range items) vs tower reach.
   const cap = RANGE.tower - 45, rangeRows = [];
@@ -75,6 +78,11 @@ if (!isMainThread) {
   const jobs = [];
   for (let i = 0; i < N; i++) {
     const used = new Set(), a = ROLES.map((r) => draw(r, used)), b = ROLES.map((r) => draw(r, used));
+    const crossDuos = DUOS.filter((d) => HERO_BY_ID[d.a].role !== HERO_BY_ID[d.b].role);
+    if (rng.next() < +opt('duos', 0.5)) {
+      const d = crossDuos[rng.int(crossDuos.length)], [mine, other] = rng.next() < 0.5 ? [a, b] : [b, a];
+      if (!other.includes(d.a) && !other.includes(d.b)) for (const id of [d.a, d.b]) mine[ROLES.indexOf(HERO_BY_ID[id].role)] = id;
+    }
     const pb = (ids) => ids.map((id) => { const bl = HERO_BY_ID[id].builds; return bl[rng.int(bl.length)]; });
     jobs.push({ seed: seed0 + i, teams: [a, b], builds: [pb(a), pb(b)] });
   }
@@ -88,14 +96,16 @@ if (!isMainThread) {
   })));
 
   // Aggregate
-  const H = {}, B = {}, HB = {}, C = {};
+  const H = {}, B = {}, HB = {}, C = {}, D = {};
   let blue = 0, len = 0, timeouts = 0, kills = 0; const ev = {};
   for (const r of results) {
     if (r.winner === 0) blue++; len += r.min; if (r.timeout) timeouts++;
     for (const k in r.ev) ev[k] = (ev[k] || 0) + r.ev[k];
     r.teams.forEach((t, ti) => {
       const win = r.winner === ti ? 1 : 0, teamDmg = t.heroes.reduce((s, x) => s + x.dmg, 0) || 1;
-      if (t.comp) { const c = C[t.comp] || (C[t.comp] = { g: 0, w: 0 }); c.g++; c.w += win; }
+      if (t.comp) { const c = C[t.comp] || (C[t.comp] = { g: 0, w: 0, ids: [] }); c.g++; c.w += win; c.ids.push(...t.heroes.map((x) => x.id)); }
+      const ids = t.heroes.map((x) => x.id);
+      for (const du of DUOS) if (ids.includes(du.a) && ids.includes(du.b)) { const c = D[du.id] || (D[du.id] = { g: 0, w: 0 }); c.g++; c.w += win; }
       for (const x of t.heroes) {
         kills += x.k;
         const s = H[x.id] || (H[x.id] = { g: 0, w: 0, k: 0, d: 0, a: 0, dmg: 0, share: 0, taken: 0, healed: 0, gold: 0, bh: 0, min: 0, ab: [[0, 0], [0, 0], [0, 0]] });
@@ -119,11 +129,17 @@ if (!isMainThread) {
   }
   console.log('\nBuild        games  win%  heroes');
   for (const [k, b] of Object.entries(B).sort((a, b) => b[1].w / b[1].g - a[1].w / a[1].g)) console.log(`${k.padEnd(12)} ${String(b.g).padStart(5)}  ${pct(b.w, b.g).padStart(4)}  ${b.heroes.size}`);
-  console.log('\nComps (active)', Object.entries(C).map(([k, c]) => `${k} ${pct(c.w, c.g)}% of ${c.g}`).join(' · '));
+  // comps / duos next to what their heroes win overall (a duo or comp is only strong if it beats that)
+  const wr = (id) => H[id].w / H[id].g;
+  const avgWr = (ids) => (100 * ids.reduce((s, id) => s + wr(id), 0) / ids.length).toFixed(0);
+  console.log('\nComps (active)', Object.entries(C).map(([k, c]) => `${k} ${pct(c.w, c.g)}% of ${c.g} (its heroes ${avgWr(c.ids)}%)`).join(' · '));
+  let dg = 0, dw = 0, dx = 0;
+  const duoRows = Object.entries(D).map(([k, c]) => { const du = DUOS.find((x) => x.id === k), base = (wr(du.a) + wr(du.b)) / 2; dg += c.g; dw += c.w; dx += base * c.g; return `${k} ${pct(c.w, c.g)}% of ${c.g} (pair ${(100 * base).toFixed(0)}%)`; });
+  console.log(`Duos: all ${pct(dw, dg)}% of ${dg} (their heroes ${(100 * dx / (dg || 1)).toFixed(0)}%) · ${duoRows.join(' · ')}`);
   const over = rangeRows.filter((r) => r.max > cap);
   console.log(`\nRange sanity: hero attack range cap ${cap} (towers ${RANGE.tower}). Would exceed without cap: ${over.map((r) => `${r.id} ${r.max}`).join(', ') || 'none'}`);
   const out = opt('json', null);
-  if (out) writeFileSync(out, JSON.stringify({ n, blue, len, timeouts, ev, H, B: Object.fromEntries(Object.entries(B).map(([k, v]) => [k, { g: v.g, w: v.w, heroes: [...v.heroes] }])), HB, C, rangeRows, cap }, null, 1));
+  if (out) writeFileSync(out, JSON.stringify({ n, blue, len, timeouts, ev, H, B: Object.fromEntries(Object.entries(B).map(([k, v]) => [k, { g: v.g, w: v.w, heroes: [...v.heroes] }])), HB, C, D, rangeRows, cap }, null, 1));
   const K = +opt('nudge', 0);
   if (K) {
     const { TUNE } = await import('../src/data/tuning.js');

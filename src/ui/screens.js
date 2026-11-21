@@ -14,6 +14,7 @@ import { ladderPanel } from './online.js';
 import { TEAM_COL } from '../render/palette.js';
 import { audio } from '../audio.js';
 import { tweenNumber, growBars } from './juice.js';
+import { analysisCard } from './analytics.js';
 
 // Tiny map previews from the terrain grid (cheap: 100x100 pixels).
 const thumbs = {};
@@ -55,7 +56,6 @@ function parade(el) {
 }
 
 const screen = () => document.getElementById('screen');
-const TEAMC = ['blue', 'red'];
 
 export function startParade() { const old = document.querySelector('.parade'); if (old) old.remove(); const el = h('div', { class: 'parade' }); document.body.append(el); parade(el); }
 export function stopParade() { cancelAnimationFrame(paradeRAF); const old = document.querySelector('.parade'); if (old) old.remove(); }
@@ -189,11 +189,6 @@ export function showResults(app, g, myTeam, onAgain, onMenu, extra = {}) {
     h('div', { class: 'rth' }, h('b', {}, `${TEAM_NAME[t]} · ${app.session.names[t]}`), t === win ? h('span', { class: 'wtag' }, 'WIN') : null,
       h('span', { class: 'rstats' }, `${g.teams[t].kills} kills · ${g.teams[t].towers} towers · ${g.teams[t].dragons.length} kami${g.teams[t].soul ? ' + ' + DRAGON_INFO[g.teams[t].soul].name + ' blessing' : ''}`)),
     h('div', { class: 'tblwrap' }, h('table', { class: 'tbl' }, h('tr', {}, ...[['Hero'], ['Role', 'c-role'], ['Lv'], ['KDA'], ['CS'], ['Dmg'], ['Gold', 'c-gold'], ['Build', 'c-build'], ['Items', 'c-items']].map(([c, k]) => h('th', { class: k || '' }, c))), ...g.teams[t].heroes.map(row))));
-  const graph = h('canvas', { class: 'graph' });
-  const calls = g.callLog.filter((c) => myTeam < 0 || c.team === myTeam);
-  const okN = calls.filter((c) => c.result === 'success' || c.result === 'played').length;
-  const callEl = h('div', { class: 'panel' }, h('div', { class: 'rth' }, h('b', {}, myTeam < 0 ? 'Calls' : 'Your calls'), calls.length ? h('span', { class: 'rstats' }, `${okN}/${calls.length} paid off`) : null), h('div', { class: 'calllog' },
-    ...(calls.length ? calls.map((c) => h('div', { class: 'crow' }, h('span', { class: 'muted' }, fmtTime(c.t / 20)), h('span', { class: TEAMC[c.team] }, c.type.toUpperCase()), h('span', {}, c.lane || c.obj || c.card || ''), h('span', { class: 'badge ' + (c.result || 'null') }, c.result || 'pending'))) : [h('div', { class: 'muted' }, 'No calls made.')])));
   const timeout = g.events.find((e) => e.type === 'victory' && e.timeout);
   const mvpCard = mvp ? h('div', { class: 'mvp panel t' + mvp.team },
     h('div', { class: 'mvpart' }, h('div', { class: 'rays' }), h('img', { src: face(mvp.heroId) }), h('span', { class: 'mvpbadge' }, 'MVP')),
@@ -221,29 +216,10 @@ export function showResults(app, g, myTeam, onAgain, onMenu, extra = {}) {
     extra.ladder ? ladderPanel(extra.ladder) : null,
     extra.social || null,
     table(0), table(1),
-    h('div', { class: 'panel' }, h('div', { class: 'rth' }, h('b', {}, 'Gold lead'), h('span', { class: 'rstats' }, 'Blue above / Red below')), graph),
-    callEl,
-    h('div', { class: 'rbtns' }, extra.share ? h('button', { class: 'btn big sharebtn', onclick: extra.share }, 'Share') : null, onAgain ? h('button', { class: 'btn big', onclick: onAgain }, extra.againLabel || 'Play again') : null, app.lastReplay && app.lastReplay() && !app.session.replay ? h('button', { class: 'btn big', onclick: () => app.watchReplay() }, 'Watch replay') : null, h('button', { class: 'btn big', onclick: onMenu }, 'Main menu')),
+    extra.analytics ? analysisCard(extra.analytics, extra.onAnalysis) : null,
+    h('div', { class: 'rbtns' }, extra.share ? h('button', { class: 'btn big sharebtn', onclick: extra.share }, 'Share') : null, onAgain ? h('button', { class: 'btn big', onclick: onAgain }, extra.againLabel || 'Play again') : null, extra.onReplay && app.lastReplay() && !app.session.replay ? h('button', { class: 'btn big', title: 'Replay Theater: timeline, speeds, jumps to fights', onclick: extra.onReplay }, 'Watch replay') : null, h('button', { class: 'btn big', onclick: onMenu }, 'Main menu')),
   ));
-  requestAnimationFrame(() => drawGoldGraph(graph, g));
   growBars(screen().querySelector('.results .prog'), 300);
   // the MVP's numbers count up
   for (const b of screen().querySelectorAll('.mvpstats b')) { const m = /^(\d+)$/.exec(b.textContent); if (m) tweenNumber(b, 0, +m[1], 900); }
-}
-function drawGoldGraph(c, g) {
-  const r = c.getBoundingClientRect(); c.width = r.width; c.height = r.height;
-  const ctx = c.getContext('2d'); const a = g.teams[0].goldHistory, b = g.teams[1].goldHistory;
-  const n = Math.min(a.length, b.length); if (n < 2) return;
-  const diff = Array.from({ length: n }, (_, i) => a[i] - b[i]);
-  const mx = Math.max(1000, ...diff.map(Math.abs));
-  const mid = c.height / 2;
-  ctx.strokeStyle = '#3d3346'; ctx.beginPath(); ctx.moveTo(0, mid); ctx.lineTo(c.width, mid); ctx.stroke();
-  for (let i = 1; i < n; i++) {
-    const x0 = (i - 1) / (n - 1) * c.width, x1 = i / (n - 1) * c.width;
-    const y0 = mid - diff[i - 1] / mx * (mid - 8), y1 = mid - diff[i] / mx * (mid - 8);
-    ctx.strokeStyle = (diff[i] + diff[i - 1]) / 2 >= 0 ? TEAM_COL[0] : TEAM_COL[1]; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
-  }
-  ctx.fillStyle = '#a99fb3'; ctx.font = '10px PixelFont, monospace';
-  ctx.fillText('+' + Math.round(mx / 100) / 10 + 'k', 4, 12); ctx.fillText('-' + Math.round(mx / 100) / 10 + 'k', 4, c.height - 4);
 }

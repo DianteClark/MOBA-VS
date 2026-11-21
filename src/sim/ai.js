@@ -287,7 +287,7 @@ export function heroMacro(g, h) {
   const help = helpTarget(g, h, C);
   if (help) { h.task = { kind: 'help', ally: help.id, until: now + sec(8) }; return; }
   // opportunistic shrine
-  if (g.time >= 60 && hpPct > 0.5 && (h.role === 'jungle' || h.role === 'support' || g.time > 480) && (now + h.id * 3) % 40 === 0) {
+  if (g.time >= 60 && hpPct > 0.5 && (h.role === 'jungle' || h.role === 'support' || g.time > 480) && (now + h.ph * 3) % 40 === 0) {
     for (const sh of g.shrines) {
       if (sh.owner === h.team || W.pathDist(h, sh) > 700) continue;
       if (C.enemies.some((e) => dist2(e, sh) < 750 * 750)) continue;
@@ -297,7 +297,7 @@ export function heroMacro(g, h) {
   if (h.task.kind === 'shrine' && h.task.until > now) return;
 
   if (h.role === 'jungle') {
-    if ((now + h.id * 7) % 80 === 0) { const lane = gankOpportunity(g, h, C); if (lane) { h.task = { kind: 'gank', lane, until: now + sec(18) }; return; } }
+    if ((now + h.ph * 7) % 80 === 0) { const lane = gankOpportunity(g, h, C); if (lane) { h.task = { kind: 'gank', lane, until: now + sec(18) }; return; } }
     if (h.task.kind !== 'jungle') h.task = { kind: 'jungle' };
     return;
   }
@@ -384,7 +384,7 @@ export function heroThink(g, h) {
       return;
     }
     if (threats.length && combat(g, h, C, true)) return;
-    if (task.kind === 'heal') { h.why = 'heal at base'; return; }
+    if (task.kind === 'heal') { h.why = 'heal at base'; const f = g.world.fountain[h.team]; if (dist2(h, f) > 150 * 150) g.moveToward(h, f); else h.vx = h.vy = 0; return; }
     h.why = 'walk home: enemies near'; g.moveToward(h, g.world.fountain[h.team]); return;
   }
   if (combat(g, h, C, false)) return;
@@ -963,7 +963,8 @@ function doJungle(g, h) {
   // nothing up: wait at the camp that comes back first if it is close in time, else help a lane
   if (next && nt < 12) { h.why = 'jungle: wait for ' + next.def.name; if (arrive(g, h, next, 80, 160)) h.vx = h.vy = 0; return; }
   const L = g.teams[h.team].lanes, need = L && g.world.laneNames.find((l) => L[l] && L[l].need);
-  doLane(g, h, need || h.lane || (g.time > 540 || g.world.laneNames.length === 1 ? 'mid' : (h.team === BLUE ? 'bot' : 'top')), false);
+  // (same lane for both teams: Blue used to help its duo lane while Red helped its solo top laner)
+  doLane(g, h, need || h.lane || (g.time > 540 || g.world.laneNames.length === 1 ? 'mid' : 'bot'), false);
 }
 
 function doGank(g, h, task, C) {

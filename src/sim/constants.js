@@ -38,11 +38,12 @@ export const VISION = { hero: 400, minion: 300, tower: 460, ward: 340, summon: 3
 export const RANGE = { melee: 55, short: 150, long: 180, tower: 255 };
 
 // Final phase ("Last Stand"): the last 3 minutes pay more and respawns get longer.
-// Match pacing: the game escalates so most matches end at a Crystal by ~15:00.
-//   structures take more damage over time, waves get siege minions every wave from 8:00 and a
-//   super minion per lane from 11:00 ("Kami's Wrath"), and backdoor protection fades late.
-export const PACE = { rampFrom: 240, rampPer: 300, siegeAllFrom: 480, wrathFrom: 660, backdoorOffFrom: 780 };
-export const FINAL = { at: 720, gold: 1.5, respawn: 1.25 };
+// Match pacing: the game escalates so most matches end at a Crystal between 12:00 and 15:00.
+//   structures take more damage over time (+1x per 5 min from 4:00, plus +1x per 75s from 11:00:
+//   about 5.4x by 15:00), waves get siege minions every wave from 8:00 and a super minion per lane
+//   from 10:00 ("Kami's Wrath"), and backdoor protection fades from 11:30.
+export const PACE = { rampFrom: 240, rampPer: 300, lateFrom: 660, latePer: 75, siegeAllFrom: 480, wrathFrom: 600, backdoorOffFrom: 690 };
+export const FINAL = { at: 720, gold: 1.5, respawn: 1.5 };
 // Halftime (runner-level pause at 7:30) and the window for halftime-only commands.
 export const HALFTIME = { at: 450, seconds: 20, window: 8 };
 // Momentum: fills from paid-off calls, kills, objectives, towers and shrines; a full meter buys one Kami Surge.

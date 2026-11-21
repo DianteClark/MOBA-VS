@@ -2,7 +2,7 @@
 //   tweenNumber  counts a number up/down in place (gold, score, rating, XP)
 //   growBars     progress bars fill from empty on a fresh screen
 //   confetti     a short burst, only for real wins and promotions
-//   installPressSounds  one soft synthesized "tok" for every menu button press (no extra downloads)
+//   installPressSounds  one soft synthesized "tok" for every menu button press (audio.ui: no extra downloads)
 import { h } from './dom.js';
 import { settings } from './settings.js';
 import { audio } from '../audio.js';
@@ -49,30 +49,12 @@ export function confetti(colors = ['#ffd84a', '#ffffff', '#6fdc8c', '#4aa3ff', '
   setTimeout(() => box.remove(), 3200);
 }
 
-// ── press sounds: a tiny WebAudio blip, pitched by the kind of button ──
-let ctx = null, lastTok = 0;
-function tok(kind) {
-  if (audio.muted || !audio.unlocked || audio.sfxVol <= 0.001) return;
-  try {
-    ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
-    if (ctx.state === 'suspended') ctx.resume();
-    const t = ctx.currentTime, o = ctx.createOscillator(), g = ctx.createGain();
-    const f = kind === 'big' ? [520, 780] : kind === 'back' ? [420, 260] : [660, 520];
-    o.type = kind === 'big' ? 'triangle' : 'square';
-    o.frequency.setValueAtTime(f[0], t); o.frequency.exponentialRampToValueAtTime(f[1], t + (kind === 'big' ? 0.09 : 0.05));
-    const v = Math.min(0.12, audio.sfxVol * (kind === 'big' ? 0.16 : 0.09));
-    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + 0.006); g.gain.exponentialRampToValueAtTime(0.0001, t + (kind === 'big' ? 0.16 : 0.07));
-    o.connect(g).connect(ctx.destination); o.start(t); o.stop(t + 0.2);
-    lastTok = performance.now();
-  } catch { /* no WebAudio */ }
-}
-// The 'move' whoosh some menus play on tap would double up with the blip: skip it right after one.
-export const tokRecent = () => performance.now() - lastTok < 160;
+// ── press sounds: a tiny synthesized blip on the audio engine's UI bus, pitched by the kind of button ──
 export function installPressSounds() {
   window.addEventListener('pointerdown', (e) => {
     if (e.button) return;
     const b = e.target.closest && e.target.closest('#screen button, .modal button, #halftime button, .rankmoment, .h2tile');
     if (!b || b.disabled) return;
-    tok(b.classList.contains('big') || b.classList.contains('h2go') || b.classList.contains('lockbtn') ? 'big' : b.classList.contains('backbtn') ? 'back' : 'tap');
+    audio.ui(b.classList.contains('big') || b.classList.contains('h2go') || b.classList.contains('lockbtn') ? 'big' : b.classList.contains('backbtn') ? 'back' : 'tap');
   }, true);
 }

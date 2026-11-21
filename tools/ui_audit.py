@@ -7,6 +7,7 @@
 #   desktop   1920x1080,1440x900,1366x768,1280x720,1024x768,900x600
 #   all       iphones + desktop
 # MAP=rush in the environment audits a Lane Rush match instead of a classic one.
+# THEATER=1 audits the Replay Theater (a short recorded match played back) instead of a live match.
 # Safe areas are simulated by overriding the --safe-* CSS variables (Chrome cannot fake the notch).
 import sys, asyncio
 from playwright.async_api import async_playwright
@@ -47,9 +48,9 @@ PANELS = [('myteam', '#myteam'), ('scorebar', '#scorebar'), ('objtimers', '#objt
           ('killfeed', '#killfeed*'), ('mm', '#mm'), ('ctrl', '#ctrl*'), ('detail', '#detail'), ('foestrip', '#foestrip'),
           ('tray', '#cmdbar .tray'), ('sheet', '#cmdbar .sheet'), ('cancel', '#cmdbar .cancelpill'), ('meter', '#cmdbar .meter'),
           ('hand', '#cmdbar .hand'), ('stance', '#cmdbar .ultbtn'), ('moments', '#cmdbar .momentbtn'), ('calls', '#cmdbar .callrow'), ('banner', '#banner*'),
-          ('qchatbtn', '#qchatbtn'), ('qfeed', '#qfeed*'), ('ring', '#ring*')]
+          ('qchatbtn', '#qchatbtn'), ('qfeed', '#qfeed*'), ('ring', '#ring*'), ('theater', '#cmdbar .theaterbar')]
 # overlays that may cover the HUD on purpose: they only have to fit the safe area
-OVERLAYS = [('menu', '#ctrl.open .seg:last-child'), ('qchat', '#qchat'), ('scoreboard', '#scoreboard .sbcard'), ('hpop', '#hpop'), ('modal', '.modal .mpanel'), ('halftime', '#halftime .ht-card')]
+OVERLAYS = [('menu', '#ctrl.open .seg:last-child'), ('qchat', '#qchat'), ('scoreboard', '#scoreboard .sbcard'), ('hpop', '#hpop'), ('modal', '.modal .mpanel'), ('halftime', '#halftime .ht-card'), ('follow', '#thfollow'), ('analysis', '#anasheet')]
 # pairs that are allowed to touch (one lives inside the other's column / is drawn over the map on purpose)
 SKIP = {frozenset(p) for p in [('meter', 'hand'), ('hand', 'stance'), ('meter', 'stance'), ('hand', 'moments'), ('moments', 'stance'), ('ctrl', 'qchatbtn')]}
 
@@ -123,6 +124,27 @@ STATES = [
     ('halftime', "() => { const r = app.match.runner; import('./src/ui/halftime.js').then((m) => m.showHalftime(app, app.match.game, 0, r, { end: performance.now() + 60000 })); }"),
 ]
 
+# Replay Theater: record ~40s of a match, then watch it back with the Theater bar
+if os.environ.get('THEATER') == '1':
+    SETUP = SETUP[:-1] + "  await new Promise((r) => setTimeout(r, 1500)); app.prepReady(); }"
+    THEATER_GO = """async () => { const m = app.match; m.runner.speed = 30; await new Promise((r) => setTimeout(r, 2500)); m.runner.speed = 1;
+      const rep = { cfg: m.cfg, log: m.runner.log, names: app.session.names, myTeam: 0, len: Math.round(m.game.time) };
+      app.match = null; app.teardownMatch(m);
+      app.session = { mode: 'watch', replay: rep, myTeam: -1, seed: rep.cfg.seed, mapId: rep.cfg.map, names: rep.names };
+      app.startMatch(); await new Promise((r) => setTimeout(r, 1500)); app.match.theater.seek(Math.min(20, rep.len - 5), true); }"""
+    BASE = "() => { const H = app.match.hud, g = app.match.game; H.selectHero(g.teams[0].heroes[1]); for (let i = 0; i < 6; i++) H.ticker('Test ticker line number ' + i + ' with quite a lot of text in it', 'danger', 3); for (let i = 0; i < 5; i++) H.killfeed(g.teams[0].heroes[i], g.teams[1].heroes[i], 1); }"
+    RESET = "() => { const H = app.match.hud; H.toggleScoreboard(false); H.closePop(); document.getElementById('rightcol').classList.remove('show'); document.getElementById('ctrl').classList.remove('open'); for (const e of document.querySelectorAll('.modal, #thfollow, #anasheet')) e.remove(); }"
+    STATES = [
+        ('bar', None),
+        ('follow', "() => document.querySelector('.thfol').click()"),
+        ('analysis', "() => { const t = app.match.theater; t.A = t.A || t.scout.rec.finish({ my: 0 }); t.openAnalysis(); }"),
+        ('banner', "() => { const H = app.match.hud; H.banner('END OF REPLAY', '#ffd84a', 60000); }"),
+        ('foes', "() => { const b = document.querySelector('.foesbtn'); if (b && b.offsetParent) b.click(); }"),
+        ('menu', "() => document.getElementById('ctrl').classList.add('open')"),
+        ('scoreboard', "() => app.match.hud.toggleScoreboard(true)"),
+        ('hpop', "() => { const H = app.match.hud; H.openPop(H.g.teams[0].heroes[0], H.mineRows[0]); }"),
+    ]
+
 async def main():
     bad = 0
     async with async_playwright() as p:
@@ -136,11 +158,15 @@ async def main():
             await pg.evaluate(f"() => {{ const s = document.documentElement.style; s.setProperty('--safe-l', '{sl}px'); s.setProperty('--safe-r', '{sr}px'); s.setProperty('--safe-t', '{st}px'); s.setProperty('--safe-b', '{sb}px'); }}")
             await pg.evaluate(SETUP)
             await pg.wait_for_timeout(1500)
-            await pg.evaluate("app.prepReady()")
-            await pg.wait_for_timeout(1500)
-            await pg.evaluate("app.match.runner.speed = 30")
-            await pg.wait_for_timeout(4000)
-            await pg.evaluate("app.match.runner.speed = 0.0001")
+            if os.environ.get('THEATER') == '1':
+                await pg.evaluate(THEATER_GO); await pg.wait_for_timeout(2500)
+                await pg.evaluate("app.match.runner.paused = true")
+            else:
+                await pg.evaluate("app.prepReady()")
+                await pg.wait_for_timeout(1500)
+                await pg.evaluate("app.match.runner.speed = 30")
+                await pg.wait_for_timeout(4000)
+                await pg.evaluate("app.match.runner.speed = 0.0001")
             await pg.evaluate(BASE)
             await pg.wait_for_timeout(600)
             issues = []
@@ -151,7 +177,7 @@ async def main():
                 await pg.wait_for_timeout(450)
                 res = await pg.evaluate(JS, [PANELS, OVERLAYS])
                 issues += [f'[{state}] ' + x for x in check(res, w, h)]
-                if OUT and state in ('tray', 'sheet', 'quickchat', 'halftime', 'ring', 'momentcard', 'tip'):
+                if OUT and state in ('tray', 'sheet', 'quickchat', 'halftime', 'ring', 'momentcard', 'tip', 'bar', 'follow', 'analysis'):
                     await pg.screenshot(path=f"{OUT}/ui_{w}x{h}{'_' + name.split()[-1] if name else ''}_{state}.png", timeout=20000, animations='disabled')
             issues += [f'JS error: {e}' for e in errs[:3]]
             print(f'{tag}: ' + ('OK' if not issues else f'{len(issues)} issue(s)'), flush=True)

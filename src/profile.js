@@ -7,6 +7,7 @@ import { masteryInfo, masteryLevel, matchPoints, masteryRewards, masteryTitleNam
 import { HERO_BY_ID } from './data/heroes.js';
 import { queueCloudSave } from './net/online.js';
 import { loadPresets, sanitize } from './presets.js';
+import { recordCareer } from './ui/career.js';
 
 const KEY = 'mobavs_profile_v1';
 const fresh = () => ({
@@ -80,8 +81,8 @@ export class Profile {
 
   // Record a finished match; returns a summary for the results screen.
   //   mode: 'ai' | 'online'; ranked: online ranked queue; oppElo: the online opponent's season rating;
-  //   potgHero: hero id of the Play of the Game (mastery points).
-  record({ game, myTeam, mode, aiLevel, cup, ranked, oppElo, potgHero }) {
+  //   potgHero: hero id of the Play of the Game (mastery points); analytics: the match's analytics record (career stats).
+  record({ game, myTeam, mode, aiLevel, cup, ranked, oppElo, potgHero, analytics }) {
     if (myTeam < 0) return null;
     const s = this.ss(), season = this.season;
     const won = game.winner === myTeam;
@@ -122,6 +123,7 @@ export class Profile {
       for (const r of rewards) if (r.kind === 'title' && !this.d.unlocked.titles.includes(r.id)) this.d.unlocked.titles.push(r.id);
       mastery.push({ id: x.heroId, gain: pts.total, parts: pts.parts, before: lvA, after: lvB, info: masteryInfo(m.pts), rewards });
     }
+    try { recordCareer(this.d, game, myTeam, analytics); } catch (e) { console.error(e); }
     this.d.history.unshift({
       t: Date.now(), season: season.id, mode: key, map: game.world.def.id, won, len: Math.round(game.time),
       picks: [0, 1].map((t) => game.teams[t].heroes.map((x) => x.heroId)), winner: game.winner, side: myTeam,
