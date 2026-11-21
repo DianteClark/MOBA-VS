@@ -377,7 +377,8 @@ export class Renderer {
     this.time += vdt; this.frame++; this._dt = vdt;
     this.govern(dt);
     this.fit();
-    this.fxp.keep = this.motion ? 1 : 0.35; // Reduced effects: about a third of the particles
+    // Reduced effects: about a third of the particles; Low graphics the same, Auto-medium about two thirds
+    this.fxp.keep = (this.motion ? 1 : 0.35) * [0.35, 0.7, 1][this.detail];
     const g = this.game, ctx = this.ctx;
     if (this.focus) { const k = Math.min(1, dt * 2); this.cam.x += (this.focus.x - this.cam.x) * k; this.cam.y += (this.focus.y - this.cam.y) * k; if (this.focus.zoom) this.cam.zoom += (this.focus.zoom - this.cam.zoom) * k; }
     else if (this.panTo) {
@@ -866,7 +867,7 @@ export class Renderer {
     const fw = img.width / def.frames, fh = img.height;
     const f = Math.min(def.frames - 1, Math.floor((this.time - e.born) / e.dur * def.frames));
     let x = e.x, y = e.y;
-    if (e.follow) { const u = this.game.units.find((q) => q.id === e.follow); if (u && u.alive) { x = u.x; y = u.y - 12; } }
+    if (e.follow) { const d = this.heroPos.get(e.follow), u = d ? d.u : this.byIdMap && this.byIdMap.get(e.follow); if (u && u.alive) { x = d ? d.x : u.x; y = (d ? d.y : u.y) - 12; } }
     const sc = 1.6 * e.s;
     this.ctx.drawImage(img, f * fw, 0, fw, fh, Math.round(x - fw * sc / 2), Math.round(y - fh * sc / 2), fw * sc, fh * sc);
   }

@@ -85,7 +85,9 @@ function body(rerender) {
       toggle('Colour-blind team colours', 'colorblind', 'Blue vs orange instead of blue vs red', rerender, sw),
       seg('Text size', 'textSize', [['small', 'Small'], ['normal', 'Normal'], ['large', 'Large']], rerender),
       toggle('Reduced effects', 'reducedMotion', 'Fewer particles; no screen shake, hit-stop, slow-mo or flashes', rerender),
-      seg('Graphics', 'quality', [['auto', 'Auto'], ['sharp', 'Sharp'], ['battery', 'Battery']], () => { window.dispatchEvent(new Event('resize')); rerender(); })),
+      // Auto: full detail, eases off (effects, then resolution) if the device struggles. High: sharpest, full
+      // detail. Low: 1x resolution, 30 fps, no ambient life, about a third of the effect particles.
+      seg('Graphics', 'quality', [['auto', 'Auto'], ['sharp', 'High'], ['battery', 'Low']], () => { window.dispatchEvent(new Event('resize')); rerender(); })),
     h('div', { class: 'sgroup' }, h('div', { class: 'sgt' }, 'Match'),
       seg('Default speed', 'speed', [[1, '1x'], [2, '2x'], [4, '4x']], rerender),
       toggle('Hero chatter', 'chatter', 'Speech bubbles when heroes react', rerender),

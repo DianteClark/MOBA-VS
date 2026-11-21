@@ -71,13 +71,23 @@ export class Ambient {
       this.frame(f.team === 0 ? 'flag_b' : settings.colorblind ? 'flag_o' : 'flag_r', fr + ((f.ph * 3) | 0), f.x, f.y + 2, 2.6);
     }
     if (!L) return;
-    // water shimmer: twinkling highlight dashes, plus the odd ripple ring
-    ctx.fillStyle = '#ffffff';
+    // water shimmer: twinkling highlight dashes (batched into three alpha levels), plus the odd ripple ring
+    const glints = this.glints || (this.glints = [[], [], []]), rip = this.rip || (this.rip = []);
+    glints[0].length = glints[1].length = glints[2].length = 0; rip.length = 0;
     this.each(this.water, x0, y0, vw, vh, (p) => {
       const v = Math.sin(t * p.sp * 1.6 + p.ph);
-      if (v > 0.78) { ctx.globalAlpha = (v - 0.78) / 0.22 * 0.75; ctx.fillRect(Math.round(p.x), Math.round(p.y), 4, 1); ctx.fillRect(Math.round(p.x) + 2, Math.round(p.y) - 2, 2, 1); }
-      else if (L === 1 && v < -0.985) { const k = (-v - 0.985) / 0.015; ctx.globalAlpha = 0.5 * (1 - k); ctx.strokeStyle = '#e8fbff'; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(p.x, p.y, 3 + k * 9, 1.5 + k * 4, 0, 0, Math.PI * 2); ctx.stroke(); }
+      if (v > 0.78) glints[Math.min(2, Math.floor((v - 0.78) / 0.22 * 3))].push(p);
+      else if (L === 1 && v < -0.985) rip.push(p, (-v - 0.985) / 0.015);
     });
+    ctx.fillStyle = '#ffffff';
+    for (let q = 0; q < 3; q++) {
+      if (!glints[q].length) continue;
+      ctx.globalAlpha = (q + 1) / 3 * 0.75; ctx.beginPath();
+      for (const p of glints[q]) { const x = Math.round(p.x), y = Math.round(p.y); ctx.rect(x, y, 4, 1); ctx.rect(x + 2, y - 2, 2, 1); }
+      ctx.fill();
+    }
+    ctx.strokeStyle = '#e8fbff'; ctx.lineWidth = 1;
+    for (let i = 0; i < rip.length; i += 2) { const p = rip[i], k = rip[i + 1]; ctx.globalAlpha = 0.5 * (1 - k); ctx.beginPath(); ctx.ellipse(p.x, p.y, 3 + k * 9, 1.5 + k * 4, 0, 0, Math.PI * 2); ctx.stroke(); }
     ctx.globalAlpha = 1;
     // flowers sway
     this.each(this.flowers, x0, y0, vw, vh, (p) => this.frame('flower', Math.floor(t * 3 + p.ph), p.x, p.y + 4, 1.1));
@@ -111,7 +121,7 @@ export class Ambient {
     // falling petals / leaves / snow motes
     const kinds = LEAVES[key] || [];
     if (kinds.length) {
-      const want = Math.round((key === 'winter' ? 10 : 16) * L);
+      const want = Math.round((key === 'winter' ? 8 : 12) * L);
       while (this.leaves.length < want) this.leaves.push(this.newLeaf(kinds, x0, y0, vw, vh, this.leaves.length < want / 2));
       for (let i = 0; i < this.leaves.length; i++) {
         const p = this.leaves[i]; p.t += dt; p.y += p.vy * dt; p.x += (p.vx + Math.sin(p.t * 1.7 + p.ph) * 18) * dt;
@@ -122,7 +132,7 @@ export class Ambient {
       ctx.globalAlpha = 1;
     }
     // fireflies (marsh all game, autumn a few): soft blinking glows wandering on sine paths
-    if (key === 'marsh' || key === 'autumn' || key === 'spring') {
+    if (key === 'marsh' || key === 'autumn') {
       const want = Math.round((key === 'marsh' ? 22 : key === 'autumn' ? 6 : 0) * L);
       while (this.flies.length < want) this.flies.push({ x: x0 + Math.random() * vw, y: y0 + Math.random() * vh, ph: Math.random() * 20, sp: 0.4 + Math.random() * 0.6 });
       if (this.flies.length > want) this.flies.length = want;
@@ -139,7 +149,7 @@ export class Ambient {
     }
     // spring butterflies: two-pixel wings flapping
     if (key === 'spring') {
-      const want = Math.round(5 * L);
+      const want = Math.round(4 * L);
       this.bflies = this.bflies || [];
       while (this.bflies.length < want) this.bflies.push({ x: x0 + Math.random() * vw, y: y0 + Math.random() * vh, ph: Math.random() * 20, c: ['#ffffff', '#ffd84a', '#ff9ad5', '#9fd0ff'][(Math.random() * 4) | 0] });
       for (const f of this.bflies) {

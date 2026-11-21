@@ -73,8 +73,6 @@ export class Vfx {
     this.cands = []; this.dashCast = new Map(); this.ghosts = []; this.cur = null;
   }
   reset() { this.pprev.clear(); this.trailPos.clear(); this.seen.clear(); this.cands = []; this.dashCast.clear(); this.ghosts = []; this.cur = null; }
-  // 0 = low, 1 = medium (auto governor), 2 = high: scales particle counts.
-  n(k) { return Math.max(1, Math.round(k * [0.35, 0.65, 1][this.r.detail])); }
 
   profile(u) {
     const id = u.heroId; let p = this.prof.get(id); if (p) return p;
@@ -129,12 +127,12 @@ export class Vfx {
     const p = this.profile(u), a = p.abs[f.ab], r = this.r;
     if (ab.kind === 'dash' || ab.allyDash) {
       this.dashCast.set(u.id, { u, abi: f.ab, until: g.tick + 20 });
-      if (r.onScreen(u.x, u.y, 60)) for (let k = 0; k < this.n(5); k++) r.puff(u.x + (Math.random() - 0.5) * 16, u.y + 2, 4, 12, 'rgba(225,215,195,0.8)', 0.45, (Math.random() - 0.5) * 50, -10);
+      if (r.onScreen(u.x, u.y, 60)) for (let k = 0; k < 5; k++) r.puff(u.x + (Math.random() - 0.5) * 16, u.y + 2, 4, 12, 'rgba(225,215,195,0.8)', 0.45, (Math.random() - 0.5) * 50, -10);
     }
     if (!r.onScreen(u.x, u.y, 80)) return;
     // cast glint at the hand: small ring + rising motes in the element colour
     r.ring(u.x, u.y - 14, 4, ab.ult ? 30 : 18, a.pal[1], 0.28, 2);
-    for (let k = 0; k < this.n(ab.ult ? 8 : 4); k++) { const q = r.fxp.spawn(P_GLOW, u.x + (Math.random() - 0.5) * 22, u.y - 10 - Math.random() * 16, 0.45); q.vy = -40 - Math.random() * 40; q.c = k % 2 ? a.pal[1] : p.sig; q.s = 5; }
+    for (let k = 0; k < (ab.ult ? 8 : 4); k++) { const q = r.fxp.spawn(P_GLOW, u.x + (Math.random() - 0.5) * 22, u.y - 10 - Math.random() * 16, 0.45); q.vy = -40 - Math.random() * 40; q.c = k % 2 ? a.pal[1] : p.sig; q.s = 5; }
     if (ab.ult) {
       r.effects.push({ kind: 'sigil', id: u.id, x: u.x, y: u.y, shape: p.sigil, col: p.sig, col2: a.pal[1], born: r.time, dur: 1.25 });
       const b = r.fxp.spawn(P_BEAM, u.x, u.y + 2, 0.8); b.s = 30; b.s2 = 130; b.c = rgba(p.sig, 0.9);
@@ -161,7 +159,7 @@ export class Vfx {
   }
   // Code-drawn burst per element. s ~ 1 for a single-target hit, ~2+ for big AoE.
   burst(el, x, y, s, sig) {
-    const r = this.r, P = ELEM[el] || ELEM.guard, n = (k) => this.n(Math.round(k * Math.min(1.6, 0.6 + s * 0.4))), R = 14 + s * 16;
+    const r = this.r, P = ELEM[el] || ELEM.guard, n = (k) => Math.max(1, Math.round(k * Math.min(1.6, 0.6 + s * 0.4))), R = 14 + s * 16;
     const sq = (c, sp0, sp1, up, g, size, life) => { const a = Math.random() * 6.283, sp = sp0 + Math.random() * (sp1 - sp0), p = r.fxp.spawn(P_SQUARE, x, y, life * (0.7 + Math.random() * 0.6)); p.vx = Math.cos(a) * sp; p.vy = Math.sin(a) * sp * 0.6 - up; p.g = g; p.c = c; p.s = size; return p; };
     const glow = (c, sz, life, vy = 0) => { const p = r.fxp.spawn(P_GLOW, x + (Math.random() - 0.5) * R, y + (Math.random() - 0.5) * R * 0.6, life); p.c = c; p.s = sz; p.vy = vy; return p; };
     switch (el) {
@@ -241,10 +239,11 @@ export class Vfx {
     if (e.kind === 'sigil') return this.drawSigil(e, k);
     ctx.save();
     if (e.kind === 'tele') {
-      const pulse = enemy ? 0.5 + 0.5 * Math.sin(now * 18) : 1;
-      ctx.globalAlpha = 0.1 + 0.22 * k; ctx.fillStyle = col;
+      const pulse = enemy && r.motion ? 0.5 + 0.5 * Math.sin(now * 12) : 1;
+      const fa = enemy ? 1 : 0.55; // ally casts stay quieter: the enemy's are the ones to dodge
+      ctx.globalAlpha = (0.1 + 0.22 * k) * fa; ctx.fillStyle = col;
       ctx.beginPath(); ctx.ellipse(e.x, e.y, e.r * k, e.r * k * 0.85, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = 0.16; ctx.fillStyle = P[1]; ctx.beginPath(); ctx.ellipse(e.x, e.y, e.r, e.r * 0.85, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 0.12 * fa; ctx.fillStyle = P[1]; ctx.beginPath(); ctx.ellipse(e.x, e.y, e.r, e.r * 0.85, 0, 0, Math.PI * 2); ctx.fill();
       ctx.globalAlpha = 0.45; ctx.strokeStyle = '#000'; ctx.lineWidth = 4; ctx.stroke();
       ctx.globalAlpha = 0.65 + 0.35 * pulse; ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke();
       ctx.lineWidth = 4; ctx.globalAlpha = 0.9; ctx.beginPath(); ctx.ellipse(e.x, e.y, e.r, e.r * 0.85, 0, -Math.PI / 2, -Math.PI / 2 + k * Math.PI * 2); ctx.stroke();
@@ -254,10 +253,11 @@ export class Vfx {
       ctx.stroke();
     } else { // zone
       const fade = Math.min(1, (now - e.born) / 0.2, (e.dur - (now - e.born)) / 0.25);
-      ctx.globalAlpha = 0.14 * fade; ctx.fillStyle = col; ctx.beginPath(); ctx.ellipse(e.x, e.y, e.r, e.r * 0.85, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = 0.18 * fade; ctx.fillStyle = P[1]; ctx.beginPath(); ctx.ellipse(e.x, e.y, e.r * 0.92, e.r * 0.78, 0, 0, Math.PI * 2); ctx.fill();
+      const fa = enemy ? 1 : 0.6;
+      ctx.globalAlpha = 0.14 * fade * fa; ctx.fillStyle = col; ctx.beginPath(); ctx.ellipse(e.x, e.y, e.r, e.r * 0.85, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 0.14 * fade * fa; ctx.fillStyle = P[1]; ctx.beginPath(); ctx.ellipse(e.x, e.y, e.r * 0.92, e.r * 0.78, 0, 0, Math.PI * 2); ctx.fill();
       ctx.globalAlpha = 0.4 * fade; ctx.strokeStyle = '#000'; ctx.lineWidth = 4; ctx.beginPath(); ctx.ellipse(e.x, e.y, e.r, e.r * 0.85, 0, 0, Math.PI * 2); ctx.stroke();
-      ctx.globalAlpha = 0.85 * fade; ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.setLineDash([10, 6]); ctx.lineDashOffset = -now * 30; ctx.stroke(); ctx.setLineDash([]);
+      ctx.globalAlpha = 0.85 * fade; ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.setLineDash([10, 6]); ctx.lineDashOffset = r.motion ? -now * 30 : 0; ctx.stroke(); ctx.setLineDash([]);
       ctx.globalAlpha = fade; this.zonePattern(ctx, e, P, now);
       if (now >= e.next && e.name) { e.next = now + (r.detail ? 0.24 : 0.5); r.fxSprite(e.name, e.x + (Math.random() - 0.5) * e.r * 1.3, e.y + (Math.random() - 0.5) * e.r * 1.1, 0.8); }
     }
