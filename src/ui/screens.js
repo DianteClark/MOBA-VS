@@ -3,7 +3,7 @@ import { h, mount, face, icon, fmtTime } from './dom.js';
 import { HEROES, HERO_BY_ID, ROLES, ROLE_LABEL, matchupScore, PERSONALITIES } from '../data/heroes.js';
 import { TACTICS, TACTIC_IDS } from '../data/tactics.js';
 import { BUILDS } from '../data/items.js';
-import { DRAFT_ORDER, currentTurn, taken, legal, assignRoles, aiPrep, TURN_SECONDS } from '../sim/draft.js';
+import { currentTurn, taken, legal, assignRoles, aiPrep, TURN_SECONDS } from '../sim/draft.js';
 import { TEAM_NAME, DRAGON_INFO, CLANS } from '../sim/constants.js';
 import { MAPS, MAP_BY_ID } from '../maps/defs.js';
 import { World, N as GN } from '../sim/world.js';
@@ -322,4 +322,3 @@ function drawGoldGraph(c, g) {
   ctx.fillStyle = '#a99fb3'; ctx.font = '10px PixelFont, monospace';
   ctx.fillText('+' + Math.round(mx / 100) / 10 + 'k', 4, 12); ctx.fillText('-' + Math.round(mx / 100) / 10 + 'k', 4, c.height - 4);
 }
-void DRAFT_ORDER;

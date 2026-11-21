@@ -3,7 +3,7 @@ import { h, mount, face } from './dom.js';
 import { HEROES, HERO_BY_ID, ROLES, ROLE_LABEL } from '../data/heroes.js';
 import { MAPS, MAP_BY_ID } from '../maps/defs.js';
 import { CLANS } from '../sim/constants.js';
-import { SEASONS, daysLeft, TIERS, rankOf, TRACK, MAX_LEVEL, XP_PER_LEVEL, SKINS, BANNERS, TITLES, rewardName } from '../data/seasons.js';
+import { daysLeft, TIERS, rankOf, TRACK, MAX_LEVEL, XP_PER_LEVEL, SKINS, BANNERS, TITLES, rewardName } from '../data/seasons.js';
 import { PATCHES } from '../data/patchnotes.js';
 import { profile } from '../profile.js';
 import { myMatch, ROUND_NAMES } from '../cup.js';
@@ -29,7 +29,6 @@ export function showHome(app) {
   const unseen = p.d.seenPatch !== PATCHES[0].version;
   const cup = p.d.cup && p.d.cup.season === s.id && !p.d.cup.done ? p.d.cup : null;
   const mm = cup ? myMatch(cup) : null;
-  let nameEl;
   mount(screen(), h('div', { class: 'home' },
     h('div', { class: 'brand' }, h('div', { class: 'title' }, 'MOBA-VS'), h('div', { class: 'subtitle' }, 'Draft five heroes. Make the calls. Out-coach your rival.')),
     h('button', { class: 'sstrip', style: { '--sc': s.color }, onclick: () => showSeason(app) },
@@ -39,7 +38,7 @@ export function showHome(app) {
     h('div', { class: 'coach', style: { background: p.banner.bg } },
       rankBadge(rk, true),
       h('div', { class: 'cinfo' },
-        nameEl = h('input', { class: 'cname', value: app.name, maxlength: 12, title: 'Tap to rename', oninput: (e) => app.setName(e.target.value) }),
+        h('input', { class: 'cname', value: app.name, maxlength: 12, title: 'Tap to rename', oninput: (e) => app.setName(e.target.value) }),
         h('div', { class: 'ctitle' }, p.title),
         h('div', { class: 'crank', style: { color: rk.tier.color } }, rk.label),
         bar(rk.next ? rk.into / rk.span : 1, rk.tier.color), h('small', { class: 'muted' }, nextTxt)),
@@ -77,7 +76,6 @@ export function showHome(app) {
     h('div', { class: 'credits' }, 'Art & audio: ', h('a', { href: 'https://pixel-boy.itch.io/ninja-adventure-asset-pack', target: '_blank' }, 'Ninja Adventure'), ' by Pixel-boy & AAA (CC0)'),
   ));
   p.newSeasonNote = null;
-  void nameEl;
 }
 
 // ───────────── season pass ─────────────
@@ -223,4 +221,3 @@ export function progressPanel(sum, cupOut) {
       r.kind === 'trophy' ? h('img', { src: item(r.id === 'gold' ? 'items/GoldCup' : 'items/SilverCup') }) : rewardIcon(r), h('span', {}, r.kind === 'trophy' ? (r.id === 'gold' ? 'Golden Cup!' : 'Silver Cup') : rewardName(r)), h('small', {}, 'Unlocked')))) : null,
     cupOut ? h('div', { class: 'center muted' }, cupOut.won ? (cupOut.round === 2 ? 'Season Cup champion!' : `You advance past the ${ROUND_NAMES[cupOut.round]}.`) : `Eliminated in the ${ROUND_NAMES[cupOut.round]}.`) : null);
 }
-void SEASONS;

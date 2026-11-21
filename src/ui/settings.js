@@ -44,7 +44,6 @@ export function applySettings() {
   for (const f of listeners) f(settings);
 }
 const listeners = new Set();
-export function onSettings(f) { listeners.add(f); return () => listeners.delete(f); }
 
 // ───────────── UI ─────────────
 function slider(label, key, onDone) {

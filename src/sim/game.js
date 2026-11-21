@@ -362,10 +362,9 @@ export class Game {
     h.xp += x;
     while (h.level < XP.maxLevel && h.xp >= xpNeeded(h.level)) {
       h.xp -= xpNeeded(h.level); h.level++;
-      const ratio = h.hp / h.maxHp; this.recalc(h); h.hp = Math.min(h.maxHp, h.hp + h.def.base.hpL * 0.6);
+      this.recalc(h); h.hp = Math.min(h.maxHp, h.hp + h.def.base.hpL * 0.6);
       if (h.level === 5) this.emit({ type: 'ult', hero: h.id, team: h.team });
       this.fx.push({ kind: 'levelup', id: h.id });
-      void ratio;
     }
   }
 
@@ -811,7 +810,6 @@ export class Game {
     if (cc.slow) u.slows.push({ pct: cc.slow[0], until: now + sec(cc.slow[1]) });
     if ((cc.stun || cc.knock) && u.type === 'hero') { u.recallAt = 0; if (u.dash && !u.dash.pulled) u.dash = null; }
     if (cc.stun || cc.root || cc.knock) this.fx.push({ kind: 'cc', id: u.id, cc: cc.knock ? 'knock' : cc.stun ? 'stun' : 'root' });
-    void src;
   }
   addBurn(u, src, dps, dur, key) {
     if (!u.alive || dps <= 0) return;
@@ -1514,5 +1512,4 @@ export class Game {
   }
 
   // Public summary for UI.
-  heroesOf(team) { return this.teams[team].heroes; }
 }

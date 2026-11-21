@@ -56,10 +56,6 @@ h1, h2, h3 { margin: 0; font-weight: normal; }
 .credits a { color: #f3c98f; }
 .parade { position: fixed; left: 0; right: 0; bottom: calc(6px + var(--safe-b)); height: 44px; pointer-events: none; overflow: hidden; z-index: 0; }
 .parade canvas { width: 100%; height: 100%; display: block; }
-.mapcards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; width: 100%; }
-.mapcard { cursor: pointer; border: 2px solid var(--line); background: #1e1928; padding: 4px; font-size: 10px; text-align: center; }
-.mapcard canvas, .mapcard .q { width: 100%; aspect-ratio: 1; display: grid; place-items: center; font-size: 28px; color: var(--gold); margin-bottom: 3px; background: #120f18; }
-.mapcard.sel { border-color: var(--gold); background: #3a2d18; }
 
 /* ── lobby ── */
 .lobby { margin: auto; width: min(560px, 100%); text-align: center; }
@@ -252,7 +248,7 @@ canvas.graph { width: 100%; height: 150px; background: #120f18; border: 2px soli
 #game { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
 #hud { position: absolute; inset: 0; pointer-events: none; }
 .hud { position: absolute; pointer-events: none; }
-.hud > *, .hud button, .hud .hrow, .hud .fitem, .hud .picker, .hud canvas { pointer-events: auto; }
+.hud > *, .hud button, .hud .hrow, .hud .fitem, .hud canvas { pointer-events: auto; }
 
 #leftcol { left: calc(8px + var(--safe-l)); top: calc(8px + var(--safe-t)); width: 214px; display: flex; flex-direction: column; gap: 8px; }
 #rightcol { right: calc(8px + var(--safe-r)); top: calc(8px + var(--safe-t)); width: 192px; display: flex; flex-direction: column; gap: 8px; }
@@ -441,10 +437,6 @@ canvas.graph { width: 100%; height: 150px; background: #120f18; border: 2px soli
 
 #objtimers .ot { cursor: pointer; transition: border-color 0.2s; }
 #objtimers .ot.soon { border-color: #d9a441; }
-.pf-btn { cursor: pointer; border: 2px solid var(--line); background: #1e1928; padding: 2px; display: flex; flex-direction: column; align-items: center; font-size: 9px; }
-.pf-btn img { width: 34px; height: 34px; }
-.pf-btn.sel { border-color: var(--gold); }
-.pf-btn.dis { opacity: 0.35; cursor: default; }
 
 /* controls + minimap */
 #ctrl { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; max-width: 214px; }
@@ -529,9 +521,7 @@ canvas.graph { width: 100%; height: 150px; background: #120f18; border: 2px soli
   #hud.sheeting #feed { display: none; }
   .sug:nth-child(n+2) { display: none; }
   .sug { font-size: 10px; padding: 2px 2px 5px 6px; } .sug button { font-size: 10px; padding: 4px 8px; min-height: 30px; }
-  .pf-btn img { width: 26px; height: 26px; }
   #banner .big { font-size: 24px; padding: 6px 24px; } #banner .big img { width: 30px; height: 30px; }
-  .mapcards { grid-template-columns: repeat(2, 1fr); }
 }
 /* phone portrait: score block sits left of the minimap, controls go under the minimap */
 @media (max-width: 640px) and (min-height: 600px) {
@@ -542,8 +532,6 @@ canvas.graph { width: 100%; height: 150px; background: #120f18; border: 2px soli
   #cmdbar { left: calc(4px + var(--safe-l)); }
 }
 
-.diffrow { display: flex; gap: 4px; align-items: center; justify-content: space-between; flex-wrap: nowrap; font-size: 11px; }
-.diffrow .btn { flex: 1; }
 
 /* ───────── home ───────── */
 .home { margin: auto; display: flex; flex-direction: column; align-items: stretch; gap: 12px; width: min(760px, 100%); padding-bottom: 54px; }

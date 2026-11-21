@@ -15,7 +15,7 @@ const force = process.argv.includes('--force');
 const root = new URL('../', import.meta.url);
 const P = (f) => new URL(f, root);
 
-const { seasonAt, SEASONS } = await import(P('src/data/seasons.js'));
+const { seasonAt } = await import(P('src/data/seasons.js'));
 const { PATCHES } = await import(P('src/data/patchnotes.js'));
 const { TUNE: OLD } = await import(P('src/data/tuning.js') + '?old');
 const { HEROES, HERO_BY_ID } = await import(P('src/data/heroes.js'));
@@ -78,4 +78,3 @@ const mainF = P('src/main.js'), main = readFileSync(mainF, 'utf8');
 writeFileSync(mainF, main.replace(/const VERSION = (\d+);/, (_, n) => `const VERSION = ${+n + 1};`));
 console.log(`\nPatch ${version}: ${changes.length} hero changes.`);
 for (const c of changes) console.log(`  ${HERO_BY_ID[c.id].name.padEnd(12)} ${c.text}`);
-void SEASONS;

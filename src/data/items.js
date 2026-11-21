@@ -83,4 +83,3 @@ export const BUILDS = {
     ],
   },
 };
-export const BUILD_IDS = Object.keys(BUILDS);

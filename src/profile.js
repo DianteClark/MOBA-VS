@@ -1,7 +1,7 @@
 // The coach's profile: rank, season pass, cosmetics, trophies and match history.
 // Stored in this browser (localStorage). Every match is recorded in a compact, shareable
 // format so a future shared backend can feed real results into the season balancer.
-import { SEASONS, seasonAt, rankOf, RP, RP_CAP, XP_PER_LEVEL, MAX_LEVEL, MATCH_XP, TRACK, SKINS, BANNERS, TITLES, TIERS } from './data/seasons.js';
+import { seasonAt, rankOf, RP, RP_CAP, XP_PER_LEVEL, MAX_LEVEL, MATCH_XP, TRACK, SKINS, BANNERS, TITLES } from './data/seasons.js';
 import { HERO_BY_ID } from './data/heroes.js';
 
 const KEY = 'mobavs_profile_v1';
@@ -93,4 +93,3 @@ export class Profile {
   equip(kind, id) { this.d.equip[kind] = id; this.save(); }
 }
 export const profile = new Profile();
-void SEASONS; void TIERS;

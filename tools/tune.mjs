@@ -3,7 +3,7 @@
 //   node tools/tune.mjs [rounds=2] [gamesPerRound=80] [workers=2]
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
 import { writeFileSync } from 'node:fs';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 if (!isMainThread) {
   const { Game } = await import('../src/sim/game.js');
@@ -55,4 +55,3 @@ if (!isMainThread) {
     writeFileSync(new URL('../src/data/tuning.js', import.meta.url), `// Per-hero power multipliers produced by tools/tune.mjs (self-play balance).\n// 1.00 = untouched. Applied as +/- damage and a little +/- health.\nexport const TUNE = {\n${body}\n};\n`);
   }
 }
-void pathToFileURL;
