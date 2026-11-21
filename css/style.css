@@ -1044,3 +1044,27 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 20px; border-radius: 
 .mmsearch .pbar { width: 100%; }
 .mm-spin { width: 44px; height: 44px; border: 4px solid #3d3346; border-top-color: var(--gold); border-radius: 50%; animation: spin 0.9s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ═════════ home: landscape phones fit on one screen ═════════ */
+@media (max-height: 500px) {
+  .home { display: grid !important; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px !important; width: min(100%, 980px) !important; padding-bottom: 46px !important; }
+  .home > .brand { grid-column: 1; display: flex; align-items: center; } .home .brand .title { font-size: 30px !important; animation: none; } .home .brand .subtitle { display: none; }
+  .home > .sstrip { grid-column: 2; padding: 4px 8px; gap: 6px; } .home .sstrip .sname b { font-size: 14px; } .home .sstrip .sinfo { display: none; }
+  .home > .coach { grid-column: 1 / -1; padding: 6px 10px; gap: 10px; }
+  .home .coach .rbadge.big { width: 40px; height: 40px; flex-basis: 40px; margin: 4px; box-shadow: none; } .home .coach .rbadge.big img { width: 24px; height: 24px; }
+  .home .coach .cinfo { flex-direction: row; flex-wrap: wrap; align-items: center; column-gap: 10px; row-gap: 2px; }
+  .home .coach .cname { width: 150px; font-size: 16px; } .home .coach .cinfo .pbar { flex: 1 1 140px; } .home .coach .cinfo small { display: none; }
+  .home .coach .cstats { flex-direction: row; gap: 10px; font-size: 12px; }
+  .home > .modes { grid-column: 1 / -1; grid-template-columns: 1.3fr 1fr 1fr !important; gap: 6px; }
+  .home .mode { padding: 6px; gap: 5px; } .home .mode .mh small { display: none; } .home .mode .mh b { font-size: 14px; }
+  .home .mode .btn.big { font-size: 15px; min-height: 40px; padding: 2px 8px; }
+  .home .maprow { grid-template-columns: repeat(5, 1fr); } .home .mapchip canvas, .home .mapchip .q { display: none; } .home .mapchip { padding: 4px 2px; min-height: 28px; justify-content: center; }
+  .home .seg3 .chip { min-height: 28px; padding: 2px 4px; font-size: 11px; }
+  .home .cupnow { font-size: 11px; } .home .cupnow img { width: 16px; height: 20px; }
+  .home > .hometiles { grid-column: 1 / -1; grid-template-columns: 1fr 1fr; }
+  .home > .subnav { grid-column: 1 / -1; flex-wrap: nowrap; overflow-x: auto; justify-content: flex-start; scrollbar-width: none; }
+  .home > .subnav .chip { flex: 0 0 auto; min-height: 32px; padding: 4px 10px; }
+  .home > .credits, .home > .note { grid-column: 1 / -1; }
+  .home > .credits:last-child { display: none; }
+}
+@media (max-height: 500px) { .parade { display: none; } }
