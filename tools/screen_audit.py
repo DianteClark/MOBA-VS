@@ -2,7 +2,7 @@
 # settings, profile, cup, matchmaking, lobby, how-to-play, patch notes), screenshots it and checks
 #   * no horizontal overflow (nothing pushes the page sideways),
 #   * every button / input sits inside the safe area (notch / Dynamic Island, home indicator),
-#   * no two buttons overlap, and no button label is clipped.
+#   * no two buttons overlap (buttons under a sticky bar, e.g. the results footer, are scrolled content), and no button label is clipped.
 #   python3 tools/screen_audit.py URL [outdir] [viewports]
 # viewports: as tools/ui_audit.py (WxH, WxH@L/R/T/B, or the presets iphones / desktop / all).
 # Default: 844x390 and 1366x768 plus the notched iPhone sizes.
@@ -36,7 +36,7 @@ SCREENS = [
     ('profile', 'H.showProfile(app)'),
     ('profile-mastery', "H.showProfile(app, 'mastery')"),
     ('profile-banners', "H.showProfile(app, 'banners')"),
-    ('home-casual-rush', "app.queueMode = 'casual'; app.mapPref = 'rush'; app.menu()"),
+    ('home-casual-rush', "app.queueMode = 'casual'; app.mapPref = 'frost'; app.menu()"),
     ('cup', 'H.showCup(app)'),
     ('patch', 'H.showPatch(app)'),
     ('history-empty', 'H.showHistory(app)'),
@@ -50,7 +50,7 @@ SCREENS = [
     ('lobby-host', "S.showLobby(app, { code: 'KAZEX', status: 'Waiting for opponent…', onCancel: () => app.menu() })"),
     ('lobby-join', "S.showLobby(app, { joining: true, code: '', status: '', onJoin() {}, onCancel: () => app.menu() })"),
     ('matchmaking', "app.menu(); O.showSearch(app, { elapsed: 12000, limit: 60000, status: 'Searching…', onCancel: () => app.menu() })"),
-    ('draft', "app.queueMode = 'ranked'; app.mapPref = 'random'; app.startVsAI(); await new Promise((r) => setTimeout(r, 2500))"),
+    ('draft', "app.queueMode = 'ranked'; app.mapPref = 'random'; app.startVsAI('classic'); await new Promise((r) => setTimeout(r, 2500))"),
     ('prep', "const m = await import('./src/sim/draft.js'); const s = app.session; while (!s.draft.done) { const t = m.currentTurn(s.draft); m.apply(s.draft, t.team, m.autoChoice(s.draft, t.team, s.rng, 1)); } app.afterDraftAct(); await new Promise((r) => setTimeout(r, 1500))"),
     ('results', "app.prepReady(); await new Promise((r) => setTimeout(r, 1200)); app.match.runner.speed = 40; await new Promise((r) => setTimeout(r, 3000)); const g = app.match.game; g.over = true; g.winner = 0; app.endMatch(true); await new Promise((r) => setTimeout(r, 1500))"),
     ('history', 'H.showHistory(app)'),
@@ -67,8 +67,10 @@ CHECK = """([sl, sr]) => {
     const st = getComputedStyle(e);
     if (e.tagName === 'BUTTON' && e.scrollWidth > e.clientWidth + 2 && st.textOverflow !== 'ellipsis' && st.overflow !== 'visible') out.push(`clipped label: ${name}`);
   }
+  // a sticky bar (the results footer) covers content scrolling under it by design: only compare buttons on the same layer
+  const stuck = (e) => { for (let p = e; p && p !== sc; p = p.parentElement) { const ps = getComputedStyle(p).position; if (ps === 'sticky' || ps === 'fixed') return true; } return false; };
   for (let i = 0; i < els.length; i++) for (let j = i + 1; j < els.length; j++) {
-    const a = els[i], b = els[j]; if (a.contains(b) || b.contains(a)) continue;
+    const a = els[i], b = els[j]; if (a.contains(b) || b.contains(a) || stuck(a) !== stuck(b)) continue;
     const A = a.getBoundingClientRect(), B = b.getBoundingClientRect();
     const ox = Math.min(A.right, B.right) - Math.max(A.left, B.left), oy = Math.min(A.bottom, B.bottom) - Math.max(A.top, B.top);
     if (ox > 3 && oy > 3) out.push(`overlap: ${(a.textContent || a.className).trim().slice(0, 16)} x ${(b.textContent || b.className).trim().slice(0, 16)}`);

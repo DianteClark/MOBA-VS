@@ -34,6 +34,7 @@ import { findPOTG, reportCard } from './ui/moments.js';
 import { rankMoment } from './ui/ranks.js';
 import { installBuildTips } from './ui/buildguide.js';
 import { saveClip, clipSupport } from './ui/clip.js';
+import { installPressSounds, tokRecent, confetti } from './ui/juice.js';
 
 const VERSION = 10; // bump whenever the sim or balance changes (peers must match)
 const PREP_SECONDS = 60;
@@ -56,13 +57,23 @@ class App {
   // Random favours the season's featured map (half the time).
   pickMap(seed, mode = 'classic') {
     if (mode === 'rush') return RUSH_MAPS[(seed >>> 1) % RUSH_MAPS.length].id;
-    return this.mapPref && this.mapPref !== 'random' && this.mapPref !== 'rush' ? this.mapPref : seed % 2 === 0 ? profile.season.map : MAPS[(seed >>> 1) % MAPS.length].id;
+    return this.mapPref && this.mapPref !== 'random' ? this.mapPref : seed % 2 === 0 ? profile.season.map : MAPS[(seed >>> 1) % MAPS.length].id;
   }
   setQueueMode(m) { this.queueMode = m; try { localStorage.setItem('mobavs_queue', m); } catch { /* ignore */ } }
   setName(n) { this.name = n.slice(0, 12) || 'Coach'; try { localStorage.setItem('mobavs_name', this.name); } catch { /* ignore */ } }
 
   async boot() {
     audio.init();
+    audio.pressed = tokRecent;
+    installPressSounds();
+    // Menu transitions: a new screen slides in; re-rendering the same screen (a toggle, a tab, a draft pick) does not.
+    const scr = document.getElementById('screen'); let lastView = '';
+    new MutationObserver(() => {
+      const c = scr.firstElementChild; if (!c) return;
+      const t = c.querySelector('h2'), view = c.dataset.view || (c.className.split(' ')[0] + '|' + (t ? t.textContent : ''));
+      if (view === lastView) c.classList.add('same');
+      lastView = view;
+    }).observe(scr, { childList: true });
     installBuildTips();
     const bar = document.querySelector('#loading .barw i');
     await loadAssets((p) => { bar.style.width = Math.round(p * 100) + '%'; }, true);
@@ -98,9 +109,11 @@ class App {
       const r = c.getBoundingClientRect();
       if (c.width !== Math.round(r.width) || c.height !== Math.round(r.height)) { c.width = Math.round(r.width); c.height = Math.round(r.height); }
       ctx.imageSmoothingEnabled = false;
-      const z = 1.4, vw = c.width / z, vh = c.height / z;
-      const cx = 1200 + Math.cos(t * 0.03) * 700, cy = 1200 + Math.sin(t * 0.03) * 700;
-      ctx.drawImage(this.map, Math.max(0, cx - vw / 2), Math.max(0, cy - vh / 2), vw, vh, 0, 0, c.width, c.height);
+      // zoomed enough that the view never runs off the painted map (a big monitor used to show a dark strip)
+      const M = this.map, z = Math.max(1.4, c.width / M.width * 1.05, c.height / M.height * 1.05), vw = c.width / z, vh = c.height / z;
+      const cx = M.width / 2 + Math.cos(t * 0.03) * 700, cy = M.height / 2 + Math.sin(t * 0.03) * 700;
+      const sx = Math.max(0, Math.min(M.width - vw, cx - vw / 2)), sy = Math.max(0, Math.min(M.height - vh, cy - vh / 2));
+      ctx.drawImage(M, sx, sy, vw, vh, 0, 0, c.width, c.height);
       requestAnimationFrame(loop);
     };
     requestAnimationFrame(loop);
@@ -155,10 +168,11 @@ class App {
       } else lock();
     } catch { /* not supported */ }
   }
-  startVsAI() {
+  // mode: 'classic' (5v5 on the chosen map) or 'rush' (Lane Rush on one of its maps).
+  startVsAI(mode = 'classic') {
     this.immersive();
     try { localStorage.setItem('mobavs_ai', String(this.aiLevel)); } catch { /* ignore */ }
-    const seed = (Math.random() * 2 ** 31) >>> 0, gameMode = this.mapPref === 'rush' ? 'rush' : 'classic';
+    const seed = (Math.random() * 2 ** 31) >>> 0, gameMode = mode === 'rush' ? 'rush' : 'classic';
     this.session = { mode: 'ai', gameMode, myTeam: 0, seed, mapId: this.pickMap(seed, gameMode), aiLevel: this.aiLevel, names: [this.name, ['Easy', 'Normal', 'Hard'][this.aiLevel] + ' AI'], rng: new Rng(seed ^ 0x5eed) };
     this.startDraft();
   }
@@ -174,7 +188,7 @@ class App {
   watch() {
     this.immersive();
     stopParade(); this.dropReel();
-    const seed = (Math.random() * 2 ** 31) >>> 0, gameMode = this.mapPref === 'rush' ? 'rush' : 'classic';
+    const seed = (Math.random() * 2 ** 31) >>> 0, gameMode = 'classic';
     this.session = { mode: 'watch', gameMode, myTeam: -1, seed, mapId: this.pickMap(seed, gameMode), names: ['Blue AI', 'Red AI'], rng: new Rng(seed) };
     const d = newDraft();
     while (!d.done) { const t = currentTurn(d); draftApply(d, t.team, autoChoice(d, t.team, this.session.rng, 1)); }
@@ -582,12 +596,14 @@ class App {
       this.potgReel = potg && src ? this.prerollPOTG(src, potg) : null;
       const report = s.myTeam >= 0 ? reportCard(m.game, s.myTeam, m.hud.stats) : null;
       const args = [this, m.game, s.myTeam,
-        s.cup ? () => showCup(this) : s.mode === 'ai' ? () => this.startVsAI() : s.mode === 'watch' ? () => this.watch() : null,
+        s.cup ? () => showCup(this) : s.mode === 'ai' ? () => this.startVsAI(s.gameMode === 'rush' ? 'rush' : 'classic') : s.mode === 'watch' ? () => this.watch() : null,
         () => this.menu(), { progress: progressPanel(sum, cupOut), ladder, againLabel: s.cup ? 'Back to bracket' : null, potg: this.potgReel ? potg : null, report,
           onPOTG: () => this.playPOTG(), onClip: potg && src && clipSupport() ? () => saveClip(src, potg, s.names, this.mapCanvas(m.game.world)) : null, share: sum ? () => shareMatch(profile.d.history[0], { name: this.name, rank: profile.rank.label }, this.lastReplay()) : null }];
       this.lastResults = { args, session: s, src, potg };
       showResults(...args);
       if (sum) setTimeout(() => rankMoment(sum), 900);
+      // confetti only for a real win of your own (a promotion brings its own with the rank card)
+      if (won && s.myTeam >= 0 && !s.replay && !(sum && sum.promoted)) setTimeout(() => confetti(), 350);
     });
   }
   // ───────────── Play of the Game ─────────────

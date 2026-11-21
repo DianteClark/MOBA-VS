@@ -59,8 +59,7 @@ export class Chatter {
     if (prio < 2 && now - this.lastAny < 0.9) return false;
     if (this.bubbles.length >= 3 && prio < 2) return false;
     const pers = u.def.pers, set = LINES[kind]; if (!set) return false;
-    let line = extra || pick(set[pers] || set.any || set.calm || Object.values(set)[0]);
-    if (kind === 'ult' && Math.random() < 0.55) line = (u.def.abilities.find((a) => a.ult) || {}).name + '!';
+    const line = extra || pick(set[pers] || set.any || set.calm || Object.values(set)[0]); // (the ult's name is on its callout card: never repeated here)
     this.bubbles = this.bubbles.filter((b) => b.id !== u.id);
     if (this.bubbles.length >= 4) this.bubbles.shift();
     this.bubbles.push({ id: u.id, team: u.team, text: line, born: now, dur: 2.1 + line.length * 0.03, at: dead ? { x: u.x, y: u.y } : null });

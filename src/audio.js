@@ -23,6 +23,7 @@ export const audio = {
   },
   sfx(name, vol = 1, throttleMs = 60) {
     if (this.muted || !this.unlocked) return;
+    if (name === 'move' && this.pressed && this.pressed()) return; // a menu press already made its sound
     const now = performance.now();
     if (this.last[name] && now - this.last[name] < throttleMs) return;
     this.last[name] = now;

@@ -15,12 +15,13 @@ import { profile } from '../profile.js';
 import { masteryBadge } from './badges.js';
 import { compLine } from './comp.js';
 import { buildLine } from './buildguide.js';
+import { searchBox, applySearch } from './herosearch.js';
 
 const screen = () => document.getElementById('screen');
 export const AUTO_GRACE = 1.2; // seconds before a preset auto-pick locks in
 
 export class DraftView {
-  constructor(app) { this.app = app; this.sel = null; this.filter = 'all'; this.scroll = 0; this.promptTurn = -1; }
+  constructor(app) { this.app = app; this.sel = null; this.filter = 'all'; this.query = ''; this.scroll = 0; this.promptTurn = -1; }
 
   // REC / BAN? badges: best picks for the team, or the suggested bans.
   recommend(d, me, t) {
@@ -77,8 +78,10 @@ export class DraftView {
       h('div', { class: 'mapname' }, (MAP_BY_ID[s.mapId] || MAPS[0]).name));
 
     const counts = { all: HEROES.length }; for (const r of ROLES) counts[r] = HEROES.filter((x) => x.roles.includes(r)).length;
+    const hadFocus = this.searchEl && document.activeElement === this.searchEl.input;
+    this.searchEl = searchBox(this.query, (q) => { this.query = q; this.filterGrid(); });
     const tabs = h('div', { class: 'rtabs', role: 'tablist' }, ...['all', ...ROLES].map((r) => h('button', { class: 'rtab' + (this.filter === r ? ' on' : ''), role: 'tab',
-      onclick: () => { this.filter = r; this.scroll = 0; this.render(); } }, r === 'all' ? 'All' : ROLE_LABEL[r], h('small', {}, counts[r]))));
+      onclick: () => { this.filter = r; this.scroll = 0; this.render(); } }, r === 'all' ? 'All' : ROLE_LABEL[r], h('small', {}, counts[r]))), this.searchEl);
     const banChips = myTurn && ban && recs.length ? h('div', { class: 'sugbans' }, h('span', { class: 'lab' }, 'Suggested bans'),
       ...recs.map((id) => h('button', { class: 'sugban' + (this.sel === id ? ' on' : ''), onclick: () => this.select(id) }, h('img', { src: face(id) }), HERO_BY_ID[id].name))) : null;
     const list = HEROES.filter((x) => this.filter === 'all' || x.roles.includes(this.filter));
@@ -87,7 +90,7 @@ export class DraftView {
       const off = tk.has(x.id), bad = !off && myTurn && !ban && !legal(d, me, x.id);
       const ms = enemyPicks.length && !off ? matchupScore(x, enemyPicks).score : 0;
       const pers = PERSONALITIES[x.pers], rec = recs.includes(x.id), mine = presetRole(s.preset, x.id);
-      return h('button', { class: 'hcard' + (off ? ' off' : '') + (bad ? ' bad' : '') + (this.sel === x.id ? ' sel' : '') + (rec ? ' rec' : ''), disabled: off,
+      return h('button', { class: 'hcard' + (off ? ' off' : '') + (bad ? ' bad' : '') + (this.sel === x.id ? ' sel' : '') + (rec ? ' rec' : ''), disabled: off, 'data-hero': x.id,
         style: { '--cc': CLANS[x.clan].color }, title: `${x.name} · ${CLANS[x.clan].name} · ${pers.name}`, onclick: () => { if (!off) this.select(x.id); } },
         h('div', { class: 'fwrap' }, h('img', { src: face(x.id) }), ms ? h('span', { class: 'score ' + (ms > 0 ? 'pos' : 'neg') }, (ms > 0 ? '+' : '') + ms) : null,
           mine ? h('span', { class: 'mine', title: 'In your lineup' }, '★') : null, me >= 0 ? masteryBadge(profile.mastery(x.id).lv) : null),
@@ -99,8 +102,20 @@ export class DraftView {
       h('div', { class: 'dmain' },
         h('div', { class: 'dpool' }, h('div', { class: 'dphead' }, tabs, banChips), grid),
         this.side(enemyPicks, myTurn, t, recs))));
+    this.grid = grid;
+    this.filterGrid();
     grid.scrollTop = this.scroll;
+    if (hadFocus) { const i = this.searchEl.input; i.focus(); i.setSelectionRange(i.value.length, i.value.length); }
     this.tickTimer(s.turnLeft ?? TURN_SECONDS);
+  }
+  // Search filters the cards in place; an empty result says so instead of showing a blank grid.
+  filterGrid() {
+    const g = this.grid; if (!g) return;
+    const n = applySearch(g, (id) => HERO_BY_ID[id], this.query);
+    let none = g.querySelector('.gnone');
+    if (!n && !none) g.append(none = h('div', { class: 'gnone muted' }, `No hero matches "${this.query}"`));
+    else if (n && none) none.remove();
+    if (none) none.textContent = `No hero matches "${this.query}"`;
   }
 
   side(enemyPicks, myTurn, t, recs) {

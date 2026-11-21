@@ -6,6 +6,7 @@ import { h, mount } from './dom.js';
 import { audio } from '../audio.js';
 import { TEAM_COL, TEAM_DARK } from '../render/palette.js';
 import { hapticsSupported } from './haptics.js';
+import { resetTips, tipsLeft } from './coachtips.js';
 
 const KEY = 'mobavs_settings';
 const PALETTES = {
@@ -90,7 +91,9 @@ function body(rerender) {
       toggle('Hero chatter', 'chatter', 'Speech bubbles when heroes react', rerender),
       toggle('Off-screen alerts', 'alerts', 'Edge arrows for fights, towers and objectives', rerender),
       toggle('Haptics', 'haptics', hapticsSupported ? 'Vibrate on kills, objectives and your call results' : 'Not supported by this browser (iPhone Safari has no vibration)', rerender),
-      toggle('Mute quick chat', 'chatMute', "Hide your online opponent's quick chat and emotes", rerender)),
+      toggle('Mute quick chat', 'chatMute', "Hide your online opponent's quick chat and emotes", rerender),
+      h('div', { class: 'srow' }, h('div', { class: 'slab' }, 'Coach tips', h('small', {}, tipsLeft() ? 'Short tips in your next match explain calls, the map, Ults and Moments' : 'Seen. Replay them in your next match')),
+        h('div', { class: 'sctl' }, h('button', { class: 'chip', disabled: tipsLeft(), onclick: () => { resetTips(); audio.sfx('accept', 0.5); rerender(); } }, tipsLeft() ? 'On' : 'Replay')))),
   ];
 }
 

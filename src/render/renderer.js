@@ -94,6 +94,10 @@ export class Renderer {
   // ── juice primitives (render-only) ──
   shakeBy(a, cap = 1) { if (this.motion && this.trauma < cap) this.trauma = Math.min(cap, this.trauma + a); }
   freeze(sec) { if (!this.motion || this.time - this.lastHitStop < 0.3) return; this.hitStop = Math.max(this.hitStop, sec); this.lastHitStop = this.time; this.punch = 0.025; }
+  // Big moments (multi-kills, shutdowns, aces, Coach Moments): a longer freeze that ignores the hit-stop
+  // cooldown, plus a quick camera punch-in. Reduced effects: nothing.
+  impact(sec, punch = 0.04) { if (!this.motion) return; this.hitStop = Math.max(this.hitStop, sec); this.lastHitStop = this.time; this.punch = Math.max(this.punch, punch); }
+  punchBy(a) { if (this.motion) this.punch = Math.min(0.08, Math.max(this.punch, a)); }
   screenTint(color, a, dur) { if (this.motion) this.tint = { color, a, dur, born: this.time }; }
   burst(x, y, n, cols, sp0, sp1, up, g, size, life) {
     for (let k = 0; k < n; k++) { const a = Math.random() * 6.283, sp = sp0 + Math.random() * (sp1 - sp0), p = this.fxp.spawn(P_SQUARE, x, y, life * (0.7 + Math.random() * 0.6)); p.vx = Math.cos(a) * sp; p.vy = Math.sin(a) * sp * 0.7 - up; p.g = g; p.c = cols[k % cols.length]; p.s = size; }
@@ -181,7 +185,7 @@ export class Renderer {
           if (u && f.ult) {
             const on = this.onScreen(u.x, u.y, 40);
             if (on) {
-              this.shakeBy(0.2); this.screenTint(TEAM_COL[u.team], 0.16, 0.45);
+              this.shakeBy(0.2); this.screenTint(TEAM_COL[u.team], 0.16, 0.45); this.punchBy(0.03);
               this.ring(u.x, u.y, 10, 90, TEAM_COL[u.team], 0.5, 4); this.ring(u.x, u.y, 10, 60, '#ffffff', 0.35, 2, 0.08);
               this.callouts = this.callouts.filter((c) => c.id !== u.id).slice(-1);
               this.callouts.push({ id: u.id, heroId: u.heroId, team: u.team, name: u.def.name, ult: f.name, born: now, dur: 1.5 });
@@ -293,7 +297,21 @@ export class Renderer {
       }
     }
   }
-  text(x, y, s, color, size, dur, style) { this.texts.push({ x, y, s, color, size, dur, born: this.time, style }); if (this.texts.length > 120) this.texts.shift(); }
+  // Floating world text. Word labels (DUO, LEVEL 6, STUNNED, an ult name...) never print on top of one
+  // another: a new one steps up above any recent label at the same spot. Damage numbers just drift.
+  text(x, y, s, color, size, dur, style) {
+    if (/[A-Za-z]/.test(s)) {
+      for (let k = 0, moved = true; k < 4 && moved; k++) {
+        moved = false;
+        for (let i = this.texts.length - 1, n = 0; i >= 0 && n < 24; i--, n++) {
+          const t = this.texts[i];
+          if (this.time - t.born > 0.6 || !/[A-Za-z]/.test(t.s)) continue;
+          if (Math.abs(t.x - x) < 70 && Math.abs(t.y - y) < (t.size + size) / 2 + 3) { y = t.y - (t.size + size) / 2 - 4; moved = true; }
+        }
+      }
+    }
+    this.texts.push({ x, y, s, color, size, dur, born: this.time, style }); if (this.texts.length > 120) this.texts.shift();
+  }
   fxSprite(name, x, y, s, follow) {
     const def = FX[name]; if (!def) return;
     this.effects.push({ kind: 'sprite', name, x, y, s, follow, born: this.time, dur: def.frames / 14 });
@@ -388,6 +406,7 @@ export class Renderer {
     // screen space: tint, ult callouts, chatter
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     this.drawTint();
+    this.placed = []; // labels placed this frame (callouts, then chatter): later ones keep clear of earlier ones
     this.drawCallouts();
     this.chatter.draw(ctx, (id) => { const d = this.heroPos.get(id); return d && d.u.alive ? d : null; });
   }
@@ -430,15 +449,19 @@ export class Renderer {
       ctx.restore();
     });
   }
-  // Screen-space labels (ult callouts, chatter) keep clear of the HUD panels: `avoid` holds their CSS-px rects
-  // (refreshed by the HUD a few times a second). Box = [x - w/2, x + w/2] x [y - h, y] in device px; returns a y.
+  // Screen-space labels (ult callouts, chatter) keep clear of the HUD panels (`avoid` holds their CSS-px rects,
+  // refreshed by the HUD a few times a second) and of the labels already placed this frame (they stack upward,
+  // or below when there is no room above). Box = [x - w/2, x + w/2] x [y - h, y] in device px; returns a y.
   dodge(x, y, w, h) {
-    const d = this.dpr;
-    for (const q of this.avoid || []) {
-      const l = q.l * d, r = q.r * d, t = q.t * d, b = q.b * d;
-      if (x + w / 2 <= l || x - w / 2 >= r || y <= t || y - h >= b) continue;
-      y = (t + b) / 2 < this.H / 2 ? b + h + 2 * d : t - 2 * d; // below a top panel, above a bottom one
+    const d = this.dpr, panels = (this.avoid || []).map((q) => ({ l: q.l * d, r: q.r * d, t: q.t * d, b: q.b * d })), placed = this.placed || [];
+    const hit = (q) => !(x + w / 2 <= q.l || x - w / 2 >= q.r || y <= q.t || y - h >= q.b);
+    for (let pass = 0; pass < 6; pass++) {
+      let moved = false;
+      for (const q of panels) if (hit(q)) { y = (q.t + q.b) / 2 < this.H / 2 ? q.b + h + 2 * d : q.t - 2 * d; moved = true; } // below a top panel, above a bottom one
+      for (const q of placed) if (hit(q)) { y = q.t - 2 * d - h > 0 ? q.t - 2 * d : q.b + h + 2 * d; moved = true; }
+      if (!moved) break;
     }
+    placed.push({ l: x - w / 2, r: x + w / 2, t: y - h, b: y });
     return y;
   }
   pruneHp() { const live = this.byIdMap; if (!live) return; for (const id of this.hpT.keys()) { const u = live.get(id); if (!u || (!u.alive && !u.structure)) this.hpT.delete(id); } }

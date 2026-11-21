@@ -18,6 +18,8 @@ import { settings, openSettingsModal, isTouch } from './settings.js';
 import { Caster } from './caster.js';
 import { buzz } from './haptics.js';
 import { QuickChat } from './quickchat.js';
+import { tweenNumber, pop } from './juice.js';
+import { CoachTips, tipsLeft } from './coachtips.js';
 
 const LANE_L = { top: 'Top', mid: 'Mid', bot: 'Bot' };
 const OBJ_L = OBJ_NAME;
@@ -47,6 +49,8 @@ export class Hud {
       for (const e of game.events) { if (e.type === 'kill') this.firstBlood = true; if (e.type === 'objective' && e.team >= 0 && e.team < 2) this.objTaken[e.team][e.obj]++; }
     }
     this.alerts = new Alerts(this);
+    // first matches: a few one-time coach tips in the tray (not for spectators or the Play of the Game)
+    if (myTeam >= 0 && mode !== 'watch' && tipsLeft()) this.tips = new CoachTips(this);
     if (runner.online && myTeam >= 0) this.enableChat((m) => app.net && app.net.t.send(m));
     this._popClose = (e) => { if (this.pop && !this.pop.el.contains(e.target)) this.closePop(); };
     window.addEventListener('pointerdown', this._popClose, true);
@@ -163,6 +167,7 @@ export class Hud {
     if (this.pop) this.pop.upd();
     if (now - this.lastAnalyst > 1000) { this.lastAnalyst = now; this.analyst(); }
     this.tickTicker();
+    if (this.tips) this.tips.tick();
     // halftime: decisions wait until play resumes
     if (this.holding() && this.my >= 0) { this.dock.tray.clear((it) => it.prio >= PRIO.request); this.unslow('call'); }
     this.kfItems = this.kfItems.filter((f) => { if (now - f.t > 9000) { f.el.classList.add('out'); setTimeout(() => f.el.remove(), 300); return false; } return true; });
@@ -190,7 +195,11 @@ export class Hud {
     set(c.kk, `${g.teams[0].kills} - ${g.teams[1].kills}`);
     for (let t = 0; t < 2; t++) {
       const sd = c.sides[t], team = g.teams[t];
-      set(sd.tw, g.towersStanding(t)); set(sd.kills, team.kills);
+      // a changed tally counts over and pops (juice; Reduced effects: plain update)
+      const tw = g.towersStanding(t);
+      if (sd.twV !== undefined && sd.twV !== tw) { tweenNumber(sd.tw, sd.twV, tw, 350); pop(sd.tw); } else if (sd.twV === undefined) set(sd.tw, tw);
+      if (sd.kV !== undefined && sd.kV !== team.kills) { tweenNumber(sd.kills, sd.kV, team.kills, 350); pop(sd.kills); pop(c.kk); } else if (sd.kV === undefined) set(sd.kills, team.kills);
+      sd.twV = tw; sd.kV = team.kills;
       // objective marks only change when something is taken: rebuild just this row, and only then
       const sig = team.dragons.join() + '|' + ot[t].herald + '|' + ot[t].baron + '|' + g.shrines.map((x) => x.owner === t ? 1 : 0).join('');
       if (sig === sd.sig) continue;
@@ -343,7 +352,7 @@ export class Hud {
     this.closePop();
     const g = this.g, pers = PERSONALITIES[x.def.pers], mine = x.team === this.view && this.my >= 0;
     const abl = x.def.abilities.map((ab, i) => h('div', { class: 'abl', title: ab.name }, h('img', { src: icon(ab.icon) }), h('div', { class: 'cd' }), h('span', { class: 'k' }, ab.ult ? 'R' : ['Q', 'W'][i])));
-    const els = { hp: h('i'), trust: h('i'), trustL: h('small', {}), stats: h('div', { class: 'pstats' }), task: h('div', { class: 'ptask' }), items: h('div', { class: 'its' }) };
+    const els = { hp: h('i'), trust: h('i'), trustL: h('small', {}), stats: h('div', { class: 'pstats' }), task: h('div', { class: 'ptask' }), why: h('div', { class: 'pwhy' }), items: h('div', { class: 'its' }) };
     const el = h('div', { id: 'hpop', class: 'hpop' },
       h('div', { class: 'phead' }, h('img', { class: 'pface', src: face(x.heroId), style: { borderColor: `var(--team${x.team})` } }),
         h('div', { class: 'pcol' }, h('b', { style: { color: `var(--team${x.team})` } }, x.def.name), h('small', { class: 'muted' }, x.def.title),
@@ -354,7 +363,7 @@ export class Hud {
       h('div', { class: 'pdesc' }, pers.desc),
       h('div', { class: 'pbarrow' }, h('span', {}, 'HP'), h('div', { class: 'pbar hp' }, els.hp)),
       mine ? h('div', { class: 'pbarrow' }, h('span', {}, 'Trust'), h('div', { class: 'pbar tr' }, els.trust), els.trustL) : null,
-      h('div', { class: 'ablrow' }, ...abl, els.items), els.stats, els.task);
+      h('div', { class: 'ablrow' }, ...abl, els.items), els.stats, els.task, els.why);
     document.body.append(el);
     const upd = () => {
       const vis = mine || this.my < 0 || !this.r.fogOn || g.vision[this.view].has(x.id);
@@ -371,6 +380,7 @@ export class Hud {
       if (els.items.childElementCount !== x.items.length) mount(els.items, ...x.items.map((it) => h('img', { src: icon(it.icon), title: it.name })));
       els.stats.textContent = `Lv ${x.level}  ·  ${x.kills}/${x.deaths}/${x.assists}  ·  ${x.cs} CS  ·  ${Math.round(x.goldEarned / 100) / 10}k gold`;
       els.task.textContent = !x.alive ? this.taskLabel(x) : mine ? this.taskLabel(x) : vis ? this.taskLabelEnemy(x) : this.missingText(x);
+      setText(els.why, this.whyText(x));
     };
     upd();
     // place beside the card, clamped to the viewport
@@ -385,7 +395,14 @@ export class Hud {
   // Online quick chat (non-sim messages; see quickchat.js).
   enableChat(send) { if (!this.chat) this.chat = new QuickChat(this, send); return this.chat; }
   disableChat() { if (this.chat) { this.chat.destroy(); this.chat = null; } }
-  destroy() { if (Hud.current === this) Hud.current = null; this.closePop(); this.alerts.destroy(); this.disableChat(); clearTimeout(this._bt); document.getElementById('hud').classList.remove('bannering'); window.removeEventListener('pointerdown', this._popClose, true); }
+  destroy() { if (Hud.current === this) Hud.current = null; this.closePop(); if (this.tips) this.tips.destroy(); this.alerts.destroy(); this.disableChat(); clearTimeout(this._bt); document.getElementById('hud').classList.remove('bannering'); window.removeEventListener('pointerdown', this._popClose, true); }
+  // The AI's own short reason for what it is doing (hero.why, e.g. "lane: hold behind wave"), for your own
+  // heroes and spectators only: an enemy's reason would leak what the fog hides.
+  whyText(x) {
+    if (!x.alive || !x.why || (this.my >= 0 && x.team !== this.my)) return '';
+    const w = String(x.why).replace(/\bhp\b/g, 'HP');
+    return 'Why: ' + w[0].toUpperCase() + w.slice(1);
+  }
   taskLabelEnemy(x) { return this.g.tick - x.lastHitHero < TICK_RATE * 1.5 ? 'Fighting!' : `Seen ${LANE_L[this.g.world.closestLane(x)]}`; }
   missingText(x) {
     const ls = this.g.lastSeen[this.view][x.id];
@@ -402,14 +419,14 @@ export class Hud {
     if (force || !this._det || this._det.id !== x.id) {
       const pers = PERSONALITIES[x.def.pers];
       const abl = x.def.abilities.map((ab, i) => h('div', { class: 'abl', title: `${ab.name}${ab.ult ? ' (ultimate)' : ''}` }, h('img', { src: icon(ab.icon) }), h('div', { class: 'cd' }), h('span', { class: 'k' }, ['Q', 'W', 'R'][i])));
-      this._det = { id: x.id, abl, xp: h('i'), hp: h('i'), stats: h('div', { class: 'stats' }), info: h('div', { class: 'dinfo' }), items: h('div', { class: 'its' }) };
+      this._det = { id: x.id, abl, xp: h('i'), hp: h('i'), stats: h('div', { class: 'stats' }), info: h('div', { class: 'dinfo' }), why: h('div', { class: 'dwhy' }), items: h('div', { class: 'its' }) };
       mount(this.el.detail,
         h('div', { class: 'dhead' }, h('img', { class: 'dface', src: face(x.heroId) }),
           h('div', { class: 'dcol' },
             h('div', { class: 'dname' }, h('span', { style: { color: TEAM_COL[x.team] } }, x.def.name), h('span', { class: 'muted' }, ` ${x.def.title}`)),
             h('div', { class: 'dtags' }, h('span', { style: { color: CLANS[x.def.clan].color } }, CLANS[x.def.clan].name), h('span', { style: { color: pers.color } }, pers.name), h('span', { style: { color: BUILDS[x.build].color } }, BUILDS[x.build].name)),
             h('div', { class: 'dbar hp' }, this._det.hp), h('div', { class: 'dbar xp' }, this._det.xp))),
-        h('div', { class: 'ablrow' }, ...abl, this._det.items), this._det.stats, this._det.info);
+        h('div', { class: 'ablrow' }, ...abl, this._det.items), this._det.stats, this._det.info, this._det.why);
     }
     const d = this._det;
     setCss(d.hp, 'width', Math.round(x.alive ? x.hp / x.maxHp * 200 : 0) / 2 + '%');
@@ -424,6 +441,7 @@ export class Hud {
     if (d.items.childElementCount !== x.items.length) mount(d.items, ...x.items.map((it) => h('img', { src: icon(it.icon), title: it.name })));
     setText(d.stats, `AD ${Math.round(s.ad)}  AP ${Math.round(s.ap)}  AR ${Math.round(s.armor)}  MR ${Math.round(s.mr)}  AS ${s.as.toFixed(2)}  MS ${Math.round(g.moveSpeed(x))}`);
     setText(d.info, `Lv ${x.level} · ${x.kills}/${x.deaths}/${x.assists} · ${x.cs} CS · ${Math.round(x.goldEarned / 100) / 10}k` + (x.team === this.my ? ` · Trust ${Math.round(x.trust)}${x.tiltUntil > g.tick ? ' (tilted)' : ''}` : '') + ` · ${this.taskLabel(x)}`);
+    const why = this.whyText(x); setText(d.why, why); d.why.classList.toggle('hidden', !why);
   }
 
   // ───────────────────────── events → feeds / banners / audio ─────────────────────────
@@ -509,6 +527,8 @@ export class Hud {
   // Caster line for a big moment (one ticker line; a multi-kill of 3+ also gets a banner).
   cast(e, team) {
     const l = this.caster.line(e); if (!l) return;
+    // a big kill (multi-kill, shutdown, ace) on screen: a beat of hit-stop and a camera punch
+    if (e.type === 'kill' && l.prio >= 4 && this.r.onScreen(e.x, e.y, 60) && this.r.visiblePoint(e.x, e.y)) this.r.impact(l.prio >= 6 ? 0.2 : 0.14, l.prio >= 6 ? 0.06 : 0.04);
     this.ticker(l.text, 'cast', l.prio);
     if (l.big) this.banner(l.big + '!', TEAM_COL[team] || '#ffd84a', 1500);
   }
@@ -570,12 +590,14 @@ export class Hud {
     while (this.el.kf.childElementCount > 5) this.el.kf.lastChild.remove();
   }
   // Banners queue up so a new one never cuts an old one off mid-animation.
-  banner(text, color, ms = 2200, img, urgent) {
+  // node: a custom card (Coach Moments) that jumps the queue without dropping the others.
+  banner(text, color, ms = 2200, img, urgent, node) {
     this.bq = this.bq || [];
     if (urgent) this.bq.length = 0;
-    this.bq.push({ text, color, ms, img });
-    if (this.bq.length > 3) this.bq.splice(0, this.bq.length - 3);
-    if (!this._bannerBusy || urgent) this.nextBanner();
+    const it = { text, color, ms, img, node };
+    if (node) this.bq.unshift(it); else this.bq.push(it);
+    if (this.bq.length > 3) { if (node) this.bq.splice(3); else this.bq.splice(0, this.bq.length - 3); }
+    if (!this._bannerBusy || urgent || node) this.nextBanner();
   }
   nextBanner() {
     clearTimeout(this._bt);
@@ -587,7 +609,8 @@ export class Hud {
     const ob = this.el.obj.getBoundingClientRect();
     if (ob.height) hud.style.setProperty('--banner-top', Math.round(ob.bottom + 3) + 'px');
     hud.classList.add('bannering');
-    const b = h('div', { class: 'big', style: { color: n.color } }, n.img ? h('img', { src: n.img }) : null, h('span', {}, n.text));
+    const b = n.node ? h('div', { class: 'big mfxb', style: { '--mc': n.color } }, n.node)
+      : h('div', { class: 'big', style: { color: n.color } }, n.img ? h('img', { src: n.img }) : null, h('span', {}, n.text));
     mount(this.el.banner, b);
     const ms = this.bq.length ? Math.min(n.ms, 1300) : n.ms;
     this._bt = setTimeout(() => { b.classList.add('out'); this._bt = setTimeout(() => this.nextBanner(), 380); }, ms);

@@ -1,6 +1,6 @@
 # HUD audit: in a live match, every HUD panel stays inside the safe area and no two panels overlap,
 # in every popup state we can trigger (decision tray open, target sheet, ring menu, scoreboard, hero
-# popover, Foes panel, Menu, quick chat, banner, settings and halftime overlays).
+# popover, Foes panel, Menu, quick chat, banner, Coach Moment card, coach tip, settings and halftime overlays).
 #   python3 tools/ui_audit.py URL [outdir] [viewports]
 # viewports: comma list of WxH or WxH@L/R/T/B (safe-area insets in CSS px), or a preset:
 #   iphones   every iPhone of the last 5 years in landscape, full screen (PWA) and Safari with toolbars
@@ -86,9 +86,9 @@ def check(res, w, h):
 
 # MAP=rush audits a Lane Rush match instead of the classic 5v5 map
 import os
-MAPPREF = os.environ.get('MAP', 'random')
+MAPPREF = 'rush' if os.environ.get('MAP') == 'rush' else 'classic'
 SETUP = """async () => {
-  app.mapPref = '%s'; app.startVsAI();
+  app.startVsAI('%s');
   const m = await import('./src/sim/draft.js'); const s = app.session;
   while (!s.draft.done) { const t = m.currentTurn(s.draft); m.apply(s.draft, t.team, m.autoChoice(s.draft, t.team, s.rng, 1)); }
   app.afterDraftAct();
@@ -112,6 +112,8 @@ STATES = [
     ('moments', "() => app.match.hud.dock.open('moments')"),
     ('ring', "() => { const r = app.renderer, c = r.canvas.getBoundingClientRect(); app.match.hud.dock.ringAt({ x: r.cam.x, y: r.cam.y }, c.left + c.width / 2, c.top + c.height / 2); }"),
     ('banner', "() => { const H = app.match.hud; H.banner('FIRST BLOOD', '#4aa3ff', 60000, 'assets/img/faces/kaze.png', true); }"),
+    ('momentcard', "() => import('./src/ui/momentfx.js').then((m) => m.momentFx(app.match.hud, { id: 'push', team: 0 }))"),
+    ('tip', "() => { const H = app.match.hud; H.dock.tray.clear(); return import('./src/ui/coachtips.js').then((m) => { const t = new m.CoachTips(H); t.show(m.TIPS[2]); }); }"),
     ('foes', "() => { const b = document.querySelector('.foesbtn'); if (b && b.offsetParent) b.click(); }"),
     ('menu', "() => document.getElementById('ctrl').classList.add('open')"),
     ('quickchat', "() => { const c = app.match.hud.chat; c.open(); c.show(0, { i: 4 }); c.show(1, { e: 'up' }); }"),
@@ -149,7 +151,7 @@ async def main():
                 await pg.wait_for_timeout(450)
                 res = await pg.evaluate(JS, [PANELS, OVERLAYS])
                 issues += [f'[{state}] ' + x for x in check(res, w, h)]
-                if OUT and state in ('tray', 'sheet', 'quickchat', 'halftime', 'ring'):
+                if OUT and state in ('tray', 'sheet', 'quickchat', 'halftime', 'ring', 'momentcard', 'tip'):
                     await pg.screenshot(path=f"{OUT}/ui_{w}x{h}{'_' + name.split()[-1] if name else ''}_{state}.png", timeout=20000, animations='disabled')
             issues += [f'JS error: {e}' for e in errs[:3]]
             print(f'{tag}: ' + ('OK' if not issues else f'{len(issues)} issue(s)'), flush=True)

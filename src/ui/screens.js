@@ -13,6 +13,7 @@ import { IMG } from '../render/assets.js';
 import { ladderPanel } from './online.js';
 import { TEAM_COL } from '../render/palette.js';
 import { audio } from '../audio.js';
+import { tweenNumber, growBars } from './juice.js';
 
 // Tiny map previews from the terrain grid (cheap: 100x100 pixels).
 const thumbs = {};
@@ -63,16 +64,16 @@ export function showHowTo(app) {
   mount(screen(), h('div', { class: 'subscreen' }, h('div', { class: 'shead' }, h('button', { class: 'btn backbtn', onclick: () => app.menu() }, '‹ Back'), h('h2', {}, 'How to Play'), h('div')),
     h('div', { class: 'panel howto' },
     h('p', {}, 'You are the coach. Your five heroes play on their own: they farm, trade, fight and retreat. They only know what your team can see. You win by making the calls.'),
-    h('h3', {}, '1. Draft'), h('p', {}, 'Ban and pick in turns: Top, Jungle, Mid, Bot and Support. Green numbers show counters; matching clans give team bonuses.'),
+    h('h3', {}, '1. Draft'), h('p', {}, 'Ban and pick in turns: Top, Jungle, Mid, Bot and Support. Filter by role or search ("tank", "dive", a name). Green numbers show counters; duos, comps and matching clans give team bonuses.'),
     h('h3', {}, '2. Prep'), h('p', {}, 'Pick each hero\'s build path and choose 3 tactic cards for your hand.'),
     h('h3', {}, '3. Calls'), h('p', {}, 'Six big buttons along the bottom: Gank, Objective, Push, Shrine, Defend and Regroup. Calls cost charges (max 3, +1 every 20s). Or just tap the map: tap a lane, a pit, a shrine or an enemy and a ring of calls pops up right there.'),
     h('p', {}, 'Your analyst flashes one-tap suggestions ("Mid is overextended: Gank"). Tap the button and the call goes out. Tactic cards (Q, E, T) are one-time plays like Smoke Bomb or Second Wind.'),
-    h('p', {}, 'Tap one of your portraits to follow that hero and change its build; tap an enemy portrait to focus them. Press and hold (or right-click) a portrait for details. Good calls build trust, and inspired heroes react faster.'),
+    h('p', {}, 'Tap one of your portraits to follow that hero and change its build; tap an enemy portrait to focus them. Press and hold (or right-click) a portrait for details, including "Why": what the hero is doing and why. Good calls build trust, and inspired heroes react faster.'),
     h('p', {}, 'Arrows on the screen edge point at fights, towers under attack and contested objectives: tap one to jump there. The camera follows the action on its own until you drag it, tap the minimap or follow a hero (Cam turns it back on).'),
     h('h3', {}, '4. Big moments'), h('p', {}, 'Coach\'s Calls pop up above the buttons when something big is about to happen: pick one of the 2-3 options before the bar runs out. Fill Momentum with calls that pay off, then tap the meter for a Kami Surge.'),
     h('p', {}, 'Moments (M) are three once-per-match calls that open at 1:15: Timeout (reset cooldowns and heal), Rally (+15% damage and speed) and All-Out Push (super minions). The Ults button switches between Auto, Hold (save them for a fight) and ALL-IN. At halftime you can change the game plan, swap a card and adjust builds.'),
     h('h3', {}, 'Winning'), h('p', {}, 'Destroy the enemy Shrine Crystal, or have more towers standing when the clock runs out (15:00; Lane Rush: 8:00).'),
-    h('h3', {}, 'Modes'), h('p', {}, 'Ranked vs AI and the Season Cup move your rating (Bronze to Kami). Online, Ranked climbs the ladder while Casual and Rush never change it. Lane Rush is a quick one-lane game. Host and Join are private games with a friend. Settings has sound, colour-blind colours, text size, reduced effects and graphics quality.'),
+    h('h3', {}, 'Modes'), h('p', {}, 'Play vs AI and the Season Cup move your rating (Bronze to Kami). Find Match pairs you with real players: Ranked climbs the ladder while Casual and Rush never change it. Lane Rush is a quick one-lane game. Host and Join are private games with a friend. Settings has sound, colour-blind colours, text size, reduced effects, graphics quality and a button to replay the first-match coach tips.'),
     h('h3', {}, 'Controls'), h('p', {}, 'Drag to pan, scroll or pinch to zoom, tap the minimap to jump. Keys: G O R K X B for calls, Q E T for cards, M for Moments, C to cancel, 1-5 follow heroes, Tab for the scoreboard, Space for the auto-camera.'),
   )));
 }
@@ -213,9 +214,9 @@ export function showResults(app, g, myTeam, onAgain, onMenu, extra = {}) {
   mount(screen(), h('div', { class: 'results' },
     h('div', { class: 'verdict ' + vcls }, verdict),
     h('div', { class: 'vsub muted' }, timeout ? `Decided on time: ${timeTiebreak(g)} · ` : '', `Game length ${fmtTime(g.time)}`),
+    extra.progress || null,
     potgEl || repEl ? h('div', { class: 'rrow' }, potgEl, repEl) : null,
     mvpCard,
-    extra.progress || null,
     extra.ladder ? ladderPanel(extra.ladder) : null,
     table(0), table(1),
     h('div', { class: 'panel' }, h('div', { class: 'rth' }, h('b', {}, 'Gold lead'), h('span', { class: 'rstats' }, 'Blue above / Red below')), graph),
@@ -223,6 +224,9 @@ export function showResults(app, g, myTeam, onAgain, onMenu, extra = {}) {
     h('div', { class: 'rbtns' }, extra.share ? h('button', { class: 'btn big sharebtn', onclick: extra.share }, 'Share') : null, onAgain ? h('button', { class: 'btn big', onclick: onAgain }, extra.againLabel || 'Play again') : null, app.lastReplay && app.lastReplay() && !app.session.replay ? h('button', { class: 'btn big', onclick: () => app.watchReplay() }, 'Watch replay') : null, h('button', { class: 'btn big', onclick: onMenu }, 'Main menu')),
   ));
   requestAnimationFrame(() => drawGoldGraph(graph, g));
+  growBars(screen().querySelector('.results .prog'), 300);
+  // the MVP's numbers count up
+  for (const b of screen().querySelectorAll('.mvpstats b')) { const m = /^(\d+)$/.exec(b.textContent); if (m) tweenNumber(b, 0, +m[1], 900); }
 }
 function drawGoldGraph(c, g) {
   const r = c.getBoundingClientRect(); c.width = r.width; c.height = r.height;
