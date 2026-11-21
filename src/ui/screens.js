@@ -2,10 +2,11 @@
 import { h, mount, face, icon, fmtTime } from './dom.js';
 import { HEROES, HERO_BY_ID, ROLES, ROLE_LABEL, matchupScore, PERSONALITIES } from '../data/heroes.js';
 import { TACTICS, TACTIC_IDS } from '../data/tactics.js';
+import { PLANS } from '../presets.js';
 import { BUILDS } from '../data/items.js';
-import { currentTurn, taken, legal, assignRoles, aiPrep, TURN_SECONDS } from '../sim/draft.js';
+import { aiPrep } from '../sim/draft.js';
 import { TEAM_NAME, DRAGON_INFO, CLANS } from '../sim/constants.js';
-import { MAPS, MAP_BY_ID } from '../maps/defs.js';
+import { MAP_BY_ID } from '../maps/defs.js';
 import { World, N as GN } from '../sim/world.js';
 import { THEMES } from '../render/mapgen.js';
 import { IMG } from '../render/assets.js';
@@ -86,138 +87,12 @@ export function showLobby(app, { code, status, joining, onJoin, onCancel }) {
   if (input) input.focus();
 }
 
-// ───────────────────────── draft ─────────────────────────
-const ACT_L = { ban: 'BAN', pick: 'PICK' };
-export class DraftView {
-  constructor(app) { this.app = app; this.sel = null; this.filter = 'all'; this.more = false; this.scroll = 0; }
-  // Up to 3 suggestions for the acting player: picks that counter, fill a missing role and match clans;
-  // bans of heroes that counter your picks.
-  recommend(d, me, t, enemyPicks) {
-    if (!t || t.team !== me || d.done) return new Set();
-    const tk = taken(d), mine = d.picks[me].map((id) => HERO_BY_ID[id]);
-    const have = assignRoles(d.picks[me]) || [], need = ROLES.filter((r) => !have.includes(r));
-    const clanN = {}; for (const x of mine) clanN[x.clan] = (clanN[x.clan] || 0) + 1;
-    const sc = [];
-    for (const x of HEROES) {
-      if (tk.has(x.id)) continue;
-      let v;
-      if (t.act === 'pick') {
-        if (!legal(d, me, x.id)) continue;
-        v = matchupScore(x, enemyPicks).score * 2 + (x.roles.some((r) => need.includes(r)) ? 3 : -4) + (need.includes(x.role) ? 1 : 0) + (clanN[x.clan] || 0) * 1.5;
-      } else {
-        if (!mine.length) continue;
-        v = matchupScore(x, mine).score;
-      }
-      if (v > 0) sc.push([v, x.id]);
-    }
-    sc.sort((a, b) => b[0] - a[0] || (a[1] < b[1] ? -1 : 1));
-    return new Set(sc.slice(0, 3).map((q) => q[1]));
-  }
-  render() {
-    const app = this.app, d = app.session.draft, me = app.session.myTeam;
-    const t = currentTurn(d);
-    const myTurn = t && t.team === me && app.session.mode !== 'watch';
-    const tk = taken(d);
-    const enemyPicks = d.picks[1 - Math.max(0, me)].map((id) => HERO_BY_ID[id]);
-    const names = app.session.names;
-    const recs = myTurn ? this.recommend(d, me, t, enemyPicks) : new Set();
-    const prevGrid = document.querySelector('.dpool .grid'); if (prevGrid) this.scroll = prevGrid.scrollTop;
-    const teamCol = (team) => {
-      const picks = d.picks[team], bans = d.bans[team], roles = assignRoles(picks) || [];
-      return h('div', { class: 'dteam t' + team + (t && t.team === team ? ' acting' : '') },
-        h('div', { class: 'tname' }, h('span', { class: 'tdot' }), `${names[team]}`, team === me ? h('small', {}, 'you') : null),
-        h('div', { class: 'slots' }, ...Array.from({ length: 5 }, (_, i) => {
-          const id = picks[i], active = t && t.team === team && t.act === 'pick' && i === picks.length;
-          return h('div', { class: 'slot' + (active ? ' active' : '') + (id ? ' filled' : '') }, id ? h('img', { src: face(id) }) : (active ? h('span', { class: 'dots' }, '...') : null), id ? h('div', { class: 'role' }, ROLE_LABEL[roles[i]] || '') : null);
-        }),
-        h('div', { class: 'bans' }, ...Array.from({ length: 3 }, (_, i) => {
-          const id = bans[i], active = t && t.team === team && t.act === 'ban' && i === bans.length;
-          return h('div', { class: 'slot ban' + (active ? ' active' : '') }, id ? h('img', { src: face(id) }) : null);
-        }))),
-        clanLine(picks));
-    };
-    const clanLine = (picks) => {
-      const c = {}; for (const id of picks) { const k = HERO_BY_ID[id].clan; c[k] = (c[k] || 0) + 1; }
-      return h('div', { class: 'clans' }, ...Object.entries(c).map(([k, n]) => h('span', { class: 'clan' + (n >= 2 ? ' on' : ''), style: { '--cc': CLANS[k].color } }, `${CLANS[k].name} ${n}`)));
-    };
-    const left = Math.ceil(app.session.turnLeft ?? TURN_SECONDS);
-    const turnBox = h('div', { class: 'dturn' + (t ? ' t' + t.team : '') + (myTurn ? ' mine' : '') },
-      d.done ? h('div', { class: 'what' }, 'Draft complete!') : h('div', { class: 'what' }, myTurn ? `YOUR ${ACT_L[t.act]}` : `${TEAM_NAME[t.team]} ${ACT_L[t.act]}`),
-      d.done ? null : h('div', { class: 'timer', id: 'dtimer' }, String(left)),
-      d.done ? null : h('div', { class: 'tbar' }, h('i', { id: 'dtbar', style: { width: Math.max(0, left / TURN_SECONDS * 100) + '%' } })),
-      h('div', { class: 'mapname' }, (MAP_BY_ID[app.session.mapId] || MAPS[0]).name));
-    const counts = { all: HEROES.length }; for (const r of ROLES) counts[r] = HEROES.filter((x) => x.roles.includes(r)).length;
-    const tabs = h('div', { class: 'rtabs', role: 'tablist' }, ...['all', ...ROLES].map((r) => h('button', { class: 'rtab' + (this.filter === r ? ' on' : ''), role: 'tab', onclick: () => { this.filter = r; this.scroll = 0; this.render(); } },
-      r === 'all' ? 'All' : ROLE_LABEL[r], h('small', {}, counts[r]))));
-    const list = HEROES.filter((x) => this.filter === 'all' || x.roles.includes(this.filter));
-    list.sort((a, b) => (tk.has(a.id) ? 1 : 0) - (tk.has(b.id) ? 1 : 0) || (recs.has(b.id) ? 1 : 0) - (recs.has(a.id) ? 1 : 0));
-    const grid = h('div', { class: 'grid' }, ...list.map((x) => {
-      const off = tk.has(x.id);
-      const bad = !off && t && t.act === 'pick' && myTurn && !legal(d, me, x.id);
-      const ms = enemyPicks.length && !off ? matchupScore(x, enemyPicks).score : 0;
-      const pers = PERSONALITIES[x.pers];
-      return h('button', { class: 'hcard' + (off ? ' off' : '') + (bad ? ' bad' : '') + (this.sel === x.id ? ' sel' : '') + (recs.has(x.id) ? ' rec' : ''), disabled: off, style: { '--cc': CLANS[x.clan].color },
-        onclick: () => { if (off) return; this.sel = x.id; this.more = false; audio.sfx('move', 0.4); this.render(); }, title: `${x.name} · ${CLANS[x.clan].name} · ${pers.name}` },
-        h('div', { class: 'fwrap' }, h('img', { src: face(x.id) }), ms ? h('span', { class: 'score ' + (ms > 0 ? 'pos' : 'neg') }, (ms > 0 ? '+' : '') + ms) : null, h('i', { class: 'pdot', style: { background: pers.color }, title: pers.name })),
-        recs.has(x.id) ? h('span', { class: 'recb' }, t.act === 'ban' ? 'BAN?' : 'REC') : null,
-        h('div', { class: 'n' }, x.name), h('div', { class: 'r' }, x.roles.map((r) => ROLE_LABEL[r]).join(' / ')));
-    }));
-    const info = this.infoPanel(this.sel, enemyPicks, myTurn, t, recs);
-    mount(screen(), h('div', { class: 'draft' + (this.sel ? ' hassel' : '') },
-      h('div', { class: 'dtop' }, teamCol(0), turnBox, teamCol(1)),
-      h('div', { class: 'dmain' }, h('div', { class: 'panel dpool' }, tabs, grid), info)));
-    grid.scrollTop = this.scroll;
-  }
-  infoPanel(id, enemyPicks, myTurn, t, recs) {
-    const app = this.app, d = app.session.draft, me = app.session.myTeam;
-    if (!id) {
-      const need = ROLES.filter((r) => !(assignRoles(d.picks[Math.max(0, me)]) || []).includes(r)).map((r) => ROLE_LABEL[r]);
-      return h('div', { class: 'panel dinfo empty' },
-        h('div', { class: 'hint' }, myTurn ? (t.act === 'ban' ? 'Your ban: remove a hero you fear.' : `Your pick. Still needed: ${need.join(', ')}`) : d.done ? 'Locked in. Prep starts soon...' : 'Waiting for the other side...'),
-        recs.size ? h('div', { class: 'muted small' }, 'Heroes marked REC suit your draft.') : h('div', { class: 'muted small' }, 'Tap a hero to see abilities and matchups.'));
-    }
-    const x = HERO_BY_ID[id], pers = PERSONALITIES[x.pers], clan = CLANS[x.clan];
-    const mu = matchupScore(x, enemyPicks);
-    const canAct = myTurn && legal(d, me, id);
-    const action = myTurn ? h('button', { class: 'btn big lockbtn', disabled: !canAct, onclick: () => app.draftAct(id) }, t.act === 'ban' ? 'Ban ' + x.name : 'Lock in ' + x.name) : null;
-    return h('div', { class: 'panel dinfo' + (this.more ? ' more' : '') },
-      h('div', { class: 'ihead' }, h('div', { class: 'face' }, h('img', { src: face(id) })),
-        h('div', { class: 'icol' }, h('h2', {}, x.name, recs.has(id) ? h('span', { class: 'recb inline' }, t.act === 'ban' ? 'BAN?' : 'REC') : null), h('div', { class: 't' }, `${x.title} · ${x.roles.map((r) => ROLE_LABEL[r]).join(' / ')}`),
-          h('div', { class: 'chips' }, h('span', { class: 'chipx', style: { '--cc': clan.color }, title: clan.tiers ? clan.tiers.map((q) => `${q.n}+: ${q.text}`).join(' · ') : '' }, clan.name),
-            h('span', { class: 'chipx', style: { '--cc': pers.color } }, pers.name), h('span', { class: 'chipx plain' }, x.ranged ? 'Ranged' : 'Melee'), h('span', { class: 'chipx plain' }, `${x.curve} game`))),
-        h('button', { class: 'morebtn', onclick: () => { this.more = !this.more; this.render(); } }, this.more ? 'Less' : 'More')),
-      action,
-      myTurn && !canAct && t.act === 'pick' ? h('div', { class: 'red small' }, 'Your team already covers this hero\'s roles.') : null,
-      h('div', { class: 'idetail' },
-        h('div', { class: 'pers', style: { color: pers.color } }, `${pers.name}: `, h('span', { class: 'muted' }, pers.desc)),
-        h('div', { class: 'tags' }, ...x.tags.map((tg) => h('span', { class: 'tag' }, tg)), h('span', { class: 'tag' }, x.dmgType === 'phys' ? 'physical' : 'magic')),
-        h('div', { class: 'ab' }, h('img', { src: icon('LuckUpgrade') }), h('div', {}, h('b', {}, `Passive: ${x.passive.name}`), h('div', { class: 'd' }, x.passive.desc))),
-        ...x.abilities.map((a) => h('div', { class: 'ab' + (a.ult ? ' ult' : '') }, h('img', { src: icon(a.icon) }), h('div', {}, h('b', {}, `${a.ult ? 'Ultimate: ' : ''}${a.name}`), h('div', { class: 'd' }, describeAbility(a))))),
-        h('div', { class: 'muted small' }, 'Builds: ' + x.builds.map((b) => BUILDS[b].name).join(', ')),
-        enemyPicks.length ? h('div', { class: 'notes' }, h('div', { class: 'muted' }, 'Vs enemy picks:'), ...(mu.notes.length ? mu.notes.map((n) => h('div', { class: /struggles|countered|into heavy/i.test(n) ? 'neg' : 'pos' }, '- ' + n)) : [h('div', { class: 'muted' }, '- Neutral matchup')])) : null));
-  }
-  tickTimer(left) {
-    const el = document.getElementById('dtimer'); if (el) { const v = String(Math.max(0, Math.ceil(left))); if (el.textContent !== v) { el.textContent = v; if (left < 6) { el.classList.remove('tick'); void el.offsetWidth; el.classList.add('tick'); } } }
-    const b = document.getElementById('dtbar'); if (b) b.style.width = Math.max(0, left / TURN_SECONDS * 100) + '%';
-  }
-}
-
-export function describeAbility(a) {
-  const parts = [];
-  const kind = { shot: 'Skillshot', line: 'Line', target: 'Targeted', circle: 'Ground AoE', nova: 'Self AoE', dash: 'Dash', self: 'Self buff', ally: 'Ally', allynova: 'Team AoE', hook: 'Hook', zone: 'Zone' }[a.kind];
-  parts.push(kind);
-  if (a.dmg) { const d = a.dmg; const r = []; if (d.ad) r.push(`${Math.round(d.ad * 100)}% AD`); if (d.ap) r.push(`${Math.round(d.ap * 100)}% AP`); if (d.hp) r.push(`${(d.hp * 100).toFixed(0)}% max HP`); if (d.miss) r.push(`${Math.round(d.miss * 100)}% missing HP`); parts.push(`${d.b}${d.l ? '+' + d.l + '/lvl' : ''} dmg${r.length ? ' (' + r.join(', ') + ')' : ''}`); }
-  if (a.cc) { if (a.cc.stun) parts.push(`stun ${a.cc.stun}s`); if (a.cc.root) parts.push(`root ${a.cc.root}s`); if (a.cc.knock) parts.push(`knock-up ${a.cc.knock}s`); if (a.cc.slow) parts.push(`slow ${Math.round(a.cc.slow[0] * 100)}%`); }
-  if (a.burn) parts.push('burn'); if (a.heal) parts.push('heal'); if (a.shield) parts.push('shield');
-  if (a.buff) parts.push(Object.keys(a.buff.stats).map((k) => ({ asPct: 'attack speed', msPct: 'move speed', power: 'power', armor: 'armor', mr: 'MR' }[k] || k)).join('/') + ' buff');
-  parts.push(`${a.cd}s cd`);
-  return parts.join(' · ');
-}
-
 // ───────────────────────── prep ─────────────────────────
-const PLANS = { aggressive: ['Aggressive', 'Trade often, roam early, chase further.'], balanced: ['Balanced', 'Default risk. Adapt to the game.'], scaling: ['Scaling', 'Farm safely; avoid even fights before ~10 min.'] };
+// Quick confirm screen: the lineup (lanes, builds), plan and deck prefilled from the active preset.
+// "Adjust" opens the full editors.
 export function showPrep(app, prep, enemyIds, left, onChange, onReady, ready) {
-  const myIds = prep.heroes.map((p) => p.id);
+  const s = app.session, myIds = prep.heroes.map((p) => p.id), fromPreset = new Set(s.prepFromPreset || []);
+  const adjust = !!s.prepAdjust && !ready;
   const autoSetup = () => {
     if (ready) return;
     const ai = aiPrep(myIds, enemyIds);
@@ -225,15 +100,25 @@ export function showPrep(app, prep, enemyIds, left, onChange, onReady, ready) {
     prep.plan = ai.plan; prep.deck = ai.deck.slice(0, 3);
     audio.sfx('accept', 0.6); onChange();
   };
+  const toggleAdjust = () => { s.prepAdjust = !s.prepAdjust; audio.sfx('move', 0.4); onChange(); };
+  const byRole = prep.heroes.slice().sort((a, b) => ROLES.indexOf(a.role) - ROLES.indexOf(b.role));
+  // summary: one compact card per hero
+  const mini = (hp) => {
+    const x = HERO_BY_ID[hp.id], b = BUILDS[hp.build];
+    return h('div', { class: 'pmini', style: { '--cc': CLANS[x.clan].color, '--bc': b.color } },
+      h('span', { class: 'plane' }, ROLE_LABEL[hp.role]), h('img', { src: face(hp.id) }), h('b', {}, x.name),
+      h('span', { class: 'pbuild' }, h('img', { src: icon(b.icon) }), b.name),
+      fromPreset.has(hp.id) ? h('span', { class: 'pfrom', title: 'From your lineup' }, '★') : null);
+  };
   const card = (hp) => {
     const x = HERO_BY_ID[hp.id], pers = PERSONALITIES[x.pers], b = BUILDS[hp.build];
     return h('div', { class: 'pcard', style: { '--cc': CLANS[x.clan].color } },
       h('div', { class: 'head' }, h('div', { class: 'face' }, h('img', { src: face(hp.id) })),
         h('div', { class: 'pch' }, h('div', { class: 'pn' }, x.name), h('div', { class: 'chips' }, h('span', { class: 'chipx', style: { '--cc': CLANS[x.clan].color } }, CLANS[x.clan].name), h('span', { class: 'chipx', style: { '--cc': pers.color } }, pers.name)))),
       h('label', { class: 'rolesel' }, h('span', {}, 'Lane'),
-        h('select', { disabled: ready, onchange: (e) => { const r = e.target.value; const other = prep.heroes.find((o) => o.role === r); if (other) other.role = hp.role; hp.role = r; onChange(); } },
+        h('select', { onchange: (e) => { const r = e.target.value; const other = prep.heroes.find((o) => o.role === r); if (other) other.role = hp.role; hp.role = r; onChange(); } },
           ...ROLES.map((r) => h('option', { value: r, selected: r === hp.role }, ROLE_LABEL[r] + (x.roles.includes(r) ? '' : ' (off-role)'))))),
-      h('div', { class: 'bchips' }, ...x.builds.map((bb) => h('button', { class: 'bchip' + (hp.build === bb ? ' on' : ''), disabled: ready, style: { '--bc': BUILDS[bb].color }, onclick: () => { hp.build = bb; audio.sfx('move', 0.4); onChange(); } }, BUILDS[bb].name, bb === x.rec ? h('i', { class: 'star', title: 'Recommended' }) : null))),
+      h('div', { class: 'bchips' }, ...x.builds.map((bb) => h('button', { class: 'bchip' + (hp.build === bb ? ' on' : ''), style: { '--bc': BUILDS[bb].color }, onclick: () => { hp.build = bb; audio.sfx('move', 0.4); onChange(); } }, BUILDS[bb].name, bb === x.rec ? h('i', { class: 'star', title: 'Recommended' }) : null))),
       h('div', { class: 'bsel' }, h('div', { class: 'bd' }, b.desc), h('div', { class: 'items' }, ...b.items.map((it) => h('img', { src: icon(it.icon), title: `${it.name} (${it.cost}g)` })))));
   };
   const clans = (() => {
@@ -241,28 +126,35 @@ export function showPrep(app, prep, enemyIds, left, onChange, onReady, ready) {
     return Object.entries(c).sort((a, b) => b[1] - a[1]).map(([k, n]) => { const tier = CLANS[k].tiers.filter((t) => n >= t.n).pop(); return h('div', { class: 'cchip' + (tier ? ' on' : ''), style: { '--cc': CLANS[k].color } }, h('b', {}, `${CLANS[k].name} x${n}`), h('small', {}, tier ? tier.text : `${CLANS[k].tiers[0].n} needed: ${CLANS[k].tiers[0].text}`)); });
   })();
   const sec = (title, extra, ...kids) => h('div', { class: 'panel psec' }, h('div', { class: 'psh' }, h('span', {}, title), extra || null), ...kids);
-  mount(screen(), h('div', { class: 'prep' + (ready ? ' ready' : '') },
-    h('div', { class: 'phead' },
-      h('div', { class: 'pt' }, h('h2', {}, 'Prep'), h('small', { class: 'muted' }, 'Defaults are good to go. Tweak anything, or tap Auto for counter-builds.')),
-      h('div', { class: 'ptimer' }, h('b', { id: 'ptimer' }, String(Math.max(0, Math.ceil(left)))), h('small', {}, 'sec')),
-      h('div', { class: 'pbtns' }, h('button', { class: 'btn', disabled: ready, onclick: autoSetup, title: 'Counter-builds, plan and deck picked for you' }, 'Auto'),
-        h('button', { class: 'btn big readybtn', disabled: ready, onclick: onReady }, ready ? 'Waiting...' : 'Ready!'))),
-    h('div', { class: 'panel enemyrow' }, h('span', { class: 'lab' }, 'Enemy'), ...enemyIds.map((id) => {
-      const x = HERO_BY_ID[id]; const mu = matchupScore(x, prep.heroes.map((p) => HERO_BY_ID[p.id]));
-      return h('div', { class: 'efoe', title: x.tags.join(', ') }, h('img', { src: face(id) }), h('span', {}, x.name), mu.score > 0 ? h('b', { class: 'threat', title: 'Counters your team' }, `+${mu.score}`) : null);
-    })),
-    sec('Lanes & builds', h('small', { class: 'muted' }, 'star = recommended'), h('div', { class: 'prep-cards' }, ...prep.heroes.map(card))),
-    h('div', { class: 'prow2' },
-      sec('Game plan', null, h('div', { class: 'plans' }, ...Object.entries(PLANS).map(([k, [nm, dsc]]) => h('button', { class: 'plan' + (prep.plan === k ? ' on' : ''), disabled: ready, onclick: () => { prep.plan = k; audio.sfx('move', 0.4); onChange(); } }, h('b', {}, nm), h('small', {}, dsc))))),
-      sec('Clan synergies', null, h('div', { class: 'cchips' }, clans))),
+  const plan = PLANS[prep.plan] || PLANS.balanced;
+  const summary = h('div', { class: 'psum' },
+    h('div', { class: 'pminis' }, ...byRole.map(mini)),
+    h('div', { class: 'pplan' },
+      h('div', { class: 'pp' }, h('small', {}, 'Plan'), h('b', {}, plan[0])),
+      h('div', { class: 'pdeck' }, ...prep.deck.map((id) => h('span', { class: 'pdc', title: TACTICS[id].desc }, h('img', { src: icon(TACTICS[id].icon) }), TACTICS[id].name))),
+      h('div', { class: 'pclans' }, clans)));
+  const editors = adjust ? [
+    sec('Lanes & builds', h('button', { class: 'btn small', onclick: autoSetup, title: 'Counter-builds, plan and deck picked for you' }, 'Auto counter-build'), h('div', { class: 'prep-cards' }, ...byRole.map(card))),
+    sec('Game plan', null, h('div', { class: 'plans' }, ...Object.entries(PLANS).map(([k, [nm, dsc]]) => h('button', { class: 'plan' + (prep.plan === k ? ' on' : ''), onclick: () => { prep.plan = k; audio.sfx('move', 0.4); onChange(); } }, h('b', {}, nm), h('small', {}, dsc))))),
     sec('Tactic deck', h('span', { class: 'dcount' + (prep.deck.length === 3 ? ' full' : '') }, `${prep.deck.length}/3`),
       h('div', { class: 'deck' }, ...TACTIC_IDS.map((id) => {
         const t = TACTICS[id], on = prep.deck.includes(id);
-        return h('button', { class: 'card' + (on ? ' sel' : ''), disabled: ready, onclick: () => { if (on) prep.deck = prep.deck.filter((d) => d !== id); else if (prep.deck.length < 3) prep.deck = [...prep.deck, id]; else prep.deck = [...prep.deck.slice(1), id]; audio.sfx('move', 0.4); onChange(); } },
+        return h('button', { class: 'card' + (on ? ' sel' : ''), onclick: () => { if (on) prep.deck = prep.deck.filter((d) => d !== id); else if (prep.deck.length < 3) prep.deck = [...prep.deck, id]; else prep.deck = [...prep.deck.slice(1), id]; audio.sfx('move', 0.4); onChange(); } },
           h('img', { src: icon(t.icon) }), h('div', { class: 'cn' }, t.name), h('div', { class: 'cd' }, t.desc), on ? h('i', { class: 'tick' }) : null);
-      }))),
-    h('div', { class: 'pfoot' }, h('button', { class: 'btn', disabled: ready, onclick: autoSetup }, 'Auto'), h('button', { class: 'btn big readybtn', disabled: ready, onclick: onReady }, ready ? 'Waiting for opponent...' : 'Ready!')),
-  ));
+      })))] : [];
+  const prevScroll = screen().scrollTop;
+  mount(screen(), h('div', { class: 'prep' + (ready ? ' ready' : '') + (adjust ? ' adjusting' : '') },
+    h('div', { class: 'phead' },
+      h('div', { class: 'pt' }, h('h2', {}, 'Prep'), h('small', { class: 'muted' }, s.preset ? `Lineup "${s.preset.name}" loaded. Ready, or adjust anything.` : 'Recommended setup loaded. Ready, or adjust anything.')),
+      h('div', { class: 'ptimer' }, h('b', { id: 'ptimer' }, String(Math.max(0, Math.ceil(left)))), h('small', {}, 'sec')),
+      h('div', { class: 'pbtns' }, h('button', { class: 'btn adjbtn' + (adjust ? ' on' : ''), disabled: ready, onclick: toggleAdjust }, adjust ? 'Done' : 'Adjust'),
+        h('button', { class: 'btn big readybtn', disabled: ready, onclick: onReady }, ready ? 'Waiting...' : 'Ready!'))),
+    h('div', { class: 'enemyrow' }, h('span', { class: 'lab' }, 'Enemy'), ...enemyIds.map((id) => {
+      const x = HERO_BY_ID[id]; const mu = matchupScore(x, prep.heroes.map((p) => HERO_BY_ID[p.id]));
+      return h('div', { class: 'efoe', title: x.tags.join(', ') }, h('img', { src: face(id) }), h('span', {}, x.name), mu.score > 0 ? h('b', { class: 'threat', title: 'Counters your team' }, `+${mu.score}`) : null);
+    })),
+    summary, ...editors));
+  if (adjust) screen().scrollTop = prevScroll;
 }
 
 // ───────────────────────── results ─────────────────────────

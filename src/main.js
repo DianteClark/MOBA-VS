@@ -9,10 +9,13 @@ import { World } from './sim/world.js';
 import { Coach } from './sim/coach.js';
 import { Rng } from './sim/rng.js';
 import { MAPS } from './maps/defs.js';
-import { newDraft, apply as draftApply, currentTurn, autoChoice, defaultPrep, aiPrep, TURN_SECONDS } from './sim/draft.js';
+import { newDraft, apply as draftApply, currentTurn, autoChoice, aiPrep, TURN_SECONDS } from './sim/draft.js';
+import { presetChoice, prepFromPreset } from './presets.js';
+import { HERO_BY_ID } from './data/heroes.js';
 import { LocalRunner, LockstepRunner } from './net/runner.js';
 import { host, join, makeCode } from './net/peer.js';
-import { showLobby, DraftView, showPrep, showResults, startParade, stopParade } from './ui/screens.js';
+import { showLobby, showPrep, showResults, startParade, stopParade } from './ui/screens.js';
+import { DraftView, AUTO_GRACE } from './ui/draftview.js';
 import { Hud } from './ui/hud.js';
 import { toast } from './ui/dom.js';
 import { audio } from './audio.js';
@@ -295,12 +298,15 @@ class App {
     stopParade();
     const s = this.session;
     s.draft = newDraft(); s.turnStart = performance.now(); s.turnLeft = TURN_SECONDS;
+    // The active lineup is frozen for this draft (auto-picks, prep builds/plan/deck).
+    const pre = profile.activePreset; s.preset = pre ? JSON.parse(JSON.stringify(pre)) : null;
     this.showScreen(true);
     audio.music('draft');
     this.draftView = new DraftView(this);
+    this.armAutoPick();
     this.draftView.render();
     clearInterval(this.draftTimer);
-    this.draftTimer = setInterval(() => this.draftTick(), 250);
+    this.draftTimer = setInterval(() => this.draftTick(), 100);
     this.maybeAiDraft();
   }
   draftTick() {
@@ -309,26 +315,48 @@ class App {
     s.turnLeft = TURN_SECONDS - (performance.now() - s.turnStart) / 1000;
     this.draftView.tickTimer(s.turnLeft);
     const t = currentTurn(s.draft);
+    // Preset auto-pick lands after a short grace (the coach can tap another hero to override).
+    if (s.autoPick && s.autoPick.turn === s.draft.turn && performance.now() >= s.autoPick.at) { this.lockAutoPick(); return; }
     // Timeout: the acting side auto-locks (the local player for their own turns).
-    if (s.turnLeft <= 0 && t.team === s.myTeam) this.draftAct(autoChoice(s.draft, t.team, s.rng, 1));
+    if (s.turnLeft <= 0 && t.team === s.myTeam) this.draftAct(s.pickPrompt && s.pickPrompt.recs[0] || autoChoice(s.draft, t.team, s.rng, 1));
   }
+  // Every local pick/ban (manual, auto-pick, timeout) goes through here, so online drafts stay in lockstep.
   draftAct(heroId) {
     const s = this.session, t = currentTurn(s.draft);
-    if (!t || t.team !== s.myTeam) return;
+    if (!t || t.team !== s.myTeam) return false;
     const turn = s.draft.turn;
-    if (!draftApply(s.draft, s.myTeam, heroId)) return;
+    if (!draftApply(s.draft, s.myTeam, heroId)) return false;
     audio.sfx('lockin');
     if (this.net) this.net.t.send({ t: 'draft', team: s.myTeam, hero: heroId, turn });
     this.draftView.sel = null;
     this.afterDraftAct();
+    return true;
   }
   afterDraftAct() {
     const s = this.session;
     s.turnStart = performance.now(); s.turnLeft = TURN_SECONDS;
-    if (s.draft.done) { clearInterval(this.draftTimer); setTimeout(() => { if (this.session === s) this.startPrep(); }, 900); this.draftView.render(); return; }
+    if (s.draft.done) { s.autoPick = s.pickPrompt = null; clearInterval(this.draftTimer); setTimeout(() => { if (this.session === s) this.startPrep(); }, 900); this.draftView.render(); return; }
+    this.armAutoPick();
     this.draftView.render();
     this.maybeAiDraft();
   }
+  // On our pick turns, ask the active lineup what to do: auto-pick (main or backup) or prompt for the role.
+  armAutoPick() {
+    const s = this.session, d = s.draft, t = currentTurn(d);
+    s.autoPick = null; s.pickPrompt = null;
+    if (!t || t.team !== s.myTeam || t.act !== 'pick' || !s.preset) return;
+    const c = presetChoice(d, s.myTeam, s.preset);
+    if (!c) return;
+    if (c.prompt) s.pickPrompt = c;
+    else s.autoPick = { ...c, turn: d.turn, at: performance.now() + AUTO_GRACE * 1000 };
+    if (this.draftView) this.draftView.sel = null; // a hero browsed while waiting doesn't count as an override
+  }
+  lockAutoPick() {
+    const s = this.session, a = s.autoPick; if (!a) return;
+    s.autoPick = null;
+    if (a.turn === s.draft.turn && this.draftAct(a.id)) toast(`Auto-picked ${HERO_BY_ID[a.id].name}${a.backup ? ' (backup)' : ''}`, 1400);
+  }
+  cancelAutoPick() { const s = this.session; if (s && s.autoPick) { s.autoPick = null; toast('Auto-pick off for this turn: choose your hero', 1600); } }
   maybeAiDraft() {
     const s = this.session;
     if (s.mode !== 'ai') return;
@@ -347,7 +375,8 @@ class App {
   startPrep() {
     const s = this.session, me = s.myTeam, d = s.draft;
     s.preps = [null, null]; s.ready = [false, false];
-    s.myPrep = defaultPrep(d.picks[me]);
+    const pp = prepFromPreset(d.picks[me], d.picks[1 - me], s.preset);
+    s.myPrep = pp.prep; s.prepFromPreset = pp.fromPreset; s.prepAdjust = false;
     s.myPrep.skins = profile.skinsFor(d.picks[me]);
     if (s.mode === 'ai') { s.preps[1 - me] = aiPrep(d.picks[1 - me], d.picks[me]); s.ready[1 - me] = true; }
     if (s.pendingPrep) { s.preps[s.pendingPrep.team] = s.pendingPrep.prep; s.ready[s.pendingPrep.team] = true; s.pendingPrep = null; }

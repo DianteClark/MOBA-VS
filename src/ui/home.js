@@ -1,13 +1,14 @@
-// Front end: home, season pass, locker, Season Cup bracket, patch notes, and post-match progression.
+// Front end: home, season pass, profile (banners/titles/borders), Season Cup bracket, patch notes, and post-match progression.
 import { h, mount, face } from './dom.js';
-import { HEROES, HERO_BY_ID, ROLES, ROLE_LABEL } from '../data/heroes.js';
+import { HERO_BY_ID } from '../data/heroes.js';
 import { MAPS, MAP_BY_ID } from '../maps/defs.js';
 import { CLANS } from '../sim/constants.js';
 import { daysLeft, TIERS, rankOf, TRACK, MAX_LEVEL, XP_PER_LEVEL, SKINS, BANNERS, TITLES, rewardName } from '../data/seasons.js';
 import { PATCHES } from '../data/patchnotes.js';
 import { profile } from '../profile.js';
 import { myMatch, ROUND_NAMES } from '../cup.js';
-import { IMG, recolor } from '../render/assets.js';
+import { heroSprite } from './heroui.js';
+import { showDojo } from './dojo.js';
 import { mapThumb, showHowTo } from './screens.js';
 import { audio } from '../audio.js';
 import { shareMatch } from './share.js';
@@ -68,18 +69,24 @@ export function showHome(app) {
           h('div', { class: 'row', style: { gap: '6px', flexWrap: 'nowrap' } },
             h('button', { class: 'btn', style: { flex: 1 }, onclick: () => app.hostGame() }, 'Host'),
             h('button', { class: 'btn', style: { flex: 1 }, onclick: () => app.joinScreen() }, 'Join'))))),
+    h('div', { class: 'hometiles' },
+      h('button', { class: 'htile dojot', onclick: () => { audio.sfx('move', 0.5); showDojo(app, { tab: 'heroes', hero: null }); } },
+        ((id) => heroSprite(id, p.d.equip.skins[id], 56, 'walk'))(p.activePreset && p.activePreset.main.mid || 'kaze'),
+        h('div', { class: 'ht' }, h('b', {}, 'Dojo'), h('small', {}, 'Heroes, skins and lineups'),
+          h('span', { class: 'hsub' }, p.activePreset ? `★ ${p.activePreset.name} auto-picks in the draft` : 'No active lineup'))),
+      h('button', { class: 'htile proft', style: { background: p.banner.bg }, onclick: () => { audio.sfx('move', 0.5); showProfile(app); } },
+        rankBadge(rk), h('div', { class: 'ht' }, h('b', {}, 'Profile'), h('small', {}, 'Banners, titles and borders'), h('span', { class: 'hsub' }, p.title)))),
     h('div', { class: 'subnav' },
       h('button', { class: 'chip', onclick: () => app.watch() }, 'Watch AI'),
       app.lastReplay() ? h('button', { class: 'chip', onclick: () => app.watchReplay() }, 'Last Replay') : null,
       (document.fullscreenEnabled || document.webkitFullscreenEnabled) ? h('button', { class: 'chip', onclick: () => window.toggleFullscreen() }, 'Full Screen') : null,
       h('button', { class: 'chip', onclick: () => showLeaderboard(app) }, 'Ladder'),
       h('button', { class: 'chip', onclick: () => showHistory(app) }, 'History'),
-      h('button', { class: 'chip', onclick: () => showLocker(app) }, 'Locker'),
       h('button', { class: 'chip', onclick: () => showSeason(app) }, 'Season Pass'),
       h('button', { class: 'chip' + (unseen ? ' new' : ''), onclick: () => showPatch(app) }, 'Patch Notes'),
       h('button', { class: 'chip', onclick: () => showHowTo(app) }, 'How to Play'),
       h('button', { class: 'chip gear', onclick: () => { audio.sfx('move', 0.5); showSettings(app); } }, h('img', { src: 'assets/img/icons/Permutation.png' }), 'Settings')),
-    p.newSeasonNote ? h('div', { class: 'panel note' }, `Season ${p.newSeasonNote.from} is over. You peaked at ${p.newSeasonNote.peak}. Your rank was soft-reset; your border is in the Locker.`) : null,
+    p.newSeasonNote ? h('div', { class: 'panel note' }, `Season ${p.newSeasonNote.from} is over. You peaked at ${p.newSeasonNote.peak}. Your rank was soft-reset; your border is in your Profile.`) : null,
     h('div', { class: 'credits' }, `MOBA-VS v${PATCHES[0].version}`),
     h('div', { class: 'credits' }, 'Art & audio: ', h('a', { href: 'https://pixel-boy.itch.io/ninja-adventure-asset-pack', target: '_blank' }, 'Ninja Adventure'), ' by Pixel-boy & AAA (CC0)'),
   ));
@@ -116,52 +123,29 @@ function rewardIcon(r) {
   return h('img', { src: item('items/Scroll') });
 }
 
-// ───────────── locker ─────────────
-const skinCache = {};
-function skinPreview(id, skin, size = 48) {
-  const c = h('canvas', { width: 16, height: 16, class: 'skinprev', style: { width: size + 'px', height: size + 'px' } });
-  const base = IMG['hero_' + id];
-  if (base) {
-    const key = id + ':' + skin;
-    if (!skinCache[key]) skinCache[key] = SKINS[skin].recolor ? recolor(base, SKINS[skin].recolor) : base;
-    const x = c.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(skinCache[key], 0, 0, 16, 16, 0, 0, 16, 16);
-  }
-  return c;
-}
-export function showLocker(app, tab = 'skins', sel = null) {
+// ───────────── profile (cosmetics; hero skins live in the Dojo) ─────────────
+export function showProfile(app, tab = 'banners') {
   const p = profile, un = p.d.unlocked;
-  const tabs = h('div', { class: 'tabs' }, ...[['skins', 'Skins'], ['banners', 'Banners'], ['titles', 'Titles'], ['borders', 'Borders']].map(([k, l]) => h('button', { class: 'chip' + (tab === k ? ' on' : ''), onclick: () => showLocker(app, k) }, l)));
+  const tabs = h('div', { class: 'tabs' }, ...[['banners', 'Banners'], ['titles', 'Titles'], ['borders', 'Borders']].map(([k, l]) => h('button', { class: 'chip' + (tab === k ? ' on' : ''), onclick: () => showProfile(app, k) }, l)));
   let body;
-  if (tab === 'skins') {
-    const hero = sel || HEROES[0].id;
-    const cur = p.d.equip.skins[hero] || 'base';
-    body = h('div', { class: 'col' },
-      h('div', { class: 'lockgrid' }, ...ROLES.flatMap((r) => [h('div', { class: 'lockrole' }, ROLE_LABEL[r]), ...HEROES.filter((x) => x.role === r).map((x) => h('button', { class: 'lockhero' + (x.id === hero ? ' on' : ''), title: `${x.name} · ${ROLE_LABEL[r]}`, onclick: () => showLocker(app, 'skins', x.id) },
-        skinPreview(x.id, p.d.equip.skins[x.id] || 'base', 36), h('small', {}, x.name)))])),
-      h('div', { class: 'panel' }, h('b', {}, `${HERO_BY_ID[hero].name} · ${HERO_BY_ID[hero].title}`),
-        h('div', { class: 'skinrow' }, ...Object.entries(SKINS).map(([k, sk]) => {
-          const have = un.skins.includes(k), lvl = Object.entries(TRACK).find(([, r]) => r.kind === 'skin' && r.id === k);
-          return h('button', { class: 'skinopt' + (cur === k ? ' on' : '') + (have ? '' : ' locked'), disabled: !have, onclick: () => { p.equipSkin(hero, k); audio.sfx('accept', 0.5); showLocker(app, 'skins', hero); } },
-            skinPreview(hero, k, 64), h('b', {}, sk.name), h('small', {}, have ? (cur === k ? 'Equipped' : 'Equip') : `Pass Lv ${lvl ? lvl[0] : '?'}`));
-        })),
-        h('small', { class: 'muted' }, 'Skins show on your heroes in every match. Online, your opponent sees them too.')));
-  } else if (tab === 'banners') {
+  if (tab === 'banners') {
     body = h('div', { class: 'cardgrid' }, ...Object.entries(BANNERS).map(([k, b]) => {
       const have = un.banners.includes(k);
-      return h('button', { class: 'bannercard' + (p.d.equip.banner === k ? ' on' : '') + (have ? '' : ' locked'), disabled: !have, style: { background: b.bg }, onclick: () => { p.equip('banner', k); showLocker(app, 'banners'); } },
+      return h('button', { class: 'bannercard' + (p.d.equip.banner === k ? ' on' : '') + (have ? '' : ' locked'), disabled: !have, style: { background: b.bg }, onclick: () => { p.equip('banner', k); showProfile(app, 'banners'); } },
         h('b', {}, b.name), h('small', {}, have ? (p.d.equip.banner === k ? 'Equipped' : 'Equip') : lockText('banner', k)));
     }));
   } else if (tab === 'titles') {
     body = h('div', { class: 'col' }, ...Object.entries(TITLES).map(([k, t]) => {
       const have = un.titles.includes(k);
-      return h('button', { class: 'titlerow' + (p.d.equip.title === k ? ' on' : '') + (have ? '' : ' locked'), disabled: !have, onclick: () => { p.equip('title', k); showLocker(app, 'titles'); } },
+      return h('button', { class: 'titlerow' + (p.d.equip.title === k ? ' on' : '') + (have ? '' : ' locked'), disabled: !have, onclick: () => { p.equip('title', k); showProfile(app, 'titles'); } },
         h('img', { src: item('items/Scroll') }), h('b', {}, t), h('small', {}, have ? (p.d.equip.title === k ? 'Equipped' : 'Equip') : lockText('title', k)));
     }));
   } else {
     body = p.d.borders.length ? h('div', { class: 'cardgrid' }, ...p.d.borders.map((b) => { const t = TIERS.find((x) => x.id === b.tier); return h('div', { class: 'bannercard', style: { borderColor: t.color } }, h('img', { src: item(t.icon) }), h('b', { style: { color: t.color } }, t.name), h('small', {}, `Season ${b.season}`)); }))
       : h('p', { class: 'muted center' }, 'Reach Samurai or higher this season to earn a border when it ends.');
   }
-  mount(screen(), h('div', { class: 'subscreen' }, h('div', { class: 'shead' }, back(app), h('h2', {}, 'Locker'), h('div')), tabs, body));
+  mount(screen(), h('div', { class: 'subscreen' }, h('div', { class: 'shead' }, back(app), h('h2', {}, 'Profile'), h('div')), tabs, body,
+    h('small', { class: 'muted center' }, 'Hero skins are equipped on each hero\'s page in the Dojo.')));
 }
 function lockText(kind, id) {
   const l = Object.entries(TRACK).find(([, r]) => (r.kind === kind && r.id === id) || (r.also && r.also.kind === kind && r.also.id === id));

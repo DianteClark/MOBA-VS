@@ -4,6 +4,7 @@
 import { seasonAt, rankOf, RP, RP_CAP, XP_PER_LEVEL, MAX_LEVEL, MATCH_XP, TRACK, SKINS, BANNERS, TITLES } from './data/seasons.js';
 import { HERO_BY_ID } from './data/heroes.js';
 import { queueCloudSave } from './net/online.js';
+import { loadPresets, sanitize } from './presets.js';
 
 const KEY = 'mobavs_profile_v1';
 const fresh = () => ({
@@ -23,6 +24,7 @@ export class Profile {
   constructor() {
     this.d = fresh();
     try { const raw = localStorage.getItem(KEY); if (raw) this.d = Object.assign(fresh(), JSON.parse(raw)); } catch { /* private mode: in-memory */ }
+    this.d.presets = loadPresets(this.d.presets);
     this.rollover();
   }
   // Saves locally and (when signed in) queues a cloud save of the whole profile.
@@ -32,7 +34,7 @@ export class Profile {
     if (!opts.local) { let name = 'Coach'; try { name = localStorage.getItem('mobavs_name') || 'Coach'; } catch { /* ignore */ } queueCloudSave(name, this.d, this.d.savedAt); }
   }
   // Replace the local profile with a cloud copy (sign-in on a new device, or a newer save elsewhere).
-  adopt(d) { this.d = Object.assign(fresh(), d); this.rollover(); this.save({ keepTime: true, local: true }); }
+  adopt(d) { this.d = Object.assign(fresh(), d); this.d.presets = loadPresets(this.d.presets); this.rollover(); this.save({ keepTime: true, local: true }); }
   get season() { return seasonAt(); }
   ss(id = this.season.id) { return this.d.seasons[id] || (this.d.seasons[id] = { rp: 0, peak: 0, xp: 0, w: 0, l: 0, claimed: [] }); }
   get rank() { return rankOf(this.ss().rp); }
@@ -107,6 +109,10 @@ export class Profile {
 
   equipSkin(heroId, skin) { if (skin === 'base') delete this.d.equip.skins[heroId]; else this.d.equip.skins[heroId] = skin; this.save(); }
   skinsFor(ids) { const o = {}; for (const id of ids) { const s = this.d.equip.skins[id]; if (s && SKINS[s] && this.d.unlocked.skins.includes(s)) o[id] = s; } return o; }
+  // Lineup presets (Dojo → Lineups).
+  get activePreset() { const p = this.d.presets; return p.active >= 0 ? p.slots[p.active] : null; }
+  savePreset(i, preset) { this.d.presets.slots[i] = sanitize(preset); this.save(); }
+  setActivePreset(i) { this.d.presets.active = i; this.save(); }
   get banner() { return BANNERS[this.d.equip.banner] || BANNERS.plain; }
   get title() { return TITLES[this.d.equip.title] || TITLES.rookie; }
   equip(kind, id) { this.d.equip[kind] = id; this.save(); }
