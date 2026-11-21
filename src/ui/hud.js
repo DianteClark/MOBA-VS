@@ -371,7 +371,7 @@ export class Hud {
     this.pop = { id: x.id, el, upd };
   }
   closePop() { if (this.pop) { this.pop.el.remove(); this.pop = null; } }
-  destroy() { this.closePop(); this.alerts.destroy(); window.removeEventListener('pointerdown', this._popClose, true); }
+  destroy() { this.closePop(); this.alerts.destroy(); clearTimeout(this._bt); document.getElementById('hud').classList.remove('bannering'); window.removeEventListener('pointerdown', this._popClose, true); }
   taskLabelEnemy(x) { return this.g.tick - x.lastHitHero < TICK_RATE * 1.5 ? 'Fighting!' : `Seen ${LANE_L[this.g.world.closestLane(x)]}`; }
   missingText(x) {
     const ls = this.g.lastSeen[this.view][x.id];
@@ -554,8 +554,13 @@ export class Hud {
   nextBanner() {
     clearTimeout(this._bt);
     const n = this.bq.shift();
-    if (!n) { this._bannerBusy = false; return; }
+    const hud = document.getElementById('hud');
+    if (!n) { this._bannerBusy = false; hud.classList.remove('bannering'); return; }
     this._bannerBusy = true;
+    // phones: the banner takes the ticker's slot right under the objective timers (CSS reads --banner-top)
+    const ob = this.el.obj.getBoundingClientRect();
+    if (ob.height) hud.style.setProperty('--banner-top', Math.round(ob.bottom + 3) + 'px');
+    hud.classList.add('bannering');
     const b = h('div', { class: 'big', style: { color: n.color } }, n.img ? h('img', { src: n.img }) : null, h('span', {}, n.text));
     mount(this.el.banner, b);
     const ms = this.bq.length ? Math.min(n.ms, 1300) : n.ms;

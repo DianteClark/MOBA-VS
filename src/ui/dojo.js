@@ -1,5 +1,5 @@
 // Dojo: browse the roster (hero pages with ratings, abilities, matchups, skins) and edit lineup presets.
-import { h, mount, face, icon, toast } from './dom.js';
+import { h, mount, face, icon, toast, emptyState } from './dom.js';
 import { HEROES, HERO_BY_ID, ROLES, ROLE_LABEL, PERSONALITIES } from '../data/heroes.js';
 import { CLANS } from '../sim/constants.js';
 import { BUILDS } from '../data/items.js';
@@ -49,7 +49,7 @@ function heroList(app) {
         h('img', { src: face(x.id) }), h('b', {}, x.name), h('small', {}, x.roles.map((q) => ROLE_LABEL[q]).join(' / ')),
         r ? h('span', { class: 'drec' }, `${r.w}-${r.g - r.w}`) : null, mine ? h('span', { class: 'mine', title: 'In your active lineup' }, '★') : null);
     })),
-    list.length ? null : h('p', { class: 'muted center' }, 'No heroes match these filters.'));
+    list.length ? null : emptyState('assets/img/emote/doubt.png', 'No heroes match', 'Try another role or clan filter.'));
 }
 
 // ───────────── hero page ─────────────

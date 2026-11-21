@@ -12,8 +12,10 @@ img { image-rendering: pixelated; }
 button { font-family: inherit; color: inherit; word-spacing: inherit; letter-spacing: inherit; }
 .hidden { display: none !important; }
 #bg { position: fixed; inset: 0; width: 100%; height: 100%; filter: saturate(0.9) brightness(0.5); }
-#screen { position: fixed; inset: 0; overflow-y: auto; padding: calc(12px + var(--safe-t)) 12px calc(12px + var(--safe-b)); display: flex; flex-direction: column; align-items: center; }
-#screen > * { animation: rise 0.35s ease-out; zoom: var(--ts); }
+#screen { position: fixed; inset: 0; overflow-y: auto; overflow-x: hidden; padding: calc(12px + var(--safe-t)) calc(12px + var(--safe-r)) calc(12px + var(--safe-b)) calc(12px + var(--safe-l)); display: flex; flex-direction: column; align-items: center; }
+#screen > * { animation: screenIn 0.26s cubic-bezier(.2, .8, .3, 1); zoom: var(--ts); }
+@keyframes screenIn { from { transform: translateY(8px); opacity: 0; } }
+.reduce-motion #screen > * { animation: fadeIn 0.18s; }
 @keyframes rise { from { transform: translateY(10px); opacity: 0; } }
 #fade { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; z-index: 40; transition: opacity 0.25s; }
 #fade.on { opacity: 1; }
@@ -289,8 +291,8 @@ h1, h2, h3 { margin: 0; font-weight: normal; }
 canvas.graph { width: 100%; height: 150px; background: #120f18; border: 2px solid var(--line); }
 .rbtns { display: flex; gap: 10px; justify-content: center; flex-wrap: nowrap; position: sticky; bottom: 0; padding: 8px 0 4px; background: linear-gradient(transparent, var(--bg) 40%); }
 
-.howto { max-width: 760px; font-size: 13px; line-height: 1.5; margin: auto; }
-.howto h3 { color: var(--gold); margin-top: 10px; }
+.howto { font-size: 12px; line-height: 1.45; } .howto p { margin: 4px 0; }
+.howto h3 { color: var(--gold); margin: 10px 0 2px; font-size: 14px; }
 .toast { position: fixed; left: 50%; bottom: 30%; transform: translateX(-50%); background: rgba(0,0,0,0.88); padding: 8px 14px; border: 2px solid var(--gold); z-index: 60; font-size: 13px; animation: rise 0.2s; }
 
 /* ───────────────────────── match HUD ───────────────────────── */
@@ -571,8 +573,6 @@ canvas.graph { width: 100%; height: 150px; background: #120f18; border: 2px soli
   #myteam .hrow .hpmini { display: block; }
   .tline { font-size: calc(9px * var(--ts)); padding: 1px 6px; }
   #rightcol { display: none; }
-  #rightcol.show { display: flex; left: 50%; right: auto; top: calc(72px + var(--safe-t)); transform: translateX(-50%); z-index: 5; width: 180px; }
-  #rightcol.show #killfeed { display: none; }
   #brcol { top: calc(6px + var(--safe-t)); bottom: auto; flex-direction: row-reverse; align-items: flex-start; }
   #mm { width: 124px; height: 124px; }
   #ctrl { flex-direction: row; align-items: flex-start; max-width: none; gap: 2px; flex-wrap: nowrap; }
@@ -647,7 +647,8 @@ canvas.graph { width: 100%; height: 150px; background: #120f18; border: 2px soli
 .mode .mh b { font-weight: normal; font-size: 17px; color: var(--gold); display: block; } .mode .mh small { color: var(--muted); font-size: 10px; }
 .mode .btn.big { width: 100%; font-size: 18px; }
 .mode.ranked { border-color: #8a6a3a; } .mode.cupm { border-color: #b48cff; } .mode.online { border-color: #4a7aa0; }
-.seg3 { display: flex; gap: 4px; } .seg3 .chip { flex: 1; }
+.seg3 { display: flex; gap: 4px; } .seg3 .chip { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lplan .seg3 .chip { padding: 4px 6px; }
 .maprow { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
 .mapchip { cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; background: #1e1928; border: 2px solid var(--line); color: var(--ink); font-size: 9px; padding: 3px; }
 .mapchip canvas, .mapchip .q { width: 100%; aspect-ratio: 1; display: grid; place-items: center; color: var(--gold); font-size: 20px; background: #120f18; image-rendering: pixelated; }
@@ -657,6 +658,7 @@ canvas.graph { width: 100%; height: 150px; background: #120f18; border: 2px soli
 .chip.on { border-color: var(--gold); color: var(--gold); background: #3a2d18; }
 .chip.new { border-color: var(--green); position: relative; } .chip.new::after { content: 'NEW'; position: absolute; top: -8px; right: -6px; font-size: 8px; background: var(--green); color: #000; padding: 0 3px; }
 .subnav { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+.subnav .ls { display: none; } .subnav .chip.gear .ls:empty { display: none; }
 .note { font-size: 12px; text-align: center; color: var(--gold); }
 .center { text-align: center; align-items: center; }
 
@@ -782,9 +784,9 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 20px; border-radius: 
 .tog i { position: absolute; left: 3px; top: 3px; width: 18px; height: 18px; background: #6a5a7a; transition: transform 0.15s cubic-bezier(.2,1.5,.4,1), background 0.15s; }
 .tog.on { background: #2c4a2a; border-color: var(--green); } .tog.on i { transform: translateX(26px); background: var(--green); }
 .swatches { display: flex; gap: 3px; } .swatches i { width: 14px; height: 14px; border: 2px solid #000; display: inline-block; }
-.modal { position: fixed; inset: 0; z-index: 45; background: rgba(6, 4, 10, 0.72); display: grid; place-items: center; padding: 10px; animation: fadeIn 0.15s; overflow-y: auto; }
+.modal { position: fixed; inset: 0; z-index: 45; background: rgba(6, 4, 10, 0.72); display: flex; padding: 10px; animation: fadeIn 0.15s; overflow-y: auto; }
 @keyframes fadeIn { from { opacity: 0; } }
-.mpanel { width: min(560px, 100%); max-height: calc(100vh - 20px); overflow-y: auto; animation: popIn 0.2s cubic-bezier(.2,1.4,.4,1); }
+.mpanel { width: min(560px, 100%); max-height: 100%; overflow-y: auto; animation: popIn 0.2s cubic-bezier(.2,1.4,.4,1); }
 .mhead { display: flex; align-items: center; gap: 10px; font-size: 18px; color: var(--gold); margin-bottom: 4px; }
 .mhead b { font-weight: normal; flex: 1; } .mhead small { font-size: 11px; }
 .mhead .x { background: none; border: 2px solid #665; color: var(--ink); cursor: pointer; width: 34px; height: 30px; font-size: 13px; }
@@ -802,7 +804,7 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 20px; border-radius: 
 /* ── draft / prep / results: medium & small screens ── */
 @media (max-width: 1100px) { .draft { --side: 290px; --slot: 46px; } }
 @media (max-width: 760px) {
-  #screen { padding-left: 8px; padding-right: 8px; }
+  #screen { padding-left: calc(8px + var(--safe-l)); padding-right: calc(8px + var(--safe-r)); }
   .prep-cards { grid-template-columns: 1fr; }
   .plans { grid-template-columns: 1fr; } .plan { min-height: 44px; }
   .deck { grid-template-columns: 1fr 1fr; } .card .cd { display: none; } .card { min-height: 44px; }
@@ -938,12 +940,16 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 20px; border-radius: 
 /* ───────── ult call + halftime ───────── */
 .ultbtn { flex: 0 0 auto; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-width: 62px; padding: 3px 6px;
   background: linear-gradient(#3a2440, #22162a); border: 2px solid #8a5aa0; border-bottom-width: 4px; color: #f0e0ff; font-size: 9px; transition: filter 0.12s, transform 0.07s; }
-.ultbtn img { width: 18px; height: 18px; } .ultbtn b { font-weight: normal; font-size: 11px; }
+.ultbtn img { width: 18px; height: 18px; } .ultbtn b { font-weight: normal; font-size: 11px; white-space: nowrap; }
+/* stance indicator: which of Auto / Hold / ALL-IN is active (tap cycles) */
+.ultbtn .ust { display: flex; gap: 3px; } .ultbtn .ust i { width: 5px; height: 5px; background: #ffffff30; transform: rotate(45deg); }
+.ultbtn .ust i.on { background: currentColor; box-shadow: 0 0 4px currentColor; }
+.ultbtn.save .ust i.on { color: #9cc0ff; } .ultbtn.go .ust i.on { color: #ffb08a; }
 .ultbtn:hover { filter: brightness(1.2); } .ultbtn:active { transform: translateY(1px); }
 .ultbtn.save { border-color: #6aa0ff; background: linear-gradient(#1e2a48, #141a2c); }
 .ultbtn.go { border-color: #ff6a3a; background: linear-gradient(#5a2010, #2a1008); animation: hot 0.8s ease-in-out infinite; }
-#halftime { position: absolute; inset: 0; z-index: 20; display: grid; place-items: center; background: rgba(8, 6, 12, 0.72); pointer-events: auto; animation: rise 0.25s; padding: 10px; overflow-y: auto; }
-.ht-card { width: min(640px, 100%); background: rgba(20, 15, 28, 0.97); border: 2px solid var(--gold); box-shadow: 0 6px 0 #000a; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+#halftime { position: absolute; inset: 0; z-index: 20; display: flex; flex-direction: column; background: rgba(8, 6, 12, 0.72); pointer-events: auto; animation: rise 0.25s; padding: 10px; overflow-y: auto; }
+.ht-card { margin: auto; width: min(640px, 100%); background: rgba(20, 15, 28, 0.97); border: 2px solid var(--gold); box-shadow: 0 6px 0 #000a; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
 .ht-score { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; text-align: center; gap: 10px; }
 .ht-score > div { display: flex; flex-direction: column; } .ht-score b { font-size: 30px; font-weight: normal; } .ht-score small, .ht-score span { font-size: 10px; color: var(--muted); }
 .ht-score .blue b { color: var(--blue); } .ht-score .red b { color: var(--red); }
@@ -1102,9 +1108,11 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 20px; border-radius: 
   .home .maprow { grid-template-columns: repeat(5, 1fr); } .home .mapchip canvas, .home .mapchip .q { display: none; } .home .mapchip { padding: 4px 2px; min-height: 28px; justify-content: center; }
   .home .seg3 .chip { min-height: 28px; padding: 2px 4px; font-size: 11px; }
   .home .cupnow { font-size: 11px; } .home .cupnow img { width: 16px; height: 20px; }
+  .home .mode.online .col { flex-direction: column !important; gap: 5px !important; } .home .mode .btn { white-space: nowrap; }
   .home > .hometiles { grid-column: 1 / -1; grid-template-columns: 1fr 1fr; }
-  .home > .subnav { grid-column: 1 / -1; flex-wrap: nowrap; overflow-x: auto; justify-content: flex-start; scrollbar-width: none; }
-  .home > .subnav .chip { flex: 0 0 auto; min-height: 32px; padding: 4px 10px; }
+  .home > .subnav { grid-column: 1 / -1; flex-wrap: nowrap; justify-content: stretch; }
+  .home > .subnav .chip { flex: 1 1 auto; min-width: 0; min-height: 32px; padding: 4px 6px; white-space: nowrap; }
+  .home > .subnav .lf { display: none; } .home > .subnav .ls { display: inline; }
   .home > .credits, .home > .note { grid-column: 1 / -1; }
   .home > .credits:last-child { display: none; }
 }
@@ -1134,3 +1142,54 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 20px; border-radius: 
   .potg-l b { font-size: 15px; } .potg-f { width: 38px; height: 38px; }
   .grade > b { font-size: 20px; width: 20px; } .grade span { font-size: 10px; } .grade small { font-size: 8px; }
 }
+
+/* ═════════ v20: reserved HUD zones on phones (no overlaps at any iPhone size, notch-safe) ═════════ */
+#scoreboard, #halftime, .modal { padding: calc(8px + var(--safe-t)) calc(8px + var(--safe-r)) calc(8px + var(--safe-b)) calc(8px + var(--safe-l)); }
+#scoreboard { display: flex; } .sbcard, .modal > * { margin: auto; }
+@media (max-width: 999px), (max-height: 599px) {
+  /* the command column owns the band below the minimap: it can never climb into the top HUD,
+     a tall target sheet scrolls inside it instead */
+  #cmdbar { top: calc(134px + var(--safe-t)); justify-content: flex-end; }
+  #cmdbar > * { flex: 0 0 auto; }
+  #cmdbar > .sheet { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
+  /* banners take the ticker's slot under the objective timers (placed by Hud.nextBanner) */
+  #banner { top: var(--banner-top, calc(96px + var(--safe-t))); }
+  #hud.bannering #ticker { visibility: hidden; }
+  /* an open target picker is the one thing to read: the cancel pill and ticker step aside */
+  #hud.sheeting .cancelpill { display: none; } #hud.sheeting #ticker { visibility: hidden; }
+  #banner .big { font-size: 20px; padding: 3px 22px; gap: 8px; } #banner .big img { width: 26px; height: 26px; }
+  /* halftime: two columns (plan + card swap | builds) so it fits a landscape phone without scrolling */
+  .ht-card { width: min(760px, 100%); display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px 12px; padding: 8px 10px; }
+  .ht-card > .ht-score, .ht-card > p { grid-column: 1 / -1; }
+  .ht-card > .ht-sec:nth-child(4) { grid-column: 2; grid-row: 2 / span 3; }
+  .ht-card > .btn.big { min-height: 40px; font-size: 16px; padding: 4px 16px; }
+  .ht-score b { font-size: 20px !important; } .ht-clock small { font-size: 11px !important; }
+  .ht-row .tile { min-height: 38px; padding: 2px 5px; } .ht-row .tile b { font-size: 11px; } .ht-row .tile small { font-size: 8px; }
+  .ht-row .tcard { flex: 0 0 auto; min-height: 36px; padding: 2px 6px 2px 3px; } .ht-row .tcard img { width: 22px; height: 22px; flex-basis: 22px; }
+  .ht-row .tcard small { display: none; }
+  .ht-builds { gap: 3px; } .ht-hero img { width: 24px; height: 24px; } .ht-hero .chip { min-height: 26px; padding: 2px 6px; font-size: 10px; }
+}
+@media (max-height: 500px) { #cmdbar { top: calc(118px + var(--safe-t)); } }
+/* Safari with toolbars on the smaller iPhones: a slimmer team column so it clears the home indicator */
+@media (max-height: 360px) {
+  #mm { width: 84px !important; height: 84px !important; }
+  #cmdbar { top: calc(94px + var(--safe-t)); }
+  #myteam { gap: 2px; }
+  #myteam .hrow { grid-template-columns: 31px; padding: 1px; }
+  #myteam .hrow .pf { width: 31px; height: 31px; }
+  #foestrip .foe { width: 27px !important; height: 27px !important; }
+  .ht-score small, .ht-score span { display: none; }
+}
+
+/* ═════════ v20: menu polish ═════════ */
+/* press feedback everywhere you can tap */
+.tile:active:not(:disabled), .tcard:active:not(:disabled), .sstrip:active, .hrow2:active, .mode .btn:active:not(:disabled) { transform: scale(0.97); }
+.btn:focus-visible, .chip:focus-visible, .tile:focus-visible, .call:focus-visible, .tcard:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+/* locked cosmetics read as locked (dimmed but solid), not as see-through glitches */
+.skinopt.locked, .bannercard.locked, .titlerow.locked { opacity: 1; filter: grayscale(0.85) brightness(0.55); }
+.bannercard.locked small, .titlerow.locked small { color: var(--gold); filter: brightness(1.8); }
+/* empty states: an icon, one line and the next step */
+.empty-state { margin: 14px auto; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; padding: 16px 20px; max-width: 460px;
+  background: rgba(24, 19, 32, 0.9); border: 2px dashed var(--line); }
+.empty-state img { width: 40px; height: 40px; image-rendering: pixelated; opacity: 0.9; }
+.empty-state b { font-weight: normal; font-size: 15px; color: var(--gold); } .empty-state p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.4; }

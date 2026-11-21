@@ -64,7 +64,7 @@ export class Dock {
       b._id = c.id; return b;
     });
     mount(el, this.trayEl, this.sheetEl, this.cancelEl,
-      h('div', { class: 'dock' }, h('div', { class: 'handrow' }, this.meterEl, h('div', { class: 'hand' }, this.cards), this.ultBtn = h('button', { class: 'ultbtn', title: 'Ultimates: let heroes choose → Hold them → All-in now [U]', onclick: () => this.cycleUlt() }, h('img', { src: icon('Death') }), h('span', { class: 'ul' }, 'Ults'), h('b', {}, 'Auto'))),
+      h('div', { class: 'dock' }, h('div', { class: 'handrow' }, this.meterEl, h('div', { class: 'hand' }, this.cards), this.ultBtn = h('button', { class: 'ultbtn', title: 'Ult stance: Auto (heroes choose) → Hold → ALL-IN now [U]', onclick: () => this.cycleUlt() }, h('img', { src: icon('Death') }), h('span', { class: 'ul' }, 'Ults'), h('span', { class: 'ust' }, h('i'), h('i'), h('i')), h('b', {}, 'Auto'))),
         h('div', { class: 'callrow' }, this.callBtns)));
     this.tick();
   }
@@ -87,7 +87,10 @@ export class Dock {
     }
     for (const b of this.cards) { b.disabled = b._d.used; b.classList.toggle('used', b._d.used); b.classList.toggle('on', this.sheetId === 'card:' + b._d.id); }
     const um = team.ultMode && team.ultMode.until > g.tick ? team.ultMode.mode : 'auto';
-    if (this.ultBtn._m !== um) { this.ultBtn._m = um; this.ultBtn.lastChild.textContent = { auto: 'Auto', save: 'Hold', go: 'ALL-IN' }[um]; this.ultBtn.className = 'ultbtn ' + um; }
+    if (this.ultBtn._m !== um) {
+      this.ultBtn._m = um; this.ultBtn.lastChild.textContent = { auto: 'Auto', save: 'Hold', go: 'ALL-IN' }[um]; this.ultBtn.className = 'ultbtn ' + um;
+      [...this.ultBtn.querySelector('.ust').children].forEach((d, i) => d.classList.toggle('on', i === ['auto', 'save', 'go'].indexOf(um)));
+    }
     const active = this.alive().some((x) => (x.task && x.task.call) || x.pendingCall) || (team.focus && team.focus.until > g.tick);
     this.cancelEl.classList.toggle('hidden', !active);
     for (const f of this.live) f();

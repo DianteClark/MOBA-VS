@@ -1,6 +1,6 @@
 // Online screens: global ladder, account (recovery code / sign in), shared-match links,
 // and the post-match ladder result panel.
-import { h, mount, toast } from './dom.js';
+import { h, mount, toast, emptyState } from './dom.js';
 import { HERO_BY_ID } from '../data/heroes.js';
 import { profile } from '../profile.js';
 import { online, ping, getAccount, recover, leaderboard, getShare, ensureAccount } from '../net/online.js';
@@ -18,7 +18,7 @@ export async function showLeaderboard(app) {
     h('div', { class: 'shead' }, back(app), h('div', {}, h('small', {}, `SEASON ${season.id} · ONLINE LADDER`), h('h2', {}, 'Leaderboard')), h('div')),
     h('p', { class: 'muted center small' }, 'Only verified online matches count: both players’ games must agree on the result.'),
     body, accountPanel(app)));
-  if (!(await ping())) { mount(body, h('p', { class: 'muted center' }, 'The ladder is offline right now. Your matches still count locally.')); return; }
+  if (!(await ping())) { mount(body, emptyState('assets/img/icons/Vision.png', 'Ladder offline', 'The online ladder can\'t be reached right now. Your matches still count on this device.')); return; }
   try {
     if (!getAccount()) await ensureAccount(app.name);
     const lb = await leaderboard(season.id);
@@ -28,8 +28,8 @@ export async function showLeaderboard(app) {
     mount(body,
       lb.me ? h('div', { class: 'lbme' }, h('span', {}, 'You'), h('b', {}, `#${lb.me.rank}`), h('span', {}, `${lb.me.rating} rating`), h('small', {}, `${lb.me.wins}W ${lb.me.losses}L · peak ${lb.me.peak}`)) : h('div', { class: 'lbme muted' }, 'Win an online match to join the ladder.'),
       lb.top.length ? h('div', { class: 'lblist' }, h('div', { class: 'lbr head' }, h('b', { class: 'lbrank' }, 'Rank'), h('span', { class: 'lbname' }, 'Coach'), h('span', { class: 'lbrat' }, 'Rating'), h('small', {}, 'Record')), ...lb.top.map(row))
-        : h('p', { class: 'muted center' }, 'No verified matches yet this season. Be the first: Host a match and send your friend the link.'));
-  } catch (e) { mount(body, h('p', { class: 'muted center' }, `Could not load the ladder (${e.message}).`)); }
+        : emptyState('assets/img/items/GoldCup.png', 'No ranked matches yet', 'Be the first this season: Find Match, or Host and send a friend the link.'));
+  } catch (e) { mount(body, emptyState('assets/img/icons/Vision.png', 'Could not load the ladder', String(e.message || e))); }
 }
 
 // ── Account: recovery code + sign in on another device ──

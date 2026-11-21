@@ -60,8 +60,8 @@ export function startParade() { const old = document.querySelector('.parade'); i
 export function stopParade() { cancelAnimationFrame(paradeRAF); const old = document.querySelector('.parade'); if (old) old.remove(); }
 
 export function showHowTo(app) {
-  mount(screen(), h('div', { class: 'panel howto', style: { margin: 'auto' } },
-    h('h2', { class: 'gold' }, 'How to play'),
+  mount(screen(), h('div', { class: 'subscreen' }, h('div', { class: 'shead' }, h('button', { class: 'btn backbtn', onclick: () => app.menu() }, '‹ Back'), h('h2', {}, 'How to Play'), h('div')),
+    h('div', { class: 'panel howto' },
     h('p', {}, 'You are the coach. Your five heroes play on their own: they farm, trade, fight and retreat. They only know what your team can see. You win by making the calls.'),
     h('h3', {}, '1. Draft'), h('p', {}, 'Ban and pick in turns: Top, Jungle, Mid, Bot and Support. Green numbers show counters; matching clans give team bonuses.'),
     h('h3', {}, '2. Prep'), h('p', {}, 'Pick each hero\'s build path and choose 3 tactic cards for your hand.'),
@@ -71,8 +71,7 @@ export function showHowTo(app) {
     h('p', {}, 'Arrows on the screen edge point at fights, towers under attack and contested objectives: tap one to jump there. Sound, colour-blind colours, text size and motion live in Settings.'),
     h('h3', {}, 'Winning'), h('p', {}, 'Destroy the enemy Shrine Crystal, or have more towers standing when the 15:00 clock runs out.'),
     h('h3', {}, 'Controls'), h('p', {}, 'Drag to pan, scroll or pinch to zoom, tap the minimap to jump. Keys: G O R K X B for calls, Q E T for cards, C to cancel, 1-5 follow heroes, Space for the director camera.'),
-    h('button', { class: 'btn', onclick: () => app.menu() }, 'Back'),
-  ));
+  )));
 }
 
 export function showLobby(app, { code, status, joining, onJoin, onCancel }) {

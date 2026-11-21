@@ -1,5 +1,5 @@
 // Front end: home, season pass, profile (banners/titles/borders), Season Cup bracket, patch notes, and post-match progression.
-import { h, mount, face } from './dom.js';
+import { h, mount, face, emptyState } from './dom.js';
 import { HERO_BY_ID } from '../data/heroes.js';
 import { MAPS, MAP_BY_ID } from '../maps/defs.js';
 import { CLANS } from '../sim/constants.js';
@@ -27,6 +27,8 @@ function bar(frac, color) { return h('div', { class: 'pbar' }, h('i', { style: {
 function back(app) { return h('button', { class: 'btn backbtn', onclick: () => { audio.sfx('move', 0.5); app.menu(); } }, '‹ Back'); }
 
 // ───────────── home ─────────────
+// Label with a short form for the one-row nav on landscape phones (CSS picks one).
+const lbl = (full, short) => [h('span', { class: 'lf' }, full), h('span', { class: 'ls' }, short)];
 export function showHome(app) {
   const p = profile, s = p.season, ss = p.ss(), rk = p.rank;
   const nextTxt = rk.next ? `${ss.rp} RP · ${rk.next.min - ss.rp} to ${rk.next.name}` : `${ss.rp} RP · top tier`;
@@ -77,15 +79,15 @@ export function showHome(app) {
       h('button', { class: 'htile proft', style: { background: p.banner.bg }, onclick: () => { audio.sfx('move', 0.5); showProfile(app); } },
         rankBadge(rk), h('div', { class: 'ht' }, h('b', {}, 'Profile'), h('small', {}, 'Banners, titles and borders'), h('span', { class: 'hsub' }, p.title)))),
     h('div', { class: 'subnav' },
-      h('button', { class: 'chip', onclick: () => app.watch() }, 'Watch AI'),
-      app.lastReplay() ? h('button', { class: 'chip', onclick: () => app.watchReplay() }, 'Last Replay') : null,
-      (document.fullscreenEnabled || document.webkitFullscreenEnabled) ? h('button', { class: 'chip', onclick: () => window.toggleFullscreen() }, 'Full Screen') : null,
+      h('button', { class: 'chip', onclick: () => app.watch() }, lbl('Watch AI', 'Watch')),
+      app.lastReplay() ? h('button', { class: 'chip', onclick: () => app.watchReplay() }, lbl('Last Replay', 'Replay')) : null,
+      (document.fullscreenEnabled || document.webkitFullscreenEnabled) ? h('button', { class: 'chip', onclick: () => window.toggleFullscreen() }, lbl('Full Screen', 'Full')) : null,
       h('button', { class: 'chip', onclick: () => showLeaderboard(app) }, 'Ladder'),
       h('button', { class: 'chip', onclick: () => showHistory(app) }, 'History'),
-      h('button', { class: 'chip', onclick: () => showSeason(app) }, 'Season Pass'),
-      h('button', { class: 'chip' + (unseen ? ' new' : ''), onclick: () => showPatch(app) }, 'Patch Notes'),
-      h('button', { class: 'chip', onclick: () => showHowTo(app) }, 'How to Play'),
-      h('button', { class: 'chip gear', onclick: () => { audio.sfx('move', 0.5); showSettings(app); } }, h('img', { src: 'assets/img/icons/Permutation.png' }), 'Settings')),
+      h('button', { class: 'chip', onclick: () => showSeason(app) }, lbl('Season Pass', 'Pass')),
+      h('button', { class: 'chip' + (unseen ? ' new' : ''), onclick: () => showPatch(app) }, lbl('Patch Notes', 'Patch')),
+      h('button', { class: 'chip', onclick: () => showHowTo(app) }, lbl('How to Play', 'Help')),
+      h('button', { class: 'chip gear', title: 'Settings', onclick: () => { audio.sfx('move', 0.5); showSettings(app); } }, h('img', { src: 'assets/img/icons/Permutation.png', alt: '' }), lbl('Settings', ''))),
     p.newSeasonNote ? h('div', { class: 'panel note' }, `Season ${p.newSeasonNote.from} is over. You peaked at ${p.newSeasonNote.peak}. Your rank was soft-reset; your border is in your Profile.`) : null,
     h('div', { class: 'credits' }, `MOBA-VS v${PATCHES[0].version}`),
     h('div', { class: 'credits' }, 'Art & audio: ', h('a', { href: 'https://pixel-boy.itch.io/ninja-adventure-asset-pack', target: '_blank' }, 'Ninja Adventure'), ' by Pixel-boy & AAA (CC0)'),
@@ -142,7 +144,7 @@ export function showProfile(app, tab = 'banners') {
     }));
   } else {
     body = p.d.borders.length ? h('div', { class: 'cardgrid' }, ...p.d.borders.map((b) => { const t = TIERS.find((x) => x.id === b.tier); return h('div', { class: 'bannercard', style: { borderColor: t.color } }, h('img', { src: item(t.icon) }), h('b', { style: { color: t.color } }, t.name), h('small', {}, `Season ${b.season}`)); }))
-      : h('p', { class: 'muted center' }, 'Reach Samurai or higher this season to earn a border when it ends.');
+      : emptyState('assets/img/items/SilverCup.png', 'No borders yet', 'Reach Samurai or higher this season to earn a border when it ends.');
   }
   mount(screen(), h('div', { class: 'subscreen' }, h('div', { class: 'shead' }, back(app), h('h2', {}, 'Profile'), h('div')), tabs, body,
     h('small', { class: 'muted center' }, 'Hero skins are equipped on each hero\'s page in the Dojo.')));
@@ -228,7 +230,7 @@ export function showHistory(app, open = 0) {
       h('div', { class: 'row', style: { justifyContent: 'center' } }, h('button', { class: 'btn big', onclick: () => shareMatch(m, coach, app.lastReplay()) }, 'Share card')));
   };
   mount(screen(), h('div', { class: 'subscreen' }, h('div', { class: 'shead' }, back(app), h('h2', {}, 'Match History'), h('div')),
-    !list.length ? h('p', { class: 'muted center' }, 'Play a match and it will show up here.')
+    !list.length ? emptyState('assets/img/emote/think.png', 'No matches yet', 'Every match you coach lands here with its picks, K/D/A and a share card.', { label: 'Play vs AI', onclick: () => app.startVsAI() })
       : h('div', { class: 'hist' }, ...list.map((m, i) => h('div', { class: 'hentry' + (m.won ? ' win' : ' loss') + (i === open ? ' open' : '') },
         h('button', { class: 'hrow2', onclick: () => showHistory(app, i === open ? -1 : i) },
           h('b', { class: 'res' }, m.won ? 'WIN' : 'LOSS'),
