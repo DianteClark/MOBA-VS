@@ -9,10 +9,10 @@
 // caster is matched from what was in flight just before the tick (`snapshot`). Nothing here touches sim state.
 import { IMG, PROJ, silhouette } from './assets.js';
 import { TEAM_COL, rgba } from './palette.js';
-import { P_SQUARE, P_SPARK, P_DEBRIS, P_RING, P_PUFF, P_BEAM, P_BOLT, P_STREAK, P_LEAF, P_GLOW, glowSprite } from './particles.js';
+import { P_SQUARE, P_SPARK, P_DEBRIS, P_BEAM, P_BOLT, P_STREAK, P_LEAF, P_GLOW, glowSprite } from './particles.js';
 import { DT } from '../sim/constants.js';
 
-export const ELEM = {
+const ELEM = {
   fire: ['#fff1a8', '#ff8a2a', '#b8321e'],
   frost: ['#ffffff', '#9fe8ff', '#3d8fd6'],
   water: ['#e6fbff', '#4fc3f7', '#1f5fa8'],
@@ -31,7 +31,7 @@ const ELEM_OF = {
   circular: 'blade', p_shuriken: 'blade', p_kunai: 'blade', p_bigkunai: 'blade', p_arrow: 'blade',
   shield: 'guard', shield_yellow: 'guard', boost: 'guard', aura: 'guard', circle: 'guard', impact: 'guard',
 };
-export const elemOf = (name) => ELEM_OF[name] || 'guard';
+const elemOf = (name) => ELEM_OF[name] || 'guard';
 // Pack-sprite families: a hero picks one member per ability (stable hash of hero id + slot).
 const VARIANTS = {
   cut: ['cut', 'cut_double', 'multi'], slash: ['slash', 'slash_curved', 'crescent', 'arc'], cutx: ['cutx', 'multi', 'cut_double'],
