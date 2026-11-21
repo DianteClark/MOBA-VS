@@ -69,7 +69,7 @@ export function planRisk(g, h) {
   const plan = g.teams[h.team].plan, m = g.gameMinute;
   switch (plan) {
     case 'aggro': return m < EARLY ? 0.88 : m < SPIKE + 1 ? 0.95 : 0.98;
-    case 'scale': return m < EARLY + 1 ? 1.15 : m < SPIKE + 1 ? 0.98 : 0.88;
+    case 'scale': return m < EARLY + 1 ? 1.15 : m < SPIKE + 1 ? 1 : 0.9;
     case 'objective': {
       // brave around a live (or waking) objective, normal elsewhere
       const pits = g.world.pits;
@@ -80,10 +80,10 @@ export function planRisk(g, h) {
       }
       return 1;
     }
-    case 'split': return splitterOf(g, h) ? 1.08 : 1;
+    case 'split': return splitterOf(g, h) ? 1.1 : 1;
     case 'protect': {
       const c = planCarry(g, h.team); if (!c) return 1;
-      if (c === h) return 1.12; // the carry stays safe
+      if (c === h) return 1.05; // the carry stays safe
       return c.alive && (c.x - h.x) ** 2 + (c.y - h.y) ** 2 < 650 * 650 ? 0.9 : 1.04;
     }
     default: return 1;
