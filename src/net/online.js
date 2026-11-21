@@ -1,4 +1,4 @@
-// Online services client: account, cloud save, ladder reports, leaderboards, share links, friends and invites.
+// Online services client: account, cloud save, ladder reports, leaderboards, share links, friends, invites and Weekend Cups.
 // Everything degrades gracefully: if the API is unreachable the game keeps working offline.
 const WORKER = 'https://moba-vs.chesscomplex.workers.dev';
 // Same-origin when served by the Worker; the GitHub Pages mirror talks to the Worker cross-origin.
@@ -82,3 +82,11 @@ export async function getInvite(id) { return call(`/api/invite/${encodeURICompon
 export async function respondInvite(id, accept) { return call('/api/invite/respond', { method: 'POST', auth: true, body: { id, accept } }); }
 export async function cancelInvites(room) { if (!account) return; try { await call('/api/invite/cancel', { method: 'POST', auth: true, body: { room } }); } catch { /* best effort */ } }
 export const inviteUrl = (id) => `${API || loc.origin}/i/${id}`;
+
+// ── Weekend Cups (worker/cups.js) ──
+// State of your cup (or the open sign-up list for your version); polling it also keeps your sign-up alive.
+export async function cupState(version) { return call(`/api/cup?v=${version | 0}`, { auth: true }); }
+export async function cupJoin(version) { return call('/api/cup/join', { method: 'POST', auth: true, body: { version } }); }
+export async function cupLeave() { try { await call('/api/cup/leave', { method: 'POST', auth: true, body: {} }); } catch { /* best effort */ } }
+export async function cupReady(cup) { return call('/api/cup/ready', { method: 'POST', auth: true, body: { cup } }); }
+export async function cupHistory() { return call('/api/cup/history', { auth: true }); }

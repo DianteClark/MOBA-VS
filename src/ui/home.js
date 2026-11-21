@@ -18,6 +18,7 @@ import { mapThumb, showHowTo } from './screens.js';
 import { audio } from '../audio.js';
 import { shareMatch } from './share.js';
 import { showLeaderboard } from './online.js';
+import { cupTabs } from './cups.js';
 import { showSettings } from './settings.js';
 import { careerTab } from './career.js';
 import { showAnalysis } from './analytics.js';
@@ -178,7 +179,7 @@ export function showCup(app) {
   let cup = p.d.cup && p.d.cup.season === p.season.id ? p.d.cup : null;
   const start = () => { app.newCup(); showCup(app); };
   if (!cup) {
-    mount(screen(), h('div', { class: 'subscreen' }, h('div', { class: 'shead' }, back(app), h('h2', {}, 'Season Cup'), h('div')),
+    mount(screen(), h('div', { class: 'subscreen' }, h('div', { class: 'shead' }, back(app), h('h2', {}, 'Season Cup'), h('div')), cupTabs(app, 'season'),
       h('div', { class: 'panel center col' }, h('img', { class: 'bigcup', src: item('items/GoldCup') }),
         h('p', {}, 'Eight teams. Three knockout rounds. The AI gets tougher every round, and the Grand Final is played on this season\'s featured map.'),
         h('p', { class: 'muted' }, 'Champion: Golden Cup trophy, the "Cup Champion" title and the Golden Cup banner. Finalist: Silver Cup. Every Cup match also earns +50 pass XP and counts for your rank.'),
@@ -196,7 +197,7 @@ export function showCup(app) {
     return h('div', { class: 'bcol' }, h('div', { class: 'bround' }, ROUND_NAMES[r]), ...ms.map((m) => h('div', { class: 'bmatch' }, team(m.a, m), team(m.b, m))));
   });
   const champ = cup.done ? (cup.rounds[2] && cup.rounds[2][0].w !== null ? cup.teams[cup.rounds[2][0].w] : null) : null;
-  mount(screen(), h('div', { class: 'subscreen' }, h('div', { class: 'shead' }, back(app), h('h2', {}, `Season ${cup.season} Cup`), h('div')),
+  mount(screen(), h('div', { class: 'subscreen' }, h('div', { class: 'shead' }, back(app), h('h2', {}, `Season ${cup.season} Cup`), h('div')), cupTabs(app, 'season'),
     h('div', { class: 'bracket' }, cols, h('div', { class: 'bcol champ' }, h('div', { class: 'bround' }, 'Champion'), h('div', { class: 'bmatch' }, champ ? h('div', { class: 'bteam win' + (champ.you ? ' you' : '') }, h('img', { src: item('items/GoldCup') }), h('span', {}, champ.name)) : h('div', { class: 'bteam tbd' }, h('img', { src: item('items/GoldCup') }), '?')))),
     mm ? h('div', { class: 'panel center col' }, h('b', {}, `${ROUND_NAMES[mm.round]}: you vs ${mm.opp.name}`), h('small', { class: 'muted' }, `${DIFF[mm.opp.lvl]} AI · ${mm.round === 2 ? MAP_BY_ID[p.season.map].name : 'random map'}`), h('button', { class: 'btn big', onclick: () => app.startCupMatch() }, 'Play match'))
       : h('div', { class: 'panel center col' }, h('b', {}, cup.result === 'champion' ? 'You won the Cup!' : cup.result === 'runner-up' ? 'Finalist: Silver Cup earned.' : 'Knocked out. Next time.'), h('button', { class: 'btn big', onclick: start }, 'New Cup')),
