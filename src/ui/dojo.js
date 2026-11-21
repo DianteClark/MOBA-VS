@@ -87,7 +87,7 @@ function heroPage(app, id) {
       h('div', { class: 'stage' }, h('button', { class: 'navb', title: 'Previous hero', onclick: () => showDojo(app, { hero: step(-1) }) }, '‹'), sprite,
         h('button', { class: 'navb', title: 'Next hero', onclick: () => showDojo(app, { hero: step(1) }) }, '›')),
       animBtns,
-      h('button', { class: 'chip dskinbtn', title: 'Preview and equip this hero\'s skins', onclick: () => viewer(equipped) }, `Skins · ${heroSkinKeys(id).filter((k) => profile.hasSkin(id, k)).length} owned`),
+      h('button', { class: 'chip dskinbtn', title: 'Preview and equip this hero\'s skins', onclick: () => viewer(equipped) }, `Skins ${heroSkinKeys(id).filter((k) => profile.hasSkin(id, k)).length}/${heroSkinKeys(id).length} ›`),
       h('div', { class: 'dh-name' }, h('h2', {}, x.name), h('div', { class: 'muted' }, x.title)),
       x.lore ? h('p', { class: 'muted small' }, x.lore) : null,
       h('div', { class: 'chips' }, h('span', { class: 'chipx', style: { '--cc': clan.color }, title: clan.tiers.map((q) => `${q.n}+: ${q.text}`).join(' · ') }, clan.name),

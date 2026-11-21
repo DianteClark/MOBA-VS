@@ -28,7 +28,7 @@ export const ACH = [
   { id: 'moment_ace', name: 'Masterstroke', desc: 'Ace the enemy team within 15s of using a Coach Moment.', icon: 'icons/Explosion', reward: { kind: 'skin', id: legKey('kaen') },
     match: (m) => { const mo = m.A ? m.A.ev.filter((e) => e[1] === 'mo' && e[2] === m.my).map((e) => e[0]) : []; return myKills(m).some((e) => e[6] && mo.some((t) => e[0] >= t && e[0] - t <= 15)); } },
   { id: 'double_ace', name: 'Clean Sweep', desc: 'Ace the enemy team twice in one match.', icon: 'icons/Cut', reward: { kind: 'emote', id: 'ko', also: { kind: 'banner', id: 'abyss' } }, match: (m) => myKills(m).filter((e) => e[6]).length >= 2 },
-  { id: 'unstoppable', name: 'Unstoppable', desc: 'One of your heroes scores 8 kills in a row without dying.', icon: 'icons/Fireball', reward: { kind: 'skin', id: legKey('fang') }, match: (m) => bestStreak(m) >= 8 },
+  { id: 'unstoppable', name: 'Unstoppable', desc: 'One of your heroes scores 10 kills in a row without dying.', icon: 'icons/Fireball', reward: { kind: 'skin', id: legKey('fang') }, match: (m) => bestStreak(m) >= 10 },
   { id: 'no_towers', name: 'Iron Curtain', desc: 'Win a 5v5 match without losing a tower.', icon: 'icons/DefenseUpgrade', reward: { kind: 'skin', id: legKey('bastion') },
     match: (m) => m.won && classic(m) && !m.game.teams[1 - m.my].towers },
   { id: 'clean_sheet', name: 'Untouchable', desc: 'Win a 5v5 match giving up 3 kills or fewer.', icon: 'icons/Heal', reward: { kind: 'border', id: 'moon' }, match: (m) => m.won && classic(m) && m.game.teams[1 - m.my].kills <= 3 },
