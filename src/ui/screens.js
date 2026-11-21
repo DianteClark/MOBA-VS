@@ -106,7 +106,7 @@ export function showPrep(app, prep, enemyIds, left, onChange, onReady, ready) {
     const x = HERO_BY_ID[hp.id], b = BUILDS[hp.build];
     return h('div', { class: 'pmini', style: { '--cc': CLANS[x.clan].color, '--bc': b.color } },
       h('span', { class: 'plane' }, ROLE_LABEL[hp.role]), h('img', { src: face(hp.id) }), h('b', {}, x.name),
-      h('span', { class: 'pbuild' }, h('img', { src: icon(b.icon) }), b.name),
+      h('span', { class: 'pbuild', 'data-build': hp.build, 'data-build-info': true, title: b.desc }, h('img', { src: icon(b.icon) }), b.name),
       fromPreset.has(hp.id) ? h('span', { class: 'pfrom', title: 'From your lineup' }, '★') : null);
   };
   const card = (hp) => {
@@ -117,7 +117,7 @@ export function showPrep(app, prep, enemyIds, left, onChange, onReady, ready) {
       h('label', { class: 'rolesel' }, h('span', {}, 'Lane'),
         h('select', { onchange: (e) => { const r = e.target.value; const other = prep.heroes.find((o) => o.role === r); if (other) other.role = hp.role; hp.role = r; onChange(); } },
           ...ROLES.map((r) => h('option', { value: r, selected: r === hp.role }, ROLE_LABEL[r] + (x.roles.includes(r) ? '' : ' (off-role)'))))),
-      h('div', { class: 'bchips' }, ...x.builds.map((bb) => h('button', { class: 'bchip' + (hp.build === bb ? ' on' : ''), style: { '--bc': BUILDS[bb].color }, onclick: () => { hp.build = bb; audio.sfx('move', 0.4); onChange(); } }, BUILDS[bb].name, bb === x.rec ? h('i', { class: 'star', title: 'Recommended' }) : null))),
+      h('div', { class: 'bchips' }, ...x.builds.map((bb) => h('button', { class: 'bchip' + (hp.build === bb ? ' on' : ''), style: { '--bc': BUILDS[bb].color }, 'data-build': bb, onclick: () => { hp.build = bb; audio.sfx('move', 0.4); onChange(); } }, BUILDS[bb].name, bb === x.rec ? h('i', { class: 'star', title: 'Recommended' }) : null))),
       h('div', { class: 'bsel' }, h('div', { class: 'bd' }, b.desc), h('div', { class: 'items' }, ...b.items.map((it) => h('img', { src: icon(it.icon), title: `${it.name} (${it.cost}g)` })))));
   };
   const clans = (() => {
@@ -190,7 +190,8 @@ export function showResults(app, g, myTeam, onAgain, onMenu, extra = {}) {
   const potgEl = p ? h('div', { class: 'panel potg t' + p.team },
     h('div', { class: 'potg-l' }, h('small', {}, 'PLAY OF THE GAME'), h('b', {}, p.title), h('span', { class: 'muted' }, `at ${p.at} · ${p.kills} kill${p.kills === 1 ? '' : 's'}`)),
     p.heroId ? h('img', { class: 'potg-f', src: face(p.heroId) }) : null,
-    h('button', { class: 'btn potgbtn', onclick: () => extra.onPOTG && extra.onPOTG() }, 'Watch')) : null;
+    h('button', { class: 'btn potgbtn', onclick: () => extra.onPOTG && extra.onPOTG() }, 'Watch'),
+    extra.onClip ? h('button', { class: 'btn potgbtn clipbtn', title: 'Save the Play of the Game as a video clip', onclick: extra.onClip }, 'Save clip') : null) : null;
   const rc = extra.report;
   const repEl = rc ? h('div', { class: 'panel report' },
     h('div', { class: 'rth' }, h('b', {}, 'Coach report card')),

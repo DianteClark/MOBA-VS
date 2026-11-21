@@ -642,10 +642,6 @@ canvas.graph { width: 100%; height: 150px; background: #120f18; border: 2px soli
 .coach .crank { font-size: 15px; }
 .coach .cstats { display: flex; flex-direction: column; gap: 4px; align-items: flex-end; font-size: 14px; }
 .coach .cstats img { width: 14px; height: 17px; vertical-align: -3px; }
-.rbadge { width: 46px; height: 46px; flex: 0 0 46px; display: grid; place-items: center; border: 3px solid; background: radial-gradient(#ffffff18, #0006); transform: rotate(45deg); }
-.rbadge img { width: 26px; height: 26px; transform: rotate(-45deg); }
-.rbadge.big { width: 64px; height: 64px; flex-basis: 64px; margin: 6px; box-shadow: 0 0 18px currentColor; }
-.rbadge.big img { width: 38px; height: 38px; }
 .modes { display: grid; grid-template-columns: 1.4fr 1fr 0.8fr; gap: 10px; }
 .mode { display: flex; flex-direction: column; gap: 8px; background: var(--panel); border: 2px solid var(--line); padding: 10px; box-shadow: 0 3px 0 #000a; justify-content: space-between; }
 .mode .mh b { font-weight: normal; font-size: 17px; color: var(--gold); display: block; } .mode .mh small { color: var(--muted); font-size: 10px; }
@@ -677,11 +673,6 @@ canvas.graph { width: 100%; height: 150px; background: #120f18; border: 2px soli
 .tcell.got { opacity: 1; border-color: #6a5a3a; } .tcell.cur { border-color: var(--gold); box-shadow: 0 0 8px #ffd84a66; }
 .tcell img { width: 18px; height: 18px; } .tcell .dot { width: 6px; height: 6px; background: #554; margin: 6px; }
 .sw { width: 18px; height: 18px; border: 2px solid #000; display: inline-block; } .bn { width: 26px; height: 16px; border: 1px solid #000; display: inline-block; }
-.ladder { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; }
-.lrow { display: flex; align-items: center; gap: 14px; padding: 4px 8px; border: 2px solid transparent; }
-.lrow .rbadge { width: 30px; height: 30px; flex-basis: 30px; } .lrow .rbadge img { width: 18px; height: 18px; }
-.lrow.cur { border-color: var(--gold); background: #2a2218; } .lrow.past { opacity: 0.75; }
-.lrow .you { margin-left: auto; color: var(--gold); }
 .tabs { display: flex; gap: 6px; justify-content: center; }
 .chip.gear { display: inline-flex; align-items: center; gap: 6px; } .chip.gear img { width: 16px; height: 16px; }
 .skinopt { cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 3px; background: #1e1928; border: 2px solid var(--line); color: var(--ink); padding: 6px; min-width: 84px; }
@@ -721,7 +712,7 @@ canvas.graph { width: 100%; height: 150px; background: #120f18; border: 2px soli
   .modes { grid-template-columns: 1fr; }
   .mode.online .col { flex-direction: row !important; } .mode.online .col .btn { flex: 1; }
   .sstrip { grid-template-columns: 1fr auto; } .sstrip .sinfo { grid-column: 1 / -1; grid-row: 2; } .sstrip .slv { grid-row: 1; grid-column: 2; min-width: 90px; } .sstrip .chev { display: none; }
-  .coach { gap: 8px; padding: 10px; } .rbadge.big { width: 50px; height: 50px; flex-basis: 50px; } .rbadge.big img { width: 30px; height: 30px; }
+  .coach { gap: 8px; padding: 10px; }
   .track { grid-template-columns: repeat(5, 1fr); }
   .bracket { grid-template-columns: 1fr; gap: 6px; } .bcol { gap: 6px; } .bround { text-align: left; margin-top: 4px; }
   .shead { grid-template-columns: 70px 1fr 10px; } .shead h2 { font-size: 20px; }
@@ -854,7 +845,6 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 20px; border-radius: 
 .htile .hsub { font-size: 10px; color: #f3c98f; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .htile.dojot { border-color: #8a6a3a; background: linear-gradient(90deg, #3a2a14, #1a1422 70%); }
 .htile .hsprite { flex: 0 0 auto; image-rendering: pixelated; filter: drop-shadow(0 3px 0 #0008); }
-.htile.proft .rbadge { width: 34px; height: 34px; flex-basis: 34px; margin: 6px; } .htile.proft .rbadge img { width: 20px; height: 20px; }
 
 /* ───────── Dojo ───────── */
 .subscreen.dojo { width: min(1100px, 100%); }
@@ -1102,7 +1092,6 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 20px; border-radius: 
   .home > .brand { grid-column: 1; display: flex; align-items: center; } .home .brand .title { font-size: 30px !important; animation: none; } .home .brand .subtitle { display: none; }
   .home > .sstrip { grid-column: 2; padding: 4px 8px; gap: 6px; } .home .sstrip .sname b { font-size: 14px; } .home .sstrip .sinfo { display: none; }
   .home > .coach { grid-column: 1 / -1; padding: 6px 10px; gap: 10px; }
-  .home .coach .rbadge.big { width: 40px; height: 40px; flex-basis: 40px; margin: 4px; box-shadow: none; } .home .coach .rbadge.big img { width: 24px; height: 24px; }
   .home .coach .cinfo { flex-direction: row; flex-wrap: wrap; align-items: center; column-gap: 10px; row-gap: 2px; }
   .home .coach .cname { width: 150px; font-size: 16px; } .home .coach .cinfo .pbar { flex: 1 1 140px; } .home .coach .cinfo small { display: none; }
   .home .coach .cstats { flex-direction: row; gap: 10px; font-size: 12px; }

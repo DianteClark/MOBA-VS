@@ -1,7 +1,7 @@
 // Read-only match analysis for the coach's UI: Coach's Call moments, hero requests,
 // place names, the Play of the Game and the post-match report card.
 // Nothing here mutates the game; everything only uses what the coach's team can see.
-import { TICK_RATE, T, OBJ_NAME, DRAGON_INFO, MOMENTUM, CMD } from '../sim/constants.js';
+import { TICK_RATE, OBJ_NAME, DRAGON_INFO, MOMENTUM, CMD } from '../sim/constants.js';
 import { fmtTime } from './dom.js';
 
 const LANE_L = { top: 'Top', mid: 'Mid', bot: 'Bot' };
@@ -15,7 +15,7 @@ const pitOf = (g, k) => (k === 'dragon' ? g.world.pits.kami : g.world.pits.krake
 export function placeName(g, p, my) {
   const W = g.world;
   if (d2(W.pits.kami, p) < 450 * 450) return 'KAMI';
-  if (d2(W.pits.kraken, p) < 450 * 450) return g.time < T.heraldDespawn && !g.objectives.baron ? 'ONI' : 'KRAKEN';
+  if (d2(W.pits.kraken, p) < 450 * 450) return g.time < g.T.heraldDespawn && !g.objectives.baron ? 'ONI' : 'KRAKEN';
   if (g.shrines.some((s) => d2(s, p) < 320 * 320)) return 'SHRINE';
   const me = Math.max(0, my);
   for (const t of [0, 1]) if (d2(W.fountain[t], p) < 950 * 950) return t === me ? 'YOUR BASE' : 'ENEMY BASE';
@@ -27,7 +27,7 @@ export function placeName(g, p, my) {
 // The enemy lane with the fewest structures left (same rule as the AI coach).
 function weakestLane(g, my) {
   let best = 'mid', bs = Infinity;
-  for (const ln of ['mid', 'top', 'bot']) {
+  for (const ln of ['mid', 'top', 'bot'].filter((x) => g.world.laneNames.includes(x))) {
     let n = 0; for (const u of g.units) if (u.alive && u.team === 1 - my && (u.type === 'tower' || u.type === 'inhib') && u.lane === ln) n += u.type === 'inhib' ? 2 : 1;
     if (n < bs) { bs = n; best = ln; }
   }

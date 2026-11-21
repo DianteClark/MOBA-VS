@@ -8,11 +8,14 @@
 //   camps    Blue jungle camps
 //   kraken   top-side river pit (the Kami pit is its mirror)
 //   shrine   Blue's river shrine (Red's is the mirror)
-//   towers   optional tower layout: outer (side-lane towers on the outer edge of the lane), midFlip (mid
+//   towerLayout optional tower layout: outer (side-lane towers on the outer edge of the lane), midFlip (mid
 //            towers on the other side), side / mid (tier 1-3 + inhibitor spots as fractions of half a lane,
 //            from the owner's base). Pits and camps must stay out of tower range: tools/maps.mjs checks it.
 //   brush    tall-grass blobs [x, y, r]; rocks: blocking boulders [x, y, r]; clear: extra open areas [x, y, r]
 //   theme    painter palette; weather: cycle used on this map
+//   Lane Rush maps live in rush.js (single lane, smaller base); they are looked up by id like any map.
+import { RUSH_MAPS } from './rush.js';
+export { RUSH_MAPS };
 
 export const MAPS = [
   {
@@ -36,7 +39,7 @@ export const MAPS = [
       { id: 'bb', at: [636, 1140], kind: 'bluebuff' }, { id: 'gromp', at: [444, 1068], kind: 'gromp' }, { id: 'wolf', at: [588, 1428], kind: 'wolf' },
       { id: 'rb', at: [1308, 1740], kind: 'redbuff' }, { id: 'rap', at: [1140, 1884], kind: 'raptor' }, { id: 'krug', at: [1332, 1956], kind: 'krug' },
     ],
-    towers: { outer: true },
+    towerLayout: { outer: true },
     kraken: [708, 636], shrine: [1420, 1520],
     brush: [[430, 1240, 60], [850, 1700, 56], [1180, 1440, 54], [1500, 1880, 50], [340, 620, 58], [1640, 2150, 52], [980, 860, 58], [760, 420, 50], [1020, 1980, 46], [520, 1640, 44]],
     rocks: [[520, 1240, 34], [900, 1400, 30], [1180, 1880, 34], [740, 1060, 28], [1380, 1640, 28]],
@@ -62,7 +65,7 @@ export const MAPS = [
       { id: 'bb', at: [732, 1140], kind: 'bluebuff' }, { id: 'gromp', at: [516, 1044], kind: 'gromp' }, { id: 'wolf', at: [564, 1236], kind: 'wolf' },
       { id: 'rb', at: [1236, 1884], kind: 'redbuff' }, { id: 'rap', at: [1180, 1700], kind: 'raptor' }, { id: 'krug', at: [948, 1836], kind: 'krug' },
     ],
-    towers: { outer: true, midFlip: true },
+    towerLayout: { outer: true, midFlip: true },
     kraken: [756, 780], shrine: [1460, 1440],
     brush: [[470, 1180, 56], [880, 1640, 54], [1300, 1720, 52], [1650, 2010, 50], [420, 600, 56], [1050, 980, 56], [620, 380, 46], [1040, 2080, 46]],
     rocks: [[600, 1240, 40], [820, 1460, 34], [1060, 1700, 36], [460, 1000, 30], [1500, 1800, 32], [880, 1200, 30]],
@@ -88,7 +91,7 @@ export const MAPS = [
       { id: 'bb', at: [620, 1000], kind: 'bluebuff' }, { id: 'gromp', at: [516, 1428], kind: 'gromp' }, { id: 'wolf', at: [636, 1260], kind: 'wolf' },
       { id: 'rb', at: [1380, 1908], kind: 'redbuff' }, { id: 'rap', at: [1236, 1692], kind: 'raptor' }, { id: 'krug', at: [1164, 1884], kind: 'krug' },
     ],
-    towers: { outer: true },
+    towerLayout: { outer: true },
     kraken: [708, 684], shrine: [1500, 1460],
     brush: [[400, 1180, 50], [760, 1420, 52], [1060, 1760, 50], [1460, 1720, 50], [360, 560, 50], [960, 900, 54], [1700, 2040, 46], [700, 1640, 44]],
     rocks: [[1080, 1380, 70], [540, 1160, 32], [1220, 1820, 32], [800, 1700, 28], [940, 1160, 30]],
@@ -116,11 +119,11 @@ export const MAPS = [
       { id: 'bb', at: [640, 1220], kind: 'bluebuff' }, { id: 'gromp', at: [480, 1060], kind: 'gromp' }, { id: 'wolf', at: [540, 1428], kind: 'wolf' },
       { id: 'rb', at: [1284, 1788], kind: 'redbuff' }, { id: 'rap', at: [1092, 1860], kind: 'raptor' }, { id: 'krug', at: [1452, 1908], kind: 'krug' },
     ],
-    towers: { outer: true, side: [0.76, 0.5, 0.27, 0.15], mid: [0.75, 0.44, 0.29, 0.15] },
+    towerLayout: { outer: true, side: [0.76, 0.5, 0.27, 0.15], mid: [0.75, 0.44, 0.29, 0.15] },
     kraken: [660, 684], shrine: [1400, 1560],
     brush: [[400, 1300, 62], [820, 1580, 58], [1160, 1400, 56], [1520, 1900, 54], [380, 600, 58], [1700, 2140, 50], [960, 820, 60], [780, 380, 52], [1000, 2020, 50], [580, 1720, 50], [300, 860, 44], [1300, 1640, 44]],
     rocks: [[560, 1340, 32], [920, 1340, 28], [1160, 1900, 32], [780, 1120, 28], [1340, 1700, 26]],
     clear: [[1200, 1200, 170]],
   },
 ];
-export const MAP_BY_ID = Object.fromEntries(MAPS.map((m) => [m.id, m]));
+export const MAP_BY_ID = Object.fromEntries([...MAPS, ...RUSH_MAPS].map((m) => [m.id, m]));

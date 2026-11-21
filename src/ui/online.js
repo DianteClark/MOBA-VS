@@ -6,6 +6,8 @@ import { profile } from '../profile.js';
 import { online, ping, getAccount, recover, leaderboard, getShare, ensureAccount } from '../net/online.js';
 import { drawShareCard } from './share.js';
 import { audio } from '../audio.js';
+import { tierBadge } from './badges.js';
+import { rankOf } from '../data/ranks.js';
 
 const screen = () => document.getElementById('screen');
 const back = (app) => h('button', { class: 'btn backbtn', onclick: () => { audio.sfx('move', 0.5); app.menu(); } }, '‹ Back');
@@ -16,7 +18,7 @@ export async function showLeaderboard(app) {
   const body = h('div', { class: 'panel col lb' }, h('p', { class: 'muted center' }, 'Loading the ladder…'));
   mount(screen(), h('div', { class: 'subscreen' },
     h('div', { class: 'shead' }, back(app), h('div', {}, h('small', {}, `SEASON ${season.id} · ONLINE LADDER`), h('h2', {}, 'Leaderboard')), h('div')),
-    h('p', { class: 'muted center small' }, 'Only verified online matches count: both players’ games must agree on the result.'),
+    h('p', { class: 'muted center small' }, 'Only verified online Ranked matches count: both players’ games must agree on the result. Casual and Lane Rush never change your rating.'),
     body, accountPanel(app)));
   if (!(await ping())) { mount(body, emptyState('assets/img/icons/Vision.png', 'Ladder offline', 'The online ladder can\'t be reached right now. Your matches still count on this device.')); return; }
   try {
@@ -24,10 +26,10 @@ export async function showLeaderboard(app) {
     const lb = await leaderboard(season.id);
     const me = getAccount();
     const row = (r) => h('div', { class: 'lbr' + (me && r.id === me.id ? ' me' : '') + (r.rank <= 3 ? ' top' + r.rank : '') },
-      h('b', { class: 'lbrank' }, `#${r.rank}`), h('span', { class: 'lbname' }, r.name), h('span', { class: 'lbrat' }, r.rating), h('small', {}, `${r.wins}W ${r.losses}L`));
+      h('b', { class: 'lbrank' }, `#${r.rank}`), tierBadge(r.rating, 24, 'lbtier'), h('span', { class: 'lbname' }, r.name), h('span', { class: 'lbrat', style: { color: rankOf(r.rating).tier.color } }, h('small', {}, rankOf(r.rating).label + ' '), r.rating), h('small', {}, `${r.wins}W ${r.losses}L`));
     mount(body,
-      lb.me ? h('div', { class: 'lbme' }, h('span', {}, 'You'), h('b', {}, `#${lb.me.rank}`), h('span', {}, `${lb.me.rating} rating`), h('small', {}, `${lb.me.wins}W ${lb.me.losses}L · peak ${lb.me.peak}`)) : h('div', { class: 'lbme muted' }, 'Win an online match to join the ladder.'),
-      lb.top.length ? h('div', { class: 'lblist' }, h('div', { class: 'lbr head' }, h('b', { class: 'lbrank' }, 'Rank'), h('span', { class: 'lbname' }, 'Coach'), h('span', { class: 'lbrat' }, 'Rating'), h('small', {}, 'Record')), ...lb.top.map(row))
+      lb.me ? h('div', { class: 'lbme' }, tierBadge(lb.me.rating, 34), h('span', {}, 'You'), h('b', {}, `#${lb.me.rank}`), h('span', { style: { color: rankOf(lb.me.rating).tier.color } }, `${rankOf(lb.me.rating).label} · ${lb.me.rating}`), h('small', {}, `${lb.me.wins}W ${lb.me.losses}L · peak ${rankOf(lb.me.peak).label}`)) : h('div', { class: 'lbme muted' }, 'Play an online Ranked match to join the ladder.'),
+      lb.top.length ? h('div', { class: 'lblist' }, h('div', { class: 'lbr head' }, h('b', { class: 'lbrank' }, 'Rank'), h('i', { class: 'lbtier' }), h('span', { class: 'lbname' }, 'Coach'), h('span', { class: 'lbrat' }, 'Rating'), h('small', {}, 'Record')), ...lb.top.map(row))
         : emptyState('assets/img/items/GoldCup.png', 'No ranked matches yet', 'Be the first this season: Find Match, or Host and send a friend the link.'));
   } catch (e) { mount(body, emptyState('assets/img/icons/Vision.png', 'Could not load the ladder', String(e.message || e))); }
 }
@@ -60,9 +62,10 @@ export function accountPanel(app) {
 // ── Post-match: ladder result for online games ──
 export function ladderPanel(promise) {
   if (!promise) return null;
-  const el = h('div', { class: 'panel ladderres' }, h('span', { class: 'muted' }, 'Reporting to the online ladder…'));
+  const el = h('div', { class: 'panel ladderres' }, h('span', { class: 'muted' }, 'Reporting the result…'));
   promise.then((r) => {
     if (!r) { el.remove(); return; }
+    if (r.casual) { mount(el, h('span', { class: 'muted' }, r.status === 'verified' ? 'Casual match verified: hero stats recorded, no rating change.' : r.status === 'pending' ? 'Casual match: no rating change.' : r.status === 'disputed' ? 'The two games disagreed on the result.' : 'Casual match: no rating change.')); return; }
     if (r.status === 'verified') {
       const me = r.delta ? (r.mySide === 1 ? r.delta.red : r.delta.blue) : null;
       mount(el, h('b', { class: 'gold' }, 'Ladder match verified'), me !== null && me !== undefined ? h('span', { class: me >= 0 ? 'up' : 'down' }, ` ${me >= 0 ? '+' : ''}${me} rating`) : null);
@@ -93,13 +96,14 @@ export async function showShared(app, code) {
 }
 
 // ── Matchmaking search screen ──
-export function showSearch(app, { elapsed, limit, status, onCancel }) {
+const QUEUE_L = { ranked: 'Ranked', casual: 'Casual 5v5', rush: 'Lane Rush (casual)' };
+export function showSearch(app, { elapsed, limit, status, onCancel, queue = 'ranked' }) {
   const left = Math.max(0, Math.ceil((limit - elapsed) / 1000)), frac = Math.min(1, elapsed / limit);
   const el = document.getElementById('mmsearch');
   if (el) { el.querySelector('.mm-st').textContent = status; el.querySelector('.mm-t').textContent = `${left}s`; el.querySelector('.pbar i').style.width = `${Math.round(frac * 100)}%`; return; }
   mount(screen(), h('div', { class: 'panel col center mmsearch', id: 'mmsearch' },
     h('div', { class: 'mm-spin' }), h('h2', { class: 'gold' }, 'Finding a match'),
     h('b', { class: 'mm-st' }, status), h('div', { class: 'pbar' }, h('i', { style: { width: `${Math.round(frac * 100)}%`, background: 'var(--gold)' } })),
-    h('small', { class: 'muted' }, 'Ranked · real players only · gives up in ', h('span', { class: 'mm-t' }, `${left}s`)),
+    h('small', { class: 'muted' }, `${QUEUE_L[queue] || 'Ranked'} · real players only · gives up in `, h('span', { class: 'mm-t' }, `${left}s`)),
     h('button', { class: 'btn big', onclick: onCancel }, 'Cancel')));
 }

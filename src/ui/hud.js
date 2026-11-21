@@ -5,7 +5,9 @@ import { h, mount, face, icon, fmtTime, toast, bossFace, kamiNow } from './dom.j
 import { BUILDS } from '../data/items.js';
 import { PERSONALITIES } from '../data/heroes.js';
 import { TACTICS } from '../data/tactics.js';
-import { CMD, DRAGON_INFO, TEAM_NAME, TICK_RATE, T, OBJ_NAME, WEATHER, CLANS, xpNeeded } from '../sim/constants.js';
+import { CMD, DRAGON_INFO, TEAM_NAME, TICK_RATE, OBJ_NAME, WEATHER, CLANS, xpNeeded } from '../sim/constants.js';
+import { MOMENTS } from '../sim/moments-coach.js';
+import { momentFx } from './momentfx.js';
 import { coachMoment, heroRequests, ASK_WEIGHT } from './moments.js';
 import { PRIO } from './tray.js';
 import { TEAM_COL } from '../render/renderer.js';
@@ -17,7 +19,6 @@ import { Caster } from './caster.js';
 import { buzz } from './haptics.js';
 import { QuickChat } from './quickchat.js';
 
-const LANES = ['top', 'mid', 'bot'];
 const LANE_L = { top: 'Top', mid: 'Mid', bot: 'Bot' };
 const OBJ_L = OBJ_NAME;
 const byId = (id) => document.getElementById(id);
@@ -257,7 +258,7 @@ export class Hud {
     const g = this.g, set = (el, v) => { if (el.textContent !== v) el.textContent = v; };
     for (const c of this.objCells) {
       const k = c.k, o = g.objectives[k], tmr = g.objTimers[k];
-      const hide = (k === 'herald' && (g.time > T.heraldDespawn || g.objectives.baron)) || (k === 'baron' && g.time < T.heraldDespawn - 60 && !o);
+      const hide = (k === 'herald' && (g.time > g.T.heraldDespawn || g.objectives.baron)) || (k === 'baron' && g.time < g.T.heraldDespawn - 60 && !o);
       c.el.classList.toggle('hidden', !!hide); if (hide) continue;
       const up = !!(o && o.alive);
       if (k === 'dragon') { const el = kamiNow(g), src = bossFace(k, el); set(c.lab, DRAGON_INFO[el].short); if (c.img.getAttribute('src') !== src) c.img.setAttribute('src', src); }
@@ -465,13 +466,14 @@ export class Hud {
           const what = c.type === 'gank' ? `${c.hero ? this.name(c.hero) : 'Jungler'} gank ${LANE_L[c.lane]}` : c.type === 'objective' ? `Take ${OBJ_L[c.obj]}` : c.type === 'group' ? `Group ${LANE_L[c.lane]}` :
             c.type === 'split' ? `${this.name(c.hero)} split ${LANE_L[c.lane]}` : c.type === 'focus' ? `Focus ${this.name(c.target)}` : c.type === 'build' ? `${this.name(c.hero)} → ${BUILDS[c.build].name}` :
             c.type === 'herald' ? `Oni ${LANE_L[c.lane]}` : c.type === 'shrine' ? 'Capture shrine' : c.type === 'safe' ? 'Play safe' : c.type === 'reset' ? 'Reset' : c.type === 'invade' ? 'Invade' :
-            c.type === 'permit' ? `${this.name(c.hero)} green-lit` : c.type === 'surge' ? 'Kami Surge' :
+            c.type === 'permit' ? `${this.name(c.hero)} green-lit` : c.type === 'surge' ? 'Kami Surge' : c.type === 'moment' ? (MOMENTS[c.id] || {}).name || 'Coach Moment' :
             c.type === 'ult' ? ({ go: 'ALL-IN, ultimates fire next fight!', save: 'Hold ultimates', free: 'Ults: heroes choose' })[c.mode] : c.type === 'plan' ? `Plan: ${c.plan}` : c.type === 'redraw' ? 'Swapped a tactic card' : 'Cancel calls';
           this.ticker(`${TEAM_NAME[c.team]} call: ${what}`, c.team === 0 ? 'b' : 'r', 0);
           break;
         }
         case 'callResult': if (e.team === this.my) { this.payoff(e); buzz(e.result === 'success' ? 'callWin' : 'callFail'); } break;
         case 'momentumFull': if (e.team === this.my) this.dock.surgeOffer(); break;
+        case 'moment': momentFx(this, e); break;
         case 'surge':
           if (e.team === this.view || this.my < 0) { this.banner('KAMI SURGE', TEAM_COL[e.team], 1500); audio.sfx('powerup', 0.8); }
           else this.ticker('Enemy Kami Surge! +10% damage for 8s', 'danger', 3);
@@ -492,7 +494,7 @@ export class Hud {
         case 'pivot': if (e.team === this.view) this.ticker(`${this.name(e.hero)} will now build ${BUILDS[e.build].name}`, 'n', 0); break;
         case 'trust': if (e.team === this.view && this.my >= 0) { const x = g.byId(e.hero); this.ticker(e.tier === 2 ? `${x.def.name} is Inspired by your calls!` : e.tier === 0 ? `${x.def.name} is losing faith in your calls` : `${x.def.name} trusts you again`, e.tier === 0 ? 'danger' : 'n', 1); } break;
         case 'tactic': if (e.team === this.view || this.my < 0) { this.banner(TACTICS[e.card].name.toUpperCase(), TEAM_COL[e.team], 1500); audio.sfx('powerup', 0.7); } break;
-        case 'finalPhase': this.banner('LAST STAND', '#ff8a3a', 2200, null); this.ticker('Final 3 minutes: gold ×1.5, longer respawns. Every tower counts!', 'act', 3); audio.sfx('alert', 0.8); break;
+        case 'finalPhase': this.banner('LAST STAND', '#ff8a3a', 2200, null); this.ticker(`Final ${Math.round(g.timeLeft / 60)} minutes: gold ×1.5, longer respawns. Every tower counts!`, 'act', 3); audio.sfx('alert', 0.8); break;
         case 'stolenCamp': if (e.big && e.team !== this.view) this.ticker('Enemy invaded your jungle!', 'danger', 2); break;
       }
     }
@@ -547,7 +549,7 @@ export class Hud {
     for (const t in this.slows) { if (now > this.slows[t].until) delete this.slows[t]; else k = Math.min(k, this.slows[t].k); }
     this.runner.slow = k;
   }
-  holding() { const R = this.runner, g = this.g; return !!(R.ht && !R.htDone) || (g.tick >= g.halftimeTick - TICK_RATE * 4 && g.tick <= g.halftimeTick + TICK_RATE * 2); }
+  holding() { const R = this.runner, g = this.g; return !!(R.ht && !R.htDone) || (g.halftimeTick >= 0 && g.tick >= g.halftimeTick - TICK_RATE * 4 && g.tick <= g.halftimeTick + TICK_RATE * 2); }
   // ── fight cam: cut straight to a fight from its edge prompt ──
   watchFight(x, y) {
     const r = this.r; r.follow = null; r.panTo = null; r.cam.x = x; r.cam.y = y; r.clampCam();
@@ -616,7 +618,7 @@ export class Hud {
     if (jg && jg.alive && jg.task.kind === 'jungle') {
       for (const e of enemy) {
         if (!e.alive || !vis.has(e.id) || e.role === 'jungle') continue;
-        for (const lane of LANES) {
+        for (const lane of g.world.laneNames) {
           if (g.world.distToLane(lane, e) > 260) continue;
           const pr = g.world.laneProgress(lane, e), deep = me === 0 ? pr : 1 - pr;
           if (deep < 0.47 && ready('gank' + lane, 30)) this.dock.suggest('gank' + lane, `${e.def.name} overextended ${LANE_L[lane]}`, 'Gank', { type: 'gank', lane, hero: jg.id }, { valid: () => e.alive && jg.alive });
@@ -635,7 +637,7 @@ export class Hud {
       const on = enemy.filter((e) => e.alive && vis.has(e.id) && (e.x - o.x) ** 2 + (e.y - o.y) ** 2 < 500 * 500);
       if (on.length && !carding && ready('contest' + k, 25)) this.dock.suggest('contest' + k, `Enemy is taking ${OBJ_L[k]}!`, 'Contest', { type: 'objective', obj: k }, { cls: 'bad', valid: () => o.alive });
     }
-    for (const sh of g.shrines) if (sh.owner !== me && g.time > T.shrineUnlock && !enemy.some((e) => e.alive && vis.has(e.id) && (e.x - sh.x) ** 2 + (e.y - sh.y) ** 2 < 800 * 800) && ready('shr' + sh.id, 70)) {
+    for (const sh of g.shrines) if (sh.owner !== me && g.time > g.T.shrineUnlock && !enemy.some((e) => e.alive && vis.has(e.id) && (e.x - sh.x) ** 2 + (e.y - sh.y) ** 2 < 800 * 800) && ready('shr' + sh.id, 70)) {
       this.stats.shrineOpen++;
       this.dock.suggest('shr' + sh.id, `${sh.id === me ? 'Home' : 'Far'} shrine is open`, 'Capture', { type: 'shrine', shrine: sh.id }, { valid: () => sh.owner !== me });
     }
