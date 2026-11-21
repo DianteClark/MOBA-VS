@@ -19,9 +19,10 @@ export const PROJ = {
 };
 const UNITS = ['minion_blue_melee', 'minion_blue_caster', 'minion_blue_siege', 'minion_red_melee', 'minion_red_caster', 'minion_red_siege',
   'camp_bluebuff', 'camp_redbuff', 'camp_wolf', 'camp_raptor', 'camp_gromp', 'camp_krug'];
-const BOSS = ['dragon_green_body1', 'dragon_green_body2', 'dragon_green_bodyend', 'dragon_green_head', 'dragon_green_wing', 'dragon_green_faceset',
-  'dragon_blue_body1', 'dragon_blue_body2', 'dragon_blue_bodyend', 'dragon_blue_head', 'dragon_blue_wing', 'dragon_blue_faceset',
-  'herald_idle', 'herald_walk', 'herald_hit', 'herald_faceset', 'baron_idle', 'baron_attack', 'baron_hit', 'baron_faceset'];
+const BOSS = ['dragon_green_body1', 'dragon_green_body2', 'dragon_green_bodyend', 'dragon_green_head', 'dragon_green_wing',
+  'dragon_blue_body1', 'dragon_blue_body2', 'dragon_blue_bodyend', 'dragon_blue_head', 'dragon_blue_wing',
+  'herald_idle', 'herald_walk', 'herald_hit', 'herald_faceset', 'baron_idle', 'baron_attack', 'baron_hit', 'baron_faceset',
+  'kami_infernal', 'kami_ocean', 'kami_mountain', 'kami_cloud', 'kami_elder'];
 const TILES = ['TilesetTowers', 'TilesetNature', 'TilesetFloor', 'TilesetWater', 'TilesetFloorDetail'];
 
 function load(key, src) {
@@ -33,19 +34,25 @@ function load(key, src) {
   });
 }
 
-export async function loadAssets(onProgress) {
-  const jobs = [];
-  for (const h of HEROES) { jobs.push(['hero_' + h.id, `${BASE}heroes/${h.id}.png`]); jobs.push(['face_' + h.id, `${BASE}faces/${h.id}.png`]); }
-  for (const u of UNITS) jobs.push([u, `${BASE}units/${u}.png`]);
-  for (const b of BOSS) jobs.push([b, `${BASE}boss/${b}.png`]);
-  for (const t of TILES) jobs.push([t, `${BASE}tiles/${t}.png`]);
-  for (const f of new Set(Object.keys(FX).map((k) => FX[k].img || k))) jobs.push(['fx_' + f, `${BASE}fx/${f}.png`]);
-  for (const p of Object.keys(PROJ)) jobs.push(['fx_' + p, `${BASE}fx/${p}.png`]);
-  jobs.push(['shadow', `${BASE}fx/shadow.png`]);
-  for (const e of ['ok', 'think', 'doubt', 'up', 'down', 'tilt']) jobs.push(['emote_' + e, `${BASE}emote/${e}.png`]);
+// Two phases for a fast first paint: the menu needs only the map tiles (painted background) and the hero
+// sheets (Dojo, parade, draft). Everything the match renderer needs loads in the background; startMatch
+// waits on `assetsAll` if a player is quicker than the network.
+export let assetsDone = false;
+export let assetsAll = null;
+export async function loadAssets(onProgress, early = false) {
+  const crit = [], rest = [];
+  for (const t of TILES) crit.push([t, `${BASE}tiles/${t}.png`]);
+  for (const h of HEROES) { crit.push(['hero_' + h.id, `${BASE}heroes/${h.id}.png`]); rest.push(['face_' + h.id, `${BASE}faces/${h.id}.png`]); }
+  for (const u of UNITS) rest.push([u, `${BASE}units/${u}.png`]);
+  for (const b of BOSS) rest.push([b, `${BASE}boss/${b}.png`]);
+  for (const f of new Set(Object.keys(FX).map((k) => FX[k].img || k))) rest.push(['fx_' + f, `${BASE}fx/${f}.png`]);
+  for (const p of Object.keys(PROJ)) rest.push(['fx_' + p, `${BASE}fx/${p}.png`]);
+  rest.push(['shadow', `${BASE}fx/shadow.png`]);
+  for (const e of ['ok', 'think', 'doubt', 'up', 'down', 'tilt']) rest.push(['emote_' + e, `${BASE}emote/${e}.png`]);
   let done = 0;
-  await Promise.all(jobs.map(([k, s]) => load(k, s).then(() => { done++; onProgress && onProgress(done / jobs.length); })));
-  buildVariants();
+  await Promise.all(crit.map(([k, s]) => load(k, s).then(() => { done++; onProgress && onProgress(done / crit.length); })));
+  assetsAll = assetsAll || Promise.all(rest.map(([k, s]) => load(k, s))).then(() => { buildVariants(); assetsDone = true; });
+  if (!early) await assetsAll;
 }
 
 // ── pixel helpers ──

@@ -3,7 +3,7 @@
 //   · a hand of tactic cards · the decision tray (one slot) · a target sheet · a map ring menu
 //   · the charge + momentum meter (tap it when full for Kami Surge).
 // Everything here is built once and updated in place (no rebuilds while open = no flicker).
-import { h, mount, face, icon, fmtTime, toast } from './dom.js';
+import { h, mount, face, icon, fmtTime, toast, bossFace, kamiNow } from './dom.js';
 import { BUILDS } from '../data/items.js';
 import { TACTICS } from '../data/tactics.js';
 import { CMD, DRAGON_INFO, TICK_RATE, OBJ_NAME, MOMENTUM } from '../sim/constants.js';
@@ -13,7 +13,6 @@ import { TEAM_COL } from '../render/renderer.js';
 import { audio } from '../audio.js';
 
 const LANE_L = { top: 'Top', mid: 'Mid', bot: 'Bot' };
-const BOSS_FACE = { dragon: 'boss/dragon_green_faceset', herald: 'boss/herald_faceset', baron: 'boss/baron_faceset' };
 export const CORE = [
   { id: 'gank', label: 'Gank', icon: 'Cut', key: 'g', tip: 'Your jungler ambushes a lane' },
   { id: 'objective', label: 'Objective', icon: 'OrbFire', key: 'o', tip: 'Team takes the Kami, Oni or Kraken' },
@@ -68,7 +67,7 @@ export class Dock {
     this.momentBtn = h('button', { class: 'momentbtn', title: 'Coach Moments: Timeout, Rally, All-Out Push. Each once per match [M]', onclick: () => { audio.sfx('move', 0.5); this.open('moments'); } },
       h('img', { src: icon('BookThunder') }), h('span', { class: 'ml' }, 'Moments'), this.momentN = h('b', { class: 'mn' }, '3'));
     mount(el, this.trayEl, this.sheetEl, this.cancelEl,
-      h('div', { class: 'dock' }, h('div', { class: 'handrow' }, this.meterEl, h('div', { class: 'hand' }, this.cards), this.momentBtn, this.ultBtn = h('button', { class: 'ultbtn', title: 'Ultimates: let heroes choose → Hold them → All-in now [U]', onclick: () => this.cycleUlt() }, h('img', { src: icon('Death') }), h('span', { class: 'ul' }, 'Ults'), h('b', {}, 'Auto'))),
+      h('div', { class: 'dock' }, h('div', { class: 'handrow' }, this.meterEl, h('div', { class: 'hand' }, this.cards), this.momentBtn, this.ultBtn = h('button', { class: 'ultbtn', title: 'Ult stance: Auto (heroes choose) → Hold → ALL-IN now [U]', onclick: () => this.cycleUlt() }, h('img', { src: icon('Death') }), h('span', { class: 'ul' }, 'Ults'), h('span', { class: 'ust' }, h('i'), h('i'), h('i')), h('b', {}, 'Auto'))),
         h('div', { class: 'callrow' }, this.callBtns)));
     this.tick();
   }
@@ -94,7 +93,10 @@ export class Dock {
     if (this.momentN.textContent !== String(left)) this.momentN.textContent = String(left);
     this.momentBtn.classList.toggle('spent', !left); this.momentBtn.classList.toggle('ready', anyReady); this.momentBtn.classList.toggle('lock', !!left && !anyReady);
     const um = team.ultMode && team.ultMode.until > g.tick ? team.ultMode.mode : 'auto';
-    if (this.ultBtn._m !== um) { this.ultBtn._m = um; this.ultBtn.lastChild.textContent = { auto: 'Auto', save: 'Hold', go: 'ALL-IN' }[um]; this.ultBtn.className = 'ultbtn ' + um; }
+    if (this.ultBtn._m !== um) {
+      this.ultBtn._m = um; this.ultBtn.lastChild.textContent = { auto: 'Auto', save: 'Hold', go: 'ALL-IN' }[um]; this.ultBtn.className = 'ultbtn ' + um;
+      [...this.ultBtn.querySelector('.ust').children].forEach((d, i) => d.classList.toggle('on', i === ['auto', 'save', 'go'].indexOf(um)));
+    }
     const active = this.alive().some((x) => (x.task && x.task.call) || x.pendingCall) || (team.focus && team.focus.until > g.tick);
     this.cancelEl.classList.toggle('hidden', !active);
     for (const f of this.live) f();
@@ -182,12 +184,13 @@ export class Dock {
     this.sheetEl.classList.remove('pop'); void this.sheetEl.offsetWidth; this.sheetEl.classList.add('pop');
     for (const f of this.live) f();
   }
-  // A big target tile. `sub` and `state` may be functions; they're refreshed in place.
+  // A big target tile. `img`, `sub` and `state` may be functions; they're refreshed in place.
   tile({ img, ico, title, sub, onclick, state, cls }) {
-    const subEl = h('small', {}, '');
-    const b = h('button', { class: 'tile ' + (cls || ''), onclick: () => { if (!b.disabled) onclick(); } },
-      img ? h('img', { src: img }) : ico ? h('img', { src: icon(ico) }) : null, h('div', {}, h('b', {}, title), subEl));
+    const subEl = h('small', {}, ''), imgOf = () => (typeof img === 'function' ? img() : img);
+    const imEl = img ? h('img', { src: imgOf() }) : ico ? h('img', { src: icon(ico) }) : null;
+    const b = h('button', { class: 'tile ' + (cls || ''), onclick: () => { if (!b.disabled) onclick(); } }, imEl, h('div', {}, h('b', {}, title), subEl));
     const upd = () => {
+      if (typeof img === 'function') { const src = imgOf(); if (imEl.getAttribute('src') !== src) imEl.setAttribute('src', src); }
       const s = typeof sub === 'function' ? sub() : sub || '';
       if (subEl.textContent !== s) subEl.textContent = s;
       const st = state ? state() : {};
@@ -223,8 +226,8 @@ export class Dock {
     }
     if (id === 'objective') {
       const obj = (k) => this.tile({
-        img: `assets/img/${BOSS_FACE[k]}.png`,
-        title: k === 'dragon' ? DRAGON_INFO[g.objectives.dragon ? g.objectives.dragon.element : g.teams.some((t) => t.soul) ? 'elder' : g.nextDragon].name : OBJ_NAME[k],
+        img: () => bossFace(k, kamiNow(g)),
+        title: k === 'dragon' ? DRAGON_INFO[kamiNow(g)].name : OBJ_NAME[k],
         sub: () => this.objStatus(k),
         state: () => ({ off: !g.objAvailable(k) || !this.afford('objective'), rec: !!(g.objectives[k] && g.objectives[k].alive) }),
         onclick: () => this.send({ type: 'objective', obj: k }),
