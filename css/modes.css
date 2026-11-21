@@ -9,14 +9,17 @@
 .mode.ranked.rushm .mh b { color: #ffb37a; }
 .qmh { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
 .mode .qmh b { display: inline; } .qmh small { flex-basis: 100%; }
-.qseg { flex: 1; min-width: 0; gap: 2px; } .qseg .chip, .home .qseg .chip { min-height: 24px; padding: 1px 3px; font-size: 10px; min-width: 0; }
+.qseg { flex: 1 1 100%; min-width: 0; gap: 2px; }
+@media (max-height: 500px) and (min-width: 560px) { .qseg { flex: 1 1 0; } } .qseg .chip, .home .qseg .chip { min-height: 24px; padding: 1px 3px; font-size: 10px; min-width: 0; }
 
 /* ── tier badges (pixel art canvas → img) ── */
 .tbadge { image-rendering: pixelated; flex: 0 0 auto; filter: drop-shadow(0 2px 0 #000a); }
 .rbadge2.big { filter: drop-shadow(0 0 10px var(--tc)) drop-shadow(0 2px 0 #000); animation: tbGlow 2.6s ease-in-out infinite alternate; }
 @keyframes tbGlow { from { filter: drop-shadow(0 0 4px var(--tc)) drop-shadow(0 2px 0 #000); } to { filter: drop-shadow(0 0 13px var(--tc)) drop-shadow(0 2px 0 #000); } }
 .rankrow .tbadge { margin: -4px 0; }
-.lbtier { width: 24px; flex: 0 0 24px; }
+.lbr { grid-template-columns: 48px 26px 1fr 130px 70px; }
+.lbtier { width: 24px; flex: 0 0 24px; display: block; }
+.lbr .lbrat small { text-align: right; }
 .lbme { display: flex; align-items: center; gap: 10px; }
 .lbr .lbrat small { font-size: 9px; opacity: 0.85; }
 .seasonrank { align-items: center; }

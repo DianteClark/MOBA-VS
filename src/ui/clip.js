@@ -31,7 +31,7 @@ function overlay(ctx, potg, k, names) {
   ctx.fillStyle = col; ctx.fillRect(0, 30, W * k, 3);
   ctx.font = '12px PixelFont, monospace'; ctx.textBaseline = 'middle';
   ctx.fillStyle = '#ffd84a'; ctx.fillText('PLAY OF THE GAME', 10, 15);
-  ctx.fillStyle = '#f3ead8'; ctx.fillText(potg.title.toUpperCase(), 150, 15);
+  ctx.fillStyle = '#f3ead8'; ctx.fillText(potg.title.toUpperCase(), 22 + ctx.measureText('PLAY OF THE GAME').width, 15);
   ctx.textAlign = 'right'; ctx.fillStyle = '#a99fb3'; ctx.fillText(`${names[0]} vs ${names[1]} · ${potg.at}`, W - 10, 15); ctx.textAlign = 'left';
   ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(W - 82, H - 22, 76, 16);
   ctx.fillStyle = '#ffd84a'; ctx.fillText('MOBA-VS', W - 76, H - 14);

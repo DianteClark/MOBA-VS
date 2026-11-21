@@ -517,7 +517,7 @@ export class Hud {
     for (const t in this.slows) { if (now > this.slows[t].until) delete this.slows[t]; else k = Math.min(k, this.slows[t].k); }
     this.runner.slow = k;
   }
-  holding() { const R = this.runner, g = this.g; return !!(R.ht && !R.htDone) || (g.tick >= g.halftimeTick - TICK_RATE * 4 && g.tick <= g.halftimeTick + TICK_RATE * 2); }
+  holding() { const R = this.runner, g = this.g; return !!(R.ht && !R.htDone) || (g.halftimeTick >= 0 && g.tick >= g.halftimeTick - TICK_RATE * 4 && g.tick <= g.halftimeTick + TICK_RATE * 2); }
   // ── fight cam: cut straight to a fight from its edge prompt ──
   watchFight(x, y) {
     const r = this.r; r.follow = null; r.panTo = null; r.cam.x = x; r.cam.y = y; r.clampCam();
