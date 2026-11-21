@@ -23,29 +23,32 @@ export class World {
   // ───────────── geometry ─────────────
   build() {
     const d = this.def;
-    const top = d.top.map(pt);
+    const top = (d.top || []).map(pt);
     const bot = top.map(P).reverse();
     const midH = d.midHalf.map(pt);
     const mid = [...midH, ...midH.slice(0, -1).map(P).reverse()];
-    this.lanes = { top, mid, bot };
-    this.laneNames = ['top', 'mid', 'bot'];
+    // single-lane maps (Lane Rush): only mid exists; top/bot alias it so lane lookups never fail
+    this.lanes = d.single ? { mid } : { top, mid, bot };
+    this.laneNames = d.single ? ['mid'] : ['top', 'mid', 'bot'];
     this.laneLen = {};
     for (const ln of this.laneNames) {
       const p = this.lanes[ln], cum = [0];
       for (let i = 1; i < p.length; i++) cum.push(cum[i - 1] + Math.sqrt((p[i].x - p[i - 1].x) ** 2 + (p[i].y - p[i - 1].y) ** 2));
       this.laneLen[ln] = cum;
     }
+    if (d.single) for (const k of ['top', 'bot']) { this.lanes[k] = mid; this.laneLen[k] = this.laneLen.mid; }
     const rivH = d.river.map(pt);
     this.river = [...rivH, ...rivH.slice(0, -1).map(P).reverse()];
     const paths = [];
     for (const pl of d.paths) { const a = pl.map(pt); paths.push(a, a.map(P)); }
     this.paths = paths;
 
-    this.nexus = [{ x: 280, y: 2120 }, P({ x: 280, y: 2120 })];
-    this.fountain = [{ x: 90, y: 2310 }, P({ x: 90, y: 2310 })];
-    this.baseCenter = [{ x: 310, y: 2090 }, P({ x: 310, y: 2090 })];
+    const NX = d.nexus ? pt(d.nexus) : { x: 280, y: 2120 }, FT = d.fountain ? pt(d.fountain) : { x: 90, y: 2310 }, BC = d.baseCenter ? pt(d.baseCenter) : { x: 310, y: 2090 };
+    this.nexus = [NX, P(NX)];
+    this.fountain = [FT, P(FT)];
+    this.baseCenter = [BC, P(BC)];
     this.pits = { kraken: pt(d.kraken), kami: P(pt(d.kraken)) };
-    this.shrines = [pt(d.shrine), P(pt(d.shrine))];      // [blue home shrine, red home shrine]
+    this.shrines = d.shrine ? [pt(d.shrine), P(pt(d.shrine))] : [];      // [blue home shrine, red home shrine]
     this.camps = [];
     for (const c of d.camps) { this.camps.push({ ...c, side: 0, x: c.at[0], y: c.at[1] }); const m = P(pt(c.at)); this.camps.push({ ...c, side: 1, x: m.x, y: m.y }); }
 
@@ -79,8 +82,8 @@ export class World {
     if (d.lake) circ({ x: S / 2, y: S / 2 }, d.lake, T_RIVER, notLane);
     for (const k of ['kraken', 'kami']) circ(this.pits[k], 150, T_PIT, notLane);
     for (const s of this.shrines) circ(s, 96, T_SHRINE, notLane);
-    for (const ln of this.laneNames) poly(this.lanes[ln], 64, T_LANE);
-    for (let t = 0; t < 2; t++) { circ(this.baseCenter[t], 360, T_BASE); circ(this.fountain[t], 150, T_BASE); }
+    for (const ln of this.laneNames) poly(this.lanes[ln], d.laneW || 64, T_LANE);
+    for (let t = 0; t < 2; t++) { circ(this.baseCenter[t], d.baseR || 360, T_BASE); circ(this.fountain[t], 150, T_BASE); }
     // ── brush (only on open, non-lane ground) ──
     const addBrush = (b) => cells(b[0], b[1], b[2], (i) => { if (W[i] && Ty[i] !== T_LANE && Ty[i] !== T_BASE && Ty[i] !== T_PIT && Ty[i] !== T_SHRINE) this.brush[i] = 1; });
     for (const b of d.brush) { addBrush(b); const m = P(pt(b)); addBrush([m.x, m.y, b[2]]); }
@@ -96,9 +99,10 @@ export class World {
     const place = (team) => {
       const list = [];
       for (const ln of this.laneNames) {
-        const fr = ln === 'mid' ? [0.75, 0.5, 0.29, 0.15] : [0.7, 0.46, 0.27, 0.15];
+        const fr = d.towers ? d.towers.map((x) => x[0]) : ln === 'mid' ? [0.75, 0.5, 0.29, 0.15] : [0.7, 0.46, 0.27, 0.15];
         const half = this.laneLen[ln][this.laneLen[ln].length - 1] / 2;
-        fr.forEach((f, k) => {
+        fr.forEach((f, k0) => {
+          const k = d.towers ? d.towers[k0][1] - 1 : k0; // d.towers: [[fraction, tier]], tier 4 = the gate
           const dist = half * f;
           const prog = team === 0 ? dist / (half * 2) : 1 - dist / (half * 2);
           const at = this.lanePoint(ln, prog), dir = this.laneDir(ln, prog);
@@ -113,9 +117,8 @@ export class World {
         });
       }
       const nx = this.nexus[team];
-      const dd = team === 0 ? 1 : -1;
-      list.push({ kind: 'tower', tier: 4, lane: 'base', x: nx.x + 70 * dd, y: nx.y - 150 * dd });
-      list.push({ kind: 'tower', tier: 4, lane: 'base', x: nx.x + 150 * dd, y: nx.y - 70 * dd });
+      const dd = team === 0 ? 1 : -1, bt = d.baseTowers || [[70, -150], [150, -70]];
+      for (const [ox, oy] of bt) list.push({ kind: 'tower', tier: 4, lane: 'base', x: nx.x + ox * dd, y: nx.y + oy * dd });
       list.push({ kind: 'nexus', lane: 'base', x: nx.x, y: nx.y });
       return list;
     };
@@ -139,7 +142,7 @@ export class World {
     }
     for (let i = 0; i < N * N; i++) if (clr[i] === 255) clr[i] = 5;
     this.wallNear = new Uint8Array(N * N); for (let i = 0; i < N * N; i++) this.wallNear[i] = W[i] && clr[i] === 1 ? 1 : 0;
-    const ws = [this.pits.kami, this.pits.kraken, this.shrines[0], this.shrines[1], ...d.brush.slice(0, 5).map(pt)];
+    const ws = [this.pits.kami, this.pits.kraken, this.shrines[0], this.shrines[1], ...d.brush.slice(0, 5).map(pt)].filter(Boolean);
     this.wardSpots = [ws.map((p) => this.nearestOpen(p)), ws.map((p) => this.nearestOpen(P(p)))];
   }
 
