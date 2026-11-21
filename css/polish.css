@@ -185,3 +185,5 @@ button.h2card:hover { filter: brightness(1.15); } button.h2card:active { transfo
 .patch.old summary { cursor: pointer; list-style: none; } .patch.old summary::-webkit-details-marker { display: none; }
 .patch.old summary .gold::before { content: '▸ '; } .patch.old[open] summary .gold::before { content: '▾ '; }
 .patch.old:not([open]) { padding-top: 4px; padding-bottom: 4px; }
+/* re-rendering the same screen never replays the slide-in */
+#screen > .same { animation: none; }

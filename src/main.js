@@ -66,6 +66,14 @@ class App {
     audio.init();
     audio.pressed = tokRecent;
     installPressSounds();
+    // Menu transitions: a new screen slides in; re-rendering the same screen (a toggle, a tab, a draft pick) does not.
+    const scr = document.getElementById('screen'); let lastView = '';
+    new MutationObserver(() => {
+      const c = scr.firstElementChild; if (!c) return;
+      const t = c.querySelector('h2'), view = c.dataset.view || (c.className.split(' ')[0] + '|' + (t ? t.textContent : ''));
+      if (view === lastView) c.classList.add('same');
+      lastView = view;
+    }).observe(scr, { childList: true });
     installBuildTips();
     const bar = document.querySelector('#loading .barw i');
     await loadAssets((p) => { bar.style.width = Math.round(p * 100) + '%'; }, true);

@@ -34,7 +34,7 @@ export function showDojo(app, patch = {}) {
     h('button', { class: 'btn backbtn', onclick: () => { tap(); if (state.hero && state.tab === 'heroes') showDojo(app, { hero: null }); else app.menu(); } }, state.hero && state.tab === 'heroes' ? '‹ Heroes' : '‹ Back'),
     h('div', { class: 'dojotabs' }, ...[['heroes', 'Heroes'], ['builds', 'Builds'], ['lineups', 'Lineups']].map(([k, l]) => h('button', { class: 'chip' + (state.tab === k ? ' on' : ''), onclick: () => { tap(); showDojo(app, { tab: k }); } }, l))),
     h('h2', {}, 'Dojo'));
-  mount(screen(), h('div', { class: 'subscreen dojo' }, head, body));
+  mount(screen(), h('div', { class: 'subscreen dojo', 'data-view': 'dojo:' + state.tab + ':' + (state.tab === 'heroes' && state.hero ? 'hero' : '') }, head, body));
   if (patch.keepScroll) screen().scrollTop = prevScroll; else screen().scrollTop = 0;
 }
 
