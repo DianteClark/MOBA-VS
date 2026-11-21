@@ -18,7 +18,7 @@ L.push(`Self-play scan with balanced hero coverage (per-role shuffled decks, ran
 L.push(`* **Before**: ${B.n} games, blue ${(100 * B.blue / B.n).toFixed(0)}%, avg ${(B.len / B.n).toFixed(1)} min, decided on time ${(100 * B.timeouts / B.n).toFixed(0)}%.`);
 L.push(`* **After**: ${A.n} games, blue ${(100 * A.blue / A.n).toFixed(0)}%, avg ${(A.len / A.n).toFixed(1)} min, decided on time ${(100 * A.timeouts / A.n).toFixed(0)}%.`);
 L.push(`* Events per game after: ${Object.entries(A.ev).map(([k, v]) => `${k} ${(v / A.n).toFixed(2)}`).join(', ')}.`);
-L.push(`* Sample size: ~${Math.round(A.n * 10 / HEROES.length)} games per hero per scan, so a single hero's win rate carries roughly ±${Math.round(100 / Math.sqrt(A.n * 10 / HEROES.length))} points of noise; changes were made on consistent signals (win rate plus KDA/damage share/usage), not on single numbers.`, '');
+L.push(`* Sample size: ~${Math.round(A.n * 10 / HEROES.length)} games per hero per scan, so a single hero's win rate carries roughly ±${Math.round(50 / Math.sqrt(A.n * 10 / HEROES.length))} points (1 s.d.) of noise; changes were made on consistent signals (win rate plus KDA/damage share/usage), not on single numbers.`, '');
 for (const n of CH._notes || []) L.push(`* ${n}`);
 L.push('', '## Range sanity', '');
 L.push(`Hero basic-attack range is now capped at ${A.cap} (tower ${255}), so a tower always out-ranges a hero standing at max range. Heroes that could exceed it with buffs/items: ${A.rangeRows.filter((r) => r.max > A.cap).map((r) => `${r.id} (${r.max})`).join(', ') || 'none'}. Melee heroes: every melee hero lands basic attacks on heroes (see "basic hits/min" below).`, '');

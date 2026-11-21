@@ -102,7 +102,7 @@ export const HEROES = [
   { id: 'gorath', clan: 'beast', pers: 'hothead', name: 'Gorath', title: 'Tusk Warlord', role: 'top', flex: ['jungle'], cls: 'bruiser', dmgType: 'phys', curve: 'early',
     lore: 'A boar chieftain who has never met a wall, or a shield, he could not gore through.',
     tags: ['dive', 'teamfight', 'antitank'], builds: ['pierce', 'sustain', 'tank'],
-    passive: { kind: 'shredHits', name: 'Gore', pct: 0.05, cap: 0.25, dur: 4, desc: 'Basic attacks on heroes shred 5% armor and magic resist, stacking to 25% for 4s.' },
+    passive: { kind: 'shredHits', name: 'Gore', pct: 0.05, cap: 0.2, dur: 4, desc: 'Basic attacks on heroes shred 5% armor and magic resist, stacking to 20% for 4s.' },
     abilities: [
       { name: 'Tusk Toss', icon: 'Cut', kind: 'line', range: 260, width: 60, cd: 7, dmg: { b: 65, l: 20, ad: 0.9 }, cc: { shred: [0.15, 4] }, use: ['poke', 'clear', 'engage'], fx: 'slash' },
       { name: 'Bellow', icon: 'Mist', kind: 'nova', radius: 150, cd: 13, dmg: { b: 40, l: 12, ad: 0.4 }, cc: { fear: 0.9 }, use: ['engage', 'peel'], fx: 'circle' },
@@ -351,7 +351,7 @@ export const HEROES = [
   { id: 'sumi', clan: 'shinobi', pers: 'calm', name: 'Sumi', title: 'Ink Painter', role: 'mid', flex: ['bot'], cls: 'mage', dmgType: 'magic', curve: 'mid',
     lore: 'Paints from across the valley. By the time you see the brushstroke, it has already landed.',
     tags: ['poke', 'siege', 'scaling'], builds: ['burst', 'haste', 'siege'],
-    passive: { kind: 'longshot', name: 'Long Brush', pct: 0.25, desc: 'Abilities deal up to 25% more damage the farther away the target is (full at 450).' },
+    passive: { kind: 'longshot', name: 'Long Brush', pct: 0.2, desc: 'Abilities deal up to 20% more damage the farther away the target is (full at 450).' },
     abilities: [
       { name: 'Ink Stroke', icon: 'WaterCanon', kind: 'shot', range: 480, speed: 800, width: 30, cd: 6, dmg: { b: 80, l: 26, ap: 0.7 }, use: ['poke', 'clear'], proj: 'p_energy', fx: 'water' },
       { name: 'Splash', icon: 'OrbWater', kind: 'circle', range: 460, radius: 100, delay: 0.6, cd: 10, dmg: { b: 55, l: 18, ap: 0.5 }, cc: { root: 1.0 }, use: ['engage', 'peel', 'clear'], fx: 'water' },
