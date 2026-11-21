@@ -61,7 +61,7 @@ export class Alerts {
       if (!tw || !tw.alive) continue;
       const L = lane[0].toUpperCase() + lane.slice(1);
       out.push({ key: 'open' + lane, kind: 'laneopen', x: tw.x, y: tw.y - 30, img: x ? face(x.heroId) : null, label: `${L} lane open: wave hitting tower`, sub: x && x.alive ? `tap: send ${x.def.name}` : 'tap to look',
-        cmd: x && x.alive ? { type: 'split', hero: x.id, lane } : null });
+        cmd: x && x.alive ? { type: 'split', hero: x.id, lane } : null, who: x && x.alive ? x.def.name : null });
     }
     const rank = { bigfight: 0, laneopen: 1, fight: 2, tower: 3, obj: 4 };
     for (const a of out.slice()) if (a.kind === 'laneopen') { const i = out.findIndex((b) => b.kind === 'tower' && b.x === a.x); if (i >= 0) out.splice(i, 1); }
@@ -83,7 +83,7 @@ export class Alerts {
         it = { el, lab, img, born: performance.now(), w: 0, hh: 0 };
         this.items.set(a.key, it);
       }
-      it.x = a.x; it.y = a.y; it.kind = a.kind; it.cmd = a.cmd;
+      it.x = a.x; it.y = a.y; it.kind = a.kind; it.cmd = a.cmd; it.key = a.key; it.label = a.label; it.who = a.who;
       if (it.lab.textContent !== a.label) it.lab.textContent = a.label;
     }
     for (const [k, it] of this.items) if (!keep.has(k)) { it.el.remove(); this.items.delete(k); }
@@ -93,6 +93,14 @@ export class Alerts {
     if (it.kind === 'bigfight') this.hud.watchFight(it.x, it.y);
     else { const r = this.r; r.follow = null; r.panTo = { x: it.x, y: it.y }; this.hud.director = false; this.hud.refreshCtrl(); }
     it.el.classList.add('hidden');
+  }
+  // A lane-open prompt with no edge to sit on (the tower is on screen, or a short phone has no free edge):
+  // the same one-tap "send" goes to the decision tray instead, so it is never lost and never overlaps.
+  trayFallback(it) {
+    const d = this.hud.dock;
+    if (it.kind !== 'laneopen' || !it.cmd || !d || !d.tray || this.hud.my < 0 || it.offered) return;
+    it.offered = true; // once per open lane (a dismissed card stays dismissed until the lane opens again)
+    d.suggest('lo:' + it.key, it.label, `Send ${it.who}`, it.cmd, { cls: 'bad', valid: () => this.items.has(it.key) });
   }
   panelRects() {
     const now = performance.now(); if (now - this.rectsAt < 250) return this.rects;
@@ -115,7 +123,7 @@ export class Alerts {
       const half = (it.w || SIZE) / 2, halfH = it.hh || SIZE / 2;
       const s = r.w2s(it.x, it.y), px = s.x / r.dpr, py = s.y / r.dpr;
       const on = px > 30 && px < W - 30 && py > 30 && py < H - 30;
-      if (on) { it.el.classList.add('hidden'); continue; }
+      if (on) { it.el.classList.add('hidden'); this.trayFallback(it); continue; }
       const dx = px - cx, dy = py - cy;
       // intersection with the inset screen rectangle
       const ex = W / 2 - half - EDGE, ey = H / 2 - halfH - EDGE;
@@ -126,7 +134,7 @@ export class Alerts {
         if (!hit) { ok = true; break; }
         k *= 0.94; x = cx + dx * k; y = cy + dy * k;
       }
-      if (!ok || k < k0 * (it.kind === 'bigfight' || it.kind === 'laneopen' ? 0.12 : 0.35)) { it.el.classList.add('hidden'); continue; } // wide prompts may sit further in
+      if (!ok || k < k0 * (it.kind === 'bigfight' || it.kind === 'laneopen' ? 0.12 : 0.35)) { it.el.classList.add('hidden'); this.trayFallback(it); continue; } // wide prompts may sit further in
       it.el.classList.remove('hidden', 'fresh');
       rects.push({ l: x - half - 3, t: y - halfH - 3, r: x + half + 3, b: y + halfH + 3 }); // later prompts keep clear of this one
       const ang = Math.atan2(dy, dx), ca = Math.abs(Math.cos(ang)), sa = Math.abs(Math.sin(ang));

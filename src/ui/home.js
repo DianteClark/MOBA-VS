@@ -234,8 +234,8 @@ export function showHistory(app, open = 0) {
       h('div', { class: 'row', style: { justifyContent: 'center' } }, h('button', { class: 'btn big', onclick: () => shareMatch(m, coach, app.lastReplay()) }, 'Share card')));
   };
   const rep = app.lastReplay();
-  mount(screen(), h('div', { class: 'subscreen' }, h('div', { class: 'shead' }, back(app), h('h2', {}, 'Match History'),
-    rep ? h('button', { class: 'btn small', title: 'Watch your last match again', onclick: () => app.watchReplay() }, 'Last replay') : h('div')),
+  mount(screen(), h('div', { class: 'subscreen' }, h('div', { class: 'shead' }, back(app), h('h2', {}, 'Match History'), h('div')),
+    rep ? h('div', { class: 'row', style: { justifyContent: 'center' } }, h('button', { class: 'chip', title: 'Watch your last match again', onclick: () => app.watchReplay() }, '▶ Watch last replay')) : null,
     !list.length ? emptyState('assets/img/emote/think.png', 'No matches yet', 'Every match you coach lands here with its picks, K/D/A and a share card.', { label: 'Play vs AI', onclick: () => app.startVsAI() })
       : h('div', { class: 'hist' }, ...list.map((m, i) => h('div', { class: 'hentry' + (m.won ? ' win' : ' loss') + (i === open ? ' open' : '') },
         h('button', { class: 'hrow2', onclick: () => showHistory(app, i === open ? -1 : i) },

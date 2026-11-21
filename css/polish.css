@@ -57,7 +57,7 @@ button.h2card:hover { filter: brightness(1.15); } button.h2card:active { transfo
 .h2hl i { font-style: normal; font-size: 9px; color: #cfeedd; border: 1px solid #6fdc8c55; padding: 1px 4px; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .h2start { position: absolute; top: -10px; right: 10px; background: var(--gold); color: #2a1608; font-size: 10px; padding: 1px 6px; box-shadow: 0 2px 0 #6a2c12; animation: startPulse 1.2s ease-in-out infinite alternate; pointer-events: none; }
 @keyframes startPulse { to { transform: translateY(-2px); filter: brightness(1.2); } }
-.home2 .maprow { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
+.home2 .maprow { display: grid; grid-template-columns: minmax(0, 1.25fr) repeat(4, minmax(0, 1fr)); gap: 4px; }
 .home2 .mapchip { min-width: 0; }
 .home2 .mapchip > span:last-child { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .home2 .mapchip canvas, .home2 .mapchip .q { width: 100%; max-height: 56px; }
@@ -118,7 +118,7 @@ button.h2card:hover { filter: brightness(1.15); } button.h2card:active { transfo
 
 /* ───────── hero search (draft grid, Dojo roster) ───────── */
 .hsearchw { position: relative; flex: 1 1 110px; min-width: 84px; max-width: 220px; display: flex; margin-left: auto; }
-.hsearch { width: 100%; min-height: 38px; font-family: inherit; font-size: 12px; color: var(--ink); background: #120f18; border: 2px solid var(--line); padding: 2px 26px 2px 26px; word-spacing: normal;
+.hsearch { width: 100%; min-height: 38px; font-family: inherit; font-size: 12px; color: var(--ink); background: #120f18; border: 2px solid var(--line); padding: 2px 26px 2px 26px;
   background-image: radial-gradient(circle at 11px 50%, transparent 4px, var(--muted) 4.5px 6px, transparent 6.5px); background-repeat: no-repeat; -webkit-appearance: none; appearance: none; border-radius: 0; }
 .hsearch::-webkit-search-cancel-button { display: none; }
 .hsearch::placeholder { color: #6f6580; }
@@ -168,3 +168,15 @@ button.h2card:hover { filter: brightness(1.15); } button.h2card:active { transfo
 @keyframes tipGlow { from { box-shadow: 0 0 0 2px #7ad0ff, 0 0 8px #7ad0ff88; } to { box-shadow: 0 0 0 3px #bfeaff, 0 0 18px #7ad0ffcc; } }
 .reduce-motion .tipglow { animation: none !important; box-shadow: 0 0 0 3px #7ad0ff; }
 @media (max-height: 500px) { .titem.tip .tipn { display: none; } .titem.tip .tx { font-size: 9px; line-height: 1.2; } }
+
+/* results: the sticky button bar reaches the screen edge (no strip of scrolled text below it) */
+.results .rbtns { bottom: calc(-12px - var(--safe-b)); padding-bottom: calc(16px + var(--safe-b)); margin-bottom: calc(-12px - var(--safe-b)); }
+@media (max-height: 500px) and (min-width: 560px) { .results .rbtns { bottom: calc(-6px - var(--safe-b)); padding-bottom: calc(8px + var(--safe-b)); margin-bottom: calc(-6px - var(--safe-b)); } }
+/* lineup build chips: "Spellblade" fits on phones */
+@media (max-height: 500px) { .lbuilds .bchip { letter-spacing: -0.3px; word-spacing: 0; font-size: 8px; } }
+/* phones: banners (and the Coach Moment card) stay between the team column and the minimap */
+@media (max-height: 500px) {
+  #banner { left: calc(136px + max(var(--safe-l), var(--safe-r))); right: calc(136px + max(var(--safe-l), var(--safe-r))); }
+  #banner .big { max-width: 100%; box-sizing: border-box; }
+  #banner .big.mfxb { padding: 3px 14px; } #banner .mfxb b { font-size: 21px; }
+}
