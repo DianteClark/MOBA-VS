@@ -81,8 +81,58 @@ function riskOf(g, h) {
   if (h.task.call && ['gank', 'objective', 'group', 'invade', 'contest', 'defend', 'shrine'].includes(h.task.kind)) r -= 0.12 * mods(h).discipline;
   return r;
 }
-// Lanchester strength of a group: (sum eHP) × (sum DPS). Towers count only if engaged.
-function strength(g, list) { let e = 0, d = 0; for (const u of list) { e += g.ehp(u); d += u.dps; } return { e, d }; }
+// Lanchester strength of a group: (sum eHP) × (sum DPS). Ready spells count as extra DPS
+// spread over a ~3s skirmish, so a team with ultimates up is rated stronger than one without.
+function strength(g, list) { let e = 0, d = 0; for (const u of list) { e += g.ehp(u); d += u.dps + readyBurst(g, u, null) / 3; } return { e, d }; }
+function readyBurst(g, h, t) {
+  let b = 0;
+  for (let i = 0; i < 3; i++) { const ab = h.def.abilities[i]; if (ab.dmg && g.abilityReady(h, i)) b += g.abilityDamage(h, ab, t); }
+  return b;
+}
+// Respect the fog: enemies we lost sight of who could plausibly arrive within ~3s count
+// (partially) toward the enemy side of a fight.
+function fogThreat(g, h, C) {
+  const ls = g.lastSeen[h.team], now = g.tick; let e = 0, d = 0;
+  for (const x of g.teams[1 - h.team].heroes) {
+    if (!x.alive || C.enemies.includes(x)) continue;
+    const seen = ls[x.id];
+    let w = 0;
+    if (seen) {
+      const gone = (now - seen.t) / 20, reach = (gone + 3) * x.stats.ms;
+      const dd = Math.sqrt((seen.x - h.x) ** 2 + (seen.y - h.y) ** 2);
+      if (dd < reach + 300) w = gone < 6 ? 0.6 : 0.35;
+    } else w = g.time > 90 ? 0.25 : 0;
+    // deeper in enemy territory = more likely to be collapsed on
+    if (w && myProgAny(g, h) > 0.55) w += 0.15;
+    e += g.ehp(x) * w; d += x.dps * w;
+  }
+  return { e, d };
+}
+const myProgAny = (g, h) => { const ln = g.world.closestLane(h); return myProg(g, h.team, ln, h); };
+
+// Tower-dive math: can we (with whoever is committing) kill `t` and walk out alive?
+// Value targets (bounties, near-dead carries, Last Stand) justify a thinner safety margin.
+function diveOk(g, h, t, allies, near) {
+  const tw = enemyTowerAt(g, h.team, t, 0) || enemyTowerAt(g, h.team, h, 0);
+  if (!tw) return true;
+  const divers = allies.filter((a) => a === h || (dist2(a, t) < 480 * 480 && a.hp / a.maxHp > 0.35));
+  let dps = 0, burst = 0;
+  for (const a of divers) { dps += a.dps; burst += readyBurst(g, a, t); }
+  const ttk = Math.max(0, g.ehp(t) - burst * 0.9) / Math.max(1, dps);
+  if (ttk > 2.6) return false;
+  // who eats the tower shots? minions first, then a healthier frontliner
+  const cover = minionCover(g, h.team, tw);
+  const tank = divers.some((a) => a !== h && FRONT(a) && a.hp > h.hp * 1.1);
+  const share = cover >= 3 && !(tw.target === h) ? 0.15 : tank ? 0.45 : 1;
+  const towerDps = tw.stats.ad * tw.stats.as * 0.8 * (1 + Math.min(1.2, (tw.streak || 0) * 0.35));
+  const exitT = Math.max(0, tw.stats.range + 30 - Math.sqrt(dist2(tw, t))) / Math.max(150, g.moveSpeed(h));
+  let enemyDps = 0; for (const e of near) if (dist2(e, t) < 600 * 600) enemyDps += e.dps;
+  const exposure = ttk + 0.35 + exitT;
+  const taken = towerDps * share * exposure + enemyDps * ttk / Math.max(1, divers.length);
+  const value = (t.killStreak >= 3 ? 1 : 0) + (t.hp / t.maxHp < 0.2 ? 0.6 : 0) + (CARRY(t) ? 0.3 : 0) + (g.finalPhase ? 0.4 : 0);
+  const margin = Math.max(0.06, 0.32 - 0.1 * value) * h.maxHp;
+  return g.ehp(h) - taken > margin;
+}
 
 // ─────────────────────────── macro ───────────────────────────
 export function heroMacro(g, h) {
@@ -286,6 +336,7 @@ function combat(g, h, C, recalling) {
   if (!near.length) { h.fightTarget = 0; return false; }
   const allies = C.allies.filter((a) => dist2(a, h) < 720 * 720);
   const A = strength(g, allies), E = strength(g, near);
+  const fog = fogThreat(g, h, C); E.e += fog.e; E.d += fog.d;
   const et = enemyTowerAt(g, h.team, h, 10);
   if (et) { E.e += 1500; E.d += 160; }
   const ot = ownTowerAt(g, h.team, h);
@@ -309,18 +360,26 @@ function combat(g, h, C, recalling) {
     // threats on my carries get peeled
     if ((h.role === 'support' || FRONT(h)) && allies.some((a) => CARRY(a) && dist2(a, e) < 220 * 220)) s += 260 * m.peel;
     const tw = enemyTowerAt(g, h.team, e, 0);
-    if (tw && minionCover(g, h.team, tw) < 2 && !(killable && hpPct > 0.5)) s -= 900;
+    if (tw && !diveOk(g, h, e, allies, near)) s -= 1400;
     if (s > bestScore) { bestScore = s; best = e; }
   }
   const killable = best && (h.burst * 0.75 + allyBurst) > g.ehp(best);
 
   // ── flee? ──
-  const fleeHp = (h.def.cls === 'tank' ? 0.17 : 0.25) * m.discipline;
+  const outnum = Math.max(0, near.length - allies.length);
+  const fleeHp = (h.def.cls === 'tank' ? 0.17 : 0.25) * m.discipline * (1 + 0.35 * outnum);
   // Hysteresis: a retreat is committed for ~1.2s, and re-engaging needs a clearly better ratio.
   // (Without it, stepping in and out of tower range flips fight/flight every few ticks.)
   const fleeing = h.fleeUntil > now;
   const mustFlee = (hpPct < fleeHp * (fleeing ? 1.15 : 1) && !(killable && hpPct > 0.12)) || (ratio < 0.55 * risk * (fleeing ? 1.35 : 1) && !killable) || (recalling && ratio < 1.4);
   if (mustFlee || (fleeing && !(killable && hpPct > 0.4))) { if (!fleeing) h.fleeUntil = now + sec(1.2); return flee(g, h, near, allies); }
+  // Never take a 2-man-down fight unless the kill is right there; peel off while still healthy.
+  if (outnum >= 2 && !killable && !(h.task.kind === 'defend' && hpPct > 0.5)) { if (hpPct < 0.7 || ratio < risk) { h.fleeUntil = now + sec(1); return flee(g, h, near, allies); } }
+  // Dive abort: their tower is shooting us and the kill no longer pencils out.
+  if (et && et.target === h && !(best && diveOk(g, h, best, allies, near))) { h.fleeUntil = now + sec(1); return flee(g, h, near, allies); }
+  // Cohesion: when most nearby teammates are pulling back and we aren't clearly winning, go with them.
+  const backing = allies.filter((a) => a !== h && a.fleeUntil > now).length;
+  if (backing >= 2 && backing * 2 >= allies.length - 1 && ratio < 1.6 * risk && !killable) { h.fleeUntil = now + sec(1); return flee(g, h, near, allies); }
   if (recalling || !best) return false;
 
   const laning = h.task.kind === 'lane' || h.task.kind === 'jungle' || h.task.kind === 'split';
@@ -382,7 +441,7 @@ function position(g, h, t, near, killable) {
     }
     if (d > rng * 0.95) {
       const tw = enemyTowerAt(g, h.team, t, 0);
-      if (tw && minionCover(g, h.team, tw) < 2 && !(killable && h.hp / h.maxHp > 0.45)) return false;
+      if (tw && !diveOk(g, h, t, ctx(g, h.team).allies.filter((a) => dist2(a, h) < 720 * 720), near)) return false;
       if (!chaseOk(g, h, t, killable)) return false;
       g.moveToward(h, t, true, rng * 0.85); return true;
     }
@@ -391,13 +450,18 @@ function position(g, h, t, near, killable) {
   }
   if (g.tryAttack(h, t)) return true;
   const tw = enemyTowerAt(g, h.team, t, 0);
-  if (tw && minionCover(g, h.team, tw) < 2 && !(killable && h.hp / h.maxHp > 0.45)) return false;
+  if (tw && !diveOk(g, h, t, ctx(g, h.team).allies.filter((a) => dist2(a, h) < 720 * 720), near)) return false;
   if (!chaseOk(g, h, t, killable)) return false;
   g.moveToward(h, t, true, rng * 0.8);
   return true;
 }
 function chaseOk(g, h, t, killable) {
   const now = g.tick;
+  // Give up a chase the target is winning (gap growing for ~1.5s) unless it's about to die.
+  const d = dist2(h, t);
+  if (h.chaseId !== t.id || now - h.lastCombat > sec(3)) { h.chaseId = t.id; h.chaseGap = d; h.chaseGrow = 0; }
+  else { if (d > h.chaseGap + 400) h.chaseGrow++; else if (d < h.chaseGap) h.chaseGrow = 0; h.chaseGap = d; }
+  if (h.chaseGrow > 30 && !(t.hp / t.maxHp < 0.12 && killable)) return false;
   if (!killable && dist2(h, t) > (h.stats.range + 200) ** 2 && h.task.kind !== 'gank') return false;
   if (!h.chaseFrom || now - h.lastCombat > sec(3)) h.chaseFrom = { x: h.x, y: h.y };
   return dist2(h, h.chaseFrom) < 800 * 800 || (killable && t.hp / t.maxHp < 0.15);
@@ -422,8 +486,26 @@ function flee(g, h, near, allies) {
   if (castAllySustain(g, h, allies)) return true;
   // ranged heroes shoot a chaser that's already in range while backing off
   if (h.def.ranged && g.tick >= h.attackCd && dist2(chaser, h) < (h.stats.range + chaser.radius + h.radius) ** 2 && hpPct > 0.15) { g.tryAttack(h, chaser); return true; }
-  g.moveToward(h, safeSpot(g, h));
+  g.moveToward(h, escapeTarget(g, h, near, allies));
   return true;
+}
+// Pick a retreat destination we can reach before the enemies can: lane safety, any own tower,
+// the nearest group of teammates, or straight away from the threats. Re-evaluated ~2x/s.
+function escapeTarget(g, h, near, allies) {
+  if (h.escape && g.tick < h.escape.until) return h.escape.p;
+  const cands = [safeSpot(g, h)];
+  let tw = null, td = Infinity;
+  for (const u of g.units) if (u.type === 'tower' && u.alive && u.team === h.team) { const d = dist2(u, h); if (d < td) { td = d; tw = u; } }
+  if (tw) cands.push(g.world.nearestOpen({ x: tw.x + (g.world.fountain[h.team].x - tw.x) * 0.08, y: tw.y + (g.world.fountain[h.team].y - tw.y) * 0.08 }));
+  let best = cands[0], bs = -Infinity;
+  for (const c of cands) {
+    const mine = Math.sqrt(dist2(h, c));
+    let margin = Infinity; for (const e of near) margin = Math.min(margin, Math.sqrt(dist2(e, c)) - mine);
+    const sc = margin - mine * 0.15;
+    if (sc > bs) { bs = sc; best = c; }
+  }
+  h.escape = { p: best, until: g.tick + 10 };
+  return best;
 }
 function fleePoint(g, h, threats) {
   let ax = 0, ay = 0;
@@ -478,7 +560,7 @@ function castCombat(g, h, t, near, allies, killable) {
     }
     if (ab.kind === 'dash' && !ab.dmg && !ab.cc) continue; // pure escape
     // don't dash into a fight we're losing or under their tower
-    if (ab.kind === 'dash' && enemyTowerAt(g, h.team, t, 0) && !killable) continue;
+    if (ab.kind === 'dash' && enemyTowerAt(g, h.team, t, 0) && !diveOk(g, h, t, allies, near)) continue;
     const dmg = g.abilityDamage(h, ab, t);
     const exec = t.hp < dmg * 1.05 || (u.includes('execute') && t.hp / t.maxHp < 0.4);
     const um = ab.ult && g.teams[h.team].ultMode;

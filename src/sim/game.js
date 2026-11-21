@@ -552,10 +552,13 @@ export class Game {
     for (const u of this.units) if (u.alive) this.grid.add(u);
     if (now % 4 === 0) this.updateVision();
 
-    // heroes
-    for (const u of this.units) if (u.type === 'hero') this.updateHero(u);
-    for (const u of this.units) {
-      if (!u.alive) continue;
+    // Fairness: units act in list order and damage lands immediately, so the list is walked
+    // forwards on even ticks and backwards on odd ticks (neither side always swings first).
+    const U = this.units, rev = now & 1, n = U.length;
+    for (let k = 0; k < n; k++) { const u = U[rev ? n - 1 - k : k]; if (u.type === 'hero') this.updateHero(u); }
+    for (let k = 0; k < n; k++) {
+      const u = U[rev ? n - 1 - k : k];
+      if (!u || !u.alive) continue;
       if (u.type === 'minion' || u.type === 'summon') this.updateMinion(u);
       else if (u.type === 'tower') this.updateTower(u);
       else if (u.type === 'mob' || u.type === 'objective') this.updateMob(u);
