@@ -42,15 +42,24 @@ function localJoin(code) {
   });
 }
 
+// PeerJS is fetched on demand (never on the first-paint path); warmNet() preloads it once the menu is up.
+const PEERJS_URL = 'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js';
+let peerLib = null;
 function needPeer() {
-  if (!window.Peer) throw new Error('Networking library failed to load (check your connection).');
+  if (window.Peer) return Promise.resolve();
+  return peerLib || (peerLib = new Promise((resolve, reject) => {
+    const s = document.createElement('script'); s.src = PEERJS_URL; s.async = true;
+    s.onload = () => (window.Peer ? resolve() : reject(new Error('Networking library failed to load.')));
+    s.onerror = () => { peerLib = null; s.remove(); reject(new Error('Networking library failed to load (check your connection).')); };
+    document.head.append(s);
+  }));
 }
+export function warmNet() { if (!LOCAL) needPeer().catch(() => {}); }
 
 // Host: register the code and wait for one guest.
 export function host(code, onStatus, onPeer) {
   if (LOCAL) return localHost(code, onStatus);
-  needPeer();
-  return new Promise((resolve, reject) => {
+  return needPeer().then(() => new Promise((resolve, reject) => {
     const peer = new window.Peer(PREFIX + code, { debug: 0 });
     if (onPeer) onPeer(peer);
     let done = false;
@@ -60,14 +69,13 @@ export function host(code, onStatus, onPeer) {
       conn.on('open', () => { done = true; resolve({ peer, transport: new Transport(conn) }); });
     });
     peer.on('error', (e) => { if (!done) reject(e); });
-  });
+  }));
 }
 
 // Guest: connect to a host code.
 export function join(code, onStatus, onPeer) {
   if (LOCAL) return localJoin(code);
-  needPeer();
-  return new Promise((resolve, reject) => {
+  return needPeer().then(() => new Promise((resolve, reject) => {
     const peer = new window.Peer(undefined, { debug: 0 });
     if (onPeer) onPeer(peer);
     const timer = setTimeout(() => reject(new Error('Could not reach that room.')), 15000);
@@ -78,7 +86,7 @@ export function join(code, onStatus, onPeer) {
       conn.on('error', (e) => { clearTimeout(timer); reject(e); });
     });
     peer.on('error', (e) => { clearTimeout(timer); reject(e); });
-  });
+  }));
 }
 
 // In-memory pair for tests / local debugging (adds artificial latency).

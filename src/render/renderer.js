@@ -44,7 +44,7 @@ export class Renderer {
     this.fogOn = true;
     this.follow = null;
     this.time = 0;
-    this.dpr = 1;
+    this.dpr = 1; this.W = canvas.width; this.H = canvas.height;
     this.showNames = true;
     this.labelAll = false;
     this.grad = this.makeGrad();
@@ -56,13 +56,23 @@ export class Renderer {
     g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(0.75, 'rgba(0,0,0,1)'); g.addColorStop(1, 'rgba(0,0,0,0)');
     x.fillStyle = g; x.fillRect(0, 0, 128, 128); return c;
   }
-  resize() {
+  // Backing store = CSS size x DPR, measured live. Called on every viewport signal and checked each
+  // frame (cheap), so a stale size can never stretch the picture or skew taps.
+  resize(force) {
     const r = this.canvas.getBoundingClientRect();
-    this.dpr = renderDpr();
-    this.canvas.width = Math.max(1, Math.round(r.width * this.dpr));
-    this.canvas.height = Math.max(1, Math.round(r.height * this.dpr));
-    this.fog.width = this.canvas.width; this.fog.height = this.canvas.height;
-    this.W = this.canvas.width; this.H = this.canvas.height;
+    if (r.width < 2 || r.height < 2) return false; // hidden (menus): keep the old size until shown
+    const dpr = renderDpr(), w = Math.max(1, Math.round(r.width * dpr)), hgt = Math.max(1, Math.round(r.height * dpr));
+    this.cssW = r.width; this.cssH = r.height;
+    if (!force && w === this.canvas.width && hgt === this.canvas.height && dpr === this.dpr) return false;
+    this.dpr = dpr;
+    this.canvas.width = w; this.canvas.height = hgt;
+    this.fog.width = w; this.fog.height = hgt;
+    this.W = w; this.H = hgt;
+    return true;
+  }
+  fit() {
+    const c = this.canvas, cw = c.clientWidth, ch = c.clientHeight;
+    if (cw && ch && (cw !== Math.round(this.cssW || 0) || ch !== Math.round(this.cssH || 0) || renderDpr() !== this.dpr)) this.resize();
   }
   attach(game, viewTeam, map) {
     this.game = game; this.viewTeam = viewTeam; this.map = map || paintMap(game.world); this.theme = THEMES[game.world.def.theme] || THEMES.spring;
@@ -288,6 +298,8 @@ export class Renderer {
     // fight-cam slow motion online: effects and particles slow down; the sim keeps its pace
     if (this.visSlow) { if (performance.now() < this.visSlow.until && this.motion) vdt *= this.visSlow.k; else this.visSlow = null; }
     this.time += vdt; this.frame++; this._dt = vdt;
+    this.fit();
+    this.fxp.keep = this.motion ? 1 : 0.35; // Reduced effects: about a third of the particles
     const g = this.game, ctx = this.ctx;
     if (this.focus) { const k = Math.min(1, dt * 2); this.cam.x += (this.focus.x - this.cam.x) * k; this.cam.y += (this.focus.y - this.cam.y) * k; if (this.focus.zoom) this.cam.zoom += (this.focus.zoom - this.cam.zoom) * k; }
     else if (this.panTo) {
