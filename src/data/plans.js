@@ -1,6 +1,6 @@
 // Game plans: the player-facing side (names, one-liners, strengths and counters). The sim weights live in
 // src/sim/plans.js; the recommendation in src/sim/draft.js (recommendPlan).
-import { PLAN_IDS, PLAN_BEATS } from '../sim/plans.js';
+import { PLAN_IDS, PLAN_BEATS, PLAN_EDGE } from '../sim/plans.js';
 
 export { PLAN_IDS };
 export const PLAN_INFO = {
@@ -18,5 +18,7 @@ export const PLAN_INFO = {
 // Plans this one beats / loses to (the intended counters; see tools/balance.mjs --plans for the numbers).
 export const beats = (id) => PLAN_BEATS[id] || [];
 export const losesTo = (id) => PLAN_IDS.filter((p) => (PLAN_BEATS[p] || []).includes(id));
+// The counter-plan edge as shown to players ("+5% damage").
+export const EDGE_TEXT = `+${Math.round(PLAN_EDGE * 100)}% damage`;
 export const planName = (id) => (PLAN_INFO[id] ? PLAN_INFO[id].name : 'Balanced');
 export const planLine = (id) => (PLAN_INFO[id] ? `Beats ${beats(id).map((p) => PLAN_INFO[p].short).join(' & ')} · weak to ${losesTo(id).map((p) => PLAN_INFO[p].short).join(' & ')}` : '');

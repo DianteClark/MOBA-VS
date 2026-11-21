@@ -1,7 +1,7 @@
 // Game plans in the match UI: the kickoff reveal (both plans are secret until the match starts), the halftime
 // switch callout, and the post-match plan verdict ("Your plan: Scale. It worked: you out-scaled from 11:20").
 import { h, icon } from './dom.js';
-import { PLAN_INFO, planName, beats, losesTo } from '../data/plans.js';
+import { PLAN_INFO, planName, beats, losesTo, EDGE_TEXT } from '../data/plans.js';
 import { TEAM_NAME } from '../sim/constants.js';
 import { HERO_BY_ID } from '../data/heroes.js';
 import { TEAM_COL } from '../render/palette.js';
@@ -22,7 +22,7 @@ export function planReveal(hud) {
   audio.sfx('lockin', 0.7);
   if (me >= 0) {
     const mine = plans[me], theirs = plans[1 - me], P = PLAN_INFO[theirs];
-    const edge = beats(mine).includes(theirs) ? 'Your plan counters theirs.' : losesTo(mine).includes(theirs) ? 'Their plan counters yours: adapt with your calls.' : '';
+    const edge = beats(mine).includes(theirs) ? `Your plan counters theirs: ${EDGE_TEXT} all game.` : losesTo(mine).includes(theirs) ? `Their plan counters yours (${EDGE_TEXT} for them): adapt with your calls, or switch at halftime.` : 'Neither plan counters the other.';
     hud.ticker(`Their plan: ${P.name}. ${P.strong}; ${P.weak.toLowerCase()}. ${edge}`.trim(), losesTo(mine).includes(theirs) ? 'danger' : 'act', 2);
   }
 }
@@ -30,10 +30,11 @@ export function planReveal(hud) {
 export function planSwitch(hud, e) {
   const P = PLAN_INFO[e.plan]; if (!P) return;
   const mine = e.team === hud.my;
-  if (mine) { hud.ticker(`New plan: ${P.name}. ${P.desc}`, 'act', 2); return; }
+  const g = hud.g, ed = (t) => beats(g.teams[t].plan).includes(g.teams[1 - t].plan);
+  if (mine) { hud.ticker(`New plan: ${P.name}. ${ed(e.team) ? `It counters theirs: ${EDGE_TEXT}.` : P.desc}`, 'act', 2); return; }
   const from = PLAN_INFO[e.from] ? PLAN_INFO[e.from].short.toUpperCase() : 'PLAN';
   hud.banner(null, P.color, 2200, null, false, [h('small', {}, `${hud.my >= 0 ? 'THEY' : TEAM_NAME[e.team].toUpperCase()} SWITCHED FROM ${from}`), h('b', {}, P.name.toUpperCase()), h('span', {}, `${P.strong} · ${P.weak.toLowerCase()}`)]);
-  if (hud.my >= 0) hud.ticker(`They switched to ${P.name}: ${P.desc}`, 'danger', 2);
+  if (hud.my >= 0) hud.ticker(`They switched to ${P.name}${ed(e.team) ? `, which counters yours (${EDGE_TEXT} for them)` : ''}: ${P.desc}`, 'danger', 2);
 }
 
 // ── verdict (analytics) ──
@@ -77,7 +78,8 @@ function planVerdict(A, T) {
     }
   }
   const sw = at && p0 !== p1 ? ` (switched from ${planName(p0)} at halftime)` : '';
-  return { plan, name: P.name, color: P.color, icon: P.icon, ok, text, head: `${you ? 'Your plan' : A.my >= 0 ? 'Their plan' : TEAM_NAME[T] + ' plan'}: ${P.name}${sw}.` };
+  const other = A.plans[1 - T] && (A.plans[1 - T][1] || A.plans[1 - T][0]), edge = beats(plan).includes(other) ? ', countering theirs' : '';
+  return { plan, name: P.name, color: P.color, icon: P.icon, ok, text, head: `${you ? 'Your plan' : A.my >= 0 ? 'Their plan' : TEAM_NAME[T] + ' plan'}: ${P.name}${sw}${edge}.` };
 }
 // One results/analysis line per side: "Your plan: Scale. It worked: ..."
 export function planLines(A) {

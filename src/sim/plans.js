@@ -16,6 +16,11 @@ const LEGACY = { aggressive: 'aggro', scaling: 'scale' };
 // Any stored or received plan id → a known one ('balanced' when unknown).
 export function normPlan(p) { p = LEGACY[p] || p; return PLAN_IDS.includes(p) ? p : 'balanced'; }
 
+// Counter-plan edge: a team whose plan beats the enemy's (PLAN_BEATS) has read it: +5% damage. Plans are
+// revealed at kickoff, so both coaches see it; a halftime switch can take the edge (or lose it).
+export const PLAN_EDGE = 0.05;
+export function planEdge(g, team) { const a = g.teams[team].plan, b = g.teams[1 - team].plan; return (PLAN_BEATS[a] || []).includes(b) ? PLAN_EDGE : 0; }
+
 // Plan changes are halftime-only (the halftime window), and only the last pick in that window counts.
 export function planChangeOk(g, team, plan) {
   const ht = g.halftimeTick, now = g.tick;

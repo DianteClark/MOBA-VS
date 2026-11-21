@@ -14,7 +14,7 @@ import { Coach } from './coach.js';
 import * as FX from './effects.js';
 import { rulesFor } from './modes.js';
 import { applyMoment } from './moments-coach.js';
-import { normPlan, planChangeOk } from './plans.js';
+import { normPlan, planChangeOk, planEdge } from './plans.js';
 
 // Champion-vs-champion damage scale: keeps fights readable and lanes from snowballing at level 1.
 const STEER_K = +(globalThis.process?.env?.SK || 0.45);
@@ -335,6 +335,7 @@ export class Game {
     if (this.clanStats) add(this.clanStats[h.team]);
     const tn = TUNE[h.heroId] || 1; if (tn !== 1) { s.dmgPct += tn - 1; s.hpPct += (tn - 1) * 0.6; }
     if (this.shrines) for (const sh of this.shrines) if (sh.owner === h.team) s.dmgPct += 0.05;
+    s.dmgPct += planEdge(this, h.team); // game plans: countering the enemy's plan
     for (const d of team.dragons) {
       if (d === 'infernal') s.powerMult += 0.05; else if (d === 'ocean') s.regenPct += 0.005; else if (d === 'mountain') s.resPct += 0.06; else if (d === 'cloud') s.msPct += 0.03;
     }

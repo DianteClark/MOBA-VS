@@ -4,7 +4,7 @@ import { h, mount, face, icon } from './dom.js';
 import { TACTICS, TACTIC_IDS } from '../data/tactics.js';
 import { BUILDS } from '../data/items.js';
 import { audio } from '../audio.js';
-import { PLAN_IDS, PLAN_INFO, planName } from '../data/plans.js';
+import { PLAN_IDS, PLAN_INFO, planName, beats, EDGE_TEXT } from '../data/plans.js';
 
 let el = null, timer = 0;
 
@@ -30,7 +30,8 @@ export function showHalftime(app, g, my, runner, ht) {
       h('div', { class: 'ht-row htplans' }, ...PLAN_IDS.map((id) => { const P = PLAN_INFO[id];
         return h('button', { class: 'tile' + (pick.plan === id ? ' rec' : ''), title: `${P.desc} Strong: ${P.strong}. Weak: ${P.weak}.`, style: { '--pc': P.color },
           onclick: () => { if (pick.plan === id) return; pick.plan = id; runner.send({ type: 'plan', plan: id }); audio.sfx('move', 0.5); render(); } },
-          h('div', {}, h('b', {}, P.short), h('small', {}, P.strong))); })));
+          h('div', {}, h('b', {}, P.short), h('small', { class: beats(id).includes(enemyPlan) ? 'htedge' : beats(enemyPlan).includes(id) ? 'htbad' : '' },
+            beats(id).includes(enemyPlan) ? `Counters theirs: ${EDGE_TEXT}` : beats(enemyPlan).includes(id) ? 'Countered by theirs' : P.strong))); })));
     const unused = team.deck.filter((d) => !d.used);
     const swap = h('div', { class: 'ht-sec' }, h('div', { class: 'ht-h' }, pick.swapped ? 'Card swapped' : pick.swapFrom ? `Swap ${TACTICS[pick.swapFrom].name} for…` : 'Swap one unused card (optional)'),
       pick.swapped ? null : pick.swapFrom

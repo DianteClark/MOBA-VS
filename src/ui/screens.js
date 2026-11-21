@@ -2,7 +2,7 @@
 import { h, mount, face, icon, fmtTime } from './dom.js';
 import { HEROES, HERO_BY_ID, ROLES, ROLE_LABEL, matchupScore, PERSONALITIES } from '../data/heroes.js';
 import { TACTICS, TACTIC_IDS } from '../data/tactics.js';
-import { PLAN_IDS, PLAN_INFO, planLine } from '../data/plans.js';
+import { PLAN_IDS, PLAN_INFO, planLine, EDGE_TEXT } from '../data/plans.js';
 import { BUILDS } from '../data/items.js';
 import { aiPrep, recommendPlan } from '../sim/draft.js';
 import { TEAM_NAME, DRAGON_INFO, CLANS } from '../sim/constants.js';
@@ -141,7 +141,7 @@ export function showPrep(app, prep, enemyIds, left, onChange, onReady, ready) {
       h('div', { class: 'pclans' }, clans)));
   const editors = adjust ? [
     sec('Lanes & builds', h('button', { class: 'btn small', onclick: autoSetup, title: 'Counter-builds, plan and deck picked for you' }, 'Auto counter-build'), h('div', { class: 'prep-cards' }, ...byRole.map(card))),
-    sec('Game plan', h('small', { class: 'muted' }, rush ? 'Hidden from them until kickoff · one lane: no Split Push' : 'Hidden from them until kickoff · one change at halftime'), h('div', { class: 'plans' }, ...PLAN_IDS.filter((k) => !(rush && k === 'split')).map((k) => { const P = PLAN_INFO[k];
+    sec('Game plan', h('small', { class: 'muted' }, `Secret until kickoff · countering theirs: ${EDGE_TEXT}${rush ? ' · one lane: no Split Push' : ' · one switch at halftime'}`), h('div', { class: 'plans' }, ...PLAN_IDS.filter((k) => !(rush && k === 'split')).map((k) => { const P = PLAN_INFO[k];
       return h('button', { class: 'plan' + (prep.plan === k ? ' on' : '') + (rec.id === k ? ' rec' : ''), style: { '--pc': P.color }, onclick: () => { prep.plan = k; audio.sfx('move', 0.4); onChange(); } },
         h('b', {}, h('img', { src: icon(P.icon), alt: '' }), P.name), h('small', {}, P.desc), h('small', { class: 'pvs' }, planLine(k)),
         rec.id === k ? h('span', { class: 'precw' }, '★ ' + rec.why) : null); }))),

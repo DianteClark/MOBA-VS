@@ -105,3 +105,4 @@
   .rvpl { font-size: 13px; } .rvpl img { width: 18px; height: 18px; } .rvhab > small { font-size: 11px; } .rvfav img { width: 32px; height: 32px; } .rvfav small { font-size: 11px; }
   .rvrec b { font-size: 26px; } .rvrec small { font-size: 10px; }
 }
+.htplans .tile small.htedge { color: #7be07b; } .htplans .tile small.htbad { color: #ff8a8a; }
