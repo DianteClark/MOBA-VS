@@ -39,7 +39,7 @@ export const AI_ELO = [920, 1180, 1420];
 export const AI_CAP = [1149, 1449, 1749]; // Easy tops out at Silver I, Normal at Platinum I, Hard at Master I (Kami is online only)
 export const CUP_ELO = [1000, 1250, 1500];
 // Which results move the rating.
-export const RATED = { ai0: true, ai1: true, ai2: true, cup: true, online: true, casual: false, rush: false, rushOnline: false };
+export const RATED = { ai0: true, ai1: true, ai2: true, cup: true, online: true, casual: false, rush: false, rushOnline: false, coop: false, coop2: false };
 
 // End-of-season rewards: reaching a tier (peak rating, 5+ rated matches) earns every reward up to it.
 export const MIN_RATED_GAMES = 5;

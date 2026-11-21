@@ -20,6 +20,8 @@ import { buzz } from './haptics.js';
 import { QuickChat } from './quickchat.js';
 import { tweenNumber, pop } from './juice.js';
 import { CoachTips, tipsLeft } from './coachtips.js';
+import { canCommand, HERO_CMDS } from '../sim/coop.js';
+import { COOP_COL, coachOf } from '../coop-room.js';
 
 const LANE_L = { top: 'Top', mid: 'Mid', bot: 'Bot' };
 const OBJ_L = OBJ_NAME;
@@ -29,6 +31,10 @@ export class Hud {
   constructor(app, game, runner, renderer, minimap, myTeam, mode) {
     this.app = app; this.g = game; this.runner = runner; this.r = renderer; this.mm = minimap;
     this.my = myTeam; this.view = myTeam < 0 ? 0 : myTeam; this.mode = mode;
+    // co-op: this coach's seat on a shared team (hero ownership and the lead live in the sim: team.coop)
+    const ses = app.session;
+    this.coop = ses && ses.mode === 'coop' && myTeam >= 0 && ses.coop && ses.coop[myTeam] ? ses : null;
+    this.seat = this.coop ? ses.mySeat : 0;
     this.evIdx = 0; this.director = false; this.sel = null;
     this.lastDom = 0; this.lastAnalyst = 0; this.cool = {}; this.missing = {}; this.kfItems = []; this.tk = null; this.tkq = [];
     this.slows = {}; this.cc = { n: 0, last: -1e9, keys: new Set() }; this.rq = { n: 0, last: -1e9 }; this.fightCam = null;
@@ -51,7 +57,13 @@ export class Hud {
     this.alerts = new Alerts(this);
     // first matches: a few one-time coach tips in the tray (not for spectators or the Play of the Game)
     if (myTeam >= 0 && mode !== 'watch' && tipsLeft()) this.tips = new CoachTips(this);
-    if (runner.online && myTeam >= 0) this.enableChat((m) => app.net && app.net.t.send(m));
+    if (runner.online && myTeam >= 0 && this.coop) {
+      // co-op quick chat: between partners only (in 2v2 the other side never sees it)
+      const s = this.coop;
+      this.enableChat((m) => app.net && app.net.t.send(m), { extra: { team: myTeam, p: s.slot }, accept: (m) => m.team === myTeam && m.p !== s.slot,
+        who: (m) => { const p = s.players.find((x) => x.slot === m.p); return { name: p ? p.name : 'Partner', color: COOP_COL[p ? p.seat : 1] }; },
+        me: { name: 'You', color: COOP_COL[this.seat] }, mute: 'partner' });
+    } else if (runner.online && myTeam >= 0) this.enableChat((m) => app.net && app.net.t.send(m));
     this._popClose = (e) => { if (this.pop && !this.pop.el.contains(e.target)) this.closePop(); };
     window.addEventListener('pointerdown', this._popClose, true);
   }
@@ -64,6 +76,7 @@ export class Hud {
       const ultAb = hero.def.abilities.find((a) => a.ult) || hero.def.abilities[2];
       const row = h('div', { class: 'hrow' + (mine ? ' mine' : ''), title: `${hero.def.name} · ${pers.name} (hold or right-click for details)` },
         h('div', { class: 'pf' }, h('img', { class: 'fc', src: face(hero.heroId) }), h('div', { class: 'lv' }, '1'),
+          mine && this.coopTeam() && this.coopTeam().seats === 2 ? h('i', { class: 'own' }) : null,
           h('div', { class: 'dead hidden' }, h('span', { class: 'skull' }), h('b', {}, '')),
           h('div', { class: 'ultdot hidden', title: 'Ultimate ready' }, h('img', { src: icon(ultAb.icon) })),
           h('img', { class: 'stb hidden', src: 'assets/img/emote/up.png' })),
@@ -78,7 +91,7 @@ export class Hud {
       row._hero = hero;
       row._q = { lv: row.querySelector('.lv'), dead: row.querySelector('.dead'), deadT: row.querySelector('.dead b'), kda: row.querySelector('.kda'), bar: row.querySelector('.bar .hp'), barT: row.querySelector('.bar .tr'),
         mini: row.querySelector('.hpmini .hp'), miniT: row.querySelector('.hpmini .tr'),
-        trust: row.querySelector('.trust i'), st: row.querySelector('.st'), its: row.querySelector('.its'), mia: row.querySelector('.mia'), ult: row.querySelector('.ultdot'), stb: row.querySelector('.stb'), last: 1 };
+        trust: row.querySelector('.trust i'), st: row.querySelector('.st'), own: row.querySelector('.own'), its: row.querySelector('.its'), mia: row.querySelector('.mia'), ult: row.querySelector('.ultdot'), stb: row.querySelector('.stb'), last: 1 };
       // tap: follow (tap again: build sheet / focus) · hold or right-click: details popover
       let lpT = 0, sx = 0, sy = 0;
       row.addEventListener('click', () => {
@@ -94,7 +107,8 @@ export class Hud {
     this.mineRows = g.teams[this.view].heroes.map((x) => card(x, true));
     this.enemyRows = g.teams[1 - this.view].heroes.map((x) => card(x, false));
     const clanTags = (t) => h('div', { class: 'clantags' }, ...(g.teams[t].clans || []).map((c) => h('span', { style: { borderColor: CLANS[c.clan].color, color: CLANS[c.clan].color }, title: c.text }, `${CLANS[c.clan].name} ${c.n}`)));
-    mount(this.el.mine, clanTags(this.view), this.mineRows);
+    this.leadEl = this.coopTeam() && this.coopTeam().seats === 2 ? h('button', { class: 'coopbar', onclick: () => this.tapLead() }) : null;
+    mount(this.el.mine, this.leadEl, clanTags(this.view), this.mineRows);
     mount(this.el.enemy, clanTags(1 - this.view), this.enemyRows);
     const ctrl = [];
     if (!this.runner.online) {
@@ -135,6 +149,58 @@ export class Hud {
     this.director = false; this.refreshCtrl(); this.renderDetail(true);
   }
 
+  // ───────────────────────── co-op ─────────────────────────
+  coopTeam() { return this.coop ? this.g.teams[this.my].coop || null : null; }
+  ownHero(x) { const ct = this.coopTeam(); return !ct || ct.ai || x.seat === this.seat; }
+  isLead() { const ct = this.coopTeam(); return !ct || ct.ai || ct.lead === this.seat; }
+  coachName(seat) { const c = this.coop && coachOf(this.coop, this.my, seat); return c ? c.name : 'Partner'; }
+  // Could this coach issue it (no side effects)?
+  mayCommand(cmd) { const ct = this.coopTeam(); return !ct || ct.ai || canCommand(this.g, this.my, this.seat, cmd); }
+  // Gate for every outgoing call: true = send it; 'sug' = it went to the lead as a suggestion; false = not ours.
+  coopGate(cmd) {
+    if (this.mayCommand(cmd)) return true;
+    const ct = this.coopTeam();
+    if (HERO_CMDS.has(cmd.type)) {
+      const x = this.g.byId(cmd.hero) || this.g.teams[this.my].heroes.find((y) => y.role === 'jungle');
+      toast(`${x ? x.def.name : 'That hero'} is ${this.coachName(1 - this.seat)}'s hero`, 1600); audio.sfx('cancel', 0.5); return false;
+    }
+    const now = performance.now();
+    if (now - (this._sugAt || 0) < 2500) { toast('Suggestion sent: give the lead a moment', 1400); return false; }
+    this._sugAt = now;
+    this.app.net && this.app.net.t.send({ t: 'sug', team: this.my, cmd, p: this.coop.slot });
+    toast(`Suggested to ${this.coachName(ct.lead)}: ${this.callText({ ...cmd, team: this.my })}`, 1800);
+    const p = this.callPoint(cmd); this.mm.ping(p[0], p[1], COOP_COL[this.seat]);
+    return 'sug';
+  }
+  // The lead hears a partner's suggestion: one tap to make the call.
+  coopSuggest(m) {
+    const cmd = m.cmd, ct = this.coopTeam();
+    if (!ct || ct.ai || ct.lead !== this.seat || !cmd || typeof cmd !== 'object' || typeof cmd.type !== 'string' || HERO_CMDS.has(cmd.type) || cmd.type === 'lead' || cmd.type === 'leave' || cmd.sys) return;
+    const p = this.coop.players.find((x) => x.slot === m.p); if (!p || p.team !== this.my) return;
+    const c = { ...cmd }; delete c.team; delete c.seat; delete c.seq;
+    this.dock.partnerSuggestion(p.name, p.seat, c, this.callText({ ...c, team: this.my }));
+    const pt = this.callPoint(c); this.mm.ping(pt[0], pt[1], COOP_COL[p.seat]);
+  }
+  // The lead badge above your portraits: who makes team calls. The lead taps it twice to hand the calls over.
+  updateCoop() {
+    const ct = this.coopTeam(); if (!ct || !this.leadEl) return;
+    const solo = ct.ai || ct.left[0] || ct.left[1], lead = ct.lead === this.seat, arm = this._passArm && performance.now() < this._passArm;
+    const key = `${solo}|${ct.lead}|${arm}`;
+    if (this._leadKey === key) return;
+    this._leadKey = key;
+    this.leadEl.style.setProperty('--sc', COOP_COL[ct.lead]);
+    this.leadEl.classList.toggle('solo', solo); this.leadEl.classList.toggle('arm', !!arm);
+    this.leadEl.title = solo ? 'Your partner left: you run all five heroes' : lead ? `You make the team calls. Tap twice to hand them to ${this.coachName(1 - this.seat)}` : `${this.coachName(ct.lead)} makes the team calls: tap a team call to suggest it`;
+    mount(this.leadEl, h('i', { class: 'sl' }, solo ? '5' : 'L'), h('span', { class: 'cl' }, solo ? 'Solo' : lead ? 'You' : this.coachName(ct.lead)), h('small', {}, solo ? 'all yours' : arm ? 'Pass?' : 'lead'));
+  }
+  tapLead() {
+    const ct = this.coopTeam(); if (!ct || ct.ai || ct.left[0] || ct.left[1]) return;
+    if (ct.lead !== this.seat) { toast(`${this.coachName(ct.lead)} leads: tap a team call to suggest it`, 1800); return; }
+    if (this._passArm && performance.now() < this._passArm) { this._passArm = 0; this.dock.send({ type: 'lead' }); this._leadKey = null; return; }
+    this._passArm = performance.now() + 2500; this._leadKey = null; audio.sfx('move', 0.4);
+    setTimeout(() => { this._leadKey = null; }, 2600);
+  }
+
   // ───────────────────────── commands (see commands.js) ─────────────────────────
   send(cmd) { return this.dock.send(cmd); }
   callPoint(c) {
@@ -157,6 +223,7 @@ export class Hud {
     if (now - this.lastDom < (isTouch ? 180 : 120)) return;
     this.lastDom = now;
     this.dock.tick();
+    this.updateCoop();
     this.updateScore();
     this.updateRows(this.mineRows, true);
     this.updateRows(this.enemyRows, false);
@@ -330,6 +397,7 @@ export class Hud {
       if (x.alive && vis && pct < q.last - 0.07) { row.classList.remove('hit'); void row.offsetWidth; row.classList.add('hit'); }
       q.last = pct;
       row.classList.toggle('low', x.alive && vis && pct < 0.3);
+      if (q.own) { const seat = x.seat === 1 ? 1 : 0; if (q.seat !== seat) { q.seat = seat; setCss(q.own, '--sc', COOP_COL[seat]); row.style.setProperty('--sc-mate', COOP_COL[seat]); q.own.title = seat === this.seat ? 'Your hero' : `${this.coachName(seat)}'s hero`; row.classList.toggle('mate', seat !== this.seat); } }
       if (q.trust) { setCss(q.trust, 'width', Math.round(x.trust) + '%'); setCss(q.trust, 'background', x.trust >= 70 ? 'var(--green)' : x.trust <= 30 ? 'var(--red)' : 'var(--gold)'); }
       setText(q.st, mine ? this.taskLabel(x) : (vis ? (x.alive ? this.taskLabelEnemy(x) : this.taskLabel(x)) : this.missingText(x)));
       if (q.its.childElementCount !== x.items.length) mount(q.its, ...x.items.map((it) => h('img', { src: icon(it.icon), title: it.name })));
@@ -393,7 +461,7 @@ export class Hud {
   }
   closePop() { if (this.pop) { this.pop.el.remove(); this.pop = null; } }
   // Online quick chat (non-sim messages; see quickchat.js).
-  enableChat(send) { if (!this.chat) this.chat = new QuickChat(this, send); return this.chat; }
+  enableChat(send, opts) { if (!this.chat) this.chat = new QuickChat(this, send, opts); return this.chat; }
   disableChat() { if (this.chat) { this.chat.destroy(); this.chat = null; } }
   destroy() { if (Hud.current === this) Hud.current = null; this.closePop(); if (this.tips) this.tips.destroy(); this.alerts.destroy(); this.disableChat(); clearTimeout(this._bt); document.getElementById('hud').classList.remove('bannering'); window.removeEventListener('pointerdown', this._popClose, true); }
   // The AI's own short reason for what it is doing (hero.why, e.g. "lane: hold behind wave"), for your own
@@ -482,18 +550,28 @@ export class Hud {
         case 'call': {
           const c = e.call;
           if (c.type === 'ult' && c.mode === 'go' && (c.team === this.view || this.my < 0)) this.banner('ALL-IN!', TEAM_COL[c.team], 1200);
+          // co-op: your partner's calls read on the ticker in their colour (with a ping where it lands)
+          if (this.coop && c.team === this.my && c.seat !== undefined && c.seat !== this.seat) {
+            this.ticker(`${this.coachName(c.seat)}: ${this.callText(c)}`, 'mate s' + (c.seat === 1 ? 1 : 0), 1);
+            const pt = this.callPoint(c); this.mm.ping(pt[0], pt[1], COOP_COL[c.seat]);
+            break;
+          }
           // spectators read both coaches' calls on the ticker; a coach sees their own call on the map (ping + emotes)
           if (this.my >= 0 || c.type === 'tactic') break;
-          const what = c.type === 'gank' ? `${c.hero ? this.name(c.hero) : 'Jungler'} gank ${LANE_L[c.lane]}` : c.type === 'objective' ? `Take ${OBJ_L[c.obj]}` : c.type === 'group' ? `Group ${LANE_L[c.lane]}` :
-            c.type === 'split' ? `${this.name(c.hero)} split ${LANE_L[c.lane]}` : c.type === 'focus' ? `Focus ${this.name(c.target)}` : c.type === 'build' ? `${this.name(c.hero)} → ${BUILDS[c.build].name}` :
-            c.type === 'herald' ? `Oni ${LANE_L[c.lane]}` : c.type === 'shrine' ? 'Capture shrine' : c.type === 'safe' ? 'Play safe' : c.type === 'reset' ? 'Reset' : c.type === 'invade' ? 'Invade' :
-            c.type === 'permit' ? `${this.name(c.hero)} green-lit` : c.type === 'surge' ? 'Kami Surge' : c.type === 'moment' ? (MOMENTS[c.id] || {}).name || 'Coach Moment' :
-            c.type === 'ult' ? ({ go: 'ALL-IN, ultimates fire next fight!', save: 'Hold ultimates', free: 'Ults: heroes choose' })[c.mode] : c.type === 'plan' ? `Plan: ${c.plan}` : c.type === 'redraw' ? 'Swapped a tactic card' : 'Cancel calls';
-          this.ticker(`${TEAM_NAME[c.team]} call: ${what}`, c.team === 0 ? 'b' : 'r', 0);
+          this.ticker(`${TEAM_NAME[c.team]} call: ${this.callText(c)}`, c.team === 0 ? 'b' : 'r', 0);
           break;
         }
         case 'callResult': if (e.team === this.my) { this.payoff(e); buzz(e.result === 'success' ? 'callWin' : 'callFail'); } break;
-        case 'momentumFull': if (e.team === this.my) this.dock.surgeOffer(); break;
+        case 'momentumFull': if (e.team === this.my && this.isLead()) this.dock.surgeOffer(); break;
+        case 'coop': {
+          // the lead changed hands, or a coach left (their heroes go to the partner, or to the AI coach)
+          if (!this.coop) break;
+          const name = (t, seat) => { const c = coachOf(this.coop, t, seat); return c ? c.name : 'A coach'; };
+          if (e.team !== this.my) { if (e.what === 'leave') this.ticker(`${name(e.team, e.seat)} (${TEAM_NAME[e.team]}) left: ${e.to >= 0 ? 'their partner runs it all' : 'the AI coach takes over'}`, 'n', 1); break; }
+          if (e.what === 'lead') { this.ticker(e.seat === this.seat ? 'You lead the team calls now' : `${name(e.team, e.seat)} leads the team calls now`, 'act', 2); this._leadKey = null; }
+          else if (e.what === 'leave' && e.seat !== this.seat) { this.ticker(`${name(e.team, e.seat)} left: ${e.to === this.seat ? 'their heroes are yours now' : 'the AI coach takes over'}`, 'danger', 3); this._leadKey = null; }
+          break;
+        }
         case 'moment': momentFx(this, e); break;
         case 'surge':
           if (e.team === this.view || this.my < 0) { this.banner('KAMI SURGE', TEAM_COL[e.team], 1500); }
@@ -517,6 +595,15 @@ export class Hud {
         case 'stolenCamp': if (e.big && e.team !== this.view) this.ticker('Enemy invaded your jungle!', 'danger', 2); break;
       }
     }
+  }
+  // A call in words (spectator ticker, a co-op partner's calls and suggestions).
+  callText(c) {
+    return c.type === 'gank' ? `${c.hero ? this.name(c.hero) : 'Jungler'} gank ${LANE_L[c.lane]}` : c.type === 'objective' ? `Take ${OBJ_L[c.obj]}` : c.type === 'group' ? `Group ${LANE_L[c.lane]}` :
+      c.type === 'split' ? `${this.name(c.hero)} split ${LANE_L[c.lane]}` : c.type === 'focus' ? `Focus ${this.name(c.target)}` : c.type === 'build' ? `${this.name(c.hero)} → ${(BUILDS[c.build] || {}).name || 'new build'}` :
+      c.type === 'herald' ? `Oni ${LANE_L[c.lane]}` : c.type === 'shrine' ? 'Capture shrine' : c.type === 'safe' ? 'Play safe' : c.type === 'reset' ? 'Reset' : c.type === 'invade' ? 'Invade' :
+      c.type === 'permit' ? `${this.name(c.hero)} green-lit` : c.type === 'surge' ? 'Kami Surge' : c.type === 'moment' ? (MOMENTS[c.id] || {}).name || 'Coach Moment' :
+      c.type === 'tactic' ? `${(TACTICS[c.card] || {}).name || 'Tactic card'}${c.lane ? ' ' + LANE_L[c.lane] : c.hero ? ' on ' + this.name(c.hero) : ''}` :
+      c.type === 'ult' ? ({ go: 'ALL-IN, ultimates fire next fight!', save: 'Hold ultimates', free: 'Ults: heroes choose' })[c.mode] || 'Ult stance' : c.type === 'plan' ? `Plan: ${c.plan}` : c.type === 'redraw' ? 'Swapped a tactic card' : 'Cancel calls';
   }
   // One-line priority ticker under the score. A more important line holds the slot for 2.5s;
   // lesser lines queue briefly and are dropped if they go stale.
@@ -671,7 +758,7 @@ export class Hud {
     const g = this.g, me = this.my, now = g.tick, tray = this.dock.tray;
     if (g.over || this.holding() || this.dock.sheetId || g.time < 75) return;
     const cc = this.cc;
-    if (cc.n < 8 && now - cc.last >= 45 * TICK_RATE && !tray.items.some((i) => i.prio >= PRIO.call)) {
+    if (cc.n < 8 && now - cc.last >= 45 * TICK_RATE && this.isLead() && !tray.items.some((i) => i.prio >= PRIO.call)) {
       const m = coachMoment(g, me);
       if (m && !cc.keys.has(m.key)) {
         cc.keys.add(m.key); cc.last = now; cc.n++; this.stats.coachCalls++;
@@ -687,6 +774,7 @@ export class Hud {
     const rq = this.rq;
     if (rq.n < 10 && now - rq.last >= 40 * TICK_RATE && g.time > 120 && !tray.items.some((i) => i.prio >= PRIO.request)) {
       for (const r of heroRequests(g, me)) {
+        if (!this.ownHero(r.hero)) continue; // co-op: a hero asks its own coach
         if (Math.random() >= 0.12 * (ASK_WEIGHT[r.hero.def.pers] || 1)) continue;
         rq.last = now; rq.n++; this.stats.requests++;
         this.dock.request(r, { onYes: () => { this.stats.requestsYes++; } });

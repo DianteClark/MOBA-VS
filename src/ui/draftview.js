@@ -16,6 +16,8 @@ import { masteryBadge } from './badges.js';
 import { compLine } from './comp.js';
 import { buildLine } from './buildguide.js';
 import { searchBox, applySearch } from './herosearch.js';
+import { draftLegal, draftWho, rolesLine, coachOf, COOP_COL } from '../coop-room.js';
+import { coopRoles, seatRoles } from '../sim/coop.js';
 
 const screen = () => document.getElementById('screen');
 export const AUTO_GRACE = 1.2; // seconds before a preset auto-pick locks in
@@ -23,12 +25,14 @@ export const AUTO_GRACE = 1.2; // seconds before a preset auto-pick locks in
 export class DraftView {
   constructor(app) { this.app = app; this.sel = null; this.filter = 'all'; this.query = ''; this.scroll = 0; this.promptTurn = -1; }
 
+  // Can this coach lock this hero now? (Co-op: it must fit one of their own open roles.)
+  legal(id) { const s = this.app.session; return s.mode === 'coop' ? draftLegal(s, id) : legal(s.draft, s.myTeam, id); }
   // REC / BAN? badges: best picks for the team, or the suggested bans.
   recommend(d, me, t) {
     if (!t || t.team !== me || d.done) return [];
     if (t.act === 'ban') return suggestedBans(d, me, this.app.session.preset);
     const tk = taken(d);
-    return HEROES.filter((x) => !tk.has(x.id) && legal(d, me, x.id)).map((x) => [pickScore(d, me, x), x.id]).filter((q) => q[0] > 0)
+    return HEROES.filter((x) => !tk.has(x.id) && this.legal(x.id)).map((x) => [pickScore(d, me, x), x.id]).filter((q) => q[0] > 0)
       .sort((a, b) => b[0] - a[0] || (a[1] < b[1] ? -1 : 1)).slice(0, 3).map((q) => q[1]);
   }
   select(id) {
@@ -39,7 +43,8 @@ export class DraftView {
 
   render() {
     const app = this.app, s = app.session, d = s.draft, me = s.myTeam;
-    const t = currentTurn(d), myTurn = !!t && t.team === me && s.mode !== 'watch';
+    const t = currentTurn(d), myTurn = !!t && s.mode !== 'watch' && app.myDraftTurn();
+    const coop = s.mode === 'coop', who = coop ? draftWho(s) : null, mate = who && who.team === me && !myTurn ? coachOf(s, who.team, who.seat) : null;
     const ban = !!t && t.act === 'ban', tk = taken(d);
     const enemyPicks = d.picks[1 - Math.max(0, me)].map((id) => HERO_BY_ID[id]);
     const recs = myTurn ? this.recommend(d, me, t) : [];
@@ -50,12 +55,15 @@ export class DraftView {
 
     const teamBar = (team) => {
       const picks = d.picks[team], bans = d.bans[team];
-      const roles = (team === me ? teamRoles(picks, s.preset) : assignRoles(picks)) || [];
+      const split = coop && s.coop[team] && s.coop[team].seats === 2 ? s.coop[team] : null;
+      const roles = (split ? coopRoles(d, team, split.own) : team === me ? teamRoles(picks, s.preset) : assignRoles(picks)) || [];
       const acting = t && t.team === team;
       const pickSlots = Array.from({ length: 5 }, (_, i) => {
         const id = picks[i], active = acting && t.act === 'pick' && i === picks.length;
         const auto = active && team === me && s.autoPick;
-        return h('div', { class: 'slot' + (active ? ' active' : '') + (id ? ' filled' : '') + (auto ? ' auto' : '') },
+        // co-op: each pick framed in its coach's colour
+        const seat = split ? (id ? d.seats[team][i] : acting && who && who.team === team ? who.seat : null) : null;
+        return h('div', { class: 'slot' + (active ? ' active' : '') + (id ? ' filled' : '') + (auto ? ' auto' : '') + (seat !== null && seat !== undefined ? ' cs' : ''), style: seat !== null && seat !== undefined ? { '--sc': COOP_COL[seat] } : null },
           id ? h('img', { src: face(id) }) : auto ? h('img', { class: 'ghost', src: face(s.autoPick.id) }) : null,
           auto ? h('b', { class: 'acd', id: 'autocd' }, '') : null,
           id ? h('span', { class: 'role' }, ROLE_LABEL[roles[i]] || '') : null);
@@ -72,7 +80,7 @@ export class DraftView {
     };
     const left = Math.ceil(s.turnLeft ?? TURN_SECONDS);
     const turnBox = h('div', { class: 'dturn' + (t ? ' t' + t.team : '') + (myTurn ? ' mine' : '') + (ban ? ' isban' : '') },
-      h('div', { class: 'what' }, d.done ? 'Draft complete!' : myTurn ? `YOUR ${ban ? 'BAN' : 'PICK'}` : `${s.names[t.team]} ${ban ? 'bans' : 'picks'}`),
+      h('div', { class: 'what' }, d.done ? 'Draft complete!' : myTurn ? `YOUR ${ban ? 'BAN' : 'PICK'}` : `${mate ? mate.name : s.names[t.team]} ${ban ? 'bans' : 'picks'}`),
       d.done ? null : h('div', { class: 'timer', id: 'dtimer' }, String(left)),
       d.done ? null : h('div', { class: 'tbar' }, h('i', { id: 'dtbar', style: { width: Math.max(0, left / TURN_SECONDS * 100) + '%' } })),
       h('div', { class: 'mapname' }, (MAP_BY_ID[s.mapId] || MAPS[0]).name));
@@ -87,7 +95,7 @@ export class DraftView {
     const list = HEROES.filter((x) => this.filter === 'all' || x.roles.includes(this.filter));
     list.sort((a, b) => (tk.has(a.id) ? 1 : 0) - (tk.has(b.id) ? 1 : 0) || (recs.includes(b.id) ? 1 : 0) - (recs.includes(a.id) ? 1 : 0));
     const grid = h('div', { class: 'grid' }, ...list.map((x) => {
-      const off = tk.has(x.id), bad = !off && myTurn && !ban && !legal(d, me, x.id);
+      const off = tk.has(x.id), bad = !off && myTurn && !ban && !this.legal(x.id);
       const ms = enemyPicks.length && !off ? matchupScore(x, enemyPicks).score : 0;
       const pers = PERSONALITIES[x.pers], rec = recs.includes(x.id), mine = presetRole(s.preset, x.id);
       return h('button', { class: 'hcard' + (off ? ' off' : '') + (bad ? ' bad' : '') + (this.sel === x.id ? ' sel' : '') + (rec ? ' rec' : ''), disabled: off, 'data-hero': x.id,
@@ -145,23 +153,27 @@ export class DraftView {
     }
     const id = this.sel;
     if (!id) {
-      const need = ROLES.filter((r) => !(teamRoles(d.picks[Math.max(0, me)], s.preset) || []).includes(r)).map((r) => ROLE_LABEL[r]);
+      const split = s.mode === 'coop' && s.coop[me] && s.coop[me].seats === 2 ? s.coop[me] : null;
+      const have = split ? coopRoles(d, me, split.own).filter((_, i) => d.seats[me][i] === s.mySeat) : teamRoles(d.picks[Math.max(0, me)], s.preset) || [];
+      const need = (split ? seatRoles(split.own, s.mySeat) : ROLES).filter((r) => !have.includes(r)).map((r) => ROLE_LABEL[r]);
+      const who = s.mode === 'coop' && !d.done ? draftWho(s) : null, mateTurn = who && who.team === me && who.seat !== s.mySeat ? coachOf(s, me, who.seat) : null;
       return wrap('empty', [
-        h('div', { class: 'hint' }, d.done ? 'Locked in. Prep starts soon...' : !myTurn ? 'Waiting for the other side...'
+        split ? h('div', { class: 'coopline' }, rolesLine(s)) : null,
+        h('div', { class: 'hint' }, d.done ? 'Locked in. Prep starts soon...' : mateTurn ? `${mateTurn.name} is ${t.act === 'ban' ? 'banning' : 'picking'}...` : !myTurn ? 'Waiting for the other side...'
           : t.act === 'ban' ? 'Your ban: remove a hero you fear.' : `Your pick. Still needed: ${need.join(', ')}`),
         h('div', { class: 'muted small' }, myTurn && t.act === 'ban' ? (recs.length ? 'Suggested bans counter your lineup.' : 'Tap a hero to ban it.')
           : recs.length && myTurn ? 'Heroes marked REC suit your draft.' : 'Tap a hero to see abilities and matchups.'),
         !s.preset && me >= 0 && !d.done ? h('div', { class: 'muted small' }, 'Tip: set up a lineup in the Dojo and your picks lock in automatically.') : null]);
     }
     const x = HERO_BY_ID[id], pers = PERSONALITIES[x.pers], clan = CLANS[x.clan];
-    const ban = t && t.act === 'ban', canAct = myTurn && legal(d, me, id), mu = matchupScore(x, enemyPicks);
+    const ban = t && t.act === 'ban', canAct = myTurn && this.legal(id), mu = matchupScore(x, enemyPicks);
     const inLineup = presetRole(s.preset, id);
     return wrap('info' + (ban ? ' isban' : ''), [
       h('div', { class: 'ihead' }, h('div', { class: 'face' }, h('img', { src: face(id) })),
         h('div', { class: 'icol' }, h('h2', {}, x.name), h('div', { class: 't' }, `${x.roles.map((r) => ROLE_LABEL[r]).join(' / ')} · ${x.ranged ? 'Ranged' : 'Melee'}`),
           h('div', { class: 'chips' }, h('span', { class: 'chipx', style: { '--cc': clan.color } }, clan.name), h('span', { class: 'chipx', style: { '--cc': pers.color }, title: pers.desc }, pers.name)))),
       myTurn && ban && inLineup ? h('div', { class: 'warnline' }, `${x.name} is in your lineup (${ROLE_LABEL[inLineup]}).`) : null,
-      myTurn && !canAct ? h('div', { class: 'warnline' }, taken(d).has(id) ? 'Already banned or picked.' : 'Your team already covers this hero\'s roles.') : null,
+      myTurn && !canAct ? h('div', { class: 'warnline' }, taken(d).has(id) ? 'Already banned or picked.' : s.mode === 'coop' ? 'Doesn\'t fit your open roles.' : 'Your team already covers this hero\'s roles.') : null,
       statBars(id, true),
       h('div', { class: 'chips dbuilds' }, ...x.builds.map((b) => h('span', { class: 'chipx', style: { '--cc': BUILDS[b].color }, title: buildLine(b), 'data-build': b, 'data-build-info': true }, BUILDS[b].name + (b === x.rec ? ' ★' : '')))),
       h('div', { class: 'abl' },

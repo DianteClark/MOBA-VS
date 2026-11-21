@@ -41,6 +41,9 @@ import { keepAwake } from './ui/awake.js';
 import { MatchRecorder, showAnalysis } from './ui/analytics.js';
 import { Theater } from './ui/theater.js';
 import { loadLib, storeMatch } from './ui/replays.js';
+import { hostCoop, onCoopNet, enterAsGuest, myDraftTurn, applyDraft, draftAuto, aiDraftTurn, coopPrep, myHeroIds, sendPrep, seatReady, flushPendingPreps,
+  coopCfg, runnerOpts, startedRunner, soloFallback, historyCoop } from './coop-room.js';
+import { coopResults } from './ui/coop.js';
 
 const VERSION = 21; // bump whenever the sim or balance changes (peers must match)
 const PREP_SECONDS = 60;
@@ -51,7 +54,7 @@ class App {
     try { this.name = localStorage.getItem('mobavs_name') || 'Coach'; this.aiLevel = +(localStorage.getItem('mobavs_ai') ?? 1); } catch { this.aiLevel = 1; }
     // Online queue: 'ranked' (ladder), 'casual' (5v5, no rating) or 'rush' (Lane Rush, casual)
     try { this.queueMode = ['ranked', 'casual', 'rush'].includes(localStorage.getItem('mobavs_queue')) ? localStorage.getItem('mobavs_queue') : 'ranked'; } catch { this.queueMode = 'ranked'; }
-    this.session = null; this.net = null; this.match = null; this.mapPref = 'random';
+    this.session = null; this.net = null; this.match = null; this.mapPref = 'random'; this.version = VERSION;
     this.bgCanvas = document.getElementById('bg');
   }
   // Painted map canvases are cached per map id (painting takes a moment on phones).
@@ -227,6 +230,8 @@ class App {
       showLobby(this, { code, status: 'Could not open room: ' + (e.message || e.type || e), onCancel: cancel, extra });
     }
   }
+  // Co-op room: two coaches share a team, vs the AI or 2v2 (src/coop-room.js).
+  hostCoop(opts = {}) { stopParade(); hostCoop(this, opts); }
   joinScreen(prefill, opts = {}) {
     const cancel = () => this.menu();
     const go = async (code) => {
@@ -292,7 +297,14 @@ class App {
   }
   onNet(m) {
     const s = this.session; if (!s) return;
+    if (s.mode === 'coop') { onCoopNet(this, m); return; }
     switch (m.t) {
+      case 'room': // the room we joined is a co-op room
+        if (s.mode === 'join') enterAsGuest(this, m);
+        break;
+      case 'closed':
+        if (s.mode === 'join') { toast(m.why || 'That room is closed.', 3000); this.menu(); }
+        break;
       case 'hello':
         if (m.v !== VERSION) { toast('Version mismatch — both players should refresh.'); return; }
         if (s.mode === 'host') {
@@ -338,6 +350,12 @@ class App {
     if (this.replayFromResults()) { this.cleanupNet(); return; } // online results' Play of the Game / replay
     if (!this.session || this.session.mode === 'ai' || this.session.mode === 'watch') return;
     if (this.session.finished || (this.match && this.match.game.over)) { this.cleanupNet(); return; }
+    if (this.session.mode === 'coop') {
+      // a co-op guest lost the host: mid-match, play on alone; before it, the room is gone
+      if (this.session.host) return;
+      if (this.match) { soloFallback(this, LocalRunner); this.cleanupNet(); return; }
+      toast('The host closed the co-op room.', 3000); this.menu(); return;
+    }
     if (this.match && !this.match.game.over) {
       // Keep playing: the AI coach takes over the opponent.
       toast('Opponent disconnected — AI coach takes over.', 3500);
@@ -369,7 +387,7 @@ class App {
     const s = this.session;
     s.draft = newDraft(); s.turnStart = performance.now(); s.turnLeft = TURN_SECONDS;
     // The active lineup is frozen for this draft (auto-picks, prep builds/plan/deck).
-    const pre = profile.activePreset; s.preset = pre ? JSON.parse(JSON.stringify(pre)) : null;
+    const pre = profile.activePreset; s.preset = pre && s.mode !== 'coop' ? JSON.parse(JSON.stringify(pre)) : null; // co-op: each coach picks for their roles
     this.showScreen(true);
     audio.music('draft');
     this.draftView = new DraftView(this);
@@ -388,11 +406,22 @@ class App {
     // Preset auto-pick lands after a short grace (the coach can tap another hero to override).
     if (s.autoPick && s.autoPick.turn === s.draft.turn && performance.now() >= s.autoPick.at) { this.lockAutoPick(); return; }
     // Timeout: the acting side auto-locks (the local player for their own turns).
-    if (s.turnLeft <= 0 && t.team === s.myTeam) this.draftAct(s.pickPrompt && s.pickPrompt.recs[0] || autoChoice(s.draft, t.team, s.rng, 1));
+    if (s.turnLeft <= 0 && this.myDraftTurn()) this.draftAct(s.mode === 'coop' ? draftAuto(s) : s.pickPrompt && s.pickPrompt.recs[0] || autoChoice(s.draft, t.team, s.rng, 1));
   }
+  // Is it this coach's draft turn? (Co-op: the team's turn and this coach's seat.)
+  myDraftTurn() { const s = this.session, t = currentTurn(s.draft); return s.mode === 'coop' ? myDraftTurn(s) : !!t && t.team === s.myTeam; }
   // Every local pick/ban (manual, auto-pick, timeout) goes through here, so online drafts stay in lockstep.
   draftAct(heroId) {
     const s = this.session, t = currentTurn(s.draft);
+    if (s.mode === 'coop') {
+      const turn = s.draft.turn;
+      if (!myDraftTurn(s) || !applyDraft(s, s.myTeam, s.mySeat, heroId)) return false;
+      audio.sfx('lockin');
+      this.net.t.send({ t: 'draft', team: s.myTeam, seat: s.mySeat, hero: heroId, turn, p: s.slot });
+      this.draftView.sel = null;
+      this.afterDraftAct();
+      return true;
+    }
     if (!t || t.team !== s.myTeam) return false;
     const turn = s.draft.turn;
     if (!draftApply(s.draft, s.myTeam, heroId)) return false;
@@ -429,6 +458,7 @@ class App {
   cancelAutoPick() { const s = this.session; if (s && s.autoPick) { s.autoPick = null; toast('Auto-pick off for this turn: choose your hero', 1600); } }
   maybeAiDraft() {
     const s = this.session;
+    if (s.mode === 'coop') { aiDraftTurn(this); return; }
     if (s.mode !== 'ai') return;
     const t = currentTurn(s.draft);
     if (!t || t.team === s.myTeam) return;
@@ -445,28 +475,32 @@ class App {
   startPrep() {
     const s = this.session, me = s.myTeam, d = s.draft;
     s.preps = [null, null]; s.ready = [false, false];
-    const pp = prepFromPreset(d.picks[me], d.picks[1 - me], s.preset);
+    const coop = s.mode === 'coop';
+    const pp = coop ? { prep: coopPrep(s), fromPreset: [] } : prepFromPreset(d.picks[me], d.picks[1 - me], s.preset);
     s.myPrep = pp.prep; s.prepFromPreset = pp.fromPreset; s.prepAdjust = false;
-    s.myPrep.skins = profile.skinsFor(d.picks[me]);
+    s.myPrep.skins = profile.skinsFor(coop ? myHeroIds(s) : d.picks[me]);
     if (s.mode === 'ai') { s.preps[1 - me] = aiPrep(d.picks[1 - me], d.picks[me]); s.ready[1 - me] = true; }
     if (s.pendingPrep) { s.preps[s.pendingPrep.team] = s.pendingPrep.prep; s.ready[s.pendingPrep.team] = true; s.pendingPrep = null; }
     s.prepEnd = performance.now() + PREP_SECONDS * 1000;
-    const render = () => showPrep(this, s.myPrep, d.picks[1 - me], (s.prepEnd - performance.now()) / 1000, render, () => this.prepReady(), s.ready[me]);
+    const meReady = () => (coop ? seatReady(s, me, s.mySeat) : s.ready[me]);
+    const render = () => showPrep(this, s.myPrep, d.picks[1 - me], (s.prepEnd - performance.now()) / 1000, render, () => this.prepReady(), meReady());
     this.renderPrep = render;
     render();
+    if (coop) flushPendingPreps(this);
     clearInterval(this.prepTimer);
     this.prepTimer = setInterval(() => {
       if (this.session !== s) { clearInterval(this.prepTimer); return; }
       const left = (s.prepEnd - performance.now()) / 1000;
       const el = document.getElementById('ptimer'); if (el) el.textContent = String(Math.max(0, Math.ceil(left)));
-      if (left <= 0 && !s.ready[me]) this.prepReady();
+      if (left <= 0 && !meReady()) this.prepReady();
     }, 250);
   }
   prepReady() {
     const s = this.session, me = s.myTeam;
-    if (s.ready[me]) return;
+    if (s.mode === 'coop' ? seatReady(s, me, s.mySeat) : s.ready[me]) return;
     const deck = s.myPrep.deck || (s.myPrep.deck = []);
     for (const id of DEFAULT_DECK) if (deck.length < 3 && !deck.includes(id)) deck.push(id);
+    if (s.mode === 'coop') { audio.sfx('accept'); sendPrep(this, JSON.parse(JSON.stringify(s.myPrep))); this.renderPrep(); return; }
     s.preps[me] = JSON.parse(JSON.stringify(s.myPrep)); s.ready[me] = true;
     audio.sfx('accept');
     if (this.net) this.net.t.send({ t: 'prep', team: me, prep: s.preps[me] });
@@ -487,8 +521,9 @@ class App {
     const cfg = s.replay ? JSON.parse(JSON.stringify(s.replay.cfg)) : {
       seed: s.seed, map: s.mapId, ...(s.gameMode === 'rush' ? { mode: 'rush' } : {}),
       teams: [0, 1].map((t) => ({ heroes: s.preps[t].heroes, plan: s.preps[t].plan, deck: s.preps[t].deck, name: s.names[t] })),
-      coach: s.mode === 'ai' ? [s.myTeam !== 0, s.myTeam !== 1] : s.mode === 'watch' ? [true, true] : [false, false],
+      coach: s.mode === 'coop' ? s.ai.slice() : s.mode === 'ai' ? [s.myTeam !== 0, s.myTeam !== 1] : s.mode === 'watch' ? [true, true] : [false, false],
       coachLevel: [s.aiLevel ?? this.aiLevel, s.aiLevel ?? this.aiLevel],
+      ...(s.mode === 'coop' ? { coop: coopCfg(s) } : {}),
     };
     const cfgSaved = JSON.parse(JSON.stringify(cfg));
     const pre = s.prebuilt; s.prebuilt = null; // Play of the Game: a game already fast-forwarded to the highlight
@@ -517,8 +552,9 @@ class App {
     const short = Math.min(window.innerWidth, window.innerHeight);
     this.renderer.cam.zoom = short < 600 ? Math.max(0.5, Math.min(0.9, short / 620)) : window.innerWidth < 1100 ? 0.95 : 1.25;
     this.renderer.follow = null;
-    const runner = pre ? pre.runner : this.net ? new LockstepRunner(game, s.myTeam, this.net.t)
+    const runner = pre ? pre.runner : this.net ? new LockstepRunner(game, s.myTeam, this.net.t, s.mode === 'coop' ? runnerOpts(s) : {})
       : new LocalRunner(game, s.myTeam, { noHalftime: s.mode === 'watch', script: s.replay ? s.replay.log : null });
+    if (!pre && s.mode === 'coop' && runner.online) startedRunner(this, runner);
     runner.onHalftime = (ht) => showHalftime(this, game, s.myTeam, runner, ht);
     runner.onHalftimeEnd = () => hideHalftime();
     if (runner.online) runner.onDesync = (k) => { console.warn('desync at', k); toast('Warning: games out of sync (tick ' + k + ')', 4000); };
@@ -619,7 +655,8 @@ class App {
       try {
         profile.lastNames = s.names;
         sum = profile.record({ game: m.game, myTeam: s.myTeam, mode: s.mode === 'ai' && !s.wasOnline ? 'ai' : 'online', aiLevel: s.aiLevel ?? this.aiLevel, cup: !!s.cup,
-          ranked: !!s.ranked, oppElo: s.oppElo, potgHero: potg && potg.team === s.myTeam ? potg.heroId : null, analytics });
+          ranked: !!s.ranked, oppElo: s.oppElo, potgHero: potg && potg.team === s.myTeam ? potg.heroId : null, analytics,
+          coop: s.mode === 'coop' ? { kind: s.kind, heroes: myHeroIds(s), info: historyCoop(s) } : null });
         if (s.cup && profile.d.cup) cupOut = recordCup(profile.d.cup, m.game.winner === s.myTeam);
       } catch (e) { console.error(e); }
       if (!s.replay && m.cfg) this.saveReplay(m, s, analytics, sum && profile.d.history[0] ? profile.d.history[0].t : Date.now());
@@ -631,12 +668,13 @@ class App {
       const report = s.myTeam >= 0 ? reportCard(m.game, s.myTeam, m.hud.stats) : null;
       const args = [this, m.game, s.myTeam,
         s.cup ? () => showCup(this) : s.mode === 'ai' ? () => this.startVsAI(s.gameMode === 'rush' ? 'rush' : 'classic') : s.mode === 'watch' ? () => this.watch() : null,
-        () => this.menu(), { progress: progressPanel(sum, cupOut), ladder, social: socialPanel(this, s), againLabel: s.cup ? 'Back to bracket' : null, potg: this.potgReel ? potg : null, report,
+        () => this.menu(), { progress: progressPanel(sum, cupOut), ladder, social: s.mode === 'coop' ? coopResults(this, s, m.game) : socialPanel(this, s), againLabel: s.cup ? 'Back to bracket' : null, potg: this.potgReel ? potg : null, report,
           onPOTG: () => this.playPOTG(), onClip: potg && src && clipSupport() ? () => saveClip(src, potg, s.names, this.mapCanvas(m.game.world)) : null,
           analytics, onAnalysis: analytics ? () => showAnalysis(analytics, { title: 'Match analysis', onTheater: this.lastReplay() ? () => this.watchReplay(null, { back: () => this.backToResults() }) : null }) : null,
           onReplay: () => this.watchReplay(null, { back: () => this.backToResults() }), share: sum ? () => shareMatch(profile.d.history[0], { name: this.name, rank: profile.rank.label }, this.lastReplay()) : null }];
       this.lastResults = { args, session: s, src, potg };
       showResults(...args);
+      if (s.mode === 'coop') this.cleanupNet(); // no rematch in co-op: the room closes with the results
       if (sum) setTimeout(() => rankMoment(sum), 900);
       // confetti only for a real win of your own (a promotion brings its own with the rank card)
       if (won && s.myTeam >= 0 && !s.replay && !(sum && sum.promoted)) setTimeout(() => confetti(), 350);
@@ -756,7 +794,7 @@ class App {
     if (this.session && this.session.potg) { this.endPOTG(); return; }
     if (this.match && this.match.theater) { this.match.theater.exit(); return; }
     if (!confirm('Leave this match?')) return;
-    if (this.net) this.net.t.send({ t: 'quit' });
+    if (this.net) this.net.t.send(this.session && this.session.mode === 'coop' ? { t: 'quit', p: this.session.slot } : { t: 'quit' });
     const m = this.match; this.match = null;
     if (m) { m.game.over = true; this.teardownMatch(m); }
     this.menu();
