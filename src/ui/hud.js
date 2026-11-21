@@ -22,6 +22,7 @@ import { tweenNumber, pop } from './juice.js';
 import { CoachTips, tipsLeft } from './coachtips.js';
 import { planReveal, planSwitch } from './plans.js';
 import { planName } from '../data/plans.js';
+import { EVENT_BY_ID } from '../data/events.js';
 import { canCommand, HERO_CMDS } from '../sim/coop.js';
 import { COOP_COL, coachOf } from '../coop-room.js';
 
@@ -253,8 +254,10 @@ export class Hud {
       return { el: h('div', { class: 'side ' + (t ? 'red' : 'blue') }, twEl, meta), tw, kills, pips, marks: h('div', { class: 'omarks ' + (t ? 'red' : 'blue') }), sig: '' };
     };
     this.sc = { sides: [side(0), side(1)], clock: h('div', { class: 'clock' }), wx: h('div', { class: 'wx' }), kk: h('span', { class: 'kk' }) };
-    const c = this.sc;
-    mount(this.el.score, c.sides[0].el, h('div', { class: 'mid' }, c.clock, c.wx), c.sides[1].el, h('div', { class: 'markrow' }, c.sides[0].marks, c.kk, c.sides[1].marks));
+    const c = this.sc, ev = this.g.event && EVENT_BY_ID[this.g.event];
+    // weekly map event: a tiny icon beside the weather (tap/hover for what it changes)
+    const evi = ev ? h('img', { class: 'evi', src: `assets/img/${ev.icon}.png`, alt: ev.name, title: `${ev.name}: ${ev.short}`, onclick: () => toast(`${ev.name}: ${ev.blurb}`, 3500) }) : null;
+    mount(this.el.score, c.sides[0].el, h('div', { class: 'mid' }, c.clock, evi ? h('div', { class: 'wxrow' }, c.wx, evi) : c.wx), c.sides[1].el, h('div', { class: 'markrow' }, c.sides[0].marks, c.kk, c.sides[1].marks));
   }
   updateScore() {
     const g = this.g, set = setText;
@@ -544,7 +547,8 @@ export class Hud {
         }
         case 'soul': this.banner(`${DRAGON_INFO[e.element].short.toUpperCase()} BLESSING`, TEAM_COL[e.team], 2400); this.cast(e, e.team); break;
         case 'shrine': this.ticker(`${TEAM_NAME[e.team]} captured a shrine`, e.team === 0 ? 'b' : 'r', 2); break;
-        case 'weather': if (g.tick > 5) { const W_ = WEATHER[e.weather]; this.ticker(`Weather: ${W_.name}${W_.desc ? ' — ' + W_.desc : ''}`, 'n', 0); } break;
+        case 'weather': if (g.tick <= 5 && g.event && EVENT_BY_ID[g.event]) { const ev = EVENT_BY_ID[g.event]; this.ticker(`Weekly event · ${ev.name}: ${ev.short}`, 'n', 0); }
+          if (g.tick > 5) { const W_ = WEATHER[e.weather]; this.ticker(`Weather: ${W_.name}${W_.desc ? ' — ' + W_.desc : ''}`, 'n', 0); } break;
         case 'tower': this.ticker(`${TEAM_NAME[e.team]} destroyed a ${LANE_L[e.lane] || 'base'} tower`, e.team === 0 ? 'b' : 'r', 2); break;
         case 'inhib': this.ticker(`${TEAM_NAME[e.team]} broke the ${LANE_L[e.lane]} gate!`, e.team === 0 ? 'b' : 'r', 3); this.banner('GATE DESTROYED', TEAM_COL[e.team]); break;
         case 'inhibRespawn': this.ticker(`${TEAM_NAME[e.team]} ${LANE_L[e.lane]} gate restored`, 'n', 0); break;

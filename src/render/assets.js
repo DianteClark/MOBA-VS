@@ -56,6 +56,7 @@ export async function loadAssets(onProgress, early = false) {
   for (const b of BOSS) rest.push([b, `${BASE}boss/${b}.png`]);
   for (const f of new Set(Object.keys(FX).map((k) => FX[k].img || k))) rest.push(['fx_' + f, `${BASE}fx/${f}.png`]);
   for (const p of Object.keys(PROJ)) rest.push(['fx_' + p, `${BASE}fx/${p}.png`]);
+  for (const t of ['TilesetDesert', 'TilesetVillageAbandoned']) rest.push([t, `${BASE}tiles/${t}.png`]); // Sunscar Oasis / Mossgate Ruins decor
   for (const b of SKIN_BODIES) rest.push(['skin_' + b, `${BASE}skins/${b}.png`], ['skinface_' + b, `${BASE}skins/${b}_face.png`]);
   rest.push(['shadow', `${BASE}fx/shadow.png`]);
   rest.push(['ambient', `${BASE}fx/ambient.png`]);

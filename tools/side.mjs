@@ -1,6 +1,6 @@
 // Side fairness + match pacing meter (classic or rush), in parallel worker processes.
 //   node tools/side.mjs [games=40] [--workers=N] [--from=K] [--mode=classic|rush] [--mirror] [--swap] [--mins=M] [--map=id]
-// Default draft: the same seeded random per-role draft as tools/waste.mjs (game i plays map i%4).
+// Default draft: the same seeded random per-role draft as tools/waste.mjs (game i plays classic map i % maps).
 //   --mirror  both teams field the SAME five heroes and builds: any edge left is pure side (map / sim order).
 //   --swap    every seed is played twice with the teams swapped (cancels draft luck; pairs share a seed).
 //   --mins=M  stop each game at M minutes (fast early-game read: gold / kills / towers per side).
@@ -16,7 +16,8 @@ const args = process.argv.slice(2);
 const flag = (k, d) => { const a = args.find((x) => x === '--' + k || x.startsWith('--' + k + '=')); if (!a) return d; const v = a.split('=')[1]; return v === undefined ? true : v; };
 const N = +(args.find((a) => !a.startsWith('--')) || 40);
 const MODE = flag('mode', 'classic'), MIRROR = !!flag('mirror', false), SWAP = !!flag('swap', false), MINS = +flag('mins', 0), ONLY = flag('map', null);
-const MAPS = MODE === 'rush' ? ['rush_sakura', 'rush_ember'] : ['sakura', 'frost', 'ember', 'marsh'];
+const MAPS = MODE === 'rush' ? ['rush_sakura', 'rush_ember'] : (await import('../src/maps/defs.js')).MAPS.map((m) => m.id);
+const EVENT = flag('event', null); // --event=<id>: play a weekly map event (src/data/events.js)
 
 async function play(ids) {
   const { Game } = await import('../src/sim/game.js');
@@ -24,7 +25,7 @@ async function play(ids) {
   const { Rng } = await import('../src/sim/rng.js');
   const { aiPrep } = await import('../src/sim/draft.js');
   // pacing experiments: --pace='{"rampPer":240}' merges into this mode's pace rules (also --final, --T, --rules)
-  const { rulesFor } = await import('../src/sim/modes.js'), R = rulesFor(MODE);
+  const { rulesFor } = await import('../src/sim/modes.js'), R = rulesFor(MODE, EVENT);
   for (const [k, o] of [['pace', R.pace], ['final', R.final], ['T', R.T]]) { const v = flag(k, null); if (v) Object.assign(o, JSON.parse(v)); }
   if (flag('rules', null)) Object.assign(R, JSON.parse(flag('rules', null)));
   const rows = [];
@@ -36,7 +37,7 @@ async function play(ids) {
     if (flip) [a, b] = [b, a];
     const map = ONLY || MAPS[i % MAPS.length];
     const pa = aiPrep(a, b), pb = MIRROR ? JSON.parse(JSON.stringify(pa)) : aiPrep(b, a);
-    const g = new Game({ seed: 4200 + i, map, ...(MODE === 'rush' ? { mode: 'rush' } : {}), coach: [true, true], teams: [pa, pb] });
+    const g = new Game({ seed: 4200 + i, map, ...(MODE === 'rush' ? { mode: 'rush' } : {}), ...(EVENT ? { event: EVENT } : {}), coach: [true, true], teams: [pa, pb] });
     const r = { map, at: {}, first: {}, lost: [{}, {}] };
     const snap = () => g.teams.map((t) => ({ gold: t.heroes.reduce((s, h) => s + h.goldEarned, 0), kills: t.kills, towers: t.towers || 0 }));
     const end = MINS ? MINS * 60 : Infinity;

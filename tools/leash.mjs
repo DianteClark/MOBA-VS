@@ -12,7 +12,7 @@ import { aiPrep } from '../src/sim/draft.js';
 import { LEASH } from '../src/sim/constants.js';
 
 const N = +(process.argv[2] || 6);
-const MAPS = [['classic', 'sakura'], ['classic', 'frost'], ['classic', 'ember'], ['classic', 'marsh'], ['rush', 'rush_sakura'], ['rush', 'rush_ember']];
+const MAPS = [...(await import('../src/maps/defs.js')).MAPS.map((m) => ['classic', m.id]), ['rush', 'rush_sakura'], ['rush', 'rush_ember']];
 let bad = 0, samples = 0;
 const worst = { minion: 0, mob: 0, boss: 0 };
 for (let i = 0; i < N; i++) {

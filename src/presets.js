@@ -84,13 +84,13 @@ export function pickScore(d, team, x) {
 }
 // The 3 best open heroes for one role (shown when the preset hero and its backup are gone).
 function recommendForRole(d, team, role, n = 3) {
-  const tk = taken(d), mine = d.picks[team];
+  const tk = taken(d, team), mine = d.picks[team];
   return HEROES.filter((x) => x.roles.includes(role) && !tk.has(x.id) && legal(d, team, x.id) && assignPreferred([...mine, x.id], [...mine.map(() => null), role]))
     .map((x) => [pickScore(d, team, x) + (x.role === role ? 2 : 0), x.id]).sort((a, b) => b[0] - a[0] || (a[1] < b[1] ? -1 : 1)).slice(0, n).map((q) => q[1]);
 }
 // Threats worth banning: strong into your lineup (preset + picks so far), never your own preset heroes.
 export function suggestedBans(d, team, preset, n = 3) {
-  const tk = taken(d), own = new Set(presetHeroes(preset));
+  const tk = taken(d, team), own = new Set(presetHeroes(preset));
   const mine = [...new Set([...d.picks[team], ...(preset ? ROLES.map((r) => preset.main[r]).filter(Boolean) : [])])].map((id) => HERO_BY_ID[id]);
   if (!mine.length) return [];
   return HEROES.filter((x) => !tk.has(x.id) && !own.has(x.id))

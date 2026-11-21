@@ -3,6 +3,8 @@
 // Per map: stuck reports, blocked-move ratio, heading reversals, facing flips, wall scrapes,
 // route efficiency for long trips, and A* cost.
 import { Game } from '../src/sim/game.js';
+import { MAPS as CLASSIC } from '../src/maps/defs.js';
+const CLASSIC_IDS = CLASSIC.map((m) => m.id); // every classic map (MAPS=id,id env var: only those)
 import { HEROES, ROLES } from '../src/data/heroes.js';
 const CORE = ['bastion','kenshi','varro','brawlo','grok','kaze','leonin','karasu','umbra','gama','ember','raiden','totem','sanguis','hex','fletch','marlowe','shuri','bolt','sling','oak','wu','aurelia','bonehook','frost'];
 import { Rng } from '../src/sim/rng.js';
@@ -14,7 +16,7 @@ const fp = World.prototype.findPath; let astar = 0, astarMs = 0;
 World.prototype.findPath = function (...a) { const t = performance.now(); const r = fp.apply(this, a); astarMs += performance.now() - t; astar++; return r; };
 
 const tot = {};
-for (const map of ['sakura', 'frost', 'ember', 'marsh']) {
+for (const map of (process.env.MAPS || CLASSIC_IDS.join(',')).split(',')) {
   const S = { moveTicks: 0, blocked: 0, reversals: 0, flips: 0, stuck: 0, scrapes: 0, minMove: 0, minBlocked: 0, trips: 0, eff: 0, astar: 0, astarMs: 0, ticks: 0 };
   astar = 0; astarMs = 0;
   for (let sd = 0; sd < SEEDS; sd++) {

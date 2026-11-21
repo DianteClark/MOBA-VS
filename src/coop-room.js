@@ -21,6 +21,7 @@ import { toast } from './ui/dom.js';
 import { myLooks, cleanLooks } from './looks.js';
 import { audio } from './audio.js';
 import { showCoopLobby } from './ui/coop.js';
+import { EVENT_BY_ID } from './data/events.js';
 
 export const COOP_COL = ['#ffd84a', '#6fe3c8']; // seat colours: seat A gold, seat B mint (the same on every screen)
 const DIFF = ['Easy', 'Normal', 'Hard'];
@@ -122,7 +123,7 @@ export function startRoom(app) {
   const s = app.session, room = s.room;
   if (!s.host || !canStart(room)) return;
   const seed = (Math.random() * 2 ** 31) >>> 0;
-  const start = { t: 'start', coop: 1, seed, map: app.pickMap(seed, 'classic'), room: publicRoom(room) };
+  const start = { t: 'start', coop: 1, seed, map: app.pickMap(seed, 'classic'), ev: app.eventFor('classic', 'private'), room: publicRoom(room) }; // weekly event: the host's choice, like a private room
   const hub = app.net.hub;
   for (const p of room.players) if (p.slot) hub.sendTo(p.slot, start);
   // a link still connecting (no hello yet) is turned away rather than pulled into a match it never joined
@@ -184,7 +185,7 @@ export function onCoopNet(app, m) {
 function beginMatchFlow(app, start, mySlot) {
   const room = mySlot ? cleanRoom(start.room) : start.room, me = room.players.find((p) => p.slot === mySlot);
   const s = app.session = {
-    mode: 'coop', host: mySlot === 0, slot: mySlot, kind: room.kind, gameMode: 'classic', seed: start.seed, mapId: start.map,
+    mode: 'coop', host: mySlot === 0, slot: mySlot, kind: room.kind, gameMode: 'classic', seed: start.seed, mapId: start.map, event: EVENT_BY_ID[start.ev] ? start.ev : null,
     myTeam: me.team, mySeat: me.seat, aiLevel: room.aiLevel, rng: new Rng(start.seed), players: room.players.slice(),
     slots: Math.max(...room.players.map((p) => p.slot)) + 1,
   };

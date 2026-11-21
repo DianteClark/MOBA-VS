@@ -37,9 +37,13 @@ export function validate(doc, heroIds) {
   const c = doc.cfg;
   if (!int(c.seed) || typeof c.map !== 'string') return 'bad seed or map';
   if (!Array.isArray(c.teams) || c.teams.length !== 2) return 'bad teams';
-  const seen = new Set();
+  // weekly map event (src/data/events.js): an id or absent; Mirror Draft lets both teams field the same hero
+  if (c.event !== undefined && (typeof c.event !== 'string' || !/^[a-z]{1,16}$/.test(c.event))) return 'bad event';
+  const mirror = c.event === 'mirror';
+  let seen = new Set();
   for (const t of c.teams) {
     if (!t || !Array.isArray(t.heroes) || t.heroes.length !== 5) return 'a team does not have 5 heroes';
+    if (mirror) seen = new Set();
     for (const x of t.heroes) {
       if (!x || !heroIds.has(x.id)) return `unknown hero ${x && x.id}`;
       if (seen.has(x.id)) return `hero ${x.id} picked twice`;

@@ -117,7 +117,7 @@ export const seatRoles = (own, seat) => ROLES.filter((r) => own[r] === seat);
 function seatPicks(d, team, seat) { ensureSeats(d); return d.picks[team].filter((_, i) => d.seats[team][i] === seat); }
 export function coopLegal(d, team, seat, heroId, own) {
   const t = currentTurn(d);
-  if (!t || t.team !== team || !HERO_BY_ID[heroId] || taken(d).has(heroId)) return false;
+  if (!t || t.team !== team || !HERO_BY_ID[heroId] || taken(d, team).has(heroId)) return false;
   if (t.act === 'ban') return true;
   return fitsRoles([...seatPicks(d, team, seat), heroId], seatRoles(own, seat));
 }
@@ -132,7 +132,7 @@ export function coopApply(d, team, seat, heroId, own) {
 // Timeout / fallback pick for one coach's open roles (deterministic given the rng).
 export function coopAutoChoice(d, team, seat, own, rng) {
   const t = currentTurn(d); if (!t) return null;
-  const enemy = d.picks[1 - team].map((id) => HERO_BY_ID[id]), tk = taken(d);
+  const enemy = d.picks[1 - team].map((id) => HERO_BY_ID[id]), tk = taken(d, team);
   let best = null, bs = -Infinity;
   for (const h of HEROES) {
     if (tk.has(h.id) || !coopLegal(d, team, seat, h.id, own)) continue;

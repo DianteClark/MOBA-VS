@@ -62,7 +62,8 @@ export class Game {
   constructor(cfg) {
     this.cfg = cfg;
     this.rng = new Rng(cfg.seed >>> 0);
-    this.mode = cfg.mode || 'classic'; this.rules = rulesFor(this.mode); this.T = this.rules.T;
+    this.mode = cfg.mode || 'classic'; this.rules = rulesFor(this.mode, cfg.event); this.T = this.rules.T;
+    this.event = this.rules.event; // weekly map event id (src/data/events.js) or null for Classic
     this.tick = 0;
     this.nextId = 1;
     this.units = [];          // everything that can be hit
@@ -214,7 +215,7 @@ export class Game {
 
   updateShrines() {
     if (this.time < this.T.shrineUnlock) return;
-    const step = 5 * DT;
+    const R = this.rules.shrine, step = 5 * DT * (R ? R.speed : 1);
     for (const sh of this.shrines) {
       const n = [0, 0];
       for (const u of this.grid.query(sh.x, sh.y, 120)) if (u.type === 'hero' && u.alive) n[u.team]++;
@@ -224,7 +225,8 @@ export class Game {
         sh.progress += step * (1 + 0.25 * (n[who] - 1));
         if (sh.progress >= T.shrineCapture) {
           const prev = sh.owner; sh.owner = who; sh.progress = 0; sh.capTeam = -1;
-          this.addMomentum(who, MOMENTUM.shrine);
+          this.addMomentum(who, MOMENTUM.shrine * (R ? R.momentum : 1));
+          if (R) for (const h of this.teams[who].heroes) this.giveGold(h, R.gold);
           const sev = { type: 'shrine', team: who, id: sh.id, prev }; this.emit(sev); this.resolveCalls(sev);
           for (const t of this.teams) for (const h of t.heroes) this.recalc(h);
         }
@@ -336,7 +338,7 @@ export class Game {
     const team = this.teams[h.team];
     if (this.clanStats) add(this.clanStats[h.team]);
     const tn = TUNE[h.heroId] || 1; if (tn !== 1) { s.dmgPct += tn - 1; s.hpPct += (tn - 1) * 0.6; }
-    if (this.shrines) for (const sh of this.shrines) if (sh.owner === h.team) s.dmgPct += 0.05;
+    if (this.shrines) for (const sh of this.shrines) if (sh.owner === h.team) s.dmgPct += this.rules.shrine ? this.rules.shrine.dmg : 0.05;
     s.dmgPct += planEdge(this, h.team); // game plans: countering the enemy's plan
     for (const d of team.dragons) {
       if (d === 'infernal') s.powerMult += 0.05; else if (d === 'ocean') s.regenPct += 0.005; else if (d === 'mountain') s.resPct += 0.06; else if (d === 'cloud') s.msPct += 0.03;
@@ -774,9 +776,9 @@ export class Game {
     if (!ob.dragon && this.objTimers.dragon && now >= this.objTimers.dragon) {
       const elder = this.teams.some((t) => t.soul);
       const el = elder ? 'elder' : this.nextDragon;
-      const hp = (elder ? 6500 : 3200) + minute * 120;
+      const hp = ((elder ? 6500 : 3200) + minute * 120) * this.rules.kamiPower;
       ob.dragon = this.addUnit({ type: 'objective', kind: 'dragon', element: el, team: NEUTRAL, x: this.world.pits.kami.x, y: this.world.pits.kami.y, home: { ...this.world.pits.kami },
-        maxHp: hp, hp, radius: 30, big: true, boss: true, stats: { ad: (elder ? 150 : 55) + minute * 5, ap: 0, armor: 40, mr: 40, as: 0.7, range: 220, ms: 80, pen: 0 } });
+        maxHp: hp, hp, radius: 30, big: true, boss: true, stats: { ad: ((elder ? 150 : 55) + minute * 5) * this.rules.kamiPower, ap: 0, armor: 40, mr: 40, as: 0.7, range: 220, ms: 80, pen: 0 } });
       this.objTimers.dragon = 0;
       this.emit({ type: 'spawn', obj: 'dragon', element: el });
     }
@@ -807,9 +809,9 @@ export class Game {
       for (const u of this.units) {
         if (!u.alive || u.team !== t) continue;
         const r = u.type === 'hero' ? VISION.hero : u.type === 'minion' ? VISION.minion : u.type === 'summon' ? VISION.summon : u.structure ? VISION.tower : 0;
-        if (r) src.push({ x: u.x, y: u.y, r: u.structure ? r : r * this.wx.vision * (1 + ((u.stats && u.stats.sight) || 0)) });
+        if (r) src.push({ x: u.x, y: u.y, r: u.structure ? r : r * this.wx.vision * (1 + ((u.stats && u.stats.sight) || 0)) * this.rules.vision });
       }
-      for (const w of this.wards) if (w.team === t && w.until > this.tick) src.push({ x: w.x, y: w.y, r: VISION.ward });
+      for (const w of this.wards) if (w.team === t && w.until > this.tick) src.push({ x: w.x, y: w.y, r: VISION.ward * this.rules.vision });
       for (const sh of this.shrines) if (sh.owner === t) src.push({ x: sh.x, y: sh.y, r: VISION.shrine });
       src.push({ x: W.fountain[t].x, y: W.fountain[t].y, r: VISION.fountain });
       const grid = W.computeVision(src, this.visGrid[t]);
@@ -1022,6 +1024,7 @@ export class Game {
 
   moveSpeed(u) {
     let ms = u.stats.ms * this.wx.ms;
+    if (u.type === 'hero') ms *= this.rules.heroMs;
     let slow = 0; for (const s of u.slows) if (s.until > this.tick && s.pct > slow) slow = s.pct;
     return ms * (1 - slow);
   }
@@ -1606,11 +1609,11 @@ export class Game {
         if (killer) {
           killer.kills++; killer.killStreak = (killer.killStreak || 0) + 1;
           this.addTrust(killer, killer.pers.tilts ? 4 : 2, 'kill');
-          this.giveGold(killer, (GOLD.kill + Math.min(5, Math.max(0, victimStreak - 1)) * GOLD.shutdownPerStreak) * this.finalMult);
+          this.giveGold(killer, (GOLD.kill + Math.min(5, Math.max(0, victimStreak - 1)) * GOLD.shutdownPerStreak) * this.finalMult * this.rules.killGold);
           this.teams[killer.team].kills++;
           this.addMomentum(killer.team, MOMENTUM.kill);
         } else if (killerTeam !== NEUTRAL && killerTeam !== u.team) this.teams[killerTeam].kills++;
-        for (const a of assists) { a.assists++; this.giveGold(a, GOLD.assist / Math.max(1, assists.length) * 1.5); }
+        for (const a of assists) { a.assists++; this.giveGold(a, GOLD.assist / Math.max(1, assists.length) * 1.5 * this.rules.killGold); }
         FX.onTakedown(this, u, killer, assists);
         const xp = XP.killBase + XP.killPerLevel * u.level;
         const near = this.grid.query(u.x, u.y, 900).filter((h) => h.type === 'hero' && h.alive && h.team !== u.team);
@@ -1621,7 +1624,7 @@ export class Game {
       }
       case 'minion': case 'summon': {
         if (u.type === 'summon') break;
-        const g = GOLD[u.kind], x = XP[u.kind];
+        const g = GOLD[u.kind] * this.rules.minionGold, x = XP[u.kind];
         if (src && src.type === 'hero') { this.giveGold(src, g); src.cs++; this.fx.push({ kind: 'gold', id: src.id, x: u.x, y: u.y, v: g }); }
         const near = this.grid.query(u.x, u.y, 900).filter((h) => h.type === 'hero' && h.alive && h.team !== u.team);
         for (const h of near) this.giveXp(h, x / near.length * (near.length > 1 ? 1.25 : 1));
