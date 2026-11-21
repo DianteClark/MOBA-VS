@@ -5,20 +5,32 @@
 // as a recovery code (MOBA-XXXX-…) to sign in on another device. The server stores SHA-256(secret).
 // Ladder: online matches count only when BOTH players report the same winner and final checksum
 // (the simulation is deterministic, so honest clients always agree).
+// Queues: 'ranked' (ladder), 'casual' (5v5) and 'rush' (Lane Rush). Players are only paired inside the
+// same queue; casual and rush reports are verified the same way and feed hero_results, never the ladder.
 
 const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS players (id TEXT PRIMARY KEY, name TEXT NOT NULL, secret_hash TEXT NOT NULL, created INTEGER, updated INTEGER, profile TEXT, profile_at INTEGER DEFAULT 0)`,
   `CREATE TABLE IF NOT EXISTS ladder (season INTEGER, player TEXT, rating INTEGER DEFAULT 1000, wins INTEGER DEFAULT 0, losses INTEGER DEFAULT 0, peak INTEGER DEFAULT 1000, updated INTEGER, PRIMARY KEY (season, player))`,
   `CREATE INDEX IF NOT EXISTS ladder_rank ON ladder (season, rating DESC)`,
-  `CREATE TABLE IF NOT EXISTS reports (match TEXT, player TEXT, season INTEGER, side INTEGER, opponent TEXT, winner INTEGER, checksum TEXT, summary TEXT, created INTEGER, PRIMARY KEY (match, player))`,
+  `CREATE TABLE IF NOT EXISTS reports (match TEXT, player TEXT, season INTEGER, side INTEGER, opponent TEXT, winner INTEGER, checksum TEXT, summary TEXT, created INTEGER, mode TEXT DEFAULT 'ranked', PRIMARY KEY (match, player))`,
   `CREATE TABLE IF NOT EXISTS matches (id TEXT PRIMARY KEY, season INTEGER, blue TEXT, red TEXT, winner INTEGER, status TEXT, summary TEXT, created INTEGER)`,
   `CREATE TABLE IF NOT EXISTS hero_results (season INTEGER, hero TEXT, games INTEGER DEFAULT 0, wins INTEGER DEFAULT 0, PRIMARY KEY (season, hero))`,
-  `CREATE TABLE IF NOT EXISTS queue (id TEXT PRIMARY KEY, player TEXT, name TEXT, version INTEGER, rating INTEGER, code TEXT, status TEXT, claimed_by TEXT, created INTEGER, seen INTEGER)`,
+  `CREATE TABLE IF NOT EXISTS queue (id TEXT PRIMARY KEY, player TEXT, name TEXT, version INTEGER, rating INTEGER, code TEXT, status TEXT, claimed_by TEXT, created INTEGER, seen INTEGER, mode TEXT DEFAULT 'ranked')`,
   `CREATE INDEX IF NOT EXISTS queue_wait ON queue (status, version, created)`,
   `CREATE TABLE IF NOT EXISTS shares (code TEXT PRIMARY KEY, kind TEXT, data TEXT, created INTEGER, views INTEGER DEFAULT 0)`,
 ];
+// Columns added after launch: tables created by older deploys get them here. ALTER fails harmlessly
+// ("duplicate column") once the column exists, so each one is tried on its own.
+const MIGRATIONS = [
+  `ALTER TABLE queue ADD COLUMN mode TEXT DEFAULT 'ranked'`,
+  `ALTER TABLE reports ADD COLUMN mode TEXT DEFAULT 'ranked'`,
+  `CREATE INDEX IF NOT EXISTS queue_mode ON queue (status, mode, version, created)`,
+];
+async function migrate(db) { for (const q of MIGRATIONS) { try { await db.prepare(q).run(); } catch { /* already migrated */ } } }
 let ready = null;
-const ensure = (db) => (ready = ready || db.batch(SCHEMA.map((q) => db.prepare(q))).catch((e) => { ready = null; throw e; }));
+const ensure = (db) => (ready = ready || db.batch(SCHEMA.map((q) => db.prepare(q))).then(() => migrate(db)).catch((e) => { ready = null; throw e; }));
+const QUEUES = ['ranked', 'casual', 'rush'];
+const queueOf = (m) => (QUEUES.includes(m) ? m : 'ranked');
 
 const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'GET,POST,PUT,OPTIONS', 'access-control-allow-headers': 'content-type,authorization', 'access-control-max-age': '86400' };
 const json = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store', ...CORS } });
@@ -86,20 +98,31 @@ async function route(req, env, url) {
   if (p === '/api/match/report' && M === 'POST') {
     const me = await auth(req, db); if (!me) return bad('unauthorized', 401);
     const b = await body(req);
-    const match = String(b.match || '').slice(0, 40), season = Number(b.season) | 0, side = b.side === 1 ? 1 : 0, winner = b.winner === 1 ? 1 : 0;
+    const match = String(b.match || '').slice(0, 40), season = Number(b.season) | 0, side = b.side === 1 ? 1 : 0, winner = b.winner === 1 ? 1 : 0, mode = queueOf(b.mode);
     if (!/^[A-Za-z0-9-]{8,40}$/.test(match) || !b.opponent) return bad('bad report');
-    await db.prepare('INSERT OR IGNORE INTO reports (match, player, season, side, opponent, winner, checksum, summary, created) VALUES (?,?,?,?,?,?,?,?,?)')
-      .bind(match, me.id, season, side, String(b.opponent).slice(0, 10), winner, String(b.checksum || ''), JSON.stringify(b.summary || {}).slice(0, 8000), now).run();
+    await db.prepare('INSERT OR IGNORE INTO reports (match, player, season, side, opponent, winner, checksum, summary, created, mode) VALUES (?,?,?,?,?,?,?,?,?,?)')
+      .bind(match, me.id, season, side, String(b.opponent).slice(0, 10), winner, String(b.checksum || ''), JSON.stringify(b.summary || {}).slice(0, 8000), now, mode).run();
     const done = await db.prepare('SELECT status FROM matches WHERE id = ?').bind(match).first();
     if (done) return json({ status: done.status });
     const reps = (await db.prepare('SELECT * FROM reports WHERE match = ?').bind(match).all()).results || [];
     if (reps.length < 2) return json({ status: 'pending' });
     const [a, c] = reps;
-    const agree = a.winner === c.winner && a.checksum === c.checksum && a.side !== c.side && a.opponent === c.player && c.opponent === a.player;
+    const agree = a.winner === c.winner && a.checksum === c.checksum && a.side !== c.side && a.opponent === c.player && c.opponent === a.player && queueOf(a.mode) === queueOf(c.mode);
     const blue = a.side === 0 ? a : c, red = a.side === 0 ? c : a;
     if (!agree) {
       await db.prepare('INSERT OR IGNORE INTO matches (id, season, blue, red, winner, status, summary, created) VALUES (?,?,?,?,?,?,?,?)').bind(match, season, blue.player, red.player, -1, 'disputed', a.summary, now).run();
       return json({ status: 'disputed' });
+    }
+    // hero results for the season balancer: every verified match (ranked, casual and rush alike)
+    const heroStmts = [];
+    try {
+      const sm = JSON.parse(a.summary || '{}');
+      (sm.picks || []).forEach((ids, t) => (ids || []).slice(0, 5).forEach((h) => heroStmts.push(db.prepare(`INSERT INTO hero_results (season, hero, games, wins) VALUES (?,?,1,?)
+        ON CONFLICT(season, hero) DO UPDATE SET games = games + 1, wins = wins + excluded.wins`).bind(season, String(h).slice(0, 16), t === a.winner ? 1 : 0))));
+    } catch { /* summary optional */ }
+    if (queueOf(a.mode) !== 'ranked') {
+      await db.batch([db.prepare('INSERT INTO matches (id, season, blue, red, winner, status, summary, created) VALUES (?,?,?,?,?,?,?,?)').bind(match, season, blue.player, red.player, a.winner, 'verified', a.summary, now), ...heroStmts]);
+      return json({ status: 'verified', mode: queueOf(a.mode), casual: true });
     }
     const row = async (pid) => (await db.prepare('SELECT * FROM ladder WHERE season = ? AND player = ?').bind(season, pid).first()) || { rating: 1000, wins: 0, losses: 0, peak: 1000 };
     const B = await row(blue.player), R = await row(red.player);
@@ -111,16 +134,10 @@ async function route(req, env, url) {
       .bind(season, pid, r, old.wins + (won ? 1 : 0), old.losses + (won ? 0 : 1), Math.max(old.peak, r), now);
     const stmts = [
       db.prepare('INSERT INTO matches (id, season, blue, red, winner, status, summary, created) VALUES (?,?,?,?,?,?,?,?)').bind(match, season, blue.player, red.player, a.winner, 'verified', a.summary, now),
-      up(blue.player, nb, B, blueWon), up(red.player, nr, R, !blueWon),
+      up(blue.player, nb, B, blueWon), up(red.player, nr, R, !blueWon), ...heroStmts,
     ];
-    // real-player hero results for the season balancer
-    try {
-      const s = JSON.parse(a.summary || '{}');
-      (s.picks || []).forEach((ids, t) => (ids || []).slice(0, 5).forEach((h) => stmts.push(db.prepare(`INSERT INTO hero_results (season, hero, games, wins) VALUES (?,?,1,?)
-        ON CONFLICT(season, hero) DO UPDATE SET games = games + 1, wins = wins + excluded.wins`).bind(season, String(h).slice(0, 16), t === a.winner ? 1 : 0))));
-    } catch { /* summary optional */ }
     await db.batch(stmts);
-    return json({ status: 'verified', delta: { blue: nb - B.rating, red: nr - R.rating }, rating: { blue: nb, red: nr } });
+    return json({ status: 'verified', mode: 'ranked', delta: { blue: nb - B.rating, red: nr - R.rating }, rating: { blue: nb, red: nr } });
   }
   if (p === '/api/match/status' && M === 'GET') {
     const m = await db.prepare('SELECT status, winner FROM matches WHERE id = ?').bind(url.searchParams.get('id') || '').first();
@@ -144,14 +161,15 @@ async function route(req, env, url) {
     return json({ season, heroes: rows });
   }
 
-  // ── matchmaking (ranked "Find Match") ──
-  // A searching player first tries to claim the oldest compatible waiting ticket (atomic UPDATE …
-  // RETURNING); if none, it posts its own ticket with a fresh room code and hosts. Hosts keep
-  // polling: if an older waiting ticket appears (two players posted at once), the newer one joins it.
+  // ── matchmaking ("Find Match": ranked / casual / rush queues) ──
+  // A searching player first tries to claim the oldest compatible waiting ticket (same queue and
+  // version; atomic UPDATE … RETURNING); if none, it posts its own ticket with a fresh room code and
+  // hosts. Hosts keep polling: if an older waiting ticket appears (two players posted at once), the
+  // newer one joins it.
   if (p === '/api/queue/find' && M === 'POST') {
     const me = await auth(req, db); if (!me) return bad('unauthorized', 401);
     const b = await body(req);
-    const version = Number(b.version) | 0, ticket = b.ticket ? String(b.ticket).slice(0, 16) : null;
+    const version = Number(b.version) | 0, ticket = b.ticket ? String(b.ticket).slice(0, 16) : null, mode = queueOf(b.mode);
     const stale = now - 15000; // tickets whose owner stopped polling are dead
     await db.prepare(`DELETE FROM queue WHERE created < ? OR (status = 'waiting' AND seen < ?)`).bind(now - 120000, stale).run();
     if (ticket) {
@@ -159,17 +177,17 @@ async function route(req, env, url) {
       if (!mine) return json({ status: 'expired' });
       if (mine.status === 'claimed') return json({ status: 'matched', role: 'host', code: mine.code });
       await db.prepare('UPDATE queue SET seen = ? WHERE id = ?').bind(now, ticket).run();
-      const older = await db.prepare(`UPDATE queue SET status = 'claimed', claimed_by = ? WHERE id = (SELECT id FROM queue WHERE status = 'waiting' AND version = ? AND player != ? AND created < ? AND seen >= ? ORDER BY created LIMIT 1) RETURNING code`)
-        .bind(me.id, version, me.id, mine.created, stale).first();
+      const older = await db.prepare(`UPDATE queue SET status = 'claimed', claimed_by = ? WHERE id = (SELECT id FROM queue WHERE status = 'waiting' AND version = ? AND COALESCE(mode, 'ranked') = ? AND player != ? AND created < ? AND seen >= ? ORDER BY created LIMIT 1) RETURNING code`)
+        .bind(me.id, version, queueOf(mine.mode), me.id, mine.created, stale).first();
       if (older) { await db.prepare('DELETE FROM queue WHERE id = ?').bind(ticket).run(); return json({ status: 'matched', role: 'join', code: older.code }); }
       return json({ status: 'waiting', ticket, code: mine.code });
     }
-    const got = await db.prepare(`UPDATE queue SET status = 'claimed', claimed_by = ? WHERE id = (SELECT id FROM queue WHERE status = 'waiting' AND version = ? AND player != ? AND seen >= ? ORDER BY created LIMIT 1) RETURNING code`)
-      .bind(me.id, version, me.id, stale).first();
+    const got = await db.prepare(`UPDATE queue SET status = 'claimed', claimed_by = ? WHERE id = (SELECT id FROM queue WHERE status = 'waiting' AND version = ? AND COALESCE(mode, 'ranked') = ? AND player != ? AND seen >= ? ORDER BY created LIMIT 1) RETURNING code`)
+      .bind(me.id, version, mode, me.id, stale).first();
     if (got) return json({ status: 'matched', role: 'join', code: got.code });
     const id = rand(12), code = rand(5).replace(/[^A-Z]/g, 'Q');
-    await db.prepare(`INSERT INTO queue (id, player, name, version, rating, code, status, created, seen) VALUES (?,?,?,?,?,?, 'waiting', ?, ?)`).bind(id, me.id, me.name, version, Number(b.rating) | 0, code, now, now).run();
-    return json({ status: 'waiting', ticket: id, code, role: 'host' });
+    await db.prepare(`INSERT INTO queue (id, player, name, version, rating, code, status, created, seen, mode) VALUES (?,?,?,?,?,?, 'waiting', ?, ?, ?)`).bind(id, me.id, me.name, version, Number(b.rating) | 0, code, now, now, mode).run();
+    return json({ status: 'waiting', ticket: id, code, role: 'host', mode });
   }
   if (p === '/api/queue/cancel' && M === 'POST') {
     const me = await auth(req, db); if (!me) return bad('unauthorized', 401);
@@ -178,8 +196,9 @@ async function route(req, env, url) {
     return json({ ok: true });
   }
   if (p === '/api/queue/count' && M === 'GET') {
-    const n = await db.prepare(`SELECT COUNT(*) AS n FROM queue WHERE status = 'waiting' AND seen >= ?`).bind(now - 15000).first();
-    return json({ searching: n ? n.n : 0 });
+    const rows = (await db.prepare(`SELECT COALESCE(mode, 'ranked') AS mode, COUNT(*) AS n FROM queue WHERE status = 'waiting' AND seen >= ? GROUP BY COALESCE(mode, 'ranked')`).bind(now - 15000).all()).results || [];
+    const by = Object.fromEntries(QUEUES.map((q) => [q, 0])); for (const r of rows) by[queueOf(r.mode)] += r.n;
+    return json({ searching: rows.reduce((a, r) => a + r.n, 0), byMode: by });
   }
 
   // ── share links ──
