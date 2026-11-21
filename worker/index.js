@@ -326,9 +326,18 @@ async function route(req, env, url) {
       (sm.picks || []).forEach((ids, t) => (ids || []).slice(0, 5).forEach((h) => heroStmts.push(db.prepare(`INSERT INTO hero_results (season, hero, games, wins) VALUES (?,?,1,?)
         ON CONFLICT(season, hero) DO UPDATE SET games = games + 1, wins = wins + excluded.wins`).bind(season, String(h).slice(0, 16), t === a.winner ? 1 : 0))));
     } catch { /* summary optional */ }
+    // Both reports can land at the same moment: the second writer's batch then fails on matches.id (the whole
+    // batch rolls back, so nothing counts twice) and that report answers with the stored result instead of a 500.
+    const settle = async (stmts, out) => {
+      try { await db.batch(stmts); return json(out); } catch (e) {
+        const won = await db.prepare('SELECT status FROM matches WHERE id = ?').bind(match).first();
+        if (won) return json({ status: won.status, mode: queueOf(a.mode), casual: queueOf(a.mode) !== 'ranked' });
+        throw e;
+      }
+    };
     if (queueOf(a.mode) !== 'ranked') {
-      await db.batch([db.prepare('INSERT INTO matches (id, season, blue, red, winner, status, summary, created) VALUES (?,?,?,?,?,?,?,?)').bind(match, season, blue.player, red.player, a.winner, 'verified', a.summary, now), ...heroStmts]);
-      return json({ status: 'verified', mode: queueOf(a.mode), casual: true });
+      return settle([db.prepare('INSERT INTO matches (id, season, blue, red, winner, status, summary, created) VALUES (?,?,?,?,?,?,?,?)').bind(match, season, blue.player, red.player, a.winner, 'verified', a.summary, now), ...heroStmts],
+        { status: 'verified', mode: queueOf(a.mode), casual: true });
     }
     const row = async (pid) => (await db.prepare('SELECT * FROM ladder WHERE season = ? AND player = ?').bind(season, pid).first()) || { rating: 1000, wins: 0, losses: 0, peak: 1000 };
     const B = await row(blue.player), R = await row(red.player);
@@ -342,8 +351,7 @@ async function route(req, env, url) {
       db.prepare('INSERT INTO matches (id, season, blue, red, winner, status, summary, created) VALUES (?,?,?,?,?,?,?,?)').bind(match, season, blue.player, red.player, a.winner, 'verified', a.summary, now),
       up(blue.player, nb, B, blueWon), up(red.player, nr, R, !blueWon), ...heroStmts,
     ];
-    await db.batch(stmts);
-    return json({ status: 'verified', mode: 'ranked', delta: { blue: nb - B.rating, red: nr - R.rating }, rating: { blue: nb, red: nr } });
+    return settle(stmts, { status: 'verified', mode: 'ranked', delta: { blue: nb - B.rating, red: nr - R.rating }, rating: { blue: nb, red: nr } });
   }
   if (p === '/api/match/status' && M === 'GET') {
     const m = await db.prepare('SELECT status, winner FROM matches WHERE id = ?').bind(url.searchParams.get('id') || '').first();
