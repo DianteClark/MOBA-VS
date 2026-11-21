@@ -125,7 +125,7 @@ export class Profile {
     }
     try { recordCareer(this.d, game, myTeam, analytics); } catch (e) { console.error(e); }
     this.d.history.unshift({
-      t: Date.now(), season: season.id, mode: key, map: game.world.def.id, won, len: Math.round(game.time),
+      t: Date.now(), season: season.id, mode: key, map: game.world.def.id, ...(game.event ? { ev: game.event } : {}), won, len: Math.round(game.time),
       picks: [0, 1].map((t) => game.teams[t].heroes.map((x) => x.heroId)), winner: game.winner, side: myTeam,
       towers: [game.towersStanding(0), game.towersStanding(1)], kills: [game.teams[0].kills, game.teams[1].kills],
       kda: [0, 1].map((t) => game.teams[t].heroes.map((x) => [x.kills, x.deaths, x.assists, x.cs, Math.round(x.dmgHeroes), Math.round(x.goldEarned)])),

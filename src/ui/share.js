@@ -2,6 +2,7 @@
 import { IMG } from '../render/assets.js';
 import { HERO_BY_ID } from '../data/heroes.js';
 import { MAP_BY_ID } from '../maps/defs.js';
+import { EVENT_BY_ID } from '../data/events.js';
 import { mapThumb } from './screens.js';
 import { toast, fmtTime, MODE_LABEL } from './dom.js';
 import { createShare, shareUrl } from '../net/online.js';
@@ -28,7 +29,7 @@ export async function drawShareCard(m, coach) {
   };
   T('MOBA-VS', 40, 70, 34, '#ffe3a3');
   T(`${MODE_LABEL[m.mode] || 'Match'}${m.cup ? ' · ' + m.cup : ''} · ${(MAP_BY_ID[m.map] || {}).name || ''}`, W - 40, 62, 20, MUTED, 'right');
-  T(new Date(m.t).toLocaleDateString(), W - 40, 92, 18, MUTED, 'right');
+  T(new Date(m.t).toLocaleDateString() + (EVENT_BY_ID[m.ev] ? ` · ${EVENT_BY_ID[m.ev].name}` : ''), W - 40, 92, 18, MUTED, 'right');
   T(won ? 'VICTORY' : 'DEFEAT', 40, 190, 104, won ? GOLD : RED);
   const how = m.crystal ? `${won ? 'Crystal destroyed' : 'Crystal lost'} at ${fmtTime(m.len)}` : `Decided on towers at ${fmtTime(m.len)} (${m.towers[me]}-${m.towers[them]})`;
   T(how, 44, 236, 24, INK);

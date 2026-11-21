@@ -4,7 +4,7 @@ import { HEROES } from '../src/data/heroes.js';
 import { LockstepRunner } from '../src/net/runner.js';
 import { loopbackPair } from '../src/net/peer.js';
 const pick = (ids) => ids.map((id) => { const h = HEROES.find((x) => x.id === id); return { id, role: h.role, build: h.rec }; });
-const cfg = (mode) => ({ seed: 4242, coach: [false, false], ...(mode === 'rush' ? { mode: 'rush', map: 'rush_sakura' } : {}), teams: [
+const cfg = (mode) => ({ seed: 4242, coach: [false, false], ...(mode === 'rush' ? { mode: 'rush', map: 'rush_sakura' } : mode === 'event' ? { map: 'oasis', event: 'shrine' } : {}), teams: [
   { heroes: pick(['bastion', 'kaze', 'ember', 'fletch', 'oak']), plan: 'balanced' },
   { heroes: pick(['kenshi', 'leonin', 'raiden', 'marlowe', 'wu']), plan: 'aggressive' } ] });
 async function run(mode) {
@@ -42,6 +42,7 @@ async function run(mode) {
   console.log(`[${mode}] calls applied A: ${ga.callLog.length} B: ${gb.callLog.length}; moments ${ga.events.filter((e) => e.type === 'moment').length}; at tick ${last}: kills ${snaps[0].get(last)?.split('|')[1]} vs ${snaps[1].get(last)?.split('|')[1]}; ${compared} ticks compared`);
   return !desync && firstBad < 0 && compared >= Math.min(TARGET, last) - 1;
 }
-const okC = await run('classic'), okR = await run('rush');
-console.log(okC && okR ? 'LOCKSTEP IN SYNC ✔' : 'LOCKSTEP DESYNC ✘');
-process.exit(okC && okR ? 0 : 1);
+// 'event': Shrine Rush on Sunscar Oasis (v22 weekly event + map)
+const okC = await run('classic'), okR = await run('rush'), okE = await run('event');
+console.log(okC && okR && okE ? 'LOCKSTEP IN SYNC ✔' : 'LOCKSTEP DESYNC ✘');
+process.exit(okC && okR && okE ? 0 : 1);
