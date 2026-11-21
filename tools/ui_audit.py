@@ -6,6 +6,7 @@
 #   iphones   every iPhone of the last 5 years in landscape, full screen (PWA) and Safari with toolbars
 #   desktop   1920x1080,1440x900,1366x768,1280x720,1024x768,900x600
 #   all       iphones + desktop
+# MAP=rush in the environment audits a Lane Rush match instead of a classic one.
 # Safe areas are simulated by overriding the --safe-* CSS variables (Chrome cannot fake the notch).
 import sys, asyncio
 from playwright.async_api import async_playwright
@@ -45,12 +46,12 @@ VIEWS = parse(sys.argv[3]) if len(sys.argv) > 3 else presets('all')
 PANELS = [('myteam', '#myteam'), ('scorebar', '#scorebar'), ('objtimers', '#objtimers'), ('ticker', '#ticker'), ('enemyteam', '#enemyteam'),
           ('killfeed', '#killfeed*'), ('mm', '#mm'), ('ctrl', '#ctrl*'), ('detail', '#detail'), ('foestrip', '#foestrip'),
           ('tray', '#cmdbar .tray'), ('sheet', '#cmdbar .sheet'), ('cancel', '#cmdbar .cancelpill'), ('meter', '#cmdbar .meter'),
-          ('hand', '#cmdbar .hand'), ('stance', '#cmdbar .ultbtn'), ('calls', '#cmdbar .callrow'), ('banner', '#banner*'),
+          ('hand', '#cmdbar .hand'), ('stance', '#cmdbar .ultbtn'), ('moments', '#cmdbar .momentbtn'), ('calls', '#cmdbar .callrow'), ('banner', '#banner*'),
           ('qchatbtn', '#qchatbtn'), ('qfeed', '#qfeed*'), ('ring', '#ring*')]
 # overlays that may cover the HUD on purpose: they only have to fit the safe area
 OVERLAYS = [('menu', '#ctrl.open .seg:last-child'), ('qchat', '#qchat'), ('scoreboard', '#scoreboard .sbcard'), ('hpop', '#hpop'), ('modal', '.modal .mpanel'), ('halftime', '#halftime .ht-card')]
 # pairs that are allowed to touch (one lives inside the other's column / is drawn over the map on purpose)
-SKIP = {frozenset(p) for p in [('meter', 'hand'), ('hand', 'stance'), ('meter', 'stance'), ('ctrl', 'qchatbtn')]}
+SKIP = {frozenset(p) for p in [('meter', 'hand'), ('hand', 'stance'), ('meter', 'stance'), ('hand', 'moments'), ('moments', 'stance'), ('ctrl', 'qchatbtn')]}
 
 JS = """([panels, overlays]) => {
   const vis = (e) => { if (!e) return false; const s = getComputedStyle(e); if (s.display === 'none' || s.visibility === 'hidden' || +s.opacity === 0) return false; const r = e.getBoundingClientRect(); return r.width > 1 && r.height > 1 && (e.offsetParent || s.position === 'fixed'); };
@@ -83,12 +84,15 @@ def check(res, w, h):
     issues += [f'clipped text {c}' for c in res['clipped']]
     return issues
 
+# MAP=rush audits a Lane Rush match instead of the classic 5v5 map
+import os
+MAPPREF = os.environ.get('MAP', 'random')
 SETUP = """async () => {
-  app.startVsAI();
+  app.mapPref = '%s'; app.startVsAI();
   const m = await import('./src/sim/draft.js'); const s = app.session;
   while (!s.draft.done) { const t = m.currentTurn(s.draft); m.apply(s.draft, t.team, m.autoChoice(s.draft, t.team, s.rng, 1)); }
   app.afterDraftAct();
-}"""
+}""" % MAPPREF
 # worst case base state: follow a hero (detail panel), full ticker + kill feed, a Coach's Call card in the
 # decision tray (with a request and suggestions queued behind it), a cancel pill, and the online quick-chat button
 BASE = """() => { const H = app.match.hud, g = app.match.game; H.enableChat(() => {}); H.selectHero(g.teams[0].heroes[1]); g.teams[0].heroes[0].task = { kind: 'safe', call: true, until: 1e9 };
@@ -105,6 +109,7 @@ STATES = [
     ('tray', None),
     ('sheet', "() => app.match.hud.dock.open('gank')"),
     ('objective', "() => app.match.hud.dock.open('objective')"),
+    ('moments', "() => app.match.hud.dock.open('moments')"),
     ('ring', "() => { const r = app.renderer, c = r.canvas.getBoundingClientRect(); app.match.hud.dock.ringAt({ x: r.cam.x, y: r.cam.y }, c.left + c.width / 2, c.top + c.height / 2); }"),
     ('banner', "() => { const H = app.match.hud; H.banner('FIRST BLOOD', '#4aa3ff', 60000, 'assets/img/faces/kaze.png', true); }"),
     ('foes', "() => { const b = document.querySelector('.foesbtn'); if (b && b.offsetParent) b.click(); }"),

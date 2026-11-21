@@ -1210,3 +1210,5 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 20px; border-radius: 
   .rbtns { padding: 4px 0 2px; gap: 6px; } .rbtns .btn.big { min-height: 38px; font-size: 14px; padding: 2px 6px; white-space: nowrap; }
   .rtab small { display: none; } .rtab { padding: 2px 7px; }
 }
+/* narrow landscape phones: the queue toggle gets its own row under "Online" instead of truncating */
+@media (max-height: 500px) and (max-width: 780px) { .home .mode.online .qseg { flex: 1 1 100%; } .home .mode.online .qseg .chip { overflow: visible; text-overflow: clip; } }
