@@ -85,3 +85,8 @@ export const WEATHER = {
   heat: { name: 'Heatwave', vision: 1, ms: 1, burn: 1.35, regen: 0.6, proj: 1, desc: 'Burns +35%, regen -40%' },
   dust: { name: 'Dust Storm', vision: 0.78, ms: 0.98, burn: 1, regen: 1, proj: 1, desc: 'Vision -22%' },
 };
+
+// Leashes: how far units may stray from their zone before they give up and walk back.
+//   minion: px off the lane centre line; mob: px from its camp spot; boss: px from its pit centre.
+// Monsters that reset walk home healing fast (hits barely land), then sit at full HP.
+export const LEASH = { minion: 160, mob: 240, boss: 300 };

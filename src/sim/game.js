@@ -2,13 +2,14 @@
 import { Rng, hashInts } from './rng.js';
 import { dist2, dist, norm, r2 } from './geom.js';
 import { DT, sec, BLUE, RED, NEUTRAL, T, GOLD, XP, xpNeeded, VISION, CMD, DRAGONS, MATCH_SECONDS, RANGE, CLANS, WEATHER, FINAL, HALFTIME, PACE, MOMENTUM, PERMIT } from './constants.js';
+import { LEASH } from './constants.js';
 import { World, S as MAP_SIZE, C as CELL, N as GRID_N } from './world.js';
 import { MAP_BY_ID } from '../maps/defs.js';
 import { HERO_BY_ID, PERSONALITIES } from '../data/heroes.js';
 import { TACTICS, DEFAULT_DECK } from '../data/tactics.js';
 import { TUNE } from '../data/tuning.js';
 import { BUILDS } from '../data/items.js';
-import { heroThink, heroMacro } from './ai.js';
+import { heroThink, heroMacro, laneBrain } from './ai.js';
 import { Coach } from './coach.js';
 
 // Champion-vs-champion damage scale: keeps fights readable and lanes from snowballing at level 1.
@@ -623,6 +624,7 @@ export class Game {
 
     // Fairness: units act in list order and damage lands immediately, so the list is walked
     // forwards on even ticks and backwards on odd ticks (neither side always swings first).
+    if (now % 10 === 5) { laneBrain(this, 0); laneBrain(this, 1); }
     const U = this.units, rev = now & 1, n = U.length;
     for (let k = 0; k < n; k++) { const u = U[rev ? n - 1 - k : k]; if (u.type === 'hero') this.updateHero(u); }
     for (let k = 0; k < n; k++) {
@@ -1076,33 +1078,56 @@ export class Game {
 
   updateMinion(m) {
     if (this.tick < m.stunUntil) return;
-    const now = this.tick;
+    const now = this.tick, W = this.world, lane = m.lane, L = LEASH.minion;
+    // Leash: a minion that strayed too far off its lane (chasing, shoved, hooked) drops its target,
+    // walks back to the closest lane point and carries on from there.
+    if (m.returning) {
+      if (dist2(m, m.returning) > 28 * 28 && W.laneDistAt(lane, m) > 40) { this.moveToward(m, m.returning, true); return; }
+      m.returning = null; m.wp = this.laneWp(m);
+    } else if (W.laneDistAt(lane, m) > L) {
+      m.target = null; m.returning = W.nearestOpen(W.laneSnap(lane, m)); this.moveToward(m, m.returning, true); return;
+    }
+    // only fight what can be reached without leaving the lane
+    const reach = L + m.stats.range;
+    const inZone = (e) => W.laneDistAt(lane, e) < reach;
     // Re-target periodically
     if (!m.target || !m.target.alive || (now + m.id) % 10 === 0) {
       const aggro = 280;
       let tgt = null;
       // hero attacking an allied hero nearby
-      tgt = this.findTarget(m, aggro, (e) => e.type === 'hero' && e.lastHitHero > now - sec(1.5) && this.canSee(m.team, e)
+      tgt = this.findTarget(m, aggro, (e) => e.type === 'hero' && e.lastHitHero > now - sec(1.5) && this.canSee(m.team, e) && inZone(e)
         && this.grid.query(e.x, e.y, 400).some((a) => a.type === 'hero' && a.team === m.team && a.lastHurtByHero > now - sec(1.5)));
-      if (!tgt) tgt = this.findTarget(m, aggro, (e) => (e.type === 'minion' || e.type === 'summon'));
+      if (!tgt) tgt = this.findTarget(m, aggro, (e) => (e.type === 'minion' || e.type === 'summon') && inZone(e));
       if (!tgt && m.type === 'summon') tgt = this.findTarget(m, 350, (e) => e.structure && this.isTargetable(e));
-      if (!tgt) tgt = this.findTarget(m, aggro, (e) => e.type === 'hero' && this.canSee(m.team, e));
+      if (!tgt) tgt = this.findTarget(m, aggro, (e) => e.type === 'hero' && this.canSee(m.team, e) && inZone(e));
       if (!tgt) tgt = this.findTarget(m, aggro + 60, (e) => e.structure && this.isTargetable(e));
       if (tgt !== m.target && m.target && m.target.alive && m.target.type !== 'hero' && dist2(m, m.target) < (m.stats.range + 40) ** 2 && tgt && tgt.type !== 'hero') tgt = m.target;
       m.target = tgt;
     }
-    if (m.target && m.target.alive && dist2(m, m.target) < 380 * 380) {
-      if (!this.tryAttack(m, m.target)) this.moveToward(m, m.target, false, m.stats.range * 0.8 + m.target.radius);
+    const t = m.target;
+    if (t && t.alive && dist2(m, t) < 380 * 380 && (t.structure || W.laneDistAt(lane, t) < reach + 40)) {
+      if (!this.tryAttack(m, t)) this.moveToward(m, t, false, m.stats.range * 0.8 + t.radius);
       else { m.vx = m.vy = 0; }
       return;
     }
-    // follow lane
-    const pts = this.world.lanes[m.lane];
-    const wp = pts[m.wp];
-    if (dist2(m, wp) < 40 * 40) {
+    if (t && !t.structure) m.target = null;
+    // follow lane: advance once the waypoint is reached or already behind us (no walking back to it)
+    const pts = W.lanes[lane], dir = m.team === BLUE ? 1 : -1;
+    let wp = pts[m.wp];
+    const prev = pts[m.wp - dir];
+    if (dist2(m, wp) < 40 * 40 || (prev && (wp.x - m.x) * (wp.x - prev.x) + (wp.y - m.y) * (wp.y - prev.y) <= 0)) {
       if (m.team === BLUE && m.wp < pts.length - 1) m.wp++; else if (m.team === RED && m.wp > 0) m.wp--;
+      wp = pts[m.wp];
     }
-    this.moveToward(m, pts[m.wp], false);
+    this.moveToward(m, wp, false);
+  }
+  // The next lane waypoint ahead of a unit (in its team's marching direction).
+  laneWp(m) {
+    const W = this.world, pts = W.lanes[m.lane], cum = W.laneLen[m.lane], tot = cum[cum.length - 1];
+    const d = W.laneProgress(m.lane, m) * tot;
+    if (m.team === BLUE) { for (let i = 0; i < pts.length; i++) if (cum[i] > d + 20) return i; return pts.length - 1; }
+    for (let i = pts.length - 1; i >= 0; i--) if (cum[i] < d - 20) return i;
+    return 0;
   }
 
   updateTower(t) {
@@ -1126,29 +1151,35 @@ export class Game {
     const now = this.tick;
     if (now < m.stunUntil) return;
     const home = m.home;
-    const leash = m.type === 'objective' ? 520 : 330;
+    // Leash (standard MOBA reset): monsters and bosses fight only near their camp / pit. Pulled too
+    // far, kited from out of reach, or left alone for 3s, they walk home, healing so fast that hits
+    // barely land, and arrive at full HP with a clean slate.
+    const leash = m.type === 'objective' ? LEASH.boss : LEASH.mob;
     if (m.resetting) {
-      this.moveToward(m, home, false);
-      m.hp = Math.min(m.maxHp, m.hp + m.maxHp * 0.08);
-      if (dist2(m, home) < 20 * 20) { m.resetting = false; m.hp = m.maxHp; }
+      m.target = null; m.burns.length = 0; m.slows.length = 0;
+      m.hp = Math.min(m.maxHp, m.hp + m.maxHp * 0.1);
+      if (dist2(m, home) < 20 * 20) { m.resetting = false; m.hp = m.maxHp; m.leashT = 0; return; }
+      if (m.stats.ms) this.moveToward(m, home, true); else { m.x = home.x; m.y = home.y; }
       return;
     }
+    const reset = () => { m.target = null; m.leashT = 0; if (dist2(m, home) > 20 * 20) m.resetting = true; else m.hp = m.maxHp; };
     // aggro: whoever damaged it recently & still near
-    if (m.target && (!m.target.alive || dist2(m.target, home) > leash * leash)) m.target = null;
+    if (m.target && (!m.target.alive || dist2(m.target, home) > (leash + m.stats.range + 60) ** 2)) m.target = null;
     if (!m.target && now - m.lastCombat < sec(2)) {
-      m.target = this.findTarget(m, 400, (e) => e.type === 'hero' && e.lastCombat >= m.lastCombat - 2) || this.findTarget(m, 300, (e) => e.type === 'hero' || e.type === 'minion' || e.type === 'summon');
+      m.target = this.findTarget(m, 400, (e) => e.type === 'hero' && e.lastCombat >= m.lastCombat - 2 && dist2(e, home) < (leash + m.stats.range) ** 2)
+        || this.findTarget(m, 300, (e) => (e.type === 'hero' || e.type === 'minion' || e.type === 'summon') && dist2(e, home) < (leash + m.stats.range) ** 2);
     }
-    if (m.target && now - (m.lastHurt || 0) > sec(3)) { m.target = null; if (dist2(m, home) > 30 * 30) m.resetting = true; return; }
+    if (m.target && now - (m.lastHurt || 0) > sec(3)) { reset(); return; }
     if (!m.target) {
-      if (dist2(m, home) > 25 * 25) { if (now - m.lastCombat > sec(3)) m.resetting = true; else this.moveToward(m, home, false); }
-      else if (now - m.lastCombat > sec(4)) m.hp = Math.min(m.maxHp, m.hp + m.maxHp * 0.02 * DT * 20);
+      if (m.hp < m.maxHp && now - m.lastCombat > sec(1.5)) { reset(); return; }
+      if (dist2(m, home) > 25 * 25) this.moveToward(m, home, true);
       return;
     }
-    if (dist2(m, home) > leash * leash) { m.resetting = true; m.target = null; return; }
+    if (dist2(m, home) > leash * leash) { reset(); return; }
     // Objectives: AoE attacks
     if (m.type === 'objective') {
       const rr = m.stats.range + m.radius + m.target.radius;
-      if (dist2(m, m.target) > rr * rr) { if (m.stats.ms) this.moveToward(m, m.target, false, m.stats.range * 0.8); return; }
+      if (dist2(m, m.target) > rr * rr) { if (!m.stats.ms || !this.mobChase(m, leash)) return; this.moveToward(m, this.leashed(m, m.target, leash), false, m.stats.range * 0.8); return; }
       if (now < m.attackCd) return;
       m.attackCd = now + Math.round(1 / m.stats.as / DT); m.animAttack = now;
       const splash = m.kind === 'baron' ? ((m.slam = (m.slam || 0) + 1) % 4 === 0 ? 320 : 110) : m.kind === 'dragon' ? 110 : 0;
@@ -1161,7 +1192,20 @@ export class Game {
       } else this.dealDamage(m, m.target, m.stats.ad, 'phys', { basic: true });
       return;
     }
-    if (!this.tryAttack(m, m.target)) this.moveToward(m, m.target, false, m.stats.range * 0.7);
+    if (!this.tryAttack(m, m.target) && this.mobChase(m, leash)) this.moveToward(m, this.leashed(m, m.target, leash), false, m.stats.range * 0.7);
+  }
+  // Where a monster may stand to chase t: the target, or the edge of its leash on the way there.
+  leashed(m, t, leash) {
+    const h = m.home, dx = t.x - h.x, dy = t.y - h.y, d = Math.sqrt(dx * dx + dy * dy), lim = leash - 12;
+    return d <= lim ? t : { x: h.x + dx / d * lim, y: h.y + dy / d * lim };
+  }
+  // A monster stuck at its leash edge with the target out of reach gives up after 1.5s and resets.
+  mobChase(m, leash) {
+    const atEdge = dist2(m, m.home) > (leash - 30) ** 2;
+    if (!atEdge) { m.leashT = 0; return true; }
+    if (!m.leashT) m.leashT = this.tick;
+    if (this.tick - m.leashT > sec(1.5)) { m.target = null; m.leashT = 0; m.resetting = true; return false; }
+    return true;
   }
 
   // ───────────────────────── hero update ─────────────────────────
@@ -1195,7 +1239,7 @@ export class Game {
     if (now < h.stunUntil) return;
     // recall channel
     if (h.recallAt) {
-      if (now >= h.recallAt) { const f = this.world.fountain[h.team]; h.x = f.x; h.y = f.y; h.recallAt = 0; this.emit({ type: 'recalled', hero: h.id, team: h.team }); }
+      if (now >= h.recallAt) { const f = this.world.fountain[h.team]; h.x = f.x; h.y = f.y; h.recallAt = 0; h.path = null; h.task = { kind: 'heal' }; this.emit({ type: 'recalled', hero: h.id, team: h.team }); }
       return;
     }
     if ((now + h.id) % 10 === 0) heroMacro(this, h);

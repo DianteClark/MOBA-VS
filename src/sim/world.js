@@ -139,6 +139,12 @@ export class World {
     }
     for (let i = 0; i < N * N; i++) if (clr[i] === 255) clr[i] = 5;
     this.wallNear = new Uint8Array(N * N); for (let i = 0; i < N * N; i++) this.wallNear[i] = W[i] && clr[i] === 1 ? 1 : 0;
+    // Distance from every cell centre to each lane's centre line (minion leashes; cheap lookups).
+    this.laneD = {};
+    for (const ln of this.laneNames) {
+      const a = this.laneD[ln] = new Float32Array(N * N);
+      for (let i = 0; i < N * N; i++) a[i] = this.distToLane(ln, { x: (i % N) * C + C / 2, y: ((i / N) | 0) * C + C / 2 });
+    }
     const ws = [this.pits.kami, this.pits.kraken, this.shrines[0], this.shrines[1], ...d.brush.slice(0, 5).map(pt)];
     this.wardSpots = [ws.map((p) => this.nearestOpen(p)), ws.map((p) => this.nearestOpen(P(p)))];
   }
@@ -187,7 +193,10 @@ export class World {
     for (let i = 1; i < pts.length; i++) best = Math.min(best, segDist2(p, pts[i - 1], pts[i]));
     return Math.sqrt(best);
   }
-  closestLane(p) { let b = 'mid', bd = Infinity; for (const ln of this.laneNames) { const d = this.distToLane(ln, p); if (d < bd) { bd = d; b = ln; } } return b; }
+  laneDistAt(lane, p) { return this.laneD[lane][this.idx(p.x, p.y)]; }
+  // The closest point on a lane's centre line.
+  laneSnap(lane, p) { return this.lanePoint(lane, this.laneProgress(lane, p)); }
+  closestLane(p) { const i = this.idx(p.x, p.y); let b = 'mid', bd = Infinity; for (const ln of this.laneNames) { const d = this.laneD[ln][i]; if (d < bd) { bd = d; b = ln; } } return b; }
 
   // ───────────── line of sight (grid DDA) ─────────────
   los(ax, ay, bx, by) {
