@@ -574,7 +574,7 @@ export class Hud {
     clearTimeout(this._bt);
     const n = this.bq.shift();
     const hud = document.getElementById('hud');
-    if (!n) { this._bannerBusy = false; hud.classList.remove('bannering'); return; }
+    if (!n) { this._bannerBusy = false; hud.classList.remove('bannering'); mount(this.el.banner); return; }
     this._bannerBusy = true;
     // phones: the banner takes the ticker's slot right under the objective timers (CSS reads --banner-top)
     const ob = this.el.obj.getBoundingClientRect();

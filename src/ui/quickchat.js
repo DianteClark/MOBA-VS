@@ -69,9 +69,19 @@ export class QuickChat {
     const el = h('div', { class: 'qmsg ' + (mine ? 'me' : 'them'), style: { borderColor: `var(--team${team})` } },
       h('b', { style: { color: `var(--team${team})` } }, mine ? 'You' : (this.hud.app.session && this.hud.app.session.names[team]) || 'Rival'),
       m.e ? h('img', { src: `assets/img/emote/${m.e}.png`, alt: m.e }) : h('span', {}, LINES[m.i]));
+    this.place();
     this.feed.prepend(el);
     while (this.feed.childElementCount > 2) this.feed.lastChild.remove();
     setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 300); }, SHOW_MS);
+  }
+  // Between the team column and the score block when there is room; otherwise centred under the
+  // objective timers, below the ticker's slot (narrow desktop windows).
+  place() {
+    const lc = document.getElementById('leftcol').getBoundingClientRect(), sb = document.getElementById('scorebar').getBoundingClientRect();
+    const ob = document.getElementById('objtimers').getBoundingClientRect();
+    const under = sb.left - lc.right - 16 < 140;
+    this.feed.classList.toggle('under', under);
+    this.feed.style.top = under ? Math.round(Math.max(sb.bottom, ob.bottom) + 30) + 'px' : '';
   }
   destroy() { this.close(); this.btn.remove(); this.feed.remove(); window.removeEventListener('pointerdown', this._outside, true); }
 }
