@@ -137,6 +137,10 @@ export class Coach {
       const top = me.heroes.find((h) => h.homeLane === 'top');
       if (top && top.deaths >= 3 && top.kills === 0) return play({ card: 'swap' });
     }
+    if (has('barrier') && fighting >= 3 && avgHp < 0.6) return play({ card: 'barrier' });
+    if (has('council') && me.charges < 0.5 && g.time > 300) return play({ card: 'council' });
+    if (has('eyes') && obj && !fighting) return play({ card: 'eyes' });
+    if (has('gate') && avgHp < 0.45 && !fighting && g.time > 300) return play({ card: 'gate' });
     if (has('bait') && fighting >= 2) { const tank = alive.find((h) => h.def.cls === 'tank' && h.hp / h.maxHp > 0.6); if (tank) return play({ card: 'bait', hero: tank.id }); }
     return false;
   }

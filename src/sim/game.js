@@ -147,6 +147,14 @@ export class Game {
       }
       case 'fortify': team.fortifyUntil = now + sec(25); break;
       case 'siege': if (!lanes.includes(c.lane)) return false; team.siegeWaves[c.lane] = 2; team.siegeUntil = now + sec(30); break;
+      case 'eyes': {
+        const W = this.world, far = this.shrines.find((x) => x.id !== c.team) || this.shrines[0];
+        for (const p of [W.pits.kami, W.pits.kraken, far]) { const sp = W.nearestOpen(p); this.wards.push({ team: c.team, x: sp.x, y: sp.y, until: now + sec(90), owner: 0 }); }
+        break;
+      }
+      case 'council': team.charges = CMD.maxCharges; break;
+      case 'barrier': for (const h of alive) { this.addShield(h, h.maxHp * 0.2, 4); this.fx.push({ kind: 'shield', id: h.id }); } break;
+      case 'gate': for (const h of alive) { h.gateAt = now + sec(1.5); h.castLock = now + sec(1.5); h.recallAt = 0; this.fx.push({ kind: 'fx', name: 'spirit', x: h.x, y: h.y, s: 1.3, follow: h.id }); } break;
       case 'pact': {
         const live = ['dragon', 'herald', 'baron'].map((k) => this.objectives[k]).filter((o) => o && o.alive);
         if (!live.length) return false;
@@ -1091,6 +1099,10 @@ export class Game {
         this.buyItems(h);
       }
       return;
+    }
+    if (h.gateAt) {
+      if (now < h.stunUntil) h.gateAt = 0; // interrupted
+      else if (now >= h.gateAt) { const f = this.world.fountain[h.team]; h.x = f.x; h.y = f.y; h.hp = h.maxHp; h.gateAt = 0; h.path = null; h.task = { kind: 'idle' }; this.fx.push({ kind: 'fx', name: 'spirit', x: f.x, y: f.y, s: 1.6 }); }
     }
     if (h.pendingCall && now >= h.pendingCall.at) { h.task = h.pendingCall.task; h.task.since = now; h.pendingCall = null; }
     if (h.tiltUntil && now >= h.tiltUntil) { h.tiltUntil = 0; this.updateMods(h); }
