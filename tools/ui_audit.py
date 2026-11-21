@@ -46,11 +46,11 @@ PANELS = [('myteam', '#myteam'), ('scorebar', '#scorebar'), ('objtimers', '#objt
           ('killfeed', '#killfeed*'), ('mm', '#mm'), ('ctrl', '#ctrl*'), ('detail', '#detail'), ('foestrip', '#foestrip'),
           ('tray', '#cmdbar .tray'), ('sheet', '#cmdbar .sheet'), ('cancel', '#cmdbar .cancelpill'), ('meter', '#cmdbar .meter'),
           ('hand', '#cmdbar .hand'), ('stance', '#cmdbar .ultbtn'), ('calls', '#cmdbar .callrow'), ('banner', '#banner*'),
-          ('qchatbtn', '#qchatbtn'), ('qchat', '#qchat'), ('qfeed', '#qfeed*'), ('ring', '#ring*')]
+          ('qchatbtn', '#qchatbtn'), ('qfeed', '#qfeed*'), ('ring', '#ring*')]
 # overlays that may cover the HUD on purpose: they only have to fit the safe area
-OVERLAYS = [('menu', '#ctrl.open .seg:last-child'), ('scoreboard', '#scoreboard .sbcard'), ('hpop', '#hpop'), ('modal', '.modal .mpanel'), ('halftime', '#halftime .ht-card')]
+OVERLAYS = [('menu', '#ctrl.open .seg:last-child'), ('qchat', '#qchat'), ('scoreboard', '#scoreboard .sbcard'), ('hpop', '#hpop'), ('modal', '.modal .mpanel'), ('halftime', '#halftime .ht-card')]
 # pairs that are allowed to touch (one lives inside the other's column / is drawn over the map on purpose)
-SKIP = {frozenset(p) for p in [('meter', 'hand'), ('hand', 'stance'), ('meter', 'stance')]}
+SKIP = {frozenset(p) for p in [('meter', 'hand'), ('hand', 'stance'), ('meter', 'stance'), ('ctrl', 'qchatbtn')]}
 
 JS = """([panels, overlays]) => {
   const vis = (e) => { if (!e) return false; const s = getComputedStyle(e); if (s.display === 'none' || s.visibility === 'hidden' || +s.opacity === 0) return false; const r = e.getBoundingClientRect(); return r.width > 1 && r.height > 1 && (e.offsetParent || s.position === 'fixed'); };
@@ -90,8 +90,8 @@ SETUP = """async () => {
   app.afterDraftAct();
 }"""
 # worst case base state: follow a hero (detail panel), full ticker + kill feed, a Coach's Call card in the
-# decision tray (with a request and suggestions queued behind it) and a cancel pill
-BASE = """() => { const H = app.match.hud, g = app.match.game; H.selectHero(g.teams[0].heroes[1]); g.teams[0].heroes[0].task = { kind: 'safe', call: true, until: 1e9 };
+# decision tray (with a request and suggestions queued behind it), a cancel pill, and the online quick-chat button
+BASE = """() => { const H = app.match.hud, g = app.match.game; H.enableChat(() => {}); H.selectHero(g.teams[0].heroes[1]); g.teams[0].heroes[0].task = { kind: 'safe', call: true, until: 1e9 };
   H.dock.suggest('t1', 'Mid overextended', 'Gank', { type: 'gank', lane: 'mid' }); H.dock.suggest('t2', 'Shrine is open', 'Capture', { type: 'shrine', shrine: 0 });
   H.dock.request({ hero: g.teams[0].heroes[2], key: 'rq', text: 'I can solo-kill their mid. Go?', cmd: { type: 'permit', kind: 'fight', hero: g.teams[0].heroes[2].id, target: g.teams[1].heroes[2].id } });
   H.dock.coachCall({ key: 'cc', title: 'Ember Kami wakes in 18s', text: 'Set up for it, or trade elsewhere?', opts: [{ label: 'Take Kami', cmd: { type: 'objective', obj: 'dragon' } }, { label: 'Wait & see', cmd: null, sub: 'no call' }, { label: 'Push Mid', cmd: { type: 'group', lane: 'mid' } }] }, { ttl: 600000 });
@@ -109,7 +109,7 @@ STATES = [
     ('banner', "() => { const H = app.match.hud; H.banner('FIRST BLOOD', '#4aa3ff', 60000, 'assets/img/faces/kaze.png', true); }"),
     ('foes', "() => { const b = document.querySelector('.foesbtn'); if (b && b.offsetParent) b.click(); }"),
     ('menu', "() => document.getElementById('ctrl').classList.add('open')"),
-    ('quickchat', "() => { const H = app.match.hud; if (H.chat) { H.chat.open(); H.chat.show(0, { line: 'gg' }); H.chat.show(1, { emote: 'up' }); } }"),
+    ('quickchat', "() => { const c = app.match.hud.chat; c.open(); c.show(0, { i: 4 }); c.show(1, { e: 'up' }); }"),
     ('scoreboard', "() => app.match.hud.toggleScoreboard(true)"),
     ('hpop', "() => { const H = app.match.hud; H.openPop(H.g.teams[0].heroes[0], H.mineRows[0]); }"),
     ('settings', "() => import('./src/ui/settings.js').then((m) => m.openSettingsModal(app.match.runner))"),

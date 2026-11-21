@@ -13,6 +13,9 @@ import { audio } from '../audio.js';
 import { Dock } from './commands.js';
 import { Alerts } from './alerts.js';
 import { settings, openSettingsModal, isTouch } from './settings.js';
+import { Caster } from './caster.js';
+import { buzz } from './haptics.js';
+import { QuickChat } from './quickchat.js';
 
 const LANES = ['top', 'mid', 'bot'];
 const LANE_L = { top: 'Top', mid: 'Mid', bot: 'Bot' };
@@ -28,6 +31,7 @@ export class Hud {
     this.slows = {}; this.cc = { n: 0, last: -1e9, keys: new Set() }; this.rq = { n: 0, last: -1e9 }; this.fightCam = null;
     this.stats = { shrineOpen: 0, fullCharge: 0, coachCalls: 0, coachAnswered: 0, requests: 0, requestsYes: 0, lastTick: 0 };
     this.firstBlood = false;
+    this.caster = new Caster(game, this.view);
     this.el = { score: byId('scorebar'), obj: byId('objtimers'), mine: byId('myteam'), enemy: byId('enemyteam'), ticker: byId('ticker'), kf: byId('killfeed'),
       banner: byId('banner'), ctrl: byId('ctrl'), cmd: byId('cmdbar'), detail: byId('detail') };
     mount(this.el.ticker); mount(this.el.kf); mount(this.el.banner); this.el.ticker.classList.add('hidden');
@@ -42,6 +46,7 @@ export class Hud {
       for (const e of game.events) { if (e.type === 'kill') this.firstBlood = true; if (e.type === 'objective' && e.team >= 0 && e.team < 2) this.objTaken[e.team][e.obj]++; }
     }
     this.alerts = new Alerts(this);
+    if (runner.online && myTeam >= 0) this.enableChat((m) => app.net && app.net.t.send(m));
     this._popClose = (e) => { if (this.pop && !this.pop.el.contains(e.target)) this.closePop(); };
     window.addEventListener('pointerdown', this._popClose, true);
   }
@@ -371,7 +376,10 @@ export class Hud {
     this.pop = { id: x.id, el, upd };
   }
   closePop() { if (this.pop) { this.pop.el.remove(); this.pop = null; } }
-  destroy() { this.closePop(); this.alerts.destroy(); clearTimeout(this._bt); document.getElementById('hud').classList.remove('bannering'); window.removeEventListener('pointerdown', this._popClose, true); }
+  // Online quick chat (non-sim messages; see quickchat.js).
+  enableChat(send) { if (!this.chat) this.chat = new QuickChat(this, send); return this.chat; }
+  disableChat() { if (this.chat) { this.chat.destroy(); this.chat = null; } }
+  destroy() { this.closePop(); this.alerts.destroy(); this.disableChat(); clearTimeout(this._bt); document.getElementById('hud').classList.remove('bannering'); window.removeEventListener('pointerdown', this._popClose, true); }
   taskLabelEnemy(x) { return this.g.tick - x.lastHitHero < TICK_RATE * 1.5 ? 'Fighting!' : `Seen ${LANE_L[this.g.world.closestLane(x)]}`; }
   missingText(x) {
     const ls = this.g.lastSeen[this.view][x.id];
@@ -427,6 +435,8 @@ export class Hud {
           else if (e.shutdown) this.banner('SHUT DOWN', TEAM_COL[kt], 1500, killer ? face(killer.heroId) : null);
           if (g.teams[v.team].heroes.every((x) => !x.alive)) this.banner('ACE!', TEAM_COL[kt], 2000);
           audio.sfx(kt === this.view || this.my < 0 ? 'impact' : 'death', 0.8);
+          this.cast(e, kt);
+          if (this.my >= 0) buzz(g.teams[v.team].heroes.every((x) => !x.alive) ? 'big' : kt === this.my ? 'kill' : 'death');
           break;
         }
         case 'objective': {
@@ -435,9 +445,11 @@ export class Hud {
           this.ticker(`${TEAM_NAME[e.team]} ${e.steal ? 'STOLE' : 'took'} ${nm}${e.killer ? ' (' + this.name(e.killer) + ')' : ''}`, e.team === 0 ? 'b' : 'r', 3);
           this.banner(`${e.steal ? 'STOLEN! ' : ''}${nm.toUpperCase()}`, TEAM_COL[e.team], 2200, bossFace(e.obj, e.element));
           audio.sfx('objective');
+          this.cast(e, e.team);
+          if (this.my >= 0 && (e.team === 0 || e.team === 1)) buzz(e.team === this.my ? 'objective' : 'objectiveLost');
           break;
         }
-        case 'soul': this.banner(`${DRAGON_INFO[e.element].short.toUpperCase()} BLESSING`, TEAM_COL[e.team], 2400); break;
+        case 'soul': this.banner(`${DRAGON_INFO[e.element].short.toUpperCase()} BLESSING`, TEAM_COL[e.team], 2400); this.cast(e, e.team); break;
         case 'shrine': this.ticker(`${TEAM_NAME[e.team]} captured a shrine`, e.team === 0 ? 'b' : 'r', 2); audio.sfx('powerup', 0.6); break;
         case 'weather': if (g.tick > 5) { const W_ = WEATHER[e.weather]; this.ticker(`Weather: ${W_.name}${W_.desc ? ' — ' + W_.desc : ''}`, 'n', 0); } break;
         case 'tower': this.ticker(`${TEAM_NAME[e.team]} destroyed a ${LANE_L[e.lane] || 'base'} tower`, e.team === 0 ? 'b' : 'r', 2); audio.sfx('explosion', 0.7); break;
@@ -458,7 +470,7 @@ export class Hud {
           this.ticker(`${TEAM_NAME[c.team]} call: ${what}`, c.team === 0 ? 'b' : 'r', 0);
           break;
         }
-        case 'callResult': if (e.team === this.my) this.payoff(e); break;
+        case 'callResult': if (e.team === this.my) { this.payoff(e); buzz(e.result === 'success' ? 'callWin' : 'callFail'); } break;
         case 'momentumFull': if (e.team === this.my) this.dock.surgeOffer(); break;
         case 'surge':
           if (e.team === this.view || this.my < 0) { this.banner('KAMI SURGE', TEAM_COL[e.team], 1500); audio.sfx('powerup', 0.8); }
@@ -468,6 +480,7 @@ export class Hud {
           if (e.timeout) this.banner(`TIME!  ${e.towers[0]} - ${e.towers[1]} TOWERS`, '#ffd84a', 1500, null, true);
           this.banner(this.my < 0 ? `${TEAM_NAME[e.team].toUpperCase()} WINS` : e.team === this.my ? 'VICTORY' : 'DEFEAT', e.team === this.my || this.my < 0 ? TEAM_COL[e.team] : '#ff5a5a', 4000, null, !e.timeout);
           audio.sfx(e.team === this.my || this.my < 0 ? 'objective' : 'death');
+          if (this.my >= 0) buzz(e.team === this.my ? 'big' : 'objectiveLost');
           break;
         case 'ultCast': {
           if (e.team === this.view || this.my < 0) audio.sfx('magic', 0.5, 300);
@@ -486,6 +499,12 @@ export class Hud {
   }
   // One-line priority ticker under the score. A more important line holds the slot for 2.5s;
   // lesser lines queue briefly and are dropped if they go stale.
+  // Caster line for a big moment (one ticker line; a multi-kill of 3+ also gets a banner).
+  cast(e, team) {
+    const l = this.caster.line(e); if (!l) return;
+    this.ticker(l.text, 'cast', l.prio);
+    if (l.big) this.banner(l.big + '!', TEAM_COL[team] || '#ffd84a', 1500);
+  }
   ticker(text, cls = 'n', prio = 1) {
     const now = performance.now(), it = { text, cls, prio, t: now };
     if (this.tk && now - this.tk.t < 2500 && this.tk.prio > prio) { this.tkq.push(it); if (this.tkq.length > 4) this.tkq.shift(); return; }

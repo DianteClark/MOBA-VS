@@ -280,6 +280,9 @@ class App {
       case 'in': case 'h': case 'ht':
         if (this.match && this.match.runner.receive) this.match.runner.receive(m);
         break;
+      case 'qc': // quick chat: a side channel, never part of the lockstep command log
+        if (this.match && this.match.hud.chat) this.match.hud.chat.receive(m);
+        break;
       case 'quit':
         if (s.finished) { this.cleanupNet(); return; }
         toast('Opponent left the match.');
@@ -297,7 +300,7 @@ class App {
       g.coaches[enemy] = new Coach(g, enemy, 1);
       const old = this.match.runner, r = new LocalRunner(g, this.session.myTeam); r.acc = old.acc;
       r.log = old.log; r.htDone = old.htDone; r.ht = old.ht; if (r.ht) r.ht.them = true; r.onHalftime = old.onHalftime; r.onHalftimeEnd = old.onHalftimeEnd;
-      this.match.runner = r; this.match.hud.runner = r;
+      this.match.runner = r; this.match.hud.runner = r; this.match.hud.disableChat();
       this.session.mode = 'ai'; this.session.wasOnline = true;
       this.cleanupNet();
       return;

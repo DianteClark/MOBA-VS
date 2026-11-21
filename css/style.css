@@ -383,7 +383,10 @@ canvas.graph { width: 100%; height: 150px; background: #120f18; border: 2px soli
 #ticker { max-width: min(520px, 60vw); pointer-events: none !important; }
 .tline { background: var(--panel); border: 2px solid var(--line); border-left: 4px solid #8a7f96; padding: 2px 8px; font-size: calc(11px * var(--ts)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; animation: fin 0.25s ease-out; pointer-events: none; }
 .tline.b { border-left-color: var(--team0); } .tline.r { border-left-color: var(--team1); } .tline.n { color: #d8cfe2; }
-.tline.act { border-left-color: var(--gold); color: #ffe9a8; } .tline.danger { border-left-color: var(--red); color: #ffc8c8; }
+.tline.act { border-left-color: var(--gold); color: #ffe9a8; }
+/* caster lines: the same single ticker, with a small CAST tag */
+.tline.cast { border-left-color: var(--gold); color: #fff3c4; background: linear-gradient(90deg, rgba(70, 52, 14, 0.95), var(--panel) 45%); }
+.tline.cast::before { content: 'CAST'; font-size: 0.75em; color: #2a1608; background: var(--gold); padding: 0 3px; margin-right: 6px; vertical-align: 1px; } .tline.danger { border-left-color: var(--red); color: #ffc8c8; }
 .kitem.out { opacity: 0; transform: translateX(-10px); }
 @keyframes fin { from { transform: translateY(-6px); opacity: 0; } }
 #killfeed { display: flex; flex-direction: column; gap: 3px; align-items: flex-end; }
@@ -1193,3 +1196,20 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 20px; border-radius: 
   background: rgba(24, 19, 32, 0.9); border: 2px dashed var(--line); }
 .empty-state img { width: 40px; height: 40px; image-rendering: pixelated; opacity: 0.9; }
 .empty-state b { font-weight: normal; font-size: 15px; color: var(--gold); } .empty-state p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.4; }
+
+/* ═════════ v20: online quick chat ═════════ */
+#qchatbtn { display: inline-flex; align-items: center; gap: 4px; } #qchatbtn img { width: 14px; height: 14px; }
+#qfeed { left: calc(230px + var(--safe-l)); top: calc(8px + var(--safe-t)); display: flex; flex-direction: column; gap: 4px; align-items: flex-start; max-width: max(90px, calc(50vw - 410px - var(--safe-l))); }
+.qmsg { display: flex; align-items: center; gap: 6px; max-width: 100%; background: rgba(18, 14, 26, 0.94); border: 2px solid var(--line); padding: 2px 8px; font-size: calc(11px * var(--ts)); white-space: nowrap; overflow: hidden; animation: sugIn 0.2s cubic-bezier(.2,1.4,.4,1); transition: opacity 0.3s; pointer-events: none; }
+.qmsg b { font-weight: normal; font-size: 0.85em; } .qmsg span { overflow: hidden; text-overflow: ellipsis; } .qmsg img { width: 20px; height: 20px; flex: 0 0 20px; }
+.qmsg.out { opacity: 0; }
+#qchat { position: fixed; z-index: 30; width: 252px; background: rgba(18, 14, 26, 0.97); border: 2px solid var(--gold); box-shadow: 0 4px 0 #000a; padding: 6px; display: flex; flex-direction: column; gap: 6px; animation: popIn 0.16s cubic-bezier(.2,1.4,.4,1); pointer-events: auto; }
+#qchat .qlines { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; } #qchat .qlines .chip { min-height: 30px; padding: 2px 6px; font-size: 11px; }
+#qchat .qemotes { display: flex; gap: 4px; justify-content: space-between; }
+.qemo { cursor: pointer; width: 36px; height: 36px; display: grid; place-items: center; background: #241d30; border: 2px solid var(--line); padding: 0; transition: transform 0.08s; }
+.qemo:hover { border-color: var(--gold); } .qemo:active { transform: scale(0.92); } .qemo img { width: 22px; height: 22px; }
+#qchat .qmute { min-height: 26px; font-size: 10px; padding: 2px 6px; }
+@media (max-width: 999px), (max-height: 599px) {
+  #qfeed { left: calc(62px + var(--safe-l)); max-width: max(80px, calc(50vw - 186px - var(--safe-l))); }
+  #qchatbtn { min-width: 54px; } #qchatbtn span { font-size: 9px; }
+}

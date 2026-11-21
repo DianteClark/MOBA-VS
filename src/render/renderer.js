@@ -295,6 +295,7 @@ export class Renderer {
     if (this.visSlow) { if (performance.now() < this.visSlow.until && this.motion) vdt *= this.visSlow.k; else this.visSlow = null; }
     this.time += vdt; this.frame++; this._dt = vdt;
     this.fit();
+    this.fxp.keep = this.motion ? 1 : 0.35; // Reduced effects: about a third of the particles
     const g = this.game, ctx = this.ctx;
     if (this.focus) { const k = Math.min(1, dt * 2); this.cam.x += (this.focus.x - this.cam.x) * k; this.cam.y += (this.focus.y - this.cam.y) * k; if (this.focus.zoom) this.cam.zoom += (this.focus.zoom - this.cam.zoom) * k; }
     else if (this.panTo) {
