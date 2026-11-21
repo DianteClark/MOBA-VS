@@ -10,6 +10,8 @@ import { myMatch, ROUND_NAMES } from '../cup.js';
 import { IMG, recolor } from '../render/assets.js';
 import { mapThumb, showHowTo } from './screens.js';
 import { audio } from '../audio.js';
+import { shareMatch } from './share.js';
+import { fmtTime } from './dom.js';
 import { showSettings } from './settings.js';
 
 const screen = () => document.getElementById('screen');
@@ -67,6 +69,7 @@ export function showHome(app) {
       h('button', { class: 'chip', onclick: () => app.watch() }, 'Watch AI'),
       app.lastReplay() ? h('button', { class: 'chip', onclick: () => app.watchReplay() }, 'Last Replay') : null,
       (document.fullscreenEnabled || document.webkitFullscreenEnabled) ? h('button', { class: 'chip', onclick: () => window.toggleFullscreen() }, 'Full Screen') : null,
+      h('button', { class: 'chip', onclick: () => showHistory(app) }, 'History'),
       h('button', { class: 'chip', onclick: () => showLocker(app) }, 'Locker'),
       h('button', { class: 'chip', onclick: () => showSeason(app) }, 'Season Pass'),
       h('button', { class: 'chip' + (unseen ? ' new' : ''), onclick: () => showPatch(app) }, 'Patch Notes'),
@@ -221,4 +224,28 @@ export function progressPanel(sum, cupOut) {
     [...sum.unlocks, ...((cupOut && cupOut.rewards) || [])].length ? h('div', { class: 'unlocks' }, ...[...sum.unlocks, ...((cupOut && cupOut.rewards) || [])].map((r) => h('div', { class: 'unlock' },
       r.kind === 'trophy' ? h('img', { src: item(r.id === 'gold' ? 'items/GoldCup' : 'items/SilverCup') }) : rewardIcon(r), h('span', {}, r.kind === 'trophy' ? (r.id === 'gold' ? 'Golden Cup!' : 'Silver Cup') : rewardName(r)), h('small', {}, 'Unlocked')))) : null,
     cupOut ? h('div', { class: 'center muted' }, cupOut.won ? (cupOut.round === 2 ? 'Season Cup champion!' : `You advance past the ${ROUND_NAMES[cupOut.round]}.`) : `Eliminated in the ${ROUND_NAMES[cupOut.round]}.`) : null);
+}
+
+// ───────────── match history ─────────────
+const MODE_L = { ai0: 'Easy AI', ai1: 'Normal AI', ai2: 'Hard AI', online: 'Online', cup: 'Cup' };
+export function showHistory(app, open = 0) {
+  const list = profile.d.history;
+  const coach = { name: app.name, rank: profile.rank.label };
+  const ago = (t) => { const m = Math.round((Date.now() - t) / 60000); return m < 60 ? `${m}m ago` : m < 1440 ? `${Math.round(m / 60)}h ago` : `${Math.round(m / 1440)}d ago`; };
+  const detail = (m) => {
+    const side = (t) => h('div', { class: 'hd-team ' + (t ? 'red' : 'blue') }, h('b', {}, `${(m.names || ['Blue', 'Red'])[t] || ''}${t === m.side ? ' (you)' : ''} · ${m.kills[t]} kills · ${m.towers[t]} towers`),
+      ...m.picks[t].map((id, i) => { const k = (m.kda && m.kda[t] && m.kda[t][i]) || []; const mvp = m.mvp && m.mvp.id === id && m.mvp.team === t;
+        return h('div', { class: 'hd-row' + (mvp ? ' hmvp' : '') }, h('img', { src: face(id) }), h('span', {}, HERO_BY_ID[id] ? HERO_BY_ID[id].name : id), h('span', { class: 'k' }, k.length ? `${k[0]}/${k[1]}/${k[2]}` : ''), h('small', {}, k.length ? `${k[3]} CS · ${(k[5] / 1000).toFixed(1)}k` : ''), mvp ? h('b', { class: 'mvpt' }, 'MVP') : null); }));
+    return h('div', { class: 'hd' }, h('div', { class: 'hd-teams' }, side(0), side(1)),
+      h('div', { class: 'row', style: { justifyContent: 'center' } }, h('button', { class: 'btn big', onclick: () => shareMatch(m, coach) }, 'Share card')));
+  };
+  mount(screen(), h('div', { class: 'subscreen' }, h('div', { class: 'shead' }, back(app), h('h2', {}, 'Match History'), h('div')),
+    !list.length ? h('p', { class: 'muted center' }, 'Play a match and it will show up here.')
+      : h('div', { class: 'hist' }, ...list.map((m, i) => h('div', { class: 'hentry' + (m.won ? ' win' : ' loss') + (i === open ? ' open' : '') },
+        h('button', { class: 'hrow2', onclick: () => showHistory(app, i === open ? -1 : i) },
+          h('b', { class: 'res' }, m.won ? 'WIN' : 'LOSS'),
+          h('div', { class: 'hmeta' }, h('span', {}, `${MODE_L[m.mode] || m.mode}${m.cup ? ' · ' + m.cup : ''} · ${(MAP_BY_ID[m.map] || {}).name || m.map}`), h('small', {}, `${ago(m.t)} · ${fmtTime(m.len)}${m.crystal === false ? ' · on towers' : ''}${m.rpDelta ? ` · ${m.rpDelta > 0 ? '+' : ''}${m.rpDelta} RP` : ''}`)),
+          h('div', { class: 'hfaces' }, ...m.picks[m.side].map((id) => h('img', { src: face(id) }))),
+          h('b', { class: 'hk' }, `${m.kills[m.side]}-${m.kills[1 - m.side]}`)),
+        i === open ? detail(m) : null)))));
 }

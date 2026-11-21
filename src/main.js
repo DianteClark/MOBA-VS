@@ -20,6 +20,7 @@ import { DEFAULT_DECK } from './data/tactics.js';
 import { fpsCap } from './ui/settings.js';
 import { showHalftime, hideHalftime } from './ui/halftime.js';
 import { showHome, showCup, progressPanel } from './ui/home.js';
+import { shareMatch } from './ui/share.js';
 import { profile } from './profile.js';
 import { newCup, recordCup, myMatch } from './cup.js';
 
@@ -429,13 +430,15 @@ class App {
       if (!s.replay && m.cfg) this.saveReplay(m, s);
       let sum = null, cupOut = null;
       try {
+        profile.lastNames = s.names;
         sum = profile.record({ game: m.game, myTeam: s.myTeam, mode: s.mode === 'ai' ? 'ai' : 'online', aiLevel: s.aiLevel ?? this.aiLevel, cup: !!s.cup });
         if (s.cup && profile.d.cup) cupOut = recordCup(profile.d.cup, m.game.winner === s.myTeam);
       } catch (e) { console.error(e); }
       if (sum && (sum.promoted || sum.unlocks.length)) setTimeout(() => audio.sfx('powerup', 0.8), 700);
       showResults(this, m.game, s.myTeam,
         s.cup ? () => showCup(this) : s.mode === 'ai' ? () => this.startVsAI() : s.mode === 'watch' ? () => this.watch() : null,
-        () => this.menu(), { progress: progressPanel(sum, cupOut), againLabel: s.cup ? 'Back to bracket' : null });
+        () => this.menu(), { progress: progressPanel(sum, cupOut), againLabel: s.cup ? 'Back to bracket' : null,
+          share: sum ? () => shareMatch(profile.d.history[0], { name: this.name, rank: profile.rank.label }) : null });
     });
   }
   // Replays: config + command log is enough to re-run the whole match deterministically.

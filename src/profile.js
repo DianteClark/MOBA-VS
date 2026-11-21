@@ -11,6 +11,13 @@ const fresh = () => ({
   history: [], heroStats: {}, cup: null, seenPatch: '', lastSeason: 0,
 });
 
+// Same MVP rule as the results screen.
+export function mvpOf(game) {
+  const all = [...game.teams[0].heroes, ...game.teams[1].heroes];
+  const sc = (x) => x.kills * 3 + x.assists * 1.5 - x.deaths + x.dmgHeroes / 1500 + x.cs / 40 + (x.team === game.winner ? 4 : 0);
+  const m = all.sort((a, b) => sc(b) - sc(a))[0]; return m ? { id: m.heroId, team: m.team } : null;
+}
+const profile_cupRound = (c) => (c ? ['Quarterfinal', 'Semifinal', 'Grand Final'][c.round] || 'Final' : null);
 export class Profile {
   constructor() {
     this.d = fresh();
@@ -78,6 +85,10 @@ export class Profile {
       t: Date.now(), season: season.id, mode: key, map: game.world.def.id, won, len: Math.round(game.time),
       picks: [0, 1].map((t) => game.teams[t].heroes.map((x) => x.heroId)), winner: game.winner, side: myTeam,
       towers: [game.towersStanding(0), game.towersStanding(1)], kills: [game.teams[0].kills, game.teams[1].kills],
+      kda: [0, 1].map((t) => game.teams[t].heroes.map((x) => [x.kills, x.deaths, x.assists, x.cs, Math.round(x.dmgHeroes), Math.round(x.goldEarned)])),
+      names: (this.lastNames || ['You', 'Rival']).slice(), mvp: mvpOf(game), crystal: !game.events.some((e) => e.type === 'victory' && e.timeout),
+      rank: rankOf(rp).label, rpDelta: rp - before, cup: cup ? (profile_cupRound(this.d.cup)) : null,
+      calls: game.callLog.filter((c) => c.team === myTeam && c.result === 'success').length,
     });
     this.d.history.length = Math.min(this.d.history.length, 50);
     this.save();
