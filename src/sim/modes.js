@@ -17,11 +17,11 @@ const CLASSIC = {
 // Kraken at 3:00 so games end at a Crystal around 6-8 minutes (tower count decides at 8:00).
 const RUSH = {
   id: 'rush', seconds: 480, halftime: null,
-  final: { at: 360, gold: 1.5, respawn: 1.25 },
-  pace: { rampFrom: 90, rampPer: 110, siegeAllFrom: 150, wrathFrom: 240, backdoorOffFrom: 300 },
+  final: { at: 300, gold: 1.5, respawn: 1.8 },
+  pace: { rampFrom: 90, rampPer: 110, lateFrom: 300, latePer: 40, siegeAllFrom: 150, wrathFrom: 240, backdoorOffFrom: 300 },
   T: { ...T, firstWave: 5, waveEvery: 16, siegeEvery: 2, dragonFirst: 60, dragonRespawn: 75, elderRespawn: 90, heraldFirst: 0, heraldDespawn: 0,
     baronFirst: 180, baronRespawn: 90, baronBuff: 60, shrineUnlock: 30, inhibRespawn: 120, weatherPhase: 120, campFirst: 20 },
-  gold: 1.7, xp: 1.6, startGold: 1400, startLevel: 3, respawn: 0.55, towerHp: 0.6, minionSiege: 2, timeScale: 1.9,
+  gold: 1.7, xp: 1.6, startGold: 1400, startLevel: 3, respawn: 0.8, towerHp: 0.42, minionSiege: 2, timeScale: 1.9,
   // k: scale for "game clock" thresholds written for a 15-minute match (AI coach timings)
   k: 480 / 900,
 };
