@@ -1,6 +1,23 @@
 // Patch notes, newest first. tools/season.mjs prepends an entry at each season rollover.
 export const PATCHES = [
   {
+    version: '22.0', season: 1, date: '2026-11-21', title: 'Rivals',
+    highlights: ['Co-op coaching', 'Game plans', 'Rival coaches', 'Weekly events'],
+    notes: [
+      'Co-op coaching: two coaches share one team, against AI or 2v2 online. Each runs their own heroes; the lead makes team-wide calls, and the partner can suggest them in one tap.',
+      'Game plans: pick Early Aggression, Scale, Objective Control, Split Push or Protect the Carry before the match. Your heroes play to it, it is revealed at kickoff, and you can switch once at halftime. Countering the enemy plan gives +5% damage.',
+      'Rival coaches: 12 named AI coaches with their own styles, favourite heroes, draft habits and trash talk. Track your record against each, and beware your nemesis.',
+      'Weekly events: Blood Moon, Fog Week, Kami Storm, Golden Waves, Swift Winds, Iron Towers, Shrine Rush and Mirror Draft rotate every week. Ranked and cups use only the balance-neutral ones. Choose Classic to skip.',
+      'Two new maps: Sunscar Oasis, a desert with dune lairs and a causeway through the oasis, and Mossgate Ruins, a temple city with narrow streets and a pillared plaza.',
+      'Weekend Cups: 8-coach online knockouts from Friday to Sunday, with check-ins, a live bracket and trophies on your profile. Real players only.',
+      'Fair play: ranked and cup matches are re-checked from their replays. Faked results are rolled back.',
+      'Unique skins: every hero has a Signature skin at Mastery 5, and 18 Legendary skins with completely new looks come from achievements, the season pass and ranks. The Dojo has an animated skin viewer.',
+      '16 new emotes, new banners and borders, and a signature emote on results and share cards.',
+      '34 achievements with rewards, plus a Collection page showing everything you own and how to earn the rest.',
+    ],
+    heroes: [],
+  },
+  {
     version: '21.1', season: 1, date: '2026-11-21', title: 'Stay Awake',
     notes: [
       'Your phone no longer dims or locks during drafts, matches and replays. It sleeps normally again on the menu.',
