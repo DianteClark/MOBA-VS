@@ -108,6 +108,7 @@ class App {
 
   menu() {
     this.lobbyId = (this.lobbyId || 0) + 1;
+    this.dropReel();
     clearInterval(this.prepTimer); clearInterval(this.draftTimer);
     if (this.pendingPeer) { try { this.pendingPeer.destroy(); } catch { /* ignore */ } this.pendingPeer = null; }
     this.cleanupNet();
@@ -172,7 +173,7 @@ class App {
   }
   watch() {
     this.immersive();
-    stopParade();
+    stopParade(); this.dropReel();
     const seed = (Math.random() * 2 ** 31) >>> 0, gameMode = this.mapPref === 'rush' ? 'rush' : 'classic';
     this.session = { mode: 'watch', gameMode, myTeam: -1, seed, mapId: this.pickMap(seed, gameMode), names: ['Blue AI', 'Red AI'], rng: new Rng(seed) };
     const d = newDraft();
@@ -326,7 +327,7 @@ class App {
 
   // ───────────── draft ─────────────
   startDraft() {
-    stopParade();
+    stopParade(); this.dropReel();
     const s = this.session;
     s.draft = newDraft(); s.turnStart = performance.now(); s.turnLeft = TURN_SECONDS;
     // The active lineup is frozen for this draft (auto-picks, prep builds/plan/deck).
@@ -546,10 +547,18 @@ class App {
     if (m.runner.online && !m.runner.waiting) m.warned = false;
     requestAnimationFrame((t) => this.frame(t));
   }
+  // Leaving a match: stop the hidden-tab ticker and tear the HUD down (listeners, alerts, chat, timers).
+  teardownMatch(m) {
+    clearInterval(this.bgTick);
+    for (const id of ['scoreboard', 'halftime']) { const el = document.getElementById(id); if (el) el.remove(); }
+    if (m && m.hud) m.hud.destroy();
+  }
+  // The Play of the Game pre-roll fast-forwards a whole match in the background: stop it once the results are left.
+  dropReel() { if (this.potgReel) { this.potgReel.stop = true; this.potgReel = null; } }
   endMatch(won, which) {
     const m = this.match; if (!m || (which && m !== which)) return;
-    for (const id of ['scoreboard', 'halftime']) { const el = document.getElementById(id); if (el) el.remove(); }
     this.match = null;
+    this.teardownMatch(m);
     this.fade(() => {
       this.showScreen(true);
       audio.music(won ? 'victory' : 'defeat');
@@ -618,8 +627,7 @@ class App {
   endPOTG() {
     const m = this.match; if (!m) return;
     this.match = null;
-    for (const id of ['scoreboard']) { const el = document.getElementById(id); if (el) el.remove(); }
-    if (m) m.hud.destroy();
+    this.teardownMatch(m);
     const lr = this.lastResults;
     this.fade(() => {
       this.showScreen(true);
@@ -651,7 +659,7 @@ class App {
   watchReplay(shared) {
     const r = shared ? (shared.v === VERSION ? shared : null) : this.lastReplay();
     if (!r) { toast(shared ? 'That replay is from an older version of the game.' : 'No replay saved yet (or it is from an older version).'); return; }
-    stopParade();
+    stopParade(); this.dropReel();
     this.session = { mode: 'watch', replay: r, myTeam: -1, seed: r.cfg.seed, mapId: r.mapId || r.cfg.map, names: r.names, rng: new Rng(1) };
     this.fade(() => this.startMatch());
   }
@@ -660,7 +668,7 @@ class App {
     if (!confirm('Leave this match?')) return;
     if (this.net) this.net.t.send({ t: 'quit' });
     const m = this.match; this.match = null;
-    if (m) m.game.over = true;
+    if (m) { m.game.over = true; this.teardownMatch(m); }
     this.menu();
   }
 }

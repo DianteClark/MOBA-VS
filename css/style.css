@@ -61,6 +61,7 @@ h1, h2, h3 { margin: 0; font-weight: normal; }
 
 /* ── lobby ── */
 .lobby { margin: auto; width: min(560px, 100%); text-align: center; }
+.lobby .status:empty { display: none; }
 .code { font-size: 54px; letter-spacing: 10px; color: var(--gold); text-shadow: 0 4px 0 #6a2c12; margin: 10px 0; }
 .status { min-height: 22px; font-size: 12px; word-break: break-all; }
 
@@ -1057,7 +1058,7 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 20px; border-radius: 
 .hd-teams { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .hd-team { display: flex; flex-direction: column; gap: 3px; font-size: 11px; }
 .hd-team > b { font-weight: normal; font-size: 11px; } .hd-team.blue > b { color: var(--blue); } .hd-team.red > b { color: var(--red); }
-.hd-row { display: grid; grid-template-columns: 24px 1fr 54px 1fr auto; gap: 6px; align-items: center; background: #1e1928; padding: 2px 4px; }
+.hd-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) 64px minmax(0, 1fr) 30px; gap: 6px; align-items: center; background: #1e1928; padding: 2px 4px; }
 .hd-row img { width: 22px; height: 22px; } .hd-row .k { color: var(--gold); } .hd-row small { color: var(--muted); font-size: 9px; }
 .hd-row.hmvp { outline: 2px solid var(--gold); } .mvpt { font-weight: normal; font-size: 9px; background: var(--gold); color: #2a1608; padding: 0 4px; }
 .sharebtn { background: none; }

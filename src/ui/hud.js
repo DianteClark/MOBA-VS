@@ -108,11 +108,12 @@ export class Hud {
     // Phones: one Menu button reveals the controls (CSS decides when it shows).
     ctrl.unshift(h('button', { class: 'btn small menubtn', onclick: () => { this.el.ctrl.classList.toggle('open'); audio.sfx('move', 0.4); } }, 'Menu'));
     mount(this.el.ctrl, ctrl);
-    this.el.ctrl.addEventListener('click', (e) => { if (e.target.closest('.seg') && this.el.ctrl.classList.contains('open')) setTimeout(() => this.el.ctrl.classList.remove('open'), 150); });
+    // #ctrl and #scorebar outlive a match: assign (not add) their handlers so an old HUD never answers a tap
+    this.el.ctrl.onclick = (e) => { if (e.target.closest('.seg') && this.el.ctrl.classList.contains('open')) setTimeout(() => this.el.ctrl.classList.remove('open'), 150); };
     this.refreshCtrl();
     this.dock = new Dock(this);
     this.objTaken = [{ dragon: 0, herald: 0, baron: 0 }, { dragon: 0, herald: 0, baron: 0 }];
-    this.el.score.addEventListener('click', () => this.toggleScoreboard());
+    this.el.score.onclick = () => this.toggleScoreboard();
     this.el.score.title = 'Tap for the scoreboard [Tab]';
     this.buildFoeStrip();
     this.buildObjBar();
@@ -383,7 +384,7 @@ export class Hud {
   // Online quick chat (non-sim messages; see quickchat.js).
   enableChat(send) { if (!this.chat) this.chat = new QuickChat(this, send); return this.chat; }
   disableChat() { if (this.chat) { this.chat.destroy(); this.chat = null; } }
-  destroy() { this.closePop(); this.alerts.destroy(); this.disableChat(); clearTimeout(this._bt); document.getElementById('hud').classList.remove('bannering'); window.removeEventListener('pointerdown', this._popClose, true); }
+  destroy() { if (Hud.current === this) Hud.current = null; this.closePop(); this.alerts.destroy(); this.disableChat(); clearTimeout(this._bt); document.getElementById('hud').classList.remove('bannering'); window.removeEventListener('pointerdown', this._popClose, true); }
   taskLabelEnemy(x) { return this.g.tick - x.lastHitHero < TICK_RATE * 1.5 ? 'Fighting!' : `Seen ${LANE_L[this.g.world.closestLane(x)]}`; }
   missingText(x) {
     const ls = this.g.lastSeen[this.view][x.id];
