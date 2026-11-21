@@ -69,7 +69,7 @@ export function planRisk(g, h) {
   const plan = g.teams[h.team].plan, m = g.gameMinute;
   switch (plan) {
     case 'aggro': return m < EARLY ? 0.88 : m < SPIKE + 1 ? 0.95 : 0.98;
-    case 'scale': return m < EARLY + 1 ? 1.15 : m < SPIKE + 1 ? 1 : 0.9;
+    case 'scale': return m < EARLY + 1 ? 1.15 : m < SPIKE + 1 ? 1 : 0.93;
     case 'objective': {
       // brave around a live (or waking) objective, normal elsewhere
       const pits = g.world.pits;
@@ -80,7 +80,7 @@ export function planRisk(g, h) {
       }
       return 1;
     }
-    case 'split': return splitterOf(g, h) ? 1.1 : 1;
+    case 'split': return splitterOf(g, h) ? 1.12 : 1;
     case 'protect': {
       const c = planCarry(g, h.team); if (!c) return 1;
       if (c === h) return 1.05; // the carry stays safe
@@ -99,7 +99,7 @@ export function gankWeights(g, team) {
   return [0.85, 1];
 }
 // Ward cooldown multiplier, and whether every hero carries wards (Objective Control).
-export function wardWeights(g, team) { return g.teams[team].plan === 'objective' ? [0.7, true] : [1, false]; }
+export function wardWeights(g, team) { return g.teams[team].plan === 'objective' ? [0.65, true] : [1, false]; }
 // Extra reach (px) for contesting an objective the enemy is on.
 export function contestReach(g, team) { return g.teams[team].plan === 'objective' ? 500 : g.teams[team].plan === 'scale' && g.gameMinute < EARLY ? -400 : 0; }
 // Peel weight multiplier (target choice: threats on our carries).
@@ -142,7 +142,7 @@ export function coachWeights(g, team) {
     if (m < EARLY + 1) { w.invadeFrom = 9999; w.gankCd = 60; w.objWait = true; }
     else { w.lateAt = 540; w.groupCd = 28; }
   } else if (plan === 'objective') {
-    w.objFree = true; w.objCd = 34;
+    w.objFree = true; w.objCd = 30;
   } else if (plan === 'split') {
     w.groupLane = 'mid'; w.lateAt = 600; w.groupCd = 45;
   } else if (plan === 'protect') {

@@ -113,7 +113,7 @@ Five plans, picked in prep, revealed to both sides at kickoff, switchable once a
 |---|---|---|---|
 | Early Aggression | low risk before 8:00, deeper dives, more ganks, earlier invades, early Oni/Kami calls; fades late | Scale, Split | Objectives, Protect |
 | Scale | high risk early (no even fights), no invades, objectives only when 2 up; loose and grouped after 10:00 | Split, Objectives | Aggression, Protect |
-| Objective Control | everyone wards (×1.7 rate), brave near live pits, freer objective calls, wider contest reach | Protect, Aggression | Scale, Split |
+| Objective Control | everyone wards (faster), brave near live pits, freer objective calls, wider contest reach | Protect, Aggression | Scale, Split |
 | Split Push | 1-3-1: one or two side laners (siege builds first) split from 7:00, the rest hold mid from 9:00 | Objectives, Protect | Aggression, Scale |
 | Protect the Carry | the best-scaling carry plays safe; support + frontline walk with it from 7:00, peel ×1.8, allies run to its fights | Aggression, Scale | Objectives, Split |
 
