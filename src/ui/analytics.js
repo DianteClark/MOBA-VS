@@ -105,7 +105,7 @@ export class MatchRecorder {
 // ───────────────────────── analysis ─────────────────────────
 // a missed chance: [t, team, our heroes up, their heroes up, objective up]
 const missText = (m) => `${m[2]}v${m[3]} ${m[4] ? `with the ${objName(m[4])} up` : 'with lanes open'}`;
-export function goldAt(A, s) {
+function goldAt(A, s) {
   const G = A.gold, f = s / (A.step || 5), i = Math.max(0, Math.min(G.length - 1, Math.floor(f))), j = Math.min(G.length - 1, i + 1);
   return G[i] + (G[j] - G[i]) * Math.max(0, Math.min(1, f - i));
 }
@@ -113,7 +113,7 @@ const CALL_NAME = { gank: 'Gank', objective: 'Objective', group: 'Push', shrine:
 const WHY = { stolen: 'stolen by their jungler', lostTower: 'lost a tower there', lostHero: 'lost a hero', died: 'the hero died', gankerDied: 'the ganker died first',
   flashed: 'the enemy flashed away', recalled: 'the target recalled', escaped: 'the target escaped', empty: 'no one was in lane', pickedOff: 'the team got picked off', slow: 'ran out of time',
   notStarted: 'the team never got there', contested: 'the shrine was contested', noTower: 'no tower fell', fizzled: 'it fizzled', expired: 'nothing came of it' };
-export function callLabel(c) {
+function callLabel(c) {
   const [, , type, tgt, , , kind] = c;
   if (type === 'objective') return `Take ${objName(tgt)}`;
   if (type === 'gank') return `Gank ${LANE[tgt] || ''}`.trim();
@@ -122,7 +122,7 @@ export function callLabel(c) {
   return CALL_NAME[type] || type;
 }
 // side: 'you'/'they' wording for a coach, Blue/Red for spectators
-export const teamWord = (A, t, cap = true) => (A.my >= 0 ? (t === A.my ? (cap ? 'You' : 'you') : (cap ? 'They' : 'they')) : TEAM_NAME[t]);
+const teamWord = (A, t, cap = true) => (A.my >= 0 ? (t === A.my ? (cap ? 'You' : 'you') : (cap ? 'They' : 'they')) : TEAM_NAME[t]);
 const teamSubj = (A, t) => (A.my >= 0 ? (t === A.my ? 'Your team' : 'The enemy') : TEAM_NAME[t]);
 
 export function analyze(A) {
@@ -192,12 +192,19 @@ function turningPoint(A, fights, calls) {
     if (!best || gain > best.gain) best = { i, j, gain, flip: cross > 0 };
   }
   const subj = teamSubj(A, w), them = A.my >= 0 ? (w === A.my ? 'them' : 'you') : TEAM_NAME[1 - w];
-  if (!best || best.gain < 600) {
-    const st2 = A.ev.filter((e) => (e[1] === 'in' || e[1] === 'tw') && e[2] === w).pop();
-    if (!st2) return null;
-    const what = st2[1] === 'in' ? `broke the ${LANE[st2[3]] || ''} gate` : `took the ${LANE[st2[3]] || 'base'} tower`;
-    return { t0: Math.max(0, st2[0] - 10), t1: st2[0], team: w, gain: 0, flip: false, at: fmt(st2[0]), short: `${subj} ${what}`,
-      text: `The gold stayed close all game. It came down to structures: at ${fmt(st2[0])} ${subj.toLowerCase().startsWith('your') ? 'your team' : subj} ${what}.` };
+  // won without the gold (on time, or a late base race): the run of structures that decided it
+  if (!best || best.gain < 600 || s[s.length - 1] <= 0) {
+    const sts = A.ev.filter((e) => (e[1] === 'in' || e[1] === 'tw') && e[2] === w);
+    if (!sts.length) return null;
+    let run = null;
+    for (const a of sts) { const n = sts.filter((b) => b[0] >= a[0] && b[0] <= a[0] + 120); if (!run || n.length >= run.length) run = n; }
+    const t0 = run[0][0], t1 = run[run.length - 1][0], tw = run.filter((e) => e[1] === 'tw').length, gate = run.find((e) => e[1] === 'in');
+    const what = [tw ? (tw === 1 ? 'took a tower' : `took ${tw} towers`) : null, gate ? `broke the ${LANE[gate[3]] || ''} gate`.replace('  ', ' ') : null].filter(Boolean).join(' and ');
+    const lose = teamSubj(A, 1 - w), ahead = s[s.length - 1] < -600;
+    const timeout = A.ev.find((e) => e[1] === 'v' && e[3]);
+    const head = ahead ? `${lose} led on gold, but ${subj === 'Your team' ? 'your team' : subj === 'The enemy' ? 'the enemy' : subj} won on structures. ` : '';
+    return { t0: Math.max(0, t0 - 10), t1, team: w, gain: 0, flip: false, at: fmt(t0), short: `${subj} ${what}`,
+      text: `${head}${fmt(t0)}${t1 > t0 ? '-' + fmt(t1) : ''}: ${subj} ${what}${timeout ? ', and that tower count decided it at 0:00' : ''}.` };
   }
   const t0 = best.i * st, t1 = best.j * st, inW = (t) => t >= t0 - 5 && t <= t1 + 5;
   const parts = [];
@@ -269,7 +276,7 @@ export function drawMarker(ctx, m, x, y, s, redraw) {
 
 // The gold-lead graph: lead line + fill, minute grid, turning-point band, and an event lane per team below.
 // opts.small: the compact results-card version. Returns a hit-test function (css px → nearest item).
-export function drawGraph(c, A, d, opts = {}) {
+function drawGraph(c, A, d, opts = {}) {
   const r = c.getBoundingClientRect(); if (r.width < 10) return () => null;
   const dpr = Math.min(2, window.devicePixelRatio || 1); c.width = Math.round(r.width * dpr); c.height = Math.round(r.height * dpr);
   const ctx = c.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);

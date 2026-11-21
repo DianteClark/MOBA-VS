@@ -1,5 +1,5 @@
-# Menu / scene audit: visits every screen (home, dojo, draft, prep, results, history, ladder, season,
-# settings, profile, cup, matchmaking, lobby, how-to-play, patch notes), screenshots it and checks
+# Menu / scene audit: visits every screen (home, dojo, draft, prep, results + its Analysis sheet, history, ladder,
+# season, settings, profile + career, cup, matchmaking, lobby, how-to-play, patch notes), screenshots it and checks
 #   * no horizontal overflow (nothing pushes the page sideways),
 #   * every button / input sits inside the safe area (notch / Dynamic Island, home indicator),
 #   * no two buttons overlap (buttons under a sticky bar, e.g. the results footer, are scrolled content), and no button label is clipped.
@@ -53,14 +53,21 @@ SCREENS = [
     ('draft', "app.queueMode = 'ranked'; app.mapPref = 'random'; app.startVsAI('classic'); await new Promise((r) => setTimeout(r, 2500))"),
     ('prep', "const m = await import('./src/sim/draft.js'); const s = app.session; while (!s.draft.done) { const t = m.currentTurn(s.draft); m.apply(s.draft, t.team, m.autoChoice(s.draft, t.team, s.rng, 1)); } app.afterDraftAct(); await new Promise((r) => setTimeout(r, 1500))"),
     ('results', "app.prepReady(); await new Promise((r) => setTimeout(r, 1200)); app.match.runner.speed = 40; await new Promise((r) => setTimeout(r, 3000)); const g = app.match.game; g.over = true; g.winner = 0; app.endMatch(true); await new Promise((r) => setTimeout(r, 1500))"),
-    ('history', 'H.showHistory(app)'),
+    ('results-story', "document.querySelector('.acard').scrollIntoView({ block: 'center' })"),
+    ('analysis', "document.querySelector('.anbtn').click()"),
+    ('analysis-damage', "document.querySelector('.astabs .chip:nth-child(2)').click()"),
+    ('analysis-calls', "document.querySelector('.astabs .chip:nth-child(3)').click()"),
+    ('history', "document.getElementById('anasheet')?.remove(); H.showHistory(app)"),
+    ('profile-career', "H.showProfile(app, 'career')"),
 ]
 CHECK = """([sl, sr]) => {
   const W = innerWidth, sc = document.getElementById('screen');
   const vis = (e) => { const s = getComputedStyle(e); if (s.display === 'none' || s.visibility === 'hidden') return false; const r = e.getBoundingClientRect(); return r.width > 1 && r.height > 1; };
   const out = [];
   if (sc.scrollWidth > sc.clientWidth + 1) out.push(`horizontal overflow ${sc.scrollWidth - sc.clientWidth}px`);
-  const els = [...document.querySelectorAll('#screen button, #screen input, #screen a, #screen select')].filter(vis);
+  // the Analysis sheet covers the screen when it is open: audit it instead
+  const sheet = document.querySelector('#anasheet .asbody'); if (sheet && sheet.scrollWidth > sheet.clientWidth + 1) out.push(`analysis overflow ${sheet.scrollWidth - sheet.clientWidth}px`);
+  const els = [...document.querySelectorAll(sheet ? '#anasheet button' : '#screen button, #screen input, #screen a, #screen select')].filter(vis);
   for (const e of els) {
     const r = e.getBoundingClientRect(), name = (e.textContent || e.value || e.className || e.tagName).trim().slice(0, 24);
     if (r.left < sl - 1 || r.right > W - sr + 1) out.push(`outside safe area: ${name} (${Math.round(r.left)}-${Math.round(r.right)})`);

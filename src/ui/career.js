@@ -59,6 +59,7 @@ export function recordCareer(d, game, myTeam, A) {
 }
 
 // ───────────── Profile → Career tab ─────────────
+const n1 = (v) => String(Math.round(v * 10) / 10);
 const pct = (e) => (e[0] ? Math.round(e[1] / e[0] * 100) : 0);
 const date = (t) => { const d = new Date(t); return `${d.getMonth() + 1}/${d.getDate()}`; };
 // a win-rate bar with a 50% tick (the number is printed too: never colour or length alone)
@@ -73,7 +74,7 @@ export function careerTab(d, showAll, onToggle) {
   const tileC = (k, v) => h('div', { class: 'atile' }, h('b', {}, v), h('small', {}, k));
   const heroes = Object.entries(c.heroes).sort((a, b) => b[1][0] - a[1][0] || b[1][1] - a[1][1]);
   const heroRow = ([id, e]) => h('div', { class: 'crow3 hero' }, h('img', { src: face(id), alt: '' }), h('span', { class: 'cn' }, HERO_BY_ID[id] ? HERO_BY_ID[id].name : id), wrBar(e),
-    h('span', { class: 'cv' }, `${pct(e)}%`), h('small', { class: 'muted ckda' }, `${e[0]}g · ${(e[2] / e[0]).toFixed(1)}/${(e[3] / e[0]).toFixed(1)}/${(e[4] / e[0]).toFixed(1)} · ${kGold(e[5] / e[0])} dmg`));
+    h('span', { class: 'cv' }, `${pct(e)}%`), h('small', { class: 'muted ckda' }, `${e[0]}g · ${n1(e[2] / e[0])}/${n1(e[3] / e[0])}/${n1(e[4] / e[0])} · ${kGold(e[5] / e[0])} dmg`));
   const sec = (title, ...kids) => h('div', { class: 'panel csec' }, h('div', { class: 'rth' }, h('b', {}, title)), ...kids);
   const recRows = RECORDS.map(([k, l, , f]) => { const r = c.rec[k]; return r ? h('div', { class: 'crow3 rec' }, h('span', { class: 'cn' }, l), h('b', { class: 'cv' }, f(r[0])), h('small', { class: 'muted' }, `${r[2] && HERO_BY_ID[r[2]] ? HERO_BY_ID[r[2]].name + ' · ' : r[2] && MAP_BY_ID[r[2]] ? MAP_BY_ID[r[2]].name + ' · ' : ''}${date(r[1])}`)) : null; }).filter(Boolean);
   return h('div', { class: 'career' },

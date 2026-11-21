@@ -31,7 +31,7 @@ export class Theater {
     this.mount();
   }
   get g() { return this.m.game; }
-  get t() { return this.g.time; }
+  get t() { return this.pending ? this.pending.tick / 20 : this.g.time; }
 
   // ───────── the control bar (lives in #cmdbar, re-mounted after every seek) ─────────
   mount() {
@@ -71,10 +71,12 @@ export class Theater {
     this.anBtn.disabled = !this.A;
     this.anBtn.title = this.A ? 'Match analysis' : 'Analysing the replay…';
     this.timeEl.textContent = `${fmt(t)} / ${fmt(this.len)}`;
+    this.el.classList.toggle('busy', !!this.pending);
     this.drawTrack();
   }
   togglePlay() {
     const r = this.m.runner;
+    if (this.pending) { this.pending.play = !this.pending.play; return; }
     if (this.g.over) { this.seek(0, true); return; }
     r.paused = !r.paused; this.refresh();
   }
@@ -152,7 +154,12 @@ export class Theater {
   // ───────── per frame (from App.frame) ─────────
   frame(dt) {
     const now = performance.now();
+    this.cost = (this.cost || 0) * 0.95; // EMA of the Theater's own time per frame (stats / tests)
+    try { this.frameWork(dt, now); } finally { this.cost += (performance.now() - now) * 0.05; }
+  }
+  frameWork(dt, now) {
     if (this.seeking) { this.runScout(36); this.seekProgress(); return; }
+    if (this.pending) { this.stepPending(30); if (this.pending) this.refresh(); return; }
     // the scout gets a small slice each frame, and backs off on a slow device (frame time over ~22 ms)
     this.slowFrames = dt > 0.022 ? Math.min(30, this.slowFrames + 1) : Math.max(0, this.slowFrames - 1);
     if (!this.scout.done) this.runScout(this.slowFrames > 10 ? 1.5 : this.m.runner.paused ? 8 : 4);
@@ -181,6 +188,9 @@ export class Theater {
   // ───────── seeking ─────────
   seek(sec, play) {
     const tick = Math.max(0, Math.min(Math.round(sec * 20), Math.round(this.len * 20)));
+    // a new seek replaces one in progress
+    if (this.seeking) { if (this.seeking.el) this.seeking.el.remove(); play = play ?? this.seeking.play; this.seeking = null; }
+    if (this.pending) { play = play ?? this.pending.play; this.pending = null; }
     if (tick > this.scout.g.tick && !this.scout.done) {
       // past what the scout has seen: run it at full speed first
       const was = this.m.runner.paused; this.m.runner.paused = true;
@@ -199,18 +209,28 @@ export class Theater {
     }
     s.el.querySelector('i').style.width = Math.round((S.g.tick - s.from) / Math.max(1, s.tick - s.from) * 100) + '%';
   }
+  // Restore the nearest snapshot, then fast-forward to the target in ~30 ms slices (the picture stays
+  // responsive instead of freezing for a long hop on a slow phone); the new game goes on screen when it arrives.
   doSeek(tick, play) {
-    const t0 = performance.now(), S = this.scout;
+    const S = this.scout;
     let i = Math.min(Math.floor(tick / SNAP), S.snaps.length - 1);
     while (i > 0 && !S.snaps[i]) i--;
     const g = restore(S.snaps[i]), r = new LocalRunner(g, -1, { noHalftime: true, script: this.log });
     while (r.si < this.log.length && this.log[r.si][0] < g.tick) r.si++;
-    r.skipTo(tick);
-    g.fx.length = 0;
-    r.speed = SPEEDS[this.speedI]; r.paused = !play;
-    this.swap(g, r);
+    this.m.runner.paused = true;
+    this.pending = { g, r, tick, play, t0: performance.now() };
+    this.stepPending(14);
+  }
+  stepPending(budget) {
+    const p = this.pending, t0 = performance.now();
+    while (p.g.tick < p.tick && !p.g.over && performance.now() - t0 < budget) p.r.skipTo(Math.min(p.tick, p.g.tick + 4));
+    if (p.g.tick < p.tick && !p.g.over) return;
+    this.pending = null;
+    p.g.fx.length = 0;
+    p.r.speed = SPEEDS[this.speedI]; p.r.paused = !p.play;
+    this.swap(p.g, p.r);
     this.ended = false;
-    this.lastSeekMs = performance.now() - t0;
+    this.lastSeekMs = performance.now() - p.t0;
     this.refresh();
   }
   // Put a game on screen in place of the current one (fresh HUD, same camera / follow / fog).
@@ -234,5 +254,5 @@ export class Theater {
     app.fade(() => { app.showScreen(true); if (back) back(); else app.menu(); });
   }
   // For tests: how fast seeking and snapshots are on this device.
-  stats() { const ms = this.scout.ms; return { snaps: this.scout.snaps.filter(Boolean).length, snapMs: ms.length ? ms.reduce((a, b) => a + b, 0) / ms.length : 0, scoutTick: this.scout.g.tick, lastSeekMs: this.lastSeekMs || 0 }; }
+  stats() { const ms = this.scout.ms; return { snaps: this.scout.snaps.filter(Boolean).length, snapMs: ms.length ? ms.reduce((a, b) => a + b, 0) / ms.length : 0, scoutTick: this.scout.g.tick, lastSeekMs: this.lastSeekMs || 0, frameMs: this.cost || 0 }; }
 }
