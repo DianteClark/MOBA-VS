@@ -18,6 +18,8 @@ import { applyMoment } from './moments-coach.js';
 // Champion-vs-champion damage scale: keeps fights readable and lanes from snowballing at level 1.
 const STEER_K = +(globalThis.process?.env?.SK || 0.45);
 const HERO_VS_HERO = 0.6;
+// Per-tick fair coin for who acts first (a 32-bit integer hash of the tick; deterministic, no RNG draw).
+const tickCoin = (t) => { let h = Math.imul(t ^ 0x5bd1e995, 0x9e3779b1); h ^= h >>> 15; h = Math.imul(h, 0x85ebca6b); h ^= h >>> 13; return (h >>> 7) & 1; };
 // Tower reach (range + hero radius) must beat hero reach (range + both radii) to the tower.
 const HERO_RANGE_CAP = RANGE.tower - 45;
 const CAMP_DEFS = {
@@ -235,7 +237,7 @@ export class Game {
   }
 
   // ───────────────────────── setup ─────────────────────────
-  addUnit(u) { u.id = this.nextId++; u.alive = true; u.buffs = u.buffs || []; u.slows = []; u.burns = []; u.shields = [];
+  addUnit(u) { u.id = this.nextId++; if (u.ph === undefined) u.ph = u.id; u.alive = true; u.buffs = u.buffs || []; u.slows = []; u.burns = []; u.shields = [];
     u.stunUntil = 0; u.rootUntil = 0; u.knockUntil = 0; u.vx = 0; u.vy = 0; u.attackCd = 0; u.target = null; u.lastCombat = -999;
     u.animAttack = -999; u.facing = u.facing || 0; this.units.push(u); return u; }
 
@@ -254,7 +256,7 @@ export class Game {
   setupCamps() {
     for (const c of this.world.camps) {
       const def = CAMP_DEFS[c.kind];
-      this.camps.push({ def: { ...def, id: c.id }, side: c.side, x: c.x, y: c.y, mobs: [], respawnAt: sec(T.campFirst), key: `${c.side}:${c.id}` });
+      this.camps.push({ def: { ...def, id: c.id }, side: c.side, x: c.x, y: c.y, mobs: [], respawnAt: sec(T.campFirst), key: `${c.side}:${c.id}`, ph: this.camps.length >> 1 });
     }
   }
 
@@ -265,7 +267,8 @@ export class Game {
     const gold0 = this.rules.startGold || GOLD.start;
     const h = this.addUnit({
       type: 'hero', team, def, heroId: def.id, role: spec.role, lane, homeLane: lane,
-      build: spec.build || def.rec, items: [], x: f.x + (this.teams[team].heroes.length - 2) * 22, y: f.y - (this.teams[team].heroes.length - 2) * 22,
+      build: spec.build || def.rec, items: [], x: f.x + (this.teams[team].heroes.length - 2) * 22 * (team === BLUE ? 1 : -1), y: f.y - (this.teams[team].heroes.length - 2) * 22 * (team === BLUE ? 1 : -1),
+      ph: this.teams[team].heroes.length * 7,
       level: this.rules.startLevel, xp: 0, gold: gold0, radius: 14, cds: [0, 0, 0], castLock: 0, dash: null, every3: 0, passiveCd: 0,
       kills: 0, deaths: 0, assists: 0, cs: 0, dmgHeroes: 0, dmgTaken: 0, healed: 0, goldEarned: gold0, streak: 0,
       respawnAt: 0, recallAt: 0, flashCd: 0, task: { kind: 'idle' }, dmgBy: {}, lowShieldCd: 0, smiteCd: 0, wardCd: sec(50), lastHurtByHero: -999,
@@ -614,7 +617,12 @@ export class Game {
     // Commands are applied in a canonical order so both peers agree.
     const cmds = commands.slice().sort((a, b) => a.team - b.team || (a.seq || 0) - (b.seq || 0));
     for (const c of cmds) this.applyCommand(c);
-    for (let t = 0; t < 2; t++) { if (this.coaches[t]) this.coaches[t].update(); }
+    // Fairness: units act in list order and damage lands immediately, so who goes first is a per-tick
+    // coin (a hash of the tick: no RNG draw, no fixed period that unit cooldowns could lock onto).
+    // (Plain even/odd alternation aliased with the all-even minion attack periods: one side's whole
+    // wave struck first in every clash of a lane.)
+    const rev = tickCoin(now);
+    for (let k = 0; k < 2; k++) { const t = rev ? 1 - k : k; if (this.coaches[t]) this.coaches[t].update(); }
 
     for (const tm of this.teams) {
       if (tm.swapUntil && now >= tm.swapUntil) { tm.swapUntil = 0; for (const h of tm.heroes) { h.lane = h.homeLane; if (h.task.kind === 'lane') h.task = { kind: 'idle' }; } }
@@ -638,10 +646,8 @@ export class Game {
     for (const u of this.units) if (u.alive) this.grid.add(u);
     if (now % 4 === 0) this.updateVision();
 
-    // Fairness: units act in list order and damage lands immediately, so the list is walked
-    // forwards on even ticks and backwards on odd ticks (neither side always swings first).
     if (now % 10 === 5) { laneBrain(this, 0); laneBrain(this, 1); }
-    const U = this.units, rev = now & 1, n = U.length;
+    const U = this.units, n = U.length;
     for (let k = 0; k < n; k++) { const u = U[rev ? n - 1 - k : k]; if (u.type === 'hero') this.updateHero(u); }
     for (let k = 0; k < n; k++) {
       const u = U[rev ? n - 1 - k : k];
@@ -657,7 +663,7 @@ export class Game {
     this.updateStatus();
     this.updateProjectiles();
     this.updatePending();
-    this.separate();
+    this.separate(rev);
     this.fountain();
 
     if (!this.over && this.time >= this.rules.seconds) this.timeUp();
@@ -702,7 +708,8 @@ export class Game {
     const growth = 1 + minute * 0.055;
     const bm = (baron ? 1.5 : 1) * (allOut ? 1.6 : 1);
     const hp = S.hp * growth * bm;
-    this.addUnit({ type: 'minion', kind, team, lane, x: start.x + d.x * (60 - back) + (i % 2 ? 6 : -6), y: start.y + d.y * (60 - back), wp: nextIdx,
+    // ph: mirrored minions (same lane, same slot) share a timing phase, so neither side re-targets / re-paths first
+    this.addUnit({ type: 'minion', kind, team, lane, ph: this.world.laneNames.indexOf(lane) * 16 + i, x: start.x + d.x * (60 - back) + (i % 2 ? 6 : -6) * (team === BLUE ? 1 : -1), y: start.y + d.y * (60 - back), wp: nextIdx,
       maxHp: hp, hp, radius: kind === 'siege' || kind === 'super' ? 12 : 9, empowered: baron || allOut, allOut: !!allOut,
       stats: { ad: S.ad * growth * bm, ap: 0, armor: S.armor * (baron ? 1.5 : 1), mr: S.mr, as: S.as, range: S.range, ms: allOut ? 84 : 72, pen: 0 } });
   }
@@ -733,9 +740,9 @@ export class Game {
       if (this.tick >= c.respawnAt && c.respawnAt > 0) {
         c.respawnAt = 0;
         const g = 1 + minute * 0.07;
-        for (const m of c.def.mobs) {
+        for (const [k, m] of c.def.mobs.entries()) {
           const dx = (m.dx || 0) * (c.side ? -1 : 1), dy = (m.dy || 0) * (c.side ? -1 : 1);
-          const mob = this.addUnit({ type: 'mob', kind: m.k, camp: c.key, team: NEUTRAL, x: c.x + dx, y: c.y + dy, home: { x: c.x + dx, y: c.y + dy },
+          const mob = this.addUnit({ type: 'mob', kind: m.k, camp: c.key, team: NEUTRAL, ph: c.ph * 8 + k, x: c.x + dx, y: c.y + dy, home: { x: c.x + dx, y: c.y + dy },
             maxHp: m.hp * g, hp: m.hp * g, radius: m.big ? 16 : 10, big: !!m.big, buff: m.big ? c.def.buff : null,
             gold: m.big ? (c.def.buff ? 110 : 70) : 22, xpv: m.big ? (c.def.buff ? 170 : 110) : 30,
             stats: { ad: m.ad * g * 0.6, ap: 0, armor: 12, mr: 12, as: 0.8, range: 50, ms: 90, pen: 0 } });
@@ -1013,7 +1020,7 @@ export class Game {
     // Straight-line moves only with a clear, body-wide line; otherwise follow a path.
     // Hysteresis: while following a live route to (about) this goal, keep following it.
     const onRoute = u.path && now < u.path.until && dist2(u.path.goal, p) < 64 * 64 && u.path.i < u.path.pts.length - 1;
-    let clear = !onRoute && d2p < 300 * 300 && ((now + u.id) % 4 !== 0 && u._clearT === p ? u._clear : (u._clearT = p, u._clear = W.losWide(u.x, u.y, p.x, p.y)));
+    let clear = !onRoute && d2p < 300 * 300 && ((now + u.ph) % 4 !== 0 && u._clearT === p ? u._clear : (u._clearT = p, u._clear = W.losWide(u.x, u.y, p.x, p.y)));
     // progress watchdog (both modes): if we stop advancing, fall back to a fresh path
     if (!u.prog || dist2(u, u.prog) > 18 * 18 || now - u.prog.t > 60) u.prog = { x: u.x, y: u.y, t: now };
     else if (now - u.prog.t > 16 && clear) { clear = false; u.forcePath = now + 40; }
@@ -1026,12 +1033,12 @@ export class Game {
         if (W.losWide(last.x, last.y, p.x, p.y)) { pc.pts[pc.pts.length - 1] = { x: p.x, y: p.y }; pc.goal = { x: p.x, y: p.y }; } else pc = null;
       }
       if (!pc || now >= pc.until || pc.i >= pc.pts.length) {
-        pc = u.path = { goal: { x: p.x, y: p.y }, pts: W.findPath(u.x, u.y, p.x, p.y), i: 0, until: now + 60 + (u.id % 13) };
+        pc = u.path = { goal: { x: p.x, y: p.y }, pts: W.findPath(u.x, u.y, p.x, p.y), i: 0, until: now + 60 + (u.ph % 13) };
       }
       const pts = pc.pts;
       while (pc.i < pts.length - 1 && dist2(u, pts[pc.i]) < 18 * 18) pc.i++;
       // skip ahead when the next waypoint is already in clear view
-      if (pc.i < pts.length - 1 && (now + u.id) % 3 === 0 && W.losWide(u.x, u.y, pts[pc.i + 1].x, pts[pc.i + 1].y)) pc.i++;
+      if (pc.i < pts.length - 1 && (now + u.ph) % 3 === 0 && W.losWide(u.x, u.y, pts[pc.i + 1].x, pts[pc.i + 1].y)) pc.i++;
       step = pts[pc.i];
       // no progress for a while: replan, and step sideways to unstick
       if (!pc.prog || dist2(u, pc.prog) > 20 * 20) pc.prog = { x: u.x, y: u.y, t: now };
@@ -1044,7 +1051,7 @@ export class Game {
     const sp = Math.min(this.moveSpeed(u) * DT, rem);
     if (rem > 30) u.moveIntent = now;
     let mx = dx / d * sp, my = dy / d * sp;
-    if (u.unstick > now) { const side = (u.id & 1) ? 1 : -1; mx += -dy / d * sp * 0.8 * side; my += dx / d * sp * 0.8 * side; }
+    if (u.unstick > now) { const side = (u.ph & 1) ? 1 : -1; mx += -dy / d * sp * 0.8 * side; my += dx / d * sp * 0.8 * side; }
     if (u.type === 'hero') {
       // steering: heroes turn over a few ticks instead of snapping (reads as weight, kills jitter)
       const fresh = u.mvT === now - 1; u.mvT = now;
@@ -1104,7 +1111,8 @@ export class Game {
     let best = null, bd = Infinity;
     for (const e of this.grid.query(u.x, u.y, r)) {
       if (!e.alive || e.team === u.team || !pred(e)) continue;
-      const d = dist2(u, e); if (d < bd) { bd = d; best = e; }
+      // exact ties go to the lower timing phase, the same pick a mirrored unit would make (not grid order)
+      const d = dist2(u, e); if (d < bd || (d === bd && (e.ph < best.ph || (e.ph === best.ph && e.id < best.id)))) { bd = d; best = e; }
     }
     return best;
   }
@@ -1124,7 +1132,7 @@ export class Game {
     const reach = L + m.stats.range;
     const inZone = (e) => W.laneDistAt(lane, e) < reach;
     // Re-target periodically
-    if (!m.target || !m.target.alive || (now + m.id) % 10 === 0) {
+    if (!m.target || !m.target.alive || (now + m.ph) % 10 === 0) {
       const aggro = 280;
       let tgt = null;
       // hero attacking an allied hero nearby
@@ -1267,7 +1275,7 @@ export class Game {
     const wxRegen = this.wx.regen;
     if (h.hp < h.maxHp) h.hp = Math.min(h.maxHp, h.hp + regen * wxRegen * DT * (h.grievousUntil > now ? 0.6 : 1));
     // buffs expiry → recalc occasionally
-    if ((now + h.id) % 10 === 0) this.recalc(h);
+    if ((now + h.ph) % 10 === 0) this.recalc(h);
     // dash in progress
     if (h.dash) { this.updateDash(h); return; }
     if (now < h.stunUntil) return;
@@ -1277,7 +1285,7 @@ export class Game {
       if (now >= h.recallAt) { const f = this.world.fountain[h.team]; h.x = f.x; h.y = f.y; h.recallAt = 0; h.path = null; h.task = { kind: 'heal' }; this.emit({ type: 'recalled', hero: h.id, team: h.team }); }
       return;
     }
-    if ((now + h.id) % 10 === 0) heroMacro(this, h);
+    if ((now + h.ph) % 10 === 0) heroMacro(this, h);
     heroThink(this, h);
   }
 
@@ -1512,9 +1520,10 @@ export class Game {
     }
   }
 
-  separate() {
-    const tmp = [], W = this.world;
-    for (const u of this.units) {
+  separate(rev) {
+    const tmp = [], W = this.world, U = this.units, n = U.length;
+    for (let k = 0; k < n; k++) {
+      const u = U[rev ? n - 1 - k : k];
       if (!u.alive || u.structure || u.boss || u.dash) continue;
       if (u.type !== 'minion' && u.type !== 'hero' && u.type !== 'mob' && u.type !== 'summon') continue;
       tmp.length = 0; this.grid.query(u.x, u.y, 30, tmp);

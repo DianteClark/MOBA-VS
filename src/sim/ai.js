@@ -287,7 +287,7 @@ export function heroMacro(g, h) {
   const help = helpTarget(g, h, C);
   if (help) { h.task = { kind: 'help', ally: help.id, until: now + sec(8) }; return; }
   // opportunistic shrine
-  if (g.time >= 60 && hpPct > 0.5 && (h.role === 'jungle' || h.role === 'support' || g.time > 480) && (now + h.id * 3) % 40 === 0) {
+  if (g.time >= 60 && hpPct > 0.5 && (h.role === 'jungle' || h.role === 'support' || g.time > 480) && (now + h.ph * 3) % 40 === 0) {
     for (const sh of g.shrines) {
       if (sh.owner === h.team || W.pathDist(h, sh) > 700) continue;
       if (C.enemies.some((e) => dist2(e, sh) < 750 * 750)) continue;
@@ -297,7 +297,7 @@ export function heroMacro(g, h) {
   if (h.task.kind === 'shrine' && h.task.until > now) return;
 
   if (h.role === 'jungle') {
-    if ((now + h.id * 7) % 80 === 0) { const lane = gankOpportunity(g, h, C); if (lane) { h.task = { kind: 'gank', lane, until: now + sec(18) }; return; } }
+    if ((now + h.ph * 7) % 80 === 0) { const lane = gankOpportunity(g, h, C); if (lane) { h.task = { kind: 'gank', lane, until: now + sec(18) }; return; } }
     if (h.task.kind !== 'jungle') h.task = { kind: 'jungle' };
     return;
   }
