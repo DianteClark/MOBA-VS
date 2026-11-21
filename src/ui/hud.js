@@ -10,7 +10,7 @@ import { TEAM_COL } from '../render/renderer.js';
 import { audio } from '../audio.js';
 import { Dock } from './commands.js';
 import { Alerts } from './alerts.js';
-import { settings, openSettingsModal } from './settings.js';
+import { settings, openSettingsModal, isTouch } from './settings.js';
 
 const LANES = ['top', 'mid', 'bot'];
 const LANE_L = { top: 'Top', mid: 'Mid', bot: 'Bot' };
@@ -89,8 +89,12 @@ export class Hud {
       this.my < 0 ? (this.fogBtn = h('button', { class: 'btn small', onclick: () => { this.r.fogOn = !this.r.fogOn; this.refreshCtrl(); } }, 'Fog')) : null,
       h('button', { class: 'btn small foesbtn', onclick: () => byId('rightcol').classList.toggle('show') }, 'Foes'),
       h('button', { class: 'btn small', title: 'Settings (pauses vs AI)', onclick: () => openSettingsModal(this.runner) }, 'Opt'),
+      (document.fullscreenEnabled || document.webkitFullscreenEnabled) ? h('button', { class: 'btn small fullbtn', title: 'Full screen', onclick: () => window.toggleFullscreen() }, 'Full') : null,
       h('button', { class: 'btn small', onclick: () => this.app.quitMatch() }, 'Quit')));
+    // Phones: one Menu button reveals the controls (CSS decides when it shows).
+    ctrl.unshift(h('button', { class: 'btn small menubtn', onclick: () => { this.el.ctrl.classList.toggle('open'); audio.sfx('move', 0.4); } }, 'Menu'));
     mount(this.el.ctrl, ctrl);
+    this.el.ctrl.addEventListener('click', (e) => { if (e.target.closest('.seg') && this.el.ctrl.classList.contains('open')) setTimeout(() => this.el.ctrl.classList.remove('open'), 150); });
     this.refreshCtrl();
     this.dock = new Dock(this);
     this.buildObjBar();
@@ -124,7 +128,7 @@ export class Hud {
     this.processEvents();
     if (this.director) this.directorCam(dt);
     this.alerts.place();
-    if (now - this.lastDom < 120) return;
+    if (now - this.lastDom < (isTouch ? 180 : 120)) return;
     this.lastDom = now;
     this.dock.tick();
     this.updateScore();

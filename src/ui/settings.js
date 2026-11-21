@@ -12,7 +12,17 @@ const PALETTES = {
   // blue / orange: safe for deuteranopia, protanopia and tritanopia
   cb: { col: ['#3d9bff', '#ffa22e'], dark: ['#174a8a', '#8a4d0c'] },
 };
-const DEFAULTS = { music: 70, sfx: 80, colorblind: false, textSize: 'normal', reducedMotion: false, speed: 1, chatter: true, alerts: true };
+const DEFAULTS = { music: 70, sfx: 80, colorblind: false, textSize: 'normal', reducedMotion: false, speed: 1, chatter: true, alerts: true, quality: 'auto' };
+// Phones/tablets: touch-first devices. Used for default render resolution and HUD cadence.
+export const isTouch = (() => { try { return matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window; } catch { return false; } })();
+// Render resolution multiplier (canvas pixels per CSS pixel) for the chosen quality.
+export function renderDpr() {
+  const d = window.devicePixelRatio || 1;
+  if (settings.quality === 'sharp') return Math.min(2, d);
+  if (settings.quality === 'battery') return 1;
+  return isTouch ? Math.min(1.5, d) : Math.min(2, d);
+}
+export const fpsCap = () => (settings.quality === 'battery' ? 30 : 0);
 
 function systemReduced() { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { return false; } }
 
@@ -72,7 +82,8 @@ function body(rerender) {
     h('div', { class: 'sgroup' }, h('div', { class: 'sgt' }, 'Display'),
       toggle('Colour-blind team colours', 'colorblind', 'Blue vs orange instead of blue vs red', rerender, sw),
       seg('Text size', 'textSize', [['small', 'Small'], ['normal', 'Normal'], ['large', 'Large']], rerender),
-      toggle('Reduced motion', 'reducedMotion', 'No screen shake, hit-stop or flashes', rerender)),
+      toggle('Reduced motion', 'reducedMotion', 'No screen shake, hit-stop or flashes', rerender),
+      seg('Graphics', 'quality', [['auto', 'Auto'], ['sharp', 'Sharp'], ['battery', 'Battery']], () => { window.dispatchEvent(new Event('resize')); rerender(); })),
     h('div', { class: 'sgroup' }, h('div', { class: 'sgt' }, 'Match'),
       seg('Default speed', 'speed', [[1, '1x'], [2, '2x'], [4, '4x']], rerender),
       toggle('Hero chatter', 'chatter', 'Speech bubbles when heroes react', rerender),

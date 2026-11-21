@@ -6,7 +6,7 @@
   --safe-b: env(safe-area-inset-bottom, 0px); --safe-t: env(safe-area-inset-top, 0px); --safe-l: env(safe-area-inset-left, 0px); --safe-r: env(safe-area-inset-right, 0px);
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font-family: PixelFont, monospace; overflow: hidden;
+html, body { overscroll-behavior: none; -webkit-touch-callout: none; margin: 0; height: 100%; background: var(--bg); color: var(--ink); font-family: PixelFont, monospace; overflow: hidden;
   -webkit-font-smoothing: none; image-rendering: pixelated; user-select: none; -webkit-user-select: none; touch-action: manipulation; word-spacing: 0.32em; }
 img { image-rendering: pixelated; }
 button { font-family: inherit; color: inherit; word-spacing: inherit; letter-spacing: inherit; }
@@ -799,3 +799,45 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 20px; border-radius: 
 .ht-builds { display: flex; flex-direction: column; gap: 4px; }
 .ht-hero { display: flex; align-items: center; gap: 6px; } .ht-hero img { width: 26px; height: 26px; } .ht-hero .chip { padding: 3px 8px; min-height: 28px; font-size: 11px; }
 @media (max-width: 999px), (max-height: 599px) { .ultbtn { min-width: 48px; padding: 2px 4px; } .ultbtn .ul { display: none; } .ht-card { padding: 8px; gap: 6px; } .ht-score b { font-size: 22px; } }
+
+/* ═════════ MOBILE-FIRST MATCH LAYOUT (5.0) ═════════ */
+.menubtn { display: none; }
+@media (min-width: 1000px) and (min-height: 600px) { .fullbtn { display: none; } }
+@media (max-width: 999px), (max-height: 599px) {
+  /* controls collapse behind one Menu button */
+  .menubtn { display: inline-block; min-width: 54px; }
+  #ctrl { flex-direction: column !important; align-items: flex-end !important; gap: 3px !important; position: relative; z-index: 12; }
+  #ctrl .seg { display: none !important; }
+  #ctrl.open .seg { display: flex !important; flex-direction: row !important; gap: 3px; background: rgba(15, 12, 22, 0.94); border: 2px solid var(--line); padding: 4px; position: absolute; right: 0; top: 40px; white-space: nowrap; }
+  #ctrl.open .seg:nth-child(3) { top: 88px; }
+  #ctrl.open .seg .btn { min-width: 46px; min-height: 36px; font-size: 11px; }
+  /* objective timers: one tidy row, objectives only */
+  #objtimers { flex-wrap: nowrap !important; overflow: hidden; }
+  #objtimers .ot:has(.shr) { display: none; }
+  /* feed: two short lines max, never over the action */
+  #feed .fitem:nth-child(n+3) { display: none !important; }
+  .fitem { max-width: 62vw; }
+}
+/* phone portrait */
+@media (max-width: 640px) and (min-height: 600px) {
+  #mm { width: 104px !important; height: 104px !important; }
+  #brcol { gap: 4px !important; }
+  #topcenter { max-width: calc(100vw - 180px) !important; }
+}
+/* phone landscape: one low dock row so the battlefield keeps most of the height */
+@media (max-height: 500px) {
+  .dock { flex-direction: row-reverse !important; align-items: stretch; width: min(100%, 760px) !important; gap: 4px !important; }
+  .callrow { flex: 1 1 auto; }
+  .call { min-height: 46px !important; }
+  .handrow { flex: 0 0 auto; gap: 3px !important; }
+  .handrow .meter { padding: 2px 4px !important; } .handrow .meter .ctxt { display: none; } .handrow .meter .pips { flex-direction: column; gap: 5px !important; } .handrow .meter .pip { width: 9px !important; height: 9px !important; }
+  .hand { flex: 0 0 auto; }
+  .tcard { flex: 0 0 46px !important; justify-content: center; padding: 2px !important; min-height: 46px; }
+  .tcard .tc-t { display: none; }
+  .tcard img { width: 24px !important; height: 24px !important; flex-basis: 24px !important; }
+  .ultbtn { min-width: 46px !important; }
+  .callrow::before { content: ''; }
+  #mm { width: 108px !important; height: 108px !important; }
+  .sheet, .sugs { width: min(100%, 620px) !important; }
+  .sug { padding: 1px 2px 4px 6px !important; }
+}

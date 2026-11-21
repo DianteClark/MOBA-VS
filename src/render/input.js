@@ -1,10 +1,10 @@
 // Camera controls: mouse drag / wheel, touch pan + pinch, keyboard, minimap tap.
 export function bindCamera(r, canvas, minimap, mmCanvas, hooks = {}) {
   const keys = new Set();
-  let drag = null, pinch = null, moved = 0;
+  let drag = null, pinch = null, moved = 0, lastTouch = -1e9; // ignore the emulated mouse events that follow a touch
   const stopFollow = () => { r.panTo = null; if (r.follow) { r.follow = null; hooks.onFollow && hooks.onFollow(null); } };
 
-  canvas.addEventListener('mousedown', (e) => { drag = { x: e.clientX, y: e.clientY }; moved = 0; });
+  canvas.addEventListener('mousedown', (e) => { if (performance.now() - lastTouch < 800) return; drag = { x: e.clientX, y: e.clientY }; moved = 0; });
   window.addEventListener('mousemove', (e) => {
     if (!drag) return;
     const dx = e.clientX - drag.x, dy = e.clientY - drag.y; moved += Math.abs(dx) + Math.abs(dy);
@@ -25,6 +25,7 @@ export function bindCamera(r, canvas, minimap, mmCanvas, hooks = {}) {
   }, { passive: false });
 
   canvas.addEventListener('touchstart', (e) => {
+    lastTouch = performance.now();
     e.preventDefault();
     if (e.touches.length === 1) { drag = { x: e.touches[0].clientX, y: e.touches[0].clientY }; moved = 0; pinch = null; }
     else if (e.touches.length === 2) { const [a, b] = e.touches; pinch = { d: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY), z: r.cam.zoom }; drag = null; }
@@ -41,6 +42,7 @@ export function bindCamera(r, canvas, minimap, mmCanvas, hooks = {}) {
     }
   }, { passive: false });
   canvas.addEventListener('touchend', (e) => {
+    lastTouch = performance.now();
     if (drag && moved < 8 && hooks.onClick && e.changedTouches[0]) {
       const t = e.changedTouches[0], rect = canvas.getBoundingClientRect();
       hooks.onClick(r.s2w(t.clientX - rect.left, t.clientY - rect.top), t.clientX, t.clientY);

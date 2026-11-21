@@ -66,6 +66,7 @@ export function showHome(app) {
     h('div', { class: 'subnav' },
       h('button', { class: 'chip', onclick: () => app.watch() }, 'Watch AI'),
       app.lastReplay() ? h('button', { class: 'chip', onclick: () => app.watchReplay() }, 'Last Replay') : null,
+      (document.fullscreenEnabled || document.webkitFullscreenEnabled) ? h('button', { class: 'chip', onclick: () => window.toggleFullscreen() }, 'Full Screen') : null,
       h('button', { class: 'chip', onclick: () => showLocker(app) }, 'Locker'),
       h('button', { class: 'chip', onclick: () => showSeason(app) }, 'Season Pass'),
       h('button', { class: 'chip' + (unseen ? ' new' : ''), onclick: () => showPatch(app) }, 'Patch Notes'),

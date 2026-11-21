@@ -11,7 +11,7 @@ export class Minimap {
   }
   resize() {
     const r = this.c.getBoundingClientRect();
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const dpr = Math.min(1.5, window.devicePixelRatio || 1);
     this.c.width = Math.round(r.width * dpr); this.c.height = Math.round(r.height * dpr);
     this.size = this.c.width;
     const b = document.createElement('canvas'); b.width = b.height = this.size;

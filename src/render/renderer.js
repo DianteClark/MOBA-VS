@@ -7,7 +7,7 @@ import { TICK_RATE, DRAGON_INFO, OBJ_NAME, T as TIMERS } from '../sim/constants.
 import { TEAM_COL, TEAM_DARK, rgba } from './palette.js';
 import { Particles, P_SQUARE, P_SPARK, P_SPRITE, P_COIN, P_WISP, P_DEBRIS, P_RING, P_PUFF, P_BEAM } from './particles.js';
 import { Chatter } from './chatter.js';
-import { settings, textScale } from '../ui/settings.js';
+import { settings, textScale, renderDpr } from '../ui/settings.js';
 
 export { TEAM_COL, TEAM_DARK };
 const OBJ_COL = { dragon: '#ff9a3c', herald: '#9fd0ff', baron: '#b56cff' };
@@ -55,7 +55,7 @@ export class Renderer {
   }
   resize() {
     const r = this.canvas.getBoundingClientRect();
-    this.dpr = Math.min(2, window.devicePixelRatio || 1);
+    this.dpr = renderDpr();
     this.canvas.width = Math.max(1, Math.round(r.width * this.dpr));
     this.canvas.height = Math.max(1, Math.round(r.height * this.dpr));
     this.fog.width = this.canvas.width; this.fog.height = this.canvas.height;

@@ -17,6 +17,7 @@ import { Hud } from './ui/hud.js';
 import { toast } from './ui/dom.js';
 import { audio } from './audio.js';
 import { DEFAULT_DECK } from './data/tactics.js';
+import { fpsCap } from './ui/settings.js';
 import { showHalftime, hideHalftime } from './ui/halftime.js';
 import { showHome, showCup, progressPanel } from './ui/home.js';
 import { profile } from './profile.js';
@@ -337,7 +338,9 @@ class App {
     this.renderer.fogOn = s.myTeam >= 0;
     const home = game.world.fountain[Math.max(0, s.myTeam)];
     this.renderer.cam.x = home.x + (s.myTeam === 1 ? -300 : 300); this.renderer.cam.y = home.y + (s.myTeam === 1 ? 300 : -300);
-    this.renderer.cam.zoom = window.innerWidth < 700 ? 0.9 : 1.25;
+    // Show a similar slice of the battlefield on every screen: ~620 world px across the short side on phones.
+    const short = Math.min(window.innerWidth, window.innerHeight);
+    this.renderer.cam.zoom = short < 600 ? Math.max(0.5, Math.min(0.9, short / 620)) : window.innerWidth < 1100 ? 0.95 : 1.25;
     this.renderer.follow = null;
     const runner = this.net ? new LockstepRunner(game, s.myTeam, this.net.t)
       : new LocalRunner(game, s.myTeam, { noHalftime: s.mode === 'watch', script: s.replay ? s.replay.log : null });
@@ -362,7 +365,9 @@ class App {
     if (!this.match) return;
     const m = this.match, g = m.game, dock = m.hud.dock;
     if (dock && dock.ring) { dock.closeRing(); return; }
-    let best = null, bd = 40 * 40;
+    // finger-sized hit area: ~38 screen px whatever the zoom
+    const R = 38 / this.renderer.cam.zoom;
+    let best = null, bd = R * R;
     for (const t of g.teams) for (const x of t.heroes) {
       if (!x.alive || !this.renderer.visible(x) || (this.session.myTeam >= 0 && x.team !== this.session.myTeam)) continue;
       const d = (x.x - w.x) ** 2 + (x.y - 14 - w.y) ** 2; if (d < bd) { bd = d; best = x; }
@@ -372,6 +377,9 @@ class App {
   }
   frame(now) {
     const m = this.match; if (!m) return;
+    // Battery mode: draw at most 30 fps (the sim keeps its own fixed rate either way).
+    const cap = fpsCap();
+    if (cap && now - this.lastFrame < 1000 / cap - 2) { requestAnimationFrame((t) => this.frame(t)); return; }
     const raw = (now - this.lastFrame) / 1000; this.lastFrame = now;
     const dt = Math.min(0.1, raw);
     const r = this.renderer;
@@ -435,6 +443,16 @@ class App {
   }
 }
 
+// Installable app: register the (network-first) service worker; offer full screen on phones.
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+export function toggleFullscreen() {
+  const d = document, el = d.documentElement;
+  try {
+    if (d.fullscreenElement || d.webkitFullscreenElement) (d.exitFullscreen || d.webkitExitFullscreen).call(d);
+    else (el.requestFullscreen || el.webkitRequestFullscreen).call(el, { navigationUI: 'hide' });
+  } catch { toast('Full screen is not available here. Use "Add to Home Screen" instead.'); }
+}
+window.toggleFullscreen = toggleFullscreen;
 const app = new App();
 window.app = app;
 app.boot();

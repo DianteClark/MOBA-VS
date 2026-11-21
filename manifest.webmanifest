@@ -1,0 +1,16 @@
+{
+  "name": "MOBA-VS: MOBA Manager",
+  "short_name": "MOBA-VS",
+  "description": "Draft five heroes, make the calls, out-coach your rival.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#14121c",
+  "theme_color": "#14121c",
+  "icons": [
+    { "src": "assets/img/app/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "assets/img/app/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "assets/img/app/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

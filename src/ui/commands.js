@@ -245,7 +245,7 @@ export class Dock {
     const g = this.g, W = g.world, me = this.my, r = this.hud.r;
     const d2 = (a, b) => (a.x - b.x) ** 2 + (a.y - b.y) ** 2;
     const opts = []; let title = '';
-    const foe = g.teams[1 - me].heroes.find((x) => x.alive && r.visible(x) && d2(x, { x: w.x, y: w.y + 14 }) < 48 * 48);
+    const foe = g.teams[1 - me].heroes.find((x) => x.alive && r.visible(x) && d2(x, { x: w.x, y: w.y + 14 }) < (44 / r.cam.zoom) ** 2);
     if (foe) { title = foe.def.name; opts.push({ ico: 'Death', label: 'Focus', type: 'focus', cmd: { type: 'focus', target: foe.id } }); }
     else {
       for (const [k, pit] of [['dragon', W.pits.kami], ['baron', W.pits.kraken]]) {
