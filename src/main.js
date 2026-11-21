@@ -12,13 +12,16 @@ import { MAPS } from './maps/defs.js';
 import { newDraft, apply as draftApply, currentTurn, autoChoice, defaultPrep, aiPrep, TURN_SECONDS } from './sim/draft.js';
 import { LocalRunner, LockstepRunner } from './net/runner.js';
 import { host, join, makeCode } from './net/peer.js';
-import { showMenu, showLobby, DraftView, showPrep, showResults, startParade, stopParade } from './ui/screens.js';
+import { showLobby, DraftView, showPrep, showResults, startParade, stopParade } from './ui/screens.js';
 import { Hud } from './ui/hud.js';
 import { toast } from './ui/dom.js';
 import { audio } from './audio.js';
 import { DEFAULT_DECK } from './data/tactics.js';
+import { showHome, showCup, progressPanel } from './ui/home.js';
+import { profile } from './profile.js';
+import { newCup, recordCup, myMatch } from './cup.js';
 
-const VERSION = 1;
+const VERSION = 2; // bump whenever the sim or balance changes (peers must match)
 const PREP_SECONDS = 60;
 
 class App {
@@ -34,7 +37,8 @@ class App {
     if (!this.mapCache[world.def.id]) this.mapCache[world.def.id] = paintMap(world);
     return this.mapCache[world.def.id];
   }
-  pickMap(seed) { return this.mapPref && this.mapPref !== 'random' ? this.mapPref : MAPS[seed % MAPS.length].id; }
+  // Random favours the season's featured map (half the time).
+  pickMap(seed) { return this.mapPref && this.mapPref !== 'random' ? this.mapPref : seed % 2 === 0 ? profile.season.map : MAPS[(seed >>> 1) % MAPS.length].id; }
   setName(n) { this.name = n.slice(0, 12) || 'Coach'; try { localStorage.setItem('mobavs_name', this.name); } catch { /* ignore */ } }
 
   async boot() {
@@ -74,7 +78,7 @@ class App {
     this.session = null;
     this.showScreen(true);
     audio.music('menu');
-    showMenu(this);
+    showHome(this);
     startParade();
   }
   fade(fn) {
@@ -92,7 +96,15 @@ class App {
   startVsAI() {
     try { localStorage.setItem('mobavs_ai', String(this.aiLevel)); } catch { /* ignore */ }
     const seed = (Math.random() * 2 ** 31) >>> 0;
-    this.session = { mode: 'ai', myTeam: 0, seed, mapId: this.pickMap(seed), names: [this.name, ['Easy', 'Normal', 'Hard'][this.aiLevel] + ' AI'], rng: new Rng(seed ^ 0x5eed) };
+    this.session = { mode: 'ai', myTeam: 0, seed, mapId: this.pickMap(seed), aiLevel: this.aiLevel, names: [this.name, ['Easy', 'Normal', 'Hard'][this.aiLevel] + ' AI'], rng: new Rng(seed ^ 0x5eed) };
+    this.startDraft();
+  }
+  newCup() { newCup(this.name); }
+  startCupMatch() {
+    const cup = profile.d.cup, mm = cup && myMatch(cup); if (!mm) { showCup(this); return; }
+    const seed = (Math.random() * 2 ** 31) >>> 0;
+    const mapId = mm.round === 2 ? profile.season.map : MAPS[seed % MAPS.length].id;
+    this.session = { mode: 'ai', cup: true, myTeam: 0, seed, mapId, aiLevel: mm.opp.lvl, names: [this.name, mm.opp.name], rng: new Rng(seed ^ 0xc0ff) };
     this.startDraft();
   }
   watch() {
@@ -251,7 +263,7 @@ class App {
     const turn = s.draft.turn;
     setTimeout(() => {
       if (!this.session || this.session !== s || s.draft.turn !== turn) return;
-      draftApply(s.draft, t.team, autoChoice(s.draft, t.team, s.rng, this.aiLevel));
+      draftApply(s.draft, t.team, autoChoice(s.draft, t.team, s.rng, s.aiLevel ?? this.aiLevel));
       audio.sfx('lockin', 0.6);
       this.afterDraftAct();
     }, 900 + Math.random() * 900);
@@ -262,6 +274,7 @@ class App {
     const s = this.session, me = s.myTeam, d = s.draft;
     s.preps = [null, null]; s.ready = [false, false];
     s.myPrep = defaultPrep(d.picks[me]);
+    s.myPrep.skins = profile.skinsFor(d.picks[me]);
     if (s.mode === 'ai') { s.preps[1 - me] = aiPrep(d.picks[1 - me], d.picks[me]); s.ready[1 - me] = true; }
     if (s.pendingPrep) { s.preps[s.pendingPrep.team] = s.pendingPrep.prep; s.ready[s.pendingPrep.team] = true; s.pendingPrep = null; }
     s.prepEnd = performance.now() + PREP_SECONDS * 1000;
@@ -299,7 +312,7 @@ class App {
       seed: s.seed, map: s.mapId,
       teams: [0, 1].map((t) => ({ heroes: s.preps[t].heroes, plan: s.preps[t].plan, deck: s.preps[t].deck, name: s.names[t] })),
       coach: s.mode === 'ai' ? [s.myTeam !== 0, s.myTeam !== 1] : s.mode === 'watch' ? [true, true] : [false, false],
-      coachLevel: [this.aiLevel, this.aiLevel],
+      coachLevel: [s.aiLevel ?? this.aiLevel, s.aiLevel ?? this.aiLevel],
     };
     const game = new Game(cfg);
     this.showScreen(false);
@@ -316,6 +329,7 @@ class App {
     }
     this.renderer.resize();
     this.renderer.attach(game, s.myTeam, this.mapCanvas(game.world));
+    this.renderer.skins = [0, 1].map((t) => (s.preps[t] && s.preps[t].skins) || {});
     this.minimap.resize();
     this.renderer.fogOn = s.myTeam >= 0;
     const home = game.world.fountain[Math.max(0, s.myTeam)];
@@ -380,9 +394,15 @@ class App {
       this.showScreen(true);
       audio.music(won ? 'victory' : 'defeat');
       const s = this.session;
+      let sum = null, cupOut = null;
+      try {
+        sum = profile.record({ game: m.game, myTeam: s.myTeam, mode: s.mode === 'ai' ? 'ai' : 'online', aiLevel: s.aiLevel ?? this.aiLevel, cup: !!s.cup });
+        if (s.cup && profile.d.cup) cupOut = recordCup(profile.d.cup, m.game.winner === s.myTeam);
+      } catch (e) { console.error(e); }
+      if (sum && (sum.promoted || sum.unlocks.length)) setTimeout(() => audio.sfx('powerup', 0.8), 700);
       showResults(this, m.game, s.myTeam,
-        s.mode === 'ai' ? () => this.startVsAI() : s.mode === 'watch' ? () => this.watch() : null,
-        () => this.menu());
+        s.cup ? () => showCup(this) : s.mode === 'ai' ? () => this.startVsAI() : s.mode === 'watch' ? () => this.watch() : null,
+        () => this.menu(), { progress: progressPanel(sum, cupOut), againLabel: s.cup ? 'Back to bracket' : null });
     });
   }
   quitMatch() {

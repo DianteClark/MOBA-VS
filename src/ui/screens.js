@@ -12,7 +12,7 @@ import { IMG } from '../render/assets.js';
 
 // Tiny map previews from the terrain grid (cheap: 100x100 pixels).
 const thumbs = {};
-function mapThumb(id) {
+export function mapThumb(id) {
   if (thumbs[id]) return thumbs[id];
   const def = MAP_BY_ID[id], w = new World(def), th = THEMES[def.theme];
   const c = document.createElement('canvas'); c.width = GN; c.height = GN;
@@ -52,48 +52,21 @@ function parade(el) {
 const screen = () => document.getElementById('screen');
 const TEAMC = ['blue', 'red'];
 
-export function showMenu(app) {
-  let name = app.name;
-  mount(screen(), h('div', { class: 'menu' },
-    h('div', {}, h('div', { class: 'title' }, 'MOBA-VS'), h('div', { class: 'subtitle' }, 'Draft five heroes. Make the calls. Out-coach your rival.')),
-    h('div', { class: 'buttons' },
-      h('button', { class: 'btn big', onclick: () => app.startVsAI() }, 'Play vs AI'),
-      h('button', { class: 'btn big', onclick: () => app.hostGame() }, 'Host Match'),
-      h('button', { class: 'btn big', onclick: () => app.joinScreen() }, 'Join Match'),
-      h('button', { class: 'btn', onclick: () => app.watch() }, 'Watch AI vs AI'),
-      h('button', { class: 'btn', onclick: () => showHowTo(app) }, 'How to Play'),
-    ),
-    h('div', { class: 'panel col', style: { width: 'min(320px, 90vw)' } },
-      h('div', { class: 'muted', style: { fontSize: '11px' } }, 'Coach name'),
-      h('input', { value: name, maxlength: 12, oninput: (e) => { app.setName(e.target.value); } }),
-      h('div', { class: 'muted', style: { fontSize: '11px' } }, 'Map'),
-      h('div', { class: 'mapcards' }, ...[['random', 'Random'], ...MAPS.map((m) => [m.id, m.name])].map(([id, l]) =>
-        h('div', { class: 'mapcard' + (app.mapPref === id ? ' sel' : ''), title: id === 'random' ? 'A different valley every match' : MAP_BY_ID[id].blurb, onclick: () => { app.mapPref = id; showMenu(app); } },
-          id === 'random' ? h('div', { class: 'q' }, '?') : mapThumb(id), l))),
-      app.mapPref && app.mapPref !== 'random' ? h('div', { class: 'muted', style: { fontSize: '10px', textAlign: 'center' } }, MAP_BY_ID[app.mapPref].blurb) : null,
-      h('div', { class: 'muted', style: { fontSize: '11px' } }, 'AI difficulty'),
-      h('div', { class: 'diffrow' },
-        ...['Easy', 'Normal', 'Hard'].map((l, i) => h('button', { class: 'btn small' + (app.aiLevel === i ? ' on' : ''), onclick: () => { app.aiLevel = i; showMenu(app); } }, l)),
-      ),
-    ),
-    h('div', { class: 'credits' }, h('a', { href: 'https://dianteclark.github.io/MOBA-VS/', target: '_blank' }, 'dianteclark.github.io/MOBA-VS'), ' · ', h('a', { href: 'https://github.com/DianteClark/MOBA-VS', target: '_blank' }, 'GitHub')),
-    h('div', { class: 'credits' }, 'v1.0 · ', 'Art & audio: ', h('a', { href: 'https://pixel-boy.itch.io/ninja-adventure-asset-pack', target: '_blank' }, 'Ninja Adventure'), ' by Pixel-boy & AAA (CC0)'),
-  ));
-}
-
 export function startParade() { const old = document.querySelector('.parade'); if (old) old.remove(); const el = h('div', { class: 'parade' }); document.body.append(el); parade(el); }
 export function stopParade() { cancelAnimationFrame(paradeRAF); const old = document.querySelector('.parade'); if (old) old.remove(); }
 
 export function showHowTo(app) {
   mount(screen(), h('div', { class: 'panel howto', style: { margin: 'auto' } },
     h('h2', { class: 'gold' }, 'How to play'),
-    h('p', {}, 'You are the coach. Your five heroes play on their own (they farm, trade, fight and retreat by themselves) but they only know what your team can see. Your job is to make the calls.'),
-    h('h3', {}, '1. Draft'), h('p', {}, 'Ban and pick in turns. Each team needs a Top, Jungle, Mid, Bot and Support. Green numbers on portraits show how well a hero counters the enemy picks.'),
-    h('h3', {}, '2. Prep'), h('p', {}, 'Choose each hero\'s build path (Burst, Burn, Tank, Sustain, Crit, Haste, Guardian) and your team plan. Burn melts tanks and healers, Tank soaks burst, Crit wins late.'),
-    h('h3', {}, '3. Calls'), h('p', {}, 'Calls cost command charges (max 3, +1 every 20s). Gank a lane, take Dragon/Herald/Baron, group to push, split-push, focus a target, play safe, or reset. Heroes break off a call to save their life, but a bad call still costs you time.'),
-    h('p', {}, 'Objectives are never started by the AI. Only your calls take Dragon, Herald and Baron. Junglers smite automatically, and the enemy jungler can steal.'),
-    h('h3', {}, 'Controls'), h('p', {}, 'Drag to pan, scroll or pinch to zoom, tap the minimap to jump. Tap a hero card to follow that hero. Keys: 1-5 follow heroes, Space toggles Director cam, WASD pans.'),
-    h('button', { class: 'btn', onclick: () => showMenu(app) }, 'Back'),
+    h('p', {}, 'You are the coach. Your five heroes play on their own: they farm, trade, fight and retreat. They only know what your team can see. You win by making the calls.'),
+    h('h3', {}, '1. Draft'), h('p', {}, 'Ban and pick in turns: Top, Jungle, Mid, Bot and Support. Green numbers show counters; matching clans give team bonuses.'),
+    h('h3', {}, '2. Prep'), h('p', {}, 'Pick each hero\'s build path and choose 3 tactic cards for your hand.'),
+    h('h3', {}, '3. Calls'), h('p', {}, 'Six big buttons along the bottom: Gank, Objective, Push, Shrine, Defend and Regroup. Calls cost charges (max 3, +1 every 20s). Or just tap the map: tap a lane, a pit, a shrine or an enemy and a ring of calls pops up right there.'),
+    h('p', {}, 'Your analyst flashes one-tap suggestions ("Mid is overextended: Gank"). Tap the button and the call goes out. Tactic cards (Q, E, T) are one-time plays like Smoke Bomb or Second Wind.'),
+    h('p', {}, 'Tap one of your portraits to follow that hero and change its build; tap an enemy portrait to focus them. Good calls build trust, and inspired heroes react faster.'),
+    h('h3', {}, 'Winning'), h('p', {}, 'Destroy the enemy Shrine Crystal, or have more towers standing when the 15:00 clock runs out.'),
+    h('h3', {}, 'Controls'), h('p', {}, 'Drag to pan, scroll or pinch to zoom, tap the minimap to jump. Keys: G O R K X B for calls, Q E T for cards, C to cancel, 1-5 follow heroes, Space for the director camera.'),
+    h('button', { class: 'btn', onclick: () => app.menu() }, 'Back'),
   ));
 }
 
@@ -239,7 +212,7 @@ export function showPrep(app, prep, enemyIds, left, onChange, onReady, ready) {
 }
 
 // ───────────────────────── results ─────────────────────────
-export function showResults(app, g, myTeam, onAgain, onMenu) {
+export function showResults(app, g, myTeam, onAgain, onMenu, extra = {}) {
   const win = g.winner;
   const verdict = myTeam < 0 ? `${TEAM_NAME[win] ?? '—'} wins` : win === myTeam ? 'VICTORY' : win < 0 ? 'NO CONTEST' : 'DEFEAT';
   const vcol = myTeam < 0 ? (win === 0 ? 'var(--blue)' : 'var(--red)') : win === myTeam ? 'var(--gold)' : 'var(--red)';
@@ -259,13 +232,14 @@ export function showResults(app, g, myTeam, onAgain, onMenu) {
   const mvp = all.slice().sort((a, b) => score(b) - score(a))[0];
   mount(screen(), h('div', { class: 'results' },
     h('div', { class: 'verdict', style: { color: vcol } }, verdict),
+    extra.progress || null,
     mvp ? h('div', { class: 'mvp panel' }, h('img', { src: face(mvp.heroId) }), h('div', {}, h('div', { class: 'gold' }, 'MVP'), h('div', {}, `${mvp.def.name} (${TEAM_NAME[mvp.team]})`), h('div', { class: 'muted', style: { fontSize: '11px' } }, `${mvp.kills}/${mvp.deaths}/${mvp.assists} · ${Math.round(mvp.dmgHeroes)} damage · ${mvp.cs} CS`))) : null,
     g.events.find((e) => e.type === 'victory' && e.timeout) ? h('div', { class: 'muted', style: { textAlign: 'center' } }, `Decided on time — towers standing ${g.towersStanding(0)} to ${g.towersStanding(1)}`) : null,
     h('div', { class: 'muted', style: { textAlign: 'center' } }, `Game length ${fmtTime(g.time)}`),
     table(0), table(1),
     h('div', { class: 'panel' }, h('div', { class: 'muted', style: { fontSize: '11px' } }, 'Gold lead (Blue above / Red below)'), graph),
     callEl,
-    h('div', { class: 'row', style: { justifyContent: 'center' } }, onAgain ? h('button', { class: 'btn big', onclick: onAgain }, 'Play again') : null, h('button', { class: 'btn big', onclick: onMenu }, 'Main menu')),
+    h('div', { class: 'row', style: { justifyContent: 'center' } }, onAgain ? h('button', { class: 'btn big', onclick: onAgain }, extra.againLabel || 'Play again') : null, h('button', { class: 'btn big', onclick: onMenu }, 'Main menu')),
   ));
   requestAnimationFrame(() => drawGoldGraph(graph, g));
 }

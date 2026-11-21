@@ -1,5 +1,6 @@
 // Canvas renderer: interpolated sprites, FX, fog of war, floating combat text.
-import { IMG, VAR, FX, PROJ, flashOf } from './assets.js';
+import { IMG, VAR, FX, PROJ, flashOf, recolor } from './assets.js';
+import { SKINS } from '../data/seasons.js';
 import { paintMap, THEMES } from './mapgen.js';
 import { S as MAP_SIZE, N as GN } from '../sim/world.js';
 import { TICK_RATE, DRAGON_INFO, OBJ_NAME, T as TIMERS } from '../sim/constants.js';
@@ -62,6 +63,13 @@ export class Renderer {
     this.cam.y = Math.max(Math.min(hh, MAP_SIZE / 2), Math.min(MAP_SIZE - Math.min(hh, MAP_SIZE / 2), this.cam.y));
   }
 
+  heroImg(u) {
+    const base = IMG['hero_' + u.heroId]; if (!base) return null;
+    const sk = this.skins && this.skins[u.team] && this.skins[u.team][u.heroId];
+    if (!sk || !SKINS[sk] || !SKINS[sk].recolor) return base;
+    const k = 'skin_' + u.heroId + '_' + sk;
+    return VAR[k] || (VAR[k] = recolor(base, SKINS[sk].recolor));
+  }
   snapshot() { this.prev.clear(); for (const u of this.game.units) if (u.alive && !u.structure) this.prev.set(u.id, { x: u.x, y: u.y }); }
   visible(u) {
     if (!this.fogOn || this.viewTeam < 0) return true;
@@ -287,7 +295,7 @@ export class Renderer {
     const walkF = Math.floor(this.time * 8 + u.id) % 4;
     const attacking = g.tick - u.animAttack < 6;
     if (u.type === 'hero') {
-      const img = IMG['hero_' + u.heroId]; if (!img) return;
+      const img = this.heroImg(u); if (!img) return;
       const row = attacking ? 4 : d.moving ? walkF : 0;
       const dirCol = u.facing;
       const src = flashing ? flashOf('hero_' + u.heroId, img) : img;
