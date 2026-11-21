@@ -124,11 +124,21 @@ export class World {
     for (const s of this.structures) circ(s, s.kind === 'nexus' ? 120 : 70, Ty[this.idx(s.x, s.y)] === T_LANE ? T_LANE : T_BASE, (t) => t === T_FOREST || t === T_GRASS || t === T_PATH);
     for (const s of this.structures) cells(s.x, s.y, s.kind === 'nexus' ? 40 : 22, (i) => { W[i] = 0; });
     // ward spots (Blue view; mirrored for Red)
-    this.wallNear = new Uint8Array(N * N);
-    for (let y = 1; y < N - 1; y++) for (let x = 1; x < N - 1; x++) {
-      const i = y * N + x; if (!W[i]) continue;
-      for (let k = 0; k < 8; k++) if (!W[(y + DY[k]) * N + x + DX[k]]) { this.wallNear[i] = 1; break; }
+    // Clearance: steps (8-neighbour) from each open cell to the nearest wall, capped at 4.
+    // A* pays extra for low clearance so routes run down the middle of corridors.
+    const clr = this.clearance = new Uint8Array(N * N);
+    const q = [];
+    for (let i = 0; i < N * N; i++) { if (!W[i]) { clr[i] = 0; q.push(i); } else clr[i] = 255; }
+    for (let h = 0; h < q.length; h++) {
+      const i = q[h], x = i % N, y = (i / N) | 0, nd = clr[i] + 1;
+      if (nd > 4) continue;
+      for (let k = 0; k < 8; k++) {
+        const nx = x + DX[k], ny = y + DY[k]; if (nx < 0 || ny < 0 || nx >= N || ny >= N) continue;
+        const j = ny * N + nx; if (clr[j] > nd) { clr[j] = nd; q.push(j); }
+      }
     }
+    for (let i = 0; i < N * N; i++) if (clr[i] === 255) clr[i] = 5;
+    this.wallNear = new Uint8Array(N * N); for (let i = 0; i < N * N; i++) this.wallNear[i] = W[i] && clr[i] === 1 ? 1 : 0;
     const ws = [this.pits.kami, this.pits.kraken, this.shrines[0], this.shrines[1], ...d.brush.slice(0, 5).map(pt)];
     this.wardSpots = [ws.map((p) => this.nearestOpen(p)), ws.map((p) => this.nearestOpen(P(p)))];
   }
@@ -223,16 +233,30 @@ export class World {
         const ni = ny * N + nx; if (!W[ni] || Cl[ni] === run) continue;
         if (dx && dy && (!W[cy * N + nx] || !W[ny * N + cx])) continue;
         // prefer cells away from walls (keeps bodies off tree trunks)
-        const ng = G[cur] + (dx && dy ? 14 : 10) + (this.wallNear[ni] ? 4 : 0);
+        const ng = G[cur] + (dx && dy ? 14 : 10) + CLR_COST[this.clearance[ni]];
         if (St[ni] !== run || ng < G[ni]) { St[ni] = run; G[ni] = ng; F[ni] = cur; push(ng + h(ni), ni); }
       }
     }
     const end = found ? goal : best;
     const cellsPath = []; for (let c = end; c !== -1; c = F[c]) cellsPath.push(c);
     cellsPath.reverse();
-    const pts = cellsPath.map((c) => ({ x: (c % N) * C + C / 2, y: ((c / N) | 0) * C + C / 2 }));
-    if (found && this.isWalk(tx, ty)) pts[pts.length - 1] = { x: tx, y: ty };
-    return pts.length ? pts : [{ x: tx, y: ty }];
+    const raw = cellsPath.map((c) => ({ x: (c % N) * C + C / 2, y: ((c / N) | 0) * C + C / 2 }));
+    if (found && this.isWalk(tx, ty)) raw[raw.length - 1] = { x: tx, y: ty };
+    if (!raw.length) return [{ x: tx, y: ty }];
+    return this.stringPull(sx, sy, raw);
+  }
+  // Any-angle smoothing: from each anchor keep the furthest waypoint reachable in a straight,
+  // body-wide line. Turns the 8-direction staircase into a few clean segments.
+  stringPull(sx, sy, raw) {
+    const out = []; let ax = sx, ay = sy, i = raw.length > 1 ? 1 : 0; // raw[0] is our own cell: never step back to it
+    while (i < raw.length) {
+      let far = i;
+      const lim = Math.min(raw.length - 1, i + 24);
+      for (let j = lim; j > i; j--) if (this.losWide(ax, ay, raw[j].x, raw[j].y)) { far = j; break; }
+      if (far === i && out.length === 0) for (let j = Math.min(lim, i + 3); j > i; j--) if (this.los(ax, ay, raw[j].x, raw[j].y)) { far = j; break; }
+      out.push(raw[far]); ax = raw[far].x; ay = raw[far].y; i = far + 1;
+    }
+    return out;
   }
   // LoS that also keeps a body-width margin (checks two offset rays).
   losWide(ax, ay, bx, by) {
@@ -279,6 +303,7 @@ export class World {
   }
 }
 const DX = [1, -1, 0, 0, 1, 1, -1, -1], DY = [0, 0, 1, -1, 1, -1, 1, -1];
+const CLR_COST = [0, 9, 4, 1, 0, 0];
 // Ray endpoints for each radius (cells), evenly around the circle, computed with sqrt only.
 const RAY = [];
 for (let rc = 1; rc <= 30; rc++) {

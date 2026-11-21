@@ -20,7 +20,9 @@ function ctx(g, team) {
   const k = c[team];
   if (k.t === g.tick) return k;
   k.t = g.tick;
-  k.enemies = g.teams[1 - team].heroes.filter((e) => e.alive && g.vision[team].has(e.id));
+  // short memory: an enemy that blinked out of sight <0.75s ago is still "there" (stops fight/flight flicker at vision edges)
+  const ls = g.lastSeen[team];
+  k.enemies = g.teams[1 - team].heroes.filter((e) => e.alive && (g.vision[team].has(e.id) || (ls[e.id] && g.tick - ls[e.id].t < 15 && !(e.stealthUntil > g.tick))));
   k.allies = g.teams[team].heroes.filter((a) => a.alive);
   k.projectiles = g.projectiles.filter((p) => !p.homing && p.team !== team);
   k.pending = g.pending.filter((p) => p.team !== team);
@@ -55,16 +57,20 @@ function frontline(g, team, lane) {
   return { prog: best >= 0 ? best : towerProg - 0.02, hasWave: best >= 0, towerProg };
 }
 function safeSpot(g, h) {
-  // nearest own tower that is closer to home than we are; else fountain
-  const f = g.world.fountain[h.team];
-  let best = f, bd = Infinity; const myHome = dist2(h, f);
-  for (const u of g.units) if (u.type === 'tower' && u.alive && u.team === h.team && dist2(u, f) < myHome) {
-    const d = dist2(u, h); if (d < bd) { bd = d; best = u; }
+  // Retreat *along the lane* toward home: the nearest own tower behind us in this lane, else the base.
+  const W = g.world, f = W.fountain[h.team];
+  const lane = W.closestLane(h);
+  if (W.distToLane(lane, h) < 420) {
+    const me = myProg(g, h.team, lane, h);
+    let best = null, bp = -1;
+    for (const u of g.units) {
+      if (u.type !== 'tower' || !u.alive || u.team !== h.team || u.lane !== lane) continue;
+      const p = myProg(g, h.team, lane, u);
+      if (p < me - 0.02 && p > bp) { bp = p; best = u; }
+    }
+    if (best) return W.nearestOpen(lanePt(g, h.team, lane, Math.max(0.02, bp - 0.045)));
   }
-  if (best === f) return f;
-  // stand behind the tower, not inside it
-  const d = norm(f.x - best.x, f.y - best.y);
-  return g.world.nearestOpen({ x: best.x + d.x * 70, y: best.y + d.y * 70 });
+  return f;
 }
 function riskOf(g, h) {
   const plan = g.teams[h.team].plan;
@@ -310,8 +316,11 @@ function combat(g, h, C, recalling) {
 
   // ── flee? ──
   const fleeHp = (h.def.cls === 'tank' ? 0.17 : 0.25) * m.discipline;
-  const mustFlee = (hpPct < fleeHp && !(killable && hpPct > 0.12)) || (ratio < 0.55 * risk && !killable) || (recalling && ratio < 1.4);
-  if (mustFlee) return flee(g, h, near, allies);
+  // Hysteresis: a retreat is committed for ~1.2s, and re-engaging needs a clearly better ratio.
+  // (Without it, stepping in and out of tower range flips fight/flight every few ticks.)
+  const fleeing = h.fleeUntil > now;
+  const mustFlee = (hpPct < fleeHp * (fleeing ? 1.15 : 1) && !(killable && hpPct > 0.12)) || (ratio < 0.55 * risk * (fleeing ? 1.35 : 1) && !killable) || (recalling && ratio < 1.4);
+  if (mustFlee || (fleeing && !(killable && hpPct > 0.4))) { if (!fleeing) h.fleeUntil = now + sec(1.2); return flee(g, h, near, allies); }
   if (recalling || !best) return false;
 
   const laning = h.task.kind === 'lane' || h.task.kind === 'jungle' || h.task.kind === 'split';
@@ -321,7 +330,10 @@ function combat(g, h, C, recalling) {
   if (laning) {
     const allIn = (killable && hpPct > 0.35 && best.hp / best.maxHp < 0.5) || ratio >= engageAt;
     if (h.disengageUntil > now && !allIn) {
-      if (near.some((e) => dist2(e, h) < (e.stats.range + 150) ** 2)) { g.moveToward(h, safeSpot(g, h)); return true; }
+      // keep backing off until clearly out of reach (hysteresis stops edge-of-range shuffling)
+      const reach = h.backingOff ? 260 : 150;
+      if (near.some((e) => dist2(e, h) < (e.stats.range + reach) ** 2)) { h.backingOff = true; g.moveToward(h, safeSpot(g, h)); return true; }
+      h.backingOff = false;
       return false;
     }
     if (allIn) want = true;
@@ -563,6 +575,11 @@ function farmAround(g, h, r, includeStructures) {
 }
 function minionPressure(g, h) { let n = 0; for (const m of g.grid.query(h.x, h.y, 260)) if (m.alive && m.type === 'minion' && m.team !== h.team && m.target === h) n++; return n; }
 
+// Walk to p; once within `inner` px, stay settled until p drifts beyond `outer`. Returns true when settled.
+function arrive(g, h, p, inner, outer) {
+  if (dist2(h, p) > (h.settled ? outer * outer : inner * inner)) { h.settled = false; g.moveToward(h, p, true); return false; }
+  h.settled = true; return true;
+}
 function doLane(g, h, lane, push) {
   const fl = frontline(g, h.team, lane);
   const towerOnMe = g.grid.query(h.x, h.y, 300).find((s) => s.type === 'tower' && s.alive && s.team !== h.team && s.target === h);
@@ -577,7 +594,7 @@ function doLane(g, h, lane, push) {
       const foe = C.enemies.find((e) => dist2(e, carry) < 500 * 500);
       const toward = foe ? norm(foe.x - carry.x, foe.y - carry.y) : { x: 0, y: 0 };
       const spot = g.world.nearestOpen({ x: carry.x + toward.x * 50 - toward.y * 40, y: carry.y + toward.y * 50 + toward.x * 40 });
-      if (dist2(h, spot) > 40 * 40) g.moveToward(h, spot, true); else farmAround(g, h, 300, false) || (h.vx = h.vy = 0);
+      if (arrive(g, h, spot, 36, 90)) farmAround(g, h, 300, false) || (h.vx = h.vy = 0);
       return;
     }
   }
@@ -593,9 +610,10 @@ function doLane(g, h, lane, push) {
     hold = lanePt(g, h.team, lane, Math.max(0.04, myProg(g, h.team, lane, tw) - 0.1));
     g.moveToward(h, hold); return;
   }
-  if (dist2(h, hold) > 520 * 520) { g.moveToward(h, hold); return; }
-  if (farmAround(g, h, 420, true)) return;
-  if (dist2(h, hold) > 30 * 30) g.moveToward(h, hold, true); else { h.vx = h.vy = 0; }
+  if (dist2(h, hold) > 520 * 520) { h.settled = false; g.moveToward(h, hold); return; }
+  if (farmAround(g, h, 420, true)) { h.settled = false; return; }
+  // arrive-and-settle: stop inside 28px, only walk again once the spot drifts 70px away
+  if (arrive(g, h, hold, 28, 70)) h.vx = h.vy = 0;
 }
 
 function doGroup(g, h, lane) {

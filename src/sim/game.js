@@ -12,6 +12,7 @@ import { heroThink, heroMacro } from './ai.js';
 import { Coach } from './coach.js';
 
 // Champion-vs-champion damage scale: keeps fights readable and lanes from snowballing at level 1.
+const STEER_K = +(globalThis.process?.env?.SK || 0.45);
 const HERO_VS_HERO = 0.6;
 const CAMP_DEFS = {
   bluebuff: { name: 'Sentinel', buff: 'blue', mobs: [{ k: 'camp_bluebuff', hp: 1800, ad: 45, big: true }] },
@@ -864,7 +865,6 @@ export class Game {
     }
     return true;
   }
-  face(u, dx, dy) { if (Math.abs(dx) > Math.abs(dy)) u.facing = dx > 0 ? 3 : 2; else u.facing = dy > 0 ? 0 : 1; }
 
   moveSpeed(u) {
     let ms = u.stats.ms * this.wx.ms;
@@ -875,46 +875,80 @@ export class Game {
   // Move toward p. With nav, units follow an A* path (cached, refreshed as the goal moves);
   // movement always slides along walls instead of passing through them.
   moveToward(u, p, nav = true, stopAt = 0) {
-    if (!this.canMove(u)) { u.vx = u.vy = 0; return; }
-    const W = this.world;
+    if (!this.canMove(u)) { u.vx = u.vy = 0; u.mvx = u.mvy = 0; return; }
+    const W = this.world, now = this.tick;
     let step = p;
     const d2p = dist2(u, p);
-    // Straight-line moves are only allowed with a clear line; otherwise always pathfind.
-    const clear = d2p < 260 * 260 && ((this.tick + u.id) % 4 !== 0 && u._clearT === p ? u._clear : (u._clearT = p, u._clear = W.losWide(u.x, u.y, p.x, p.y)));
-    if (!clear) nav = true;
-    if (nav && !clear) {
-      const pc = u.path;
-      const stale = !pc || this.tick >= pc.until || dist2(pc.goal, p) > 48 * 48 || pc.i >= pc.pts.length;
-      if (stale) u.path = { goal: { x: p.x, y: p.y }, pts: W.findPath(u.x, u.y, p.x, p.y), i: 0, until: this.tick + 30 + (u.id % 9) };
-      const path = u.path, pts = path.pts;
-      while (path.i < pts.length - 1 && dist2(u, pts[path.i]) < 16 * 16) path.i++;
-      // live smoothing: aim at the furthest upcoming waypoint we can reach in a straight, body-wide line
-      let k = path.i;
-      for (const j of [8, 5, 3, 2, 1]) { const q = Math.min(pts.length - 1, path.i + j); if (q > k && W.losWide(u.x, u.y, pts[q].x, pts[q].y)) { k = q; break; } }
-      step = pts[k];
-      // no progress for a while? replan from scratch next tick
-      if (!path.prog || dist2(u, path.prog) > 20 * 20) path.prog = { x: u.x, y: u.y, t: this.tick };
-      else if (this.tick - path.prog.t > 30) { path.until = this.tick; path.prog = null; }
-    }
-    const dx = step.x - u.x, dy = step.y - u.y;
+    // Straight-line moves only with a clear, body-wide line; otherwise follow a path.
+    // Hysteresis: while following a live route to (about) this goal, keep following it.
+    const onRoute = u.path && now < u.path.until && dist2(u.path.goal, p) < 64 * 64 && u.path.i < u.path.pts.length - 1;
+    let clear = !onRoute && d2p < 300 * 300 && ((now + u.id) % 4 !== 0 && u._clearT === p ? u._clear : (u._clearT = p, u._clear = W.losWide(u.x, u.y, p.x, p.y)));
+    // progress watchdog (both modes): if we stop advancing, fall back to a fresh path
+    if (!u.prog || dist2(u, u.prog) > 18 * 18 || now - u.prog.t > 60) u.prog = { x: u.x, y: u.y, t: now };
+    else if (now - u.prog.t > 16 && clear) { clear = false; u.forcePath = now + 40; }
+    if (u.forcePath > now) clear = false;
+    if (!clear) {
+      let pc = u.path;
+      if (pc && dist2(pc.goal, p) > 40 * 40 && pc.pts.length && now < pc.until) {
+        // goal drifted: if the end of the current route still sees it, just retarget the end
+        const last = pc.pts.length > 1 ? pc.pts[pc.pts.length - 2] : u;
+        if (W.losWide(last.x, last.y, p.x, p.y)) { pc.pts[pc.pts.length - 1] = { x: p.x, y: p.y }; pc.goal = { x: p.x, y: p.y }; } else pc = null;
+      }
+      if (!pc || now >= pc.until || pc.i >= pc.pts.length) {
+        pc = u.path = { goal: { x: p.x, y: p.y }, pts: W.findPath(u.x, u.y, p.x, p.y), i: 0, until: now + 60 + (u.id % 13) };
+      }
+      const pts = pc.pts;
+      while (pc.i < pts.length - 1 && dist2(u, pts[pc.i]) < 18 * 18) pc.i++;
+      // skip ahead when the next waypoint is already in clear view
+      if (pc.i < pts.length - 1 && (now + u.id) % 3 === 0 && W.losWide(u.x, u.y, pts[pc.i + 1].x, pts[pc.i + 1].y)) pc.i++;
+      step = pts[pc.i];
+      // no progress for a while: replan, and step sideways to unstick
+      if (!pc.prog || dist2(u, pc.prog) > 20 * 20) pc.prog = { x: u.x, y: u.y, t: now };
+      else if (now - pc.prog.t > 24) { pc.until = now; pc.prog = null; u.unstick = now + 6; }
+    } else u.path = null;
+    let dx = step.x - u.x, dy = step.y - u.y;
     const d = Math.sqrt(dx * dx + dy * dy);
     const rem = step === p ? d - stopAt : d;
-    if (rem <= 0.5) { u.vx = u.vy = 0; return; }
+    if (rem <= 0.5) { u.vx = u.vy = 0; u.mvx = u.mvy = 0; return; }
     const sp = Math.min(this.moveSpeed(u) * DT, rem);
-    if (rem > 30) u.moveIntent = this.tick;
-    this.slide(u, dx / d * sp, dy / d * sp);
-    this.face(u, dx, dy);
+    if (rem > 30) u.moveIntent = now;
+    let mx = dx / d * sp, my = dy / d * sp;
+    if (u.unstick > now) { const side = (u.id & 1) ? 1 : -1; mx += -dy / d * sp * 0.8 * side; my += dx / d * sp * 0.8 * side; }
+    if (u.type === 'hero') {
+      // steering: heroes turn over a few ticks instead of snapping (reads as weight, kills jitter)
+      const fresh = u.mvT === now - 1; u.mvT = now;
+      const pvx = fresh ? u.mvx || 0 : 0, pvy = fresh ? u.mvy || 0 : 0;
+      if (pvx || pvy) {
+        const k = STEER_K;
+        mx = pvx + (mx - pvx) * k; my = pvy + (my - pvy) * k;
+        const l = Math.sqrt(mx * mx + my * my); if (l > sp) { mx = mx / l * sp; my = my / l * sp; }
+      }
+      u.mvx = mx; u.mvy = my;
+    }
+    this.slide(u, mx, my);
+    this.face(u, mx, my);
+  }
+  // Facing with hysteresis: only switch axis when the new one clearly dominates.
+  face(u, dx, dy) {
+    const ax = Math.abs(dx), ay = Math.abs(dy);
+    if (ax < 0.05 && ay < 0.05) return;
+    const horiz = u.facing === 2 || u.facing === 3;
+    if (horiz ? ay > ax * 1.35 : ax > ay * 1.35) { if (ax > ay) u.facing = dx > 0 ? 3 : 2; else u.facing = dy > 0 ? 0 : 1; }
+    else if (horiz) u.facing = dx > 0.05 ? 3 : dx < -0.05 ? 2 : u.facing;
+    else u.facing = dy > 0.05 ? 0 : dy < -0.05 ? 1 : u.facing;
   }
   slide(u, mx, my) {
-    const W = this.world;
-    const ox = u.x, oy = u.y;
+    const W = this.world, ox = u.x, oy = u.y;
     if (W.isWalk(u.x + mx, u.y + my)) { u.x += mx; u.y += my; }
-    else if (Math.abs(mx) > 0.01 && W.isWalk(u.x + mx, u.y)) u.x += mx;
-    else if (Math.abs(my) > 0.01 && W.isWalk(u.x, u.y + my)) u.y += my;
     else {
-      // corner: nudge along the wall tangent
-      const l = Math.sqrt(mx * mx + my * my) || 1;
-      if (W.isWalk(u.x - my / l * 2, u.y + mx / l * 2)) { u.x -= my / l * 2; u.y += mx / l * 2; }
+      if (this.navStats && u.type === 'hero') this.navStats.scrapes++;
+      // slide along the wall, keeping most of the step's length on the free axis
+      const l = Math.sqrt(mx * mx + my * my) || 1, ax = Math.abs(mx), ay = Math.abs(my);
+      const sx = Math.sign(mx) * Math.max(ax, l * 0.7), sy = Math.sign(my) * Math.max(ay, l * 0.7);
+      const tryX = ax > 0.01 && W.isWalk(u.x + sx, u.y), tryY = ay > 0.01 && W.isWalk(u.x, u.y + sy);
+      if (tryX && (!tryY || ax >= ay)) u.x += sx;
+      else if (tryY) u.y += sy;
+      else if (W.isWalk(u.x - my / l * 2, u.y + mx / l * 2)) { u.x -= my / l * 2; u.y += mx / l * 2; }
       else if (W.isWalk(u.x + my / l * 2, u.y - mx / l * 2)) { u.x += my / l * 2; u.y -= mx / l * 2; }
     }
     u.vx = u.x - ox; u.vy = u.y - oy;
