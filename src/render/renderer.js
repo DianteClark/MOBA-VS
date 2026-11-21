@@ -406,6 +406,7 @@ export class Renderer {
     // screen space: tint, ult callouts, chatter
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     this.drawTint();
+    this.placed = []; // labels placed this frame (callouts, then chatter): later ones keep clear of earlier ones
     this.drawCallouts();
     this.chatter.draw(ctx, (id) => { const d = this.heroPos.get(id); return d && d.u.alive ? d : null; });
   }
@@ -448,15 +449,19 @@ export class Renderer {
       ctx.restore();
     });
   }
-  // Screen-space labels (ult callouts, chatter) keep clear of the HUD panels: `avoid` holds their CSS-px rects
-  // (refreshed by the HUD a few times a second). Box = [x - w/2, x + w/2] x [y - h, y] in device px; returns a y.
+  // Screen-space labels (ult callouts, chatter) keep clear of the HUD panels (`avoid` holds their CSS-px rects,
+  // refreshed by the HUD a few times a second) and of the labels already placed this frame (they stack upward,
+  // or below when there is no room above). Box = [x - w/2, x + w/2] x [y - h, y] in device px; returns a y.
   dodge(x, y, w, h) {
-    const d = this.dpr;
-    for (const q of this.avoid || []) {
-      const l = q.l * d, r = q.r * d, t = q.t * d, b = q.b * d;
-      if (x + w / 2 <= l || x - w / 2 >= r || y <= t || y - h >= b) continue;
-      y = (t + b) / 2 < this.H / 2 ? b + h + 2 * d : t - 2 * d; // below a top panel, above a bottom one
+    const d = this.dpr, panels = (this.avoid || []).map((q) => ({ l: q.l * d, r: q.r * d, t: q.t * d, b: q.b * d })), placed = this.placed || [];
+    const hit = (q) => !(x + w / 2 <= q.l || x - w / 2 >= q.r || y <= q.t || y - h >= q.b);
+    for (let pass = 0; pass < 6; pass++) {
+      let moved = false;
+      for (const q of panels) if (hit(q)) { y = (q.t + q.b) / 2 < this.H / 2 ? q.b + h + 2 * d : q.t - 2 * d; moved = true; } // below a top panel, above a bottom one
+      for (const q of placed) if (hit(q)) { y = q.t - 2 * d - h > 0 ? q.t - 2 * d : q.b + h + 2 * d; moved = true; }
+      if (!moved) break;
     }
+    placed.push({ l: x - w / 2, r: x + w / 2, t: y - h, b: y });
     return y;
   }
   pruneHp() { const live = this.byIdMap; if (!live) return; for (const id of this.hpT.keys()) { const u = live.get(id); if (!u || (!u.alive && !u.structure)) this.hpT.delete(id); } }
