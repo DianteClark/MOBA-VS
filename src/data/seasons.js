@@ -8,7 +8,7 @@ export const SEASONS = [
     blurb: 'Winter holds the pass. Iron heroes earn bonus season XP, and Frostfang Pass comes up most in Random.' },
   { id: 3, name: 'Wildfire', start: '2027-04-16', end: '2027-06-30', map: 'ember', clan: 'wild', color: '#ff9a4a',
     blurb: 'The canyon burns. Wild heroes earn bonus season XP, and Ember Canyon comes up most in Random.' },
-  { id: 4, name: 'Spirit Tide', start: '2027-07-01', end: '2027-09-15', map: 'sakura', clan: 'spirit', color: '#b48cff',
+  { id: 4, name: 'Spirit Tide', start: '2027-07-01', end: '2027-09-15', map: 'marsh', clan: 'spirit', color: '#b48cff',
     blurb: 'The shrines overflow. Spirit heroes earn bonus season XP.' },
   { id: 5, name: 'Beast Moon', start: '2027-09-16', end: '2027-11-30', map: 'frost', clan: 'beast', color: '#9be36f',
     blurb: 'Something howls in the jungle. Beast heroes earn bonus season XP.' },

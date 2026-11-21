@@ -3,7 +3,7 @@ import { Game } from '../src/sim/game.js';
 import { HEROES, ROLES } from '../src/data/heroes.js';
 import { Rng } from '../src/sim/rng.js';
 let total = 0;
-for (const map of ['sakura', 'frost', 'ember']) {
+for (const map of ['sakura', 'frost', 'ember', 'marsh']) {
   const rng = new Rng(map.length * 77); const used = new Set();
   const draft = () => ROLES.map((r) => { const pool = HEROES.filter((h) => h.role === r && !used.has(h.id)); const h = pool[rng.int(pool.length)]; used.add(h.id); return { id: h.id, role: r, build: h.rec }; });
   const g = new Game({ seed: 99, map, coach: [true, true], teams: [{ heroes: draft() }, { heroes: draft() }] });

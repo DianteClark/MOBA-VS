@@ -16,7 +16,7 @@ if (!isMainThread) {
     const rng = new Rng(i * 7919 + 3); const used = new Set();
     const draft = () => ROLES.map((r) => { const pool = HEROES.filter((h) => h.role === r && !used.has(h.id)); const h = pool[rng.int(pool.length)]; used.add(h.id); return h.id; });
     const a = draft(), b = draft();
-    const g = new Game({ seed: i * 104729 + 11, map: ['sakura', 'frost', 'ember'][i % 3], coach: [true, true], teams: [aiPrep(a, b), aiPrep(b, a)] });
+    const g = new Game({ seed: i * 104729 + 11, map: ['sakura', 'frost', 'ember', 'marsh'][i % 4], coach: [true, true], teams: [aiPrep(a, b), aiPrep(b, a)] });
     while (!g.over) { g.step([]); g.fx.length = 0; }
     parentPort.postMessage({ teams: [a, b], winner: g.winner, kills: g.teams[0].kills + g.teams[1].kills, timeout: g.events.some((e) => e.type === 'victory' && e.timeout), towers: g.teams[0].towers + g.teams[1].towers });
   }

@@ -40,6 +40,15 @@ export const THEMES = {
     rocks: ['snowRock', 'blueRock', 'rockTriG'], tall: ['grass2', 'reed', 'grass3'], decor: ['pebbleS', 'pebble2', 'snowRock', 'bush3'],
     sky: '#1d2733', ice: true, fog: [20, 28, 48],
   },
+  marsh: {
+    ground: pal(['#3f6b4a', '#46744f', '#3a6345', '#4d7a53']), accent: pal(['#5f8f5e', '#6a9a62', '#557f55']), forestFloor: pal(['#1c3326', '#20392b']),
+    lane: pal(['#6e6a7e', '#666276', '#777388', '#6a6679']), laneEdge: hex('#4b4858'), path: pal(['#4f7a55', '#57845b', '#4a724f']), pathEdge: hex('#355a3d'),
+    water: pal(['#3d6f78', '#467a83', '#386770']), waterHi: hex('#8fd0c8'), deep: hex('#2c5560'), shore: hex('#7c8a6a'),
+    base: [pal(['#6d7f9c', '#7486a2', '#687a96']), pal(['#9a7c86', '#a1838d', '#94767f'])], pit: pal(['#4e4a58', '#575262', '#605b6b']), shrine: pal(['#a9e0d2', '#b8eadc', '#98d2c4']),
+    trees: ['roots', 'g1', 'dead', 'pine', 'g0', 'roots'], big: ['tG2', 'deadTri', 'tPine', 'tG2', 'bigGreen'],
+    rocks: ['blueRock', 'rockGBig', 'rockGTall'], tall: ['reed', 'grass2', 'reed', 'grass3'], decor: ['clover', 'bush2', 'pebble2', 'flowerW', 'bush3'],
+    sky: '#0e1620', fog: [6, 10, 22], night: true,
+  },
   autumn: {
     ground: pal(['#b59a3c', '#c4a442', '#a88a34', '#bd9f44']), accent: pal(['#d7b456', '#cfae4f', '#e0bd5c']), forestFloor: pal(['#5e4128', '#664630']),
     lane: pal(['#a35a3a', '#9a5236', '#b0653f', '#a85e3c']), laneEdge: hex('#6e3a24'), path: pal(['#c79f58', '#cfa860', '#bf9752']), pathEdge: hex('#93723d'),
@@ -184,5 +193,19 @@ export function paintMap(world) {
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(f.x, f.y, 150, 0, Math.PI * 2); ctx.fill();
     ctx.drawImage(tw, 192, 64, 32, 32, f.x - 40, f.y - 52, 80, 80);
   }
+  if (th.night) paintNight(ctx, world, canvas.width);
   return canvas;
+}
+// Night maps: cool moonlight tint, soft glow pools at shrines/pits/bases, and scattered glowing moss.
+function paintNight(ctx, world, S) {
+  ctx.save();
+  ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = 'rgb(120,140,200)'; ctx.fillRect(0, 0, S, S);
+  ctx.globalCompositeOperation = 'lighter';
+  const glow = (x, y, r, col) => { const g = ctx.createRadialGradient(x, y, 4, x, y, r); g.addColorStop(0, col); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); };
+  for (const sh of world.shrines) glow(sh.x, sh.y, 170, 'rgba(90,200,180,0.35)');
+  glow(world.pits.kami.x, world.pits.kami.y, 200, 'rgba(120,110,220,0.28)'); glow(world.pits.kraken.x, world.pits.kraken.y, 200, 'rgba(120,110,220,0.28)');
+  for (const f of world.fountain) glow(f.x, f.y, 260, 'rgba(120,150,220,0.25)');
+  const r = new Rng(0x700d);
+  for (let i = 0; i < 420; i++) { const x = r.next() * S, y = r.next() * S; if (!world.isWalk(x, y)) continue; glow(x, y, 6 + r.next() * 10, r.next() < 0.5 ? 'rgba(150,255,190,0.45)' : 'rgba(255,240,150,0.35)'); }
+  ctx.restore();
 }

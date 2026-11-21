@@ -564,7 +564,7 @@ canvas.graph { width: 100%; height: 150px; background: #120f18; border: 2px soli
 .mode .btn.big { width: 100%; font-size: 18px; }
 .mode.ranked { border-color: #8a6a3a; } .mode.cupm { border-color: #b48cff; } .mode.online { border-color: #4a7aa0; }
 .seg3 { display: flex; gap: 4px; } .seg3 .chip { flex: 1; }
-.maprow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.maprow { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
 .mapchip { cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; background: #1e1928; border: 2px solid var(--line); color: var(--ink); font-size: 9px; padding: 3px; }
 .mapchip canvas, .mapchip .q { width: 100%; aspect-ratio: 1; display: grid; place-items: center; color: var(--gold); font-size: 20px; background: #120f18; image-rendering: pixelated; }
 .mapchip.on { border-color: var(--gold); background: #3a2d18; }

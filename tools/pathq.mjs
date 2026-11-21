@@ -14,7 +14,7 @@ const fp = World.prototype.findPath; let astar = 0, astarMs = 0;
 World.prototype.findPath = function (...a) { const t = performance.now(); const r = fp.apply(this, a); astarMs += performance.now() - t; astar++; return r; };
 
 const tot = {};
-for (const map of ['sakura', 'frost', 'ember']) {
+for (const map of ['sakura', 'frost', 'ember', 'marsh']) {
   const S = { moveTicks: 0, blocked: 0, reversals: 0, flips: 0, stuck: 0, scrapes: 0, minMove: 0, minBlocked: 0, trips: 0, eff: 0, astar: 0, astarMs: 0, ticks: 0 };
   astar = 0; astarMs = 0;
   for (let sd = 0; sd < SEEDS; sd++) {
