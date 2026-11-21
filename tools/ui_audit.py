@@ -5,7 +5,7 @@ from playwright.async_api import async_playwright
 URL = sys.argv[1] if len(sys.argv) > 1 else 'http://localhost:8765/index.html'
 OUT = sys.argv[2] if len(sys.argv) > 2 else None
 VIEWS = [tuple(map(int, v.split('x'))) for v in sys.argv[3].split(',')] if len(sys.argv) > 3 else [(1920, 1080), (1440, 900), (1366, 768), (1280, 720), (1024, 768), (900, 600), (844, 390), (667, 375), (390, 844), (768, 1024)]
-IDS = ['myteam', 'feed', 'scorebar', 'objtimers', 'enemyteam', 'killfeed', 'mm', 'ctrl', 'cmdbar', 'detail']
+IDS = ['myteam', 'feed', 'scorebar', 'objtimers', 'enemyteam', 'killfeed', 'mm', 'ctrl', 'cmdbar', 'detail', 'foestrip']
 PAIRS_SKIP = {('leftcol', 'myteam'), ('leftcol', 'feed'), ('topcenter', 'scorebar'), ('topcenter', 'objtimers'), ('rightcol', 'enemyteam'), ('rightcol', 'killfeed'), ('brcol', 'mm'), ('brcol', 'ctrl'), ('myteam', 'feed')}
 JS = """(ids) => ids.map(id => { const e = document.getElementById(id); if (!e || !e.offsetParent && getComputedStyle(e).position !== 'fixed') return [id, null];
   // use the union of visible children so empty space in a column doesn't count

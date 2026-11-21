@@ -97,6 +97,10 @@ export class Hud {
     this.el.ctrl.addEventListener('click', (e) => { if (e.target.closest('.seg') && this.el.ctrl.classList.contains('open')) setTimeout(() => this.el.ctrl.classList.remove('open'), 150); });
     this.refreshCtrl();
     this.dock = new Dock(this);
+    this.objTaken = [{ dragon: 0, herald: 0, baron: 0 }, { dragon: 0, herald: 0, baron: 0 }];
+    this.el.score.addEventListener('click', () => this.toggleScoreboard());
+    this.el.score.title = 'Tap for the scoreboard [Tab]';
+    this.buildFoeStrip();
     this.buildObjBar();
   }
   refreshCtrl() {
@@ -134,6 +138,8 @@ export class Hud {
     this.updateScore();
     this.updateRows(this.mineRows, true);
     this.updateRows(this.enemyRows, false);
+    this.updateFoeStrip();
+    if (this.sbEl && now - (this._sbT || 0) > 500) { this._sbT = now; this.renderScoreboard(); }
     this.renderDetail(false);
     this.alerts.scan();
     if (this.pop) this.pop.upd();
@@ -148,15 +154,64 @@ export class Hud {
     const pips = (t) => h('span', { class: 'drag-pips' }, ...t.dragons.map((d) => h('i', { style: { background: DRAGON_INFO[d].color }, title: DRAGON_INFO[d].name })));
     const left = g.timeLeft, late = left < 60;
     const wx = g.weatherList[Math.max(0, g.weatherIdx)];
-    const sig = [g.towersStanding(0), g.towersStanding(1), t0.kills, t1.kills, Math.floor(left), wx, t0.dragons.length, t1.dragons.length].join(',');
+    const ot = this.objTaken || [{}, {}];
+    const sig = [g.towersStanding(0), g.towersStanding(1), t0.kills, t1.kills, Math.floor(left), wx, t0.dragons.length, t1.dragons.length, JSON.stringify(ot), g.shrines.map((x) => x.owner).join('')].join(',');
+    const marks = (t) => h('div', { class: 'omarks ' + (t ? 'red' : 'blue') },
+      ...g.teams[t].dragons.map((d) => h('i', { class: 'om', style: { background: DRAGON_INFO[d].color }, title: DRAGON_INFO[d].name })),
+      ot[t].herald ? h('span', { class: 'omi', title: 'Oni taken' }, h('img', { src: `assets/img/${BOSS_FACE.herald}.png` }), ot[t].herald > 1 ? ot[t].herald : null) : null,
+      ot[t].baron ? h('span', { class: 'omi', title: 'Kraken taken' }, h('img', { src: `assets/img/${BOSS_FACE.baron}.png` }), ot[t].baron > 1 ? ot[t].baron : null) : null,
+      ...g.shrines.filter((x) => x.owner === t).map(() => h('i', { class: 'oms', title: 'Shrine held' })));
     if (sig !== this._scoreSig) {
       this._scoreSig = sig;
       mount(this.el.score,
         h('div', { class: 'side blue' }, h('div', { class: 'tw', title: 'Towers standing' }, h('i', { class: 'ticon' }), g.towersStanding(0)), h('div', { class: 'meta' }, h('b', {}, t0.kills), h('span', {}, 'kills'), pips(t0))),
         h('div', { class: 'mid' }, h('div', { class: 'clock' + (late ? ' late' : '') }, fmtTime(left)), h('div', { class: 'wx', title: WEATHER[wx].desc || '' }, WEATHER[wx].name)),
-        h('div', { class: 'side red' }, h('div', { class: 'tw', title: 'Towers standing' }, g.towersStanding(1), h('i', { class: 'ticon' })), h('div', { class: 'meta' }, pips(t1), h('span', {}, 'kills'), h('b', {}, t1.kills))));
+        h('div', { class: 'side red' }, h('div', { class: 'tw', title: 'Towers standing' }, g.towersStanding(1), h('i', { class: 'ticon' })), h('div', { class: 'meta' }, pips(t1), h('span', {}, 'kills'), h('b', {}, t1.kills))),
+        h('div', { class: 'markrow' }, marks(0), h('span', { class: 'kk' }, `${t0.kills} - ${t1.kills}`), marks(1)));
     }
     this.updateObjBar();
+  }
+
+  // Compact screens: every hero's portrait stays visible (enemies show only death timers).
+  buildFoeStrip() {
+    const el = document.getElementById('foestrip'); if (!el) return;
+    this.foeCells = this.g.teams[1 - this.view].heroes.map((x) => {
+      const t = h('b', {}); const c = h('div', { class: 'foe', title: x.def.name }, h('img', { src: face(x.heroId) }), t);
+      c._x = x; c._t = t; return c;
+    });
+    mount(el, this.foeCells);
+  }
+  updateFoeStrip() {
+    if (!this.foeCells) return;
+    for (const c of this.foeCells) {
+      const x = c._x, dead = !x.alive;
+      c.classList.toggle('dead', dead);
+      const v = dead ? String(Math.max(0, Math.ceil((x.respawnAt - this.g.tick) / TICK_RATE))) : '';
+      if (c._t.textContent !== v) c._t.textContent = v;
+    }
+  }
+  // Scoreboard: both teams' KDA, CS, gold and items. Tap the score (or hold Tab).
+  toggleScoreboard(force) {
+    const open = force !== undefined ? force : !this.sbEl;
+    if (!open) { if (this.sbEl) { this.sbEl.remove(); this.sbEl = null; } return; }
+    if (this.sbEl) return;
+    this.sbEl = h('div', { id: 'scoreboard', onclick: () => this.toggleScoreboard(false) });
+    document.getElementById('hud').append(this.sbEl);
+    this.renderScoreboard();
+  }
+  renderScoreboard() {
+    if (!this.sbEl) return;
+    const g = this.g;
+    const row = (x) => h('div', { class: 'sbr' + (x.alive ? '' : ' dead') },
+      h('img', { class: 'sbf', src: face(x.heroId) }), h('span', { class: 'sbn' }, x.def.name), h('span', { class: 'sbl' }, x.level),
+      h('span', { class: 'sbk' }, `${x.kills}/${x.deaths}/${x.assists}`), h('span', { class: 'sbc' }, x.cs), h('span', { class: 'sbg' }, `${(x.goldEarned / 1000).toFixed(1)}k`),
+      h('span', { class: 'sbi' }, ...x.items.map((it) => h('img', { src: icon(it.icon), title: it.name }))),
+      x.alive ? null : h('b', { class: 'sbd' }, Math.ceil((x.respawnAt - g.tick) / TICK_RATE)));
+    const team = (t) => h('div', { class: 'sbt ' + (t ? 'red' : 'blue') },
+      h('div', { class: 'sbh' }, h('b', {}, `${TEAM_NAME[t]}${t === this.my ? ' (you)' : ''}`), h('span', {}, `${g.teams[t].kills} kills · ${g.towersStanding(t)} towers`)),
+      h('div', { class: 'sbr sbhead' }, h('span', { class: 'sbf' }), h('span', { class: 'sbn' }, 'Hero'), h('span', { class: 'sbl' }, 'Lv'), h('span', { class: 'sbk' }, 'K/D/A'), h('span', { class: 'sbc' }, 'CS'), h('span', { class: 'sbg' }, 'Gold'), h('span', { class: 'sbi' }, 'Items')),
+      ...g.teams[t].heroes.map(row));
+    mount(this.sbEl, h('div', { class: 'sbcard' }, team(0), team(1), h('small', { class: 'muted center' }, 'Tap anywhere to close')));
   }
 
   // Objective / shrine timers: built once, updated in place (no image reloads, no flicker).
@@ -351,6 +406,7 @@ export class Hud {
           break;
         }
         case 'objective': {
+          if (e.team === 0 || e.team === 1) this.objTaken[e.team][e.obj]++;
           const nm = e.obj === 'dragon' ? DRAGON_INFO[e.element].name : OBJ_L[e.obj];
           this.feed(`${TEAM_NAME[e.team]} ${e.steal ? 'STOLE' : 'took'} ${nm}${e.killer ? ' (' + this.name(e.killer) + ')' : ''}`, e.team === 0 ? 'b' : 'r', true);
           this.banner(`${e.steal ? 'STOLEN! ' : ''}${nm.toUpperCase()}`, TEAM_COL[e.team], 2200, `assets/img/${BOSS_FACE[e.obj]}.png`);
@@ -492,6 +548,7 @@ export class Hud {
     const k = e.key.toLowerCase();
     if (k >= '1' && k <= '5') { const x = this.g.teams[this.view].heroes[+k - 1]; if (x) this.selectHero(x); return; }
     if (k === ' ') { e.preventDefault(); this.toggleDirector(); return; }
+    if (k === 'tab') { e.preventDefault(); this.toggleScoreboard(); return; }
     this.dock.onKey(k);
   }
 }

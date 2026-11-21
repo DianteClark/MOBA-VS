@@ -95,7 +95,20 @@ class App {
   }
 
   // ───────────── modes ─────────────
+  // Phones: going into a match from a tap goes full screen and locks landscape where supported.
+  immersive() {
+    try {
+      if (!matchMedia('(pointer: coarse)').matches) return;
+      const el = document.documentElement, d = document;
+      const lock = () => { try { screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape').catch(() => {}); } catch { /* ignore */ } };
+      if (!(d.fullscreenElement || d.webkitFullscreenElement) && (el.requestFullscreen || el.webkitRequestFullscreen)) {
+        const p = (el.requestFullscreen || el.webkitRequestFullscreen).call(el, { navigationUI: 'hide' });
+        if (p && p.then) p.then(lock, () => {}); else lock();
+      } else lock();
+    } catch { /* not supported */ }
+  }
   startVsAI() {
+    this.immersive();
     try { localStorage.setItem('mobavs_ai', String(this.aiLevel)); } catch { /* ignore */ }
     const seed = (Math.random() * 2 ** 31) >>> 0;
     this.session = { mode: 'ai', myTeam: 0, seed, mapId: this.pickMap(seed), aiLevel: this.aiLevel, names: [this.name, ['Easy', 'Normal', 'Hard'][this.aiLevel] + ' AI'], rng: new Rng(seed ^ 0x5eed) };
@@ -103,6 +116,7 @@ class App {
   }
   newCup() { newCup(this.name); }
   startCupMatch() {
+    this.immersive();
     const cup = profile.d.cup, mm = cup && myMatch(cup); if (!mm) { showCup(this); return; }
     const seed = (Math.random() * 2 ** 31) >>> 0;
     const mapId = mm.round === 2 ? profile.season.map : MAPS[seed % MAPS.length].id;
@@ -110,6 +124,7 @@ class App {
     this.startDraft();
   }
   watch() {
+    this.immersive();
     stopParade();
     const seed = (Math.random() * 2 ** 31) >>> 0;
     this.session = { mode: 'watch', myTeam: -1, seed, mapId: this.pickMap(seed), names: ['Blue AI', 'Red AI'], rng: new Rng(seed) };
@@ -120,6 +135,7 @@ class App {
     this.startMatch();
   }
   async hostGame() {
+    this.immersive();
     const code = makeCode();
     const cancel = () => this.menu();
     const id = this.lobbyId = (this.lobbyId || 0) + 1;
@@ -143,6 +159,7 @@ class App {
     const cancel = () => this.menu();
     const go = async (code) => {
       if (!/^[A-Z]{5}$/.test(code)) { toast('Room codes are 5 letters'); return; }
+      this.immersive();
       showLobby(this, { joining: true, code, status: 'Connecting…', onJoin: go, onCancel: cancel });
       const id = this.lobbyId = (this.lobbyId || 0) + 1;
       try {
@@ -403,6 +420,7 @@ class App {
   }
   endMatch(won, which) {
     const m = this.match; if (!m || (which && m !== which)) return;
+    for (const id of ['scoreboard', 'halftime']) { const el = document.getElementById(id); if (el) el.remove(); }
     this.match = null;
     this.fade(() => {
       this.showScreen(true);

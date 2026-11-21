@@ -841,3 +841,50 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 20px; border-radius: 
   .sheet, .sugs { width: min(100%, 620px) !important; }
   .sug { padding: 1px 2px 4px 6px !important; }
 }
+
+/* ═════════ scoreboard, objective markers, enemy strip, landscape lock ═════════ */
+#scorebar { flex-wrap: wrap; justify-content: center; cursor: pointer; }
+#scorebar .meta .drag-pips { display: none; }
+#scorebar .markrow { flex: 1 0 100%; display: flex; align-items: center; justify-content: space-between; gap: 6px; min-height: 12px; margin-top: 1px; }
+#scorebar .markrow .kk { display: none; font-size: 10px; color: var(--ink); }
+.omarks { display: flex; gap: 3px; align-items: center; min-width: 30px; }
+.omarks.red { flex-direction: row-reverse; }
+.omarks .om { width: 8px; height: 8px; transform: rotate(45deg); border: 1px solid #000; display: inline-block; }
+.omarks .oms { width: 7px; height: 7px; transform: rotate(45deg); background: currentColor; display: inline-block; }
+.omarks.blue { color: var(--blue); } .omarks.red { color: var(--red); }
+.omarks .omi { display: inline-flex; align-items: center; font-size: 8px; color: var(--ink); }
+.omarks .omi img { width: 13px; height: 13px; border: 1px solid currentColor; }
+.omarks.blue .omi img { border-color: var(--blue); } .omarks.red .omi img { border-color: var(--red); }
+#scoreboard { position: absolute; inset: 0; z-index: 25; display: grid; place-items: center; background: rgba(6, 4, 10, 0.6); pointer-events: auto; padding: 8px; animation: rise 0.15s; }
+.sbcard { width: min(760px, 100%); max-height: 100%; overflow: auto; background: rgba(18, 14, 26, 0.97); border: 2px solid var(--gold); padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.sbt { display: flex; flex-direction: column; gap: 2px; }
+.sbh { display: flex; justify-content: space-between; font-size: 12px; padding: 2px 4px; }
+.sbt.blue .sbh b { color: var(--blue); } .sbt.red .sbh b { color: var(--red); } .sbh span { color: var(--muted); font-size: 10px; }
+.sbr { display: grid; grid-template-columns: 26px minmax(60px, 1.4fr) 26px 64px 34px 42px minmax(80px, 2fr) 24px; align-items: center; gap: 6px; font-size: 11px; padding: 2px 4px; background: #1e1928; border: 1px solid #2c2436; }
+.sbr.sbhead { background: none; border: none; color: var(--muted); font-size: 9px; }
+.sbr.dead { opacity: 0.6; } .sbr .sbd { color: var(--red); text-align: right; }
+.sbr .sbf { width: 24px; height: 24px; } .sbr .sbn { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sbr .sbi { display: flex; gap: 1px; } .sbr .sbi img { width: 15px; height: 15px; }
+#foestrip { display: none; }
+#rotate { display: none; }
+@media (max-width: 999px), (max-height: 599px) {
+  #scorebar .markrow .kk { display: inline; }
+  #foestrip { display: flex; flex-direction: column; gap: 3px; right: calc(4px + var(--safe-r)); top: calc(124px + var(--safe-t)); }
+  #foestrip .foe { position: relative; width: 32px; height: 32px; border: 2px solid var(--red); background: #1e1928; }
+  #foestrip .foe img { width: 100%; height: 100%; display: block; }
+  #foestrip .foe.dead img { filter: grayscale(1) brightness(0.4); }
+  #foestrip .foe b { position: absolute; inset: 0; display: grid; place-items: center; font-size: 13px; color: #fff; text-shadow: 0 1px 0 #000, 0 0 3px #000; font-weight: normal; }
+  .foesbtn { display: none !important; }
+  .sbr { grid-template-columns: 22px minmax(50px, 1fr) 20px 58px 28px 36px minmax(60px, 1.6fr) 20px; gap: 4px; font-size: 10px; }
+  .sbr .sbf { width: 20px; height: 20px; } .sbr .sbi img { width: 12px; height: 12px; }
+}
+@media (max-height: 500px) { #foestrip { top: calc(122px + var(--safe-t)); } #foestrip .foe { width: 30px; height: 30px; } }
+/* Phones are landscape-only: ask to rotate when held upright. */
+@media (orientation: portrait) and (pointer: coarse) and (max-width: 900px) {
+  #rotate { display: grid; place-items: center; position: fixed; inset: 0; z-index: 100; background: #14121c; text-align: center; color: var(--ink); }
+  #rotate > div { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  #rotate b { font-size: 20px; color: var(--gold); } #rotate small { color: var(--muted); }
+  .rot-icon { width: 46px; height: 80px; border: 4px solid var(--gold); border-radius: 8px; animation: rot 1.8s ease-in-out infinite; }
+  @keyframes rot { 0%, 20% { transform: rotate(0); } 60%, 100% { transform: rotate(-90deg); } }
+}
+@media (max-width: 999px), (max-height: 599px) { #cmdbar { right: calc(42px + var(--safe-r)) !important; } }
