@@ -94,3 +94,14 @@
 @media (max-width: 600px) { .rvbody { grid-template-columns: 1fr; } }
 .reduce-motion .rvcard { transition: none; } .reduce-motion .rvcard.spin { transform: none; }
 .h2ai .h2start { right: auto; left: 50%; transform: translateX(-50%); top: -12px; } /* clear of the rival chip */
+@media (min-width: 1200px) and (min-height: 700px) {
+  .subscreen.rivals { width: min(1280px, 100%); } .rvbody { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); }
+  .rvgrid { gap: 10px; } .rvcol { gap: 8px; padding: 6px; }
+  .rvcard { min-height: 64px; gap: 10px; padding: 6px 8px; } .rvcard .rvface { width: 48px !important; height: 48px !important; }
+  .rvcard .rvn b { font-size: 16px; } .rvcard .rvn small { font-size: 11px; } .rvcard .rvplan { width: 20px; height: 20px; }
+  .rvtier { font-size: 13px; }
+  .rvdetail { gap: 10px; padding: 12px; } .rvhead .rvface { width: 72px !important; height: 72px !important; }
+  .rvid > b { font-size: 24px; } .rvid > small, .rvrank { font-size: 12px; } .rvpers { font-size: 14px; }
+  .rvpl { font-size: 13px; } .rvpl img { width: 18px; height: 18px; } .rvhab > small { font-size: 11px; } .rvfav img { width: 32px; height: 32px; } .rvfav small { font-size: 11px; }
+  .rvrec b { font-size: 26px; } .rvrec small { font-size: 10px; }
+}
