@@ -11,6 +11,7 @@ import { Tray, PRIO } from './tray.js';
 import { MOMENTS, MOMENT_IDS, MOMENT, momentReady } from '../sim/moments-coach.js';
 import { TEAM_COL } from '../render/renderer.js';
 import { audio } from '../audio.js';
+import { COOP_COL } from '../coop-room.js';
 
 const LANE_L = { top: 'Top', mid: 'Mid', bot: 'Bot' };
 export const CORE = [
@@ -32,9 +33,11 @@ export class Dock {
     this.build();
   }
   get team() { return this.g.teams[this.my]; }
-  cost(type) { return CMD.cost[type] ?? 1; }
+  cost(type) { return type === 'lead' ? 0 : CMD.cost[type] ?? 1; } // co-op: passing the lead is free
   afford(type) { return this.team.charges + 1e-9 >= this.cost(type); }
   alive() { return this.team.heroes.filter((x) => x.alive); }
+  // co-op: the living heroes this coach runs (all of them otherwise)
+  ownAlive() { return this.alive().filter((x) => this.hud.ownHero(x)); }
 
   // ───────────── static layout ─────────────
   build() {
@@ -141,6 +144,10 @@ export class Dock {
   send(cmd) {
     if (this.my < 0) return false;
     if (!this.afford(cmd.type)) { toast('Not enough command charges'); audio.sfx('cancel', 0.6); return false; }
+    // co-op: a team call from the partner goes to the lead as a suggestion; another coach's hero is off limits
+    const gate = this.hud.coopGate(cmd);
+    if (gate === 'sug') { this.close(); this.closeRing(); audio.sfx('call', 0.5); return true; }
+    if (!gate) return false;
     this.hud.runner.send(cmd);
     this.close(); this.closeRing();
     audio.sfx('call', 0.8);
@@ -213,10 +220,10 @@ export class Dock {
     const LANES = g.world.laneNames;
     const lanes = (fn, sub, state) => h('div', { class: 'tiles' }, ...LANES.map((l) => this.tile({ title: LANE_L[l], sub: () => sub(l), state: () => state ? state(l) : {}, onclick: () => fn(l) })));
     if (id === 'gank') {
-      const jg = mine.find((x) => x.role === 'jungle');
-      if (!this.ganker || !this.ganker.alive) this.ganker = jg && jg.alive ? jg : this.alive()[0];
-      if (!this.ganker) return null;
-      const who = h('button', { class: 'whobtn', title: 'Tap to change who ganks', onclick: () => { const a = this.alive(); this.ganker = a[(a.indexOf(this.ganker) + 1) % a.length]; whoImg.src = face(this.ganker.heroId); whoName.textContent = this.ganker.def.name; } });
+      const jg = mine.find((x) => x.role === 'jungle' && this.hud.ownHero(x));
+      if (!this.ganker || !this.ganker.alive || !this.hud.ownHero(this.ganker)) this.ganker = jg && jg.alive ? jg : this.ownAlive()[0];
+      if (!this.ganker) { toast('None of your heroes can gank right now'); return null; }
+      const who = h('button', { class: 'whobtn', title: 'Tap to change who ganks', onclick: () => { const a = this.ownAlive(); this.ganker = a[(a.indexOf(this.ganker) + 1) % a.length]; whoImg.src = face(this.ganker.heroId); whoName.textContent = this.ganker.def.name; } });
       const whoImg = h('img', { src: face(this.ganker.heroId) }), whoName = h('span', {}, this.ganker.def.name);
       who.append(whoImg, whoName, h('small', {}, 'change'));
       return { title: 'Gank which lane?', els: [h('div', { class: 'sh-who' }, h('span', { class: 'muted' }, 'Ganker'), who),
@@ -266,7 +273,8 @@ export class Dock {
     if (id.startsWith('hero:')) {
       const x = g.byId(+id.slice(5)); if (!x) return null;
       if (x.team !== this.my) return { title: `${x.def.name}`, els: [h('div', { class: 'tiles' }, this.tile({ img: face(x.heroId), title: `Focus ${x.def.name}`, sub: 'Everyone targets them 20s', state: () => ({ off: !x.alive || !this.afford('focus') }), onclick: () => this.send({ type: 'focus', target: x.id }) }))] };
-      return { title: `${x.def.name}: build path`, els: [h('div', { class: 'tiles' }, ...x.def.builds.map((b) => { const t = this.tile({ ico: BUILDS[b].icon || 'Alchemy', title: BUILDS[b].name, sub: () => (x.build === b ? 'Current' : 'Free'), state: () => ({ off: x.build === b }), onclick: () => this.send({ type: 'build', hero: x.id, build: b }) }); t.setAttribute('data-build', b); t.title = BUILDS[b].desc; return t; }))] };
+      const theirs = !this.hud.ownHero(x), owner = theirs ? this.hud.coachName(x.seat) : '';
+      return { title: `${x.def.name}: build path${theirs ? ` (${owner}'s hero)` : ''}`, els: [h('div', { class: 'tiles' }, ...x.def.builds.map((b) => { const t = this.tile({ ico: BUILDS[b].icon || 'Alchemy', title: BUILDS[b].name, sub: () => (x.build === b ? 'Current' : theirs ? `${owner} decides` : 'Free'), state: () => ({ off: x.build === b || theirs }), onclick: () => this.send({ type: 'build', hero: x.id, build: b }) }); t.setAttribute('data-build', b); t.title = BUILDS[b].desc; return t; }))] };
     }
     return null;
   }
@@ -279,7 +287,7 @@ export class Dock {
     return left <= 25 ? `Wakes in ${Math.ceil(left)}s` : `Wakes ${fmtTime(left)}`;
   }
   splitter() {
-    const a = this.alive();
+    const a = this.ownAlive();
     return a.find((x) => x.role === 'top') || a.filter((x) => x.role !== 'support').sort((p, q) => q.level - p.level)[0] || null;
   }
 
@@ -295,7 +303,7 @@ export class Dock {
   }
   // One-tap analyst suggestion (lowest priority).
   suggest(key, text, label, cmd, opts = {}) {
-    if (this.my < 0 || this.tray.has(key)) return;
+    if (this.my < 0 || this.tray.has(key) || !this.hud.mayCommand(cmd)) return; // co-op: only what this coach can call
     this.tray.push({ key, prio: opts.cls === 'bad' ? PRIO.danger : PRIO.sug, ttl: 12000, cls: 'sug ' + (opts.cls === 'bad' ? 'danger' : 'act'), valid: opts.valid,
       build: (it) => [h('span', { class: 'tx' }, text), this.choice({ label, cmd }, it), h('button', { class: 'tx-x', title: 'Dismiss', onclick: () => this.tray.end(it, 'dismissed') }, 'x')],
       onShow: () => audio.sfx('alert', 0.35) });
@@ -313,6 +321,13 @@ export class Dock {
       build: (it) => [h('img', { class: 'tface', src: face(r.hero.heroId) }), h('span', { class: 'tx' }, h('b', {}, r.hero.def.name + ': '), r.text),
         this.choice({ label: 'Yes', cmd: r.cmd }, it, hooks.onYes), this.choice({ label: 'No', cmd: null }, it, hooks.onNo)],
       onShow: () => audio.sfx('alert2', 0.45), onEnd: hooks.onEnd });
+  }
+  // Co-op: the partner suggested a team call; the lead makes it with one tap (No just dismisses it).
+  partnerSuggestion(name, seat, cmd, text) {
+    this.tray.push({ key: 'psug' + performance.now(), prio: PRIO.request, ttl: 9000, cls: 'req mate',
+      build: (it) => [h('i', { class: 'sl', style: { '--sc': COOP_COL[seat] } }, seat ? 'B' : 'A'), h('span', { class: 'tx' }, h('b', {}, name + ': '), text),
+        this.choice({ label: 'Go', cmd }, it), this.choice({ label: 'No', cmd: null }, it)],
+      onShow: () => audio.sfx('alert2', 0.45) });
   }
   surgeOffer() {
     const t = this.team;
@@ -348,7 +363,7 @@ export class Dock {
         const lane = W.closestLane(w);
         if (W.distToLane(lane, w) < 320) {
           title = `${LANE_L[lane]} lane`;
-          const jg = this.team.heroes.find((x) => x.role === 'jungle' && x.alive) || this.alive()[0];
+          const jg = this.team.heroes.find((x) => x.role === 'jungle' && x.alive && this.hud.ownHero(x)) || this.ownAlive()[0];
           if (jg) opts.push({ ico: 'Cut', label: 'Gank', type: 'gank', cmd: { type: 'gank', lane, hero: jg.id } });
           opts.push({ ico: 'Upgrade', label: 'Push', type: 'group', cmd: { type: 'group', lane } });
           const sp = this.splitter(); if (sp && lane !== 'mid' && W.laneNames.length > 1) opts.push({ ico: 'BookWind', label: 'Split', type: 'split', cmd: { type: 'split', hero: sp.id, lane } });

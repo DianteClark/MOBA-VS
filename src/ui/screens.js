@@ -15,6 +15,7 @@ import { TEAM_COL } from '../render/palette.js';
 import { audio } from '../audio.js';
 import { tweenNumber, growBars } from './juice.js';
 import { analysisCard } from './analytics.js';
+import { myHeroIds, isLead, mateOf, COOP_COL } from '../coop-room.js';
 
 // Tiny map previews from the terrain grid (cheap: 100x100 pixels).
 const thumbs = {};
@@ -73,7 +74,7 @@ export function showHowTo(app) {
     h('h3', {}, '4. Big moments'), h('p', {}, 'Coach\'s Calls pop up above the buttons when something big is about to happen: pick one of the 2-3 options before the bar runs out. Fill Momentum with calls that pay off, then tap the meter for a Kami Surge.'),
     h('p', {}, 'Moments (M) are three once-per-match calls that open at 1:15: Timeout (reset cooldowns and heal), Rally (+15% damage and speed) and All-Out Push (super minions). The Ults button switches between Auto, Hold (save them for a fight) and ALL-IN. At halftime you can change the game plan, swap a card and adjust builds.'),
     h('h3', {}, 'Winning'), h('p', {}, 'Destroy the enemy Shrine Crystal, or have more towers standing when the clock runs out (15:00; Lane Rush: 8:00).'),
-    h('h3', {}, 'Modes'), h('p', {}, 'Play vs AI and the Season Cup move your rating (Bronze to Kami). Find Match pairs you with real players: Ranked climbs the ladder while Casual and Rush never change it. Lane Rush is a quick one-lane game. Host and Join are private games with a friend. Settings has sound, colour-blind colours, text size, reduced effects, graphics quality and a button to replay the first-match coach tips.'),
+    h('h3', {}, 'Modes'), h('p', {}, 'Play vs AI and the Season Cup move your rating (Bronze to Kami). Find Match pairs you with real players: Ranked climbs the ladder while Casual and Rush never change it. Lane Rush is a quick one-lane game. Host and Join are private games with a friend. Co-op puts two coaches on one team (vs the AI, or 2v2): each runs their own heroes, and the lead makes the team-wide calls while the partner suggests them. Settings has sound, colour-blind colours, text size, reduced effects, graphics quality and a button to replay the first-match coach tips.'),
     h('h3', {}, 'Controls'), h('p', {}, 'Drag to pan, scroll or pinch to zoom, tap the minimap to jump. Keys: G O R K X B for calls, Q E T for cards, M for Moments, C to cancel, 1-5 follow heroes, Tab for the scoreboard, Space for the auto-camera.'),
   )));
 }
@@ -97,21 +98,28 @@ export function showLobby(app, { code, status, joining, onJoin, onCancel, extra 
 export function showPrep(app, prep, enemyIds, left, onChange, onReady, ready) {
   const s = app.session, myIds = prep.heroes.map((p) => p.id), fromPreset = new Set(s.prepFromPreset || []);
   const adjust = !!s.prepAdjust && !ready;
+  // co-op: this coach sets up their own heroes; the lead also picks the plan and the deck
+  const coop = s.mode === 'coop', mine = new Set(coop ? myHeroIds(s) : myIds), lead = !coop || isLead(s), mate = coop ? mateOf(s) : null;
+  const mateSeat = mate ? mate.seat : -1, matePrep = mate && s.seatPreps ? s.seatPreps[s.myTeam][mateSeat] : null;
+  const leadPrep = lead ? prep : s.seatPreps && s.seatPreps[s.myTeam][s.coop[s.myTeam].lead];
   const autoSetup = () => {
     if (ready) return;
     const ai = aiPrep(myIds, enemyIds);
-    for (const hp of prep.heroes) { const a = ai.heroes.find((q) => q.id === hp.id); if (a) hp.build = a.build; }
-    prep.plan = ai.plan; prep.deck = ai.deck.slice(0, 3);
+    for (const hp of prep.heroes) { const a = ai.heroes.find((q) => q.id === hp.id); if (a && mine.has(hp.id)) hp.build = a.build; }
+    if (lead) { prep.plan = ai.plan; prep.deck = ai.deck.slice(0, 3); }
     audio.sfx('accept', 0.6); onChange();
   };
   const toggleAdjust = () => { s.prepAdjust = !s.prepAdjust; audio.sfx('move', 0.4); onChange(); };
   const byRole = prep.heroes.slice().sort((a, b) => ROLES.indexOf(a.role) - ROLES.indexOf(b.role));
   // summary: one compact card per hero
-  const mini = (hp) => {
+  const mini = (hp0) => {
+    // a partner's hero shows the partner's choice once they are ready ("choosing…" until then)
+    const theirs = coop && !mine.has(hp0.id), hp = theirs && matePrep ? matePrep.heroes.find((q) => q.id === hp0.id) || hp0 : hp0;
     const x = HERO_BY_ID[hp.id], b = BUILDS[hp.build];
-    return h('div', { class: 'pmini', style: { '--cc': CLANS[x.clan].color, '--bc': b.color } },
+    return h('div', { class: 'pmini' + (coop ? ' cs' : ''), style: { '--cc': CLANS[x.clan].color, '--bc': b.color, ...(coop ? { '--sc': COOP_COL[theirs ? mateSeat : s.mySeat] } : {}) }, title: theirs ? `${mate ? mate.name : 'Partner'} runs ${x.name}` : null },
       h('span', { class: 'plane' }, ROLE_LABEL[hp.role]), h('img', { src: face(hp.id) }), h('b', {}, x.name),
-      h('span', { class: 'pbuild', 'data-build': hp.build, 'data-build-info': true, title: b.desc }, h('img', { src: icon(b.icon) }), b.name),
+      theirs && !matePrep ? h('span', { class: 'pbuild muted' }, 'choosing…')
+        : h('span', { class: 'pbuild', 'data-build': hp.build, 'data-build-info': true, title: b.desc }, h('img', { src: icon(b.icon) }), b.name),
       fromPreset.has(hp.id) ? h('span', { class: 'pfrom', title: 'From your lineup' }, '★') : null);
   };
   const card = (hp) => {
@@ -121,7 +129,8 @@ export function showPrep(app, prep, enemyIds, left, onChange, onReady, ready) {
         h('div', { class: 'pch' }, h('div', { class: 'pn' }, x.name), h('div', { class: 'chips' }, h('span', { class: 'chipx', style: { '--cc': CLANS[x.clan].color } }, CLANS[x.clan].name), h('span', { class: 'chipx', style: { '--cc': pers.color } }, pers.name)))),
       h('label', { class: 'rolesel' }, h('span', {}, 'Lane'),
         h('select', { onchange: (e) => { const r = e.target.value; const other = prep.heroes.find((o) => o.role === r); if (other) other.role = hp.role; hp.role = r; onChange(); } },
-          ...ROLES.map((r) => h('option', { value: r, selected: r === hp.role }, ROLE_LABEL[r] + (x.roles.includes(r) ? '' : ' (off-role)'))))),
+          // co-op: lanes swap only among this coach's own heroes
+          ...ROLES.filter((r) => !coop || prep.heroes.some((o) => o.role === r && mine.has(o.id))).map((r) => h('option', { value: r, selected: r === hp.role }, ROLE_LABEL[r] + (x.roles.includes(r) ? '' : ' (off-role)'))))),
       h('div', { class: 'bchips' }, ...x.builds.map((bb) => h('button', { class: 'bchip' + (hp.build === bb ? ' on' : ''), style: { '--bc': BUILDS[bb].color }, 'data-build': bb, onclick: () => { hp.build = bb; audio.sfx('move', 0.4); onChange(); } }, BUILDS[bb].name, bb === x.rec ? h('i', { class: 'star', title: 'Recommended' }) : null))),
       h('div', { class: 'bsel' }, h('div', { class: 'bd' }, b.desc), h('div', { class: 'items' }, ...b.items.map((it) => h('img', { src: icon(it.icon), title: `${it.name} (${it.cost}g)` })))));
   };
@@ -130,17 +139,18 @@ export function showPrep(app, prep, enemyIds, left, onChange, onReady, ready) {
     return Object.entries(c).sort((a, b) => b[1] - a[1]).map(([k, n]) => { const tier = CLANS[k].tiers.filter((t) => n >= t.n).pop(); return h('div', { class: 'cchip' + (tier ? ' on' : ''), style: { '--cc': CLANS[k].color } }, h('b', {}, `${CLANS[k].name} x${n}`), h('small', {}, tier ? tier.text : `${CLANS[k].tiers[0].n} needed: ${CLANS[k].tiers[0].text}`)); });
   })();
   const sec = (title, extra, ...kids) => h('div', { class: 'panel psec' }, h('div', { class: 'psh' }, h('span', {}, title), extra || null), ...kids);
-  const plan = PLANS[prep.plan] || PLANS.balanced;
+  const lp = leadPrep || prep, plan = PLANS[lp.plan] || PLANS.balanced;
   const summary = h('div', { class: 'psum' },
     h('div', { class: 'pminis' }, ...byRole.map(mini)),
     h('div', { class: 'pplan' },
-      h('div', { class: 'pp' }, h('small', {}, 'Plan'), h('b', {}, plan[0])),
-      h('div', { class: 'pdeck' }, ...prep.deck.map((id) => h('span', { class: 'pdc', title: TACTICS[id].desc }, h('img', { src: icon(TACTICS[id].icon) }), TACTICS[id].name))),
+      h('div', { class: 'pp' }, h('small', {}, lead ? 'Plan' : `Plan (${mate ? mate.name : 'lead'})`), h('b', {}, leadPrep ? plan[0] : 'choosing…')),
+      leadPrep ? h('div', { class: 'pdeck' }, ...lp.deck.map((id) => h('span', { class: 'pdc', title: TACTICS[id].desc }, h('img', { src: icon(TACTICS[id].icon) }), TACTICS[id].name))) : null,
       h('div', { class: 'pclans' }, clans)));
   const editors = adjust ? [
-    sec('Lanes & builds', h('button', { class: 'btn small', onclick: autoSetup, title: 'Counter-builds, plan and deck picked for you' }, 'Auto counter-build'), h('div', { class: 'prep-cards' }, ...byRole.map(card))),
-    sec('Game plan', null, h('div', { class: 'plans' }, ...Object.entries(PLANS).map(([k, [nm, dsc]]) => h('button', { class: 'plan' + (prep.plan === k ? ' on' : ''), onclick: () => { prep.plan = k; audio.sfx('move', 0.4); onChange(); } }, h('b', {}, nm), h('small', {}, dsc))))),
-    sec('Tactic deck', h('span', { class: 'dcount' + (prep.deck.length === 3 ? ' full' : '') }, `${prep.deck.length}/3`),
+    sec(coop ? 'Your heroes: lanes & builds' : 'Lanes & builds', h('button', { class: 'btn small', onclick: autoSetup, title: 'Counter-builds, plan and deck picked for you' }, 'Auto counter-build'), h('div', { class: 'prep-cards' }, ...byRole.filter((hp) => mine.has(hp.id)).map(card))),
+    !lead ? h('div', { class: 'panel psec muted small' }, `${mate ? mate.name : 'Your partner'} leads: they pick the game plan and the tactic deck.`) : null,
+    !lead ? null : sec('Game plan', null, h('div', { class: 'plans' }, ...Object.entries(PLANS).map(([k, [nm, dsc]]) => h('button', { class: 'plan' + (prep.plan === k ? ' on' : ''), onclick: () => { prep.plan = k; audio.sfx('move', 0.4); onChange(); } }, h('b', {}, nm), h('small', {}, dsc))))),
+    !lead ? null : sec('Tactic deck', h('span', { class: 'dcount' + (prep.deck.length === 3 ? ' full' : '') }, `${prep.deck.length}/3`),
       h('div', { class: 'deck' }, ...TACTIC_IDS.map((id) => {
         const t = TACTICS[id], on = prep.deck.includes(id);
         return h('button', { class: 'card' + (on ? ' sel' : ''), onclick: () => { if (on) prep.deck = prep.deck.filter((d) => d !== id); else if (prep.deck.length < 3) prep.deck = [...prep.deck, id]; else prep.deck = [...prep.deck.slice(1), id]; audio.sfx('move', 0.4); onChange(); } },
@@ -149,10 +159,11 @@ export function showPrep(app, prep, enemyIds, left, onChange, onReady, ready) {
   const prevScroll = screen().scrollTop;
   mount(screen(), h('div', { class: 'prep' + (ready ? ' ready' : '') + (adjust ? ' adjusting' : '') },
     h('div', { class: 'phead' },
-      h('div', { class: 'pt' }, h('h2', {}, 'Prep'), h('small', { class: 'muted' }, s.preset ? `Lineup "${s.preset.name}" loaded. Ready, or adjust anything.` : 'Recommended setup loaded. Ready, or adjust anything.')),
+      h('div', { class: 'pt' }, h('h2', {}, 'Prep'), h('small', { class: 'muted' }, coop && mate ? (lead ? `You lead: plan and deck are yours. ${mate.name} sets up their heroes.` : `Set up your heroes. ${mate.name} leads the plan and deck.`)
+        : s.preset ? `Lineup "${s.preset.name}" loaded. Ready, or adjust anything.` : 'Recommended setup loaded. Ready, or adjust anything.')),
       h('div', { class: 'ptimer' }, h('b', { id: 'ptimer' }, String(Math.max(0, Math.ceil(left)))), h('small', {}, 'sec')),
       h('div', { class: 'pbtns' }, h('button', { class: 'btn adjbtn' + (adjust ? ' on' : ''), disabled: ready, onclick: toggleAdjust }, adjust ? 'Done' : 'Adjust'),
-        h('button', { class: 'btn big readybtn', disabled: ready, onclick: onReady }, ready ? 'Waiting...' : 'Ready!'))),
+        h('button', { class: 'btn big readybtn', disabled: ready, onclick: onReady }, ready ? (coop && mate && !matePrep ? `Waiting for ${mate.name}...` : 'Waiting...') : 'Ready!'))),
     h('div', { class: 'enemyrow' }, h('span', { class: 'lab' }, 'Enemy'), ...enemyIds.map((id) => {
       const x = HERO_BY_ID[id]; const mu = matchupScore(x, prep.heroes.map((p) => HERO_BY_ID[p.id]));
       return h('div', { class: 'efoe', title: x.tags.join(', ') }, h('img', { src: face(id) }), h('span', {}, x.name), mu.score > 0 ? h('b', { class: 'threat', title: 'Counters your team' }, `+${mu.score}`) : null);
@@ -186,7 +197,7 @@ export function showResults(app, g, myTeam, onAgain, onMenu, extra = {}) {
     h('td', { class: Math.round(x.dmgHeroes) === Math.round(best('dmgHeroes')) ? 'top' : '' }, Math.round(x.dmgHeroes)), h('td', { class: 'c-gold' }, Math.round(x.goldEarned)), h('td', { class: 'c-build', style: { color: BUILDS[x.build].color } }, BUILDS[x.build].name),
     h('td', { class: 'its c-items' }, ...x.items.map((it) => h('img', { src: icon(it.icon), title: it.name }))));
   const table = (t) => h('div', { class: 'panel rteam t' + t + (t === win ? ' won' : '') },
-    h('div', { class: 'rth' }, h('b', {}, `${TEAM_NAME[t]} · ${app.session.names[t]}`), t === win ? h('span', { class: 'wtag' }, 'WIN') : null,
+    h('div', { class: 'rth' }, h('b', {}, `${TEAM_NAME[t]} · ${app.session.names[t]}`), extra.emotes && extra.emotes[t] ? extra.emotes[t].cloneNode(true) : null, t === win ? h('span', { class: 'wtag' }, 'WIN') : null,
       h('span', { class: 'rstats' }, `${g.teams[t].kills} kills · ${g.teams[t].towers} towers · ${g.teams[t].dragons.length} kami${g.teams[t].soul ? ' + ' + DRAGON_INFO[g.teams[t].soul].name + ' blessing' : ''}`)),
     h('div', { class: 'tblwrap' }, h('table', { class: 'tbl' }, h('tr', {}, ...[['Hero'], ['Role', 'c-role'], ['Lv'], ['KDA'], ['CS'], ['Dmg'], ['Gold', 'c-gold'], ['Build', 'c-build'], ['Items', 'c-items']].map(([c, k]) => h('th', { class: k || '' }, c))), ...g.teams[t].heroes.map(row))));
   const timeout = g.events.find((e) => e.type === 'victory' && e.timeout);
@@ -208,7 +219,7 @@ export function showResults(app, g, myTeam, onAgain, onMenu, extra = {}) {
     h('div', { class: 'grades' }, ...rc.rows.map((r) => h('div', { class: 'grade g' + r.g }, h('b', {}, r.g), h('div', {}, h('span', {}, r.k), h('small', {}, r.d))))),
     h('div', { class: 'tip' }, h('span', {}, 'Tip'), rc.tip)) : null;
   mount(screen(), h('div', { class: 'results' },
-    h('div', { class: 'verdict ' + vcls }, verdict),
+    h('div', { class: 'verdict ' + vcls }, verdict, myTeam >= 0 && extra.emotes && extra.emotes[myTeam] ? extra.emotes[myTeam] : null),
     h('div', { class: 'vsub muted' }, timeout ? `Decided on time: ${timeTiebreak(g)} · ` : '', `Game length ${fmtTime(g.time)}`),
     extra.progress || null,
     potgEl || repEl ? h('div', { class: 'rrow' }, potgEl, repEl) : null,

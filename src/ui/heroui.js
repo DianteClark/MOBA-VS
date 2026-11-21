@@ -1,7 +1,6 @@
 // Small hero widgets shared by the Dojo and the draft: rating bars and the animated sprite.
 import { h } from './dom.js';
-import { IMG, recolor } from '../render/assets.js';
-import { SKINS } from '../data/seasons.js';
+import { skinSheet, skinReady, loadSkinBodies } from '../render/skins.js';
 import { RATING_KEYS, RATING_LABEL, RATING_COLOR, heroRatings } from '../data/herostats.js';
 
 // Rating bars (0-10). `mini` = compact two-column version for the draft side panel.
@@ -14,13 +13,7 @@ export function statBars(id, mini = false) {
 }
 
 // Hero sheets are 4 columns (facing) x 7 rows of 16px frames: rows 0-3 walk, row 4 attack.
-const sheets = {};
-function heroSheet(id, skin) {
-  const base = IMG['hero_' + id]; if (!base) return null;
-  const sk = SKINS[skin]; if (!sk || !sk.recolor) return base;
-  const key = id + ':' + skin;
-  return sheets[key] || (sheets[key] = recolor(base, sk.recolor));
-}
+const heroSheet = skinSheet; // (hero, skin key) → cached sheet; Legendary bodies load on demand
 const FACING_TOUR = [0, 3, 1, 2]; // sheet columns: down, up, left, right
 // Animated sprite on a canvas. Returns the canvas; set `.anim = 'idle' | 'walk' | 'attack'` and `.skin` on it.
 export function heroSprite(id, skin, size = 96, anim = 'walk') {
@@ -47,7 +40,8 @@ export function heroSprite(id, skin, size = 96, anim = 'walk') {
 // Static first frame (cheap: used in lists and skin pickers).
 export function heroStill(id, skin, size = 48) {
   const c = h('canvas', { width: 16, height: 16, class: 'hsprite', style: { width: size + 'px', height: size + 'px' } });
-  const img = heroSheet(id, skin);
-  if (img) { const x = c.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(img, 0, 0, 16, 16, 0, 0, 16, 16); }
+  const draw = () => { const img = heroSheet(id, skin); if (img) { const x = c.getContext('2d'); x.imageSmoothingEnabled = false; x.clearRect(0, 0, 16, 16); x.drawImage(img, 0, 0, 16, 16, 0, 0, 16, 16); } };
+  draw();
+  if (!skinReady(skin)) loadSkinBodies().then(draw);
   return c;
 }

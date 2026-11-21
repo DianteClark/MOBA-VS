@@ -97,6 +97,13 @@ export function ladderPanel(promise) {
   const el = h('div', { class: 'panel ladderres' }, h('span', { class: 'muted' }, 'Reporting the result…'));
   promise.then((r) => {
     if (!r) { el.remove(); return; }
+    if (r.cup) { // Weekend Cup: the bracket screen has the full picture
+      mount(el, r.status === 'decided' ? h('b', { class: r.advanced ? 'gold' : 'muted' }, r.advanced ? 'Cup result confirmed: you advance!' : 'Cup result confirmed. Knocked out this time.')
+        : r.status === 'replay' ? h('span', { class: 'down' }, 'The two games disagreed: check the bracket, the match is replayed once.')
+        : r.status === 'offline' ? h('span', { class: 'muted' }, 'Could not reach the cup server: your result is checked when you open the bracket.')
+        : h('span', { class: 'muted' }, 'Waiting for your opponent’s report. The bracket updates when both games agree.'));
+      return;
+    }
     if (r.casual) { mount(el, h('span', { class: 'muted' }, r.status === 'verified' ? 'Casual match verified: hero stats recorded, no rating change.' : r.status === 'pending' ? 'Casual match: no rating change.' : r.status === 'disputed' ? 'The two games disagreed on the result.' : 'Casual match: no rating change.')); return; }
     if (r.status === 'verified') {
       const me = r.delta ? (r.mySide === 1 ? r.delta.red : r.delta.blue) : null;

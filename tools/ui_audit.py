@@ -8,6 +8,8 @@
 #   all       iphones + desktop
 # MAP=rush in the environment audits a Lane Rush match instead of a classic one.
 # THEATER=1 audits the Replay Theater (a short recorded match played back) instead of a live match.
+# COOP=1 audits a co-op HUD (you run bot side, your partner leads): lead badge, ownership marks, a partner
+# suggestion in the tray and a partner call on the ticker.
 # Safe areas are simulated by overriding the --safe-* CSS variables (Chrome cannot fake the notch).
 import sys, asyncio
 from playwright.async_api import async_playwright
@@ -124,6 +126,17 @@ STATES = [
     ('halftime', "() => { const r = app.match.runner; import('./src/ui/halftime.js').then((m) => m.showHalftime(app, app.match.game, 0, r, { end: performance.now() + 60000 })); }"),
 ]
 
+# Co-op: the same match, seen by the non-lead coach of a shared team (HUD rebuilt with the co-op session)
+COOPIFY = None
+if os.environ.get('COOP') == '1':
+    COOPIFY = """async () => { const m = app.match, s = app.session, g = m.game;
+      s.mode = 'coop'; s.mySeat = 1; s.slot = 1; s.players = [{ slot: 0, name: 'Alexandria', team: 0, seat: 0 }, { slot: 1, name: 'Mia', team: 0, seat: 1 }];
+      s.coop = [{ seats: 2, own: { top: 0, jungle: 0, mid: 0, bot: 1, support: 1 }, lead: 0, coaches: s.players }, null];
+      g.teams[0].coop = { seats: 2, lead: 0, left: [false, false], ai: false }; for (const x of g.teams[0].heroes) x.seat = s.coop[0].own[x.role];
+      const { Hud } = await import('./src/ui/hud.js'); m.hud.destroy(); m.hud = new Hud(app, g, m.runner, app.renderer, app.minimap, 0, 'coop'); }"""
+    BASE = BASE[:-1] + """  H.dock.partnerSuggestion('Alexandria', 0, { type: 'objective', obj: 'dragon' }, 'Take Ember Kami');
+  H.ticker('Alexandria: Group Mid', 'mate s0', 4); H.updateCoop(); }"""
+
 # Replay Theater: record ~40s of a match, then watch it back with the Theater bar
 if os.environ.get('THEATER') == '1':
     SETUP = SETUP[:-1] + "  await new Promise((r) => setTimeout(r, 1500)); app.prepReady(); }"
@@ -166,6 +179,7 @@ async def main():
                 await pg.wait_for_timeout(1500)
                 await pg.evaluate("app.match.runner.speed = 30")
                 await pg.wait_for_timeout(4000)
+                if COOPIFY: await pg.evaluate(COOPIFY)
                 await pg.evaluate("app.match.runner.speed = 0.0001")
             await pg.evaluate(BASE)
             await pg.wait_for_timeout(600)
@@ -177,7 +191,8 @@ async def main():
                 await pg.wait_for_timeout(450)
                 res = await pg.evaluate(JS, [PANELS, OVERLAYS])
                 issues += [f'[{state}] ' + x for x in check(res, w, h)]
-                if OUT and state in ('tray', 'sheet', 'quickchat', 'halftime', 'ring', 'momentcard', 'tip', 'bar', 'follow', 'analysis'):
+                if OUT and COOPIFY and state == 'tray': await pg.screenshot(path=f"{OUT}/ui_coop_{w}x{h}{'_' + name.split()[-1] if name else ''}_tray.png", timeout=20000, animations='disabled')
+                elif OUT and state in ('tray', 'sheet', 'quickchat', 'halftime', 'ring', 'momentcard', 'tip', 'bar', 'follow', 'analysis'):
                     await pg.screenshot(path=f"{OUT}/ui_{w}x{h}{'_' + name.split()[-1] if name else ''}_{state}.png", timeout=20000, animations='disabled')
             issues += [f'JS error: {e}' for e in errs[:3]]
             print(f'{tag}: ' + ('OK' if not issues else f'{len(issues)} issue(s)'), flush=True)

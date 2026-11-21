@@ -2,6 +2,7 @@
 import { h, face, toast } from './dom.js';
 import { HEROES } from '../data/heroes.js';
 import { SKINS } from '../data/seasons.js';
+import { SIG_MASTERY, sigKey } from '../data/skins.js';
 import { profile, titleName } from '../profile.js';
 import { MASTERY_MAX, MASTERY_AT, MASTERY_TITLES, MASTERY_TINTS, MASTERY_PTS, masteryColor, masteryTitleKey } from '../mastery.js';
 import { masteryBadge } from './badges.js';
@@ -18,7 +19,7 @@ export function masteryRow(sum) {
       h('img', { src: face(m.id) }), masteryBadge(m.after, { always: true, cls: 'mini' }),
       h('small', {}, up ? `Mastery ${m.after}!` : `+${m.gain}`),
       bar(m.info.into, masteryColor(m.after)),
-      m.rewards.length ? h('small', { class: 'gold' }, m.rewards.map((r) => (r.kind === 'title' ? 'Title' : 'Tint')).join(' + ')) : null);
+      m.rewards.length ? h('small', { class: 'gold' }, m.rewards.map((r) => (r.kind === 'title' ? 'Title' : r.kind === 'skin' ? 'Skin!' : 'Tint')).join(' + ')) : null);
   }));
 }
 
@@ -28,6 +29,7 @@ function rewardsList(id, lv) {
     const parts = [];
     if (l === 2) parts.push('Mastery badge on draft cards');
     if (MASTERY_TITLES[l]) parts.push(`Title “${titleName(masteryTitleKey(id, l))}”`);
+    if (l === SIG_MASTERY && SKINS[sigKey(id)]) parts.push(`Signature skin “${SKINS[sigKey(id)].name}”`);
     if (MASTERY_TINTS[l]) parts.push(`${SKINS[MASTERY_TINTS[l]].name} tint`);
     if (parts.length) rows.push(h('div', { class: 'mrw' + (lv >= l ? ' got' : '') }, masteryBadge(l, { always: true, cls: 'mini' }), h('span', {}, parts.join(' · '))));
   }
@@ -51,7 +53,7 @@ export function masteryPanel(id) {
 // Profile → Mastery: every hero you have played, best first; tap to equip a mastery title.
 export function masteryTab() {
   const list = HEROES.map((x) => ({ x, m: profile.mastery(x.id) })).filter((o) => o.m.pts > 0).sort((a, b) => b.m.pts - a.m.pts);
-  if (!list.length) return h('p', { class: 'muted center' }, 'Play matches to level up your heroes: every hero you coach earns mastery (1-10), with badges, titles and tints.');
+  if (!list.length) return h('p', { class: 'muted center' }, 'Play matches to level up your heroes: every hero you coach earns mastery (1-10), with badges, titles, tints and its Signature skin at Mastery 5.');
   const total = list.reduce((a, o) => a + o.m.lv, 0);
   return h('div', { class: 'col' },
     h('small', { class: 'muted center' }, `${list.length} heroes played · total mastery ${total}`),

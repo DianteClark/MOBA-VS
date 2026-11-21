@@ -1,7 +1,9 @@
 // Hero Mastery: every hero levels 1-10 from the matches you coach with it.
 // Points per match: played 40, win +60, MVP +30, Play of the Game +50, and +15 for each of your
 // calls that hero answered and that paid off (max 3). Stored in the profile (cloud-saved).
-// Rewards: a mastery badge (draft cards, Dojo), titles at 4 / 7 / 10 and two sprite tints (6, 10).
+// Rewards: a mastery badge (draft cards, Dojo), titles at 4 / 7 / 10, the hero's Signature skin (5) and two sprite tints (6, 10).
+import { HERO_SKINS, SIG_MASTERY, sigKey } from './data/skins.js';
+
 export const MASTERY_MAX = 10;
 // Total points needed to reach each level (index = level).
 export const MASTERY_AT = [0, 0, 100, 250, 450, 700, 1000, 1350, 1750, 2200, 2750];
@@ -28,6 +30,7 @@ export function masteryRewards(id, a, b) {
   for (let l = a + 1; l <= b; l++) {
     if (MASTERY_TITLES[l]) out.push({ kind: 'title', id: masteryTitleKey(id, l), hero: id, lv: l });
     if (MASTERY_TINTS[l]) out.push({ kind: 'tint', id: MASTERY_TINTS[l], hero: id, lv: l });
+    if (l === SIG_MASTERY && HERO_SKINS[sigKey(id)]) out.push({ kind: 'skin', id: sigKey(id), hero: id, lv: l });
   }
   return out;
 }

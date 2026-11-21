@@ -45,6 +45,10 @@ SCREENS = [
     ('profile', 'H.showProfile(app)'),
     ('profile-mastery', "H.showProfile(app, 'mastery')"),
     ('profile-banners', "H.showProfile(app, 'banners')"),
+    ('profile-achievements', "H.showProfile(app, 'achievements')"),
+    ('profile-collection', "H.showProfile(app, 'collection')"),
+    ('profile-emotes', "H.showProfile(app, 'emotes')"),
+    ('profile-borders', "H.showProfile(app, 'borders')"),
     ('home-casual-rush', "app.queueMode = 'casual'; app.mapPref = 'frost'; app.menu()"),
     ('cup', 'H.showCup(app)'),
     ('patch', 'H.showPatch(app)'),
@@ -56,12 +60,15 @@ SCREENS = [
     ('howto', 'S.showHowTo(app)'),
     ('dojo', "D.showDojo(app, { tab: 'heroes', hero: null })"),
     ('dojo-hero', "D.showDojo(app, { tab: 'heroes', hero: 'kaze' })"),
-    ('dojo-lineups', "D.showDojo(app, { tab: 'lineups' })"),
+    ('dojo-skinviewer', "(await import('./src/ui/collection.js')).skinViewer('bastion', null, 'leg_bastion'); await new Promise((r) => setTimeout(r, 400))"),
+    ('dojo-lineups', "document.querySelector('.svmodal')?.remove(); D.showDojo(app, { tab: 'lineups' })"),
     ('dojo-builds', "D.showDojo(app, { tab: 'builds' })"),
     ('lobby-host', "S.showLobby(app, { code: 'KAZEX', status: 'Waiting for opponent…', onCancel: () => app.menu() })"),
     ('lobby-invite', "S.showLobby(app, { code: 'KAZEX', status: 'Waiting for opponent…', onCancel: () => app.menu(), extra: SO.lobbyInvite(app, 'KAZEX', { gameMode: 'classic' }) })"),
     ('lobby-join', "S.showLobby(app, { joining: true, code: '', status: '', onJoin() {}, onCancel: () => app.menu() })"),
-    ('matchmaking', "app.menu(); O.showSearch(app, { elapsed: 12000, limit: 60000, status: 'Searching…', onCancel: () => app.menu() })"),
+    ('coop-lobby-host', "const C = await import('./src/ui/coop.js'); app.session = { mode: 'coop', lobby: true, host: true, slot: 0, room: { code: 'COOPX', kind: '2v2', aiLevel: 1, own: [{ top: 0, jungle: 0, mid: 1, bot: 1, support: 1 }, { top: 0, jungle: 0, mid: 0, bot: 1, support: 1 }], players: [{ slot: 0, name: 'Alexandria', team: 0, seat: 0 }, { slot: 1, name: 'Benedikt', team: 0, seat: 1 }, { slot: 2, name: 'Cy', team: 1, seat: 0 }], status: 'Room open: share the code or invite a friend.' } }; app.session.inviteEl = SO.lobbyInvite(app, 'COOPX', { mode: 'coop' }); C.showCoopLobby(app)"),
+    ('coop-lobby-guest', "const C = await import('./src/ui/coop.js'); app.session = { mode: 'coop', lobby: true, host: false, slot: 1, room: { code: 'COOPX', kind: 'ai', aiLevel: 2, own: [{ top: 0, jungle: 0, mid: 0, bot: 1, support: 1 }, { top: 0, jungle: 0, mid: 0, bot: 1, support: 1 }], players: [{ slot: 0, name: 'Alexandria', team: 0, seat: 0 }, { slot: 1, name: 'Benedikt', team: 0, seat: 1 }], status: '' } }; C.showCoopLobby(app)"),
+    ('matchmaking', "app.session = null; app.menu(); O.showSearch(app, { elapsed: 12000, limit: 60000, status: 'Searching…', onCancel: () => app.menu() })"),
     ('draft', "app.queueMode = 'ranked'; app.mapPref = 'random'; app.startVsAI('classic'); await new Promise((r) => setTimeout(r, 2500))"),
     ('prep', "const m = await import('./src/sim/draft.js'); const s = app.session; while (!s.draft.done) { const t = m.currentTurn(s.draft); m.apply(s.draft, t.team, m.autoChoice(s.draft, t.team, s.rng, 1)); } app.afterDraftAct(); await new Promise((r) => setTimeout(r, 1500))"),
     ('results', "app.prepReady(); await new Promise((r) => setTimeout(r, 1200)); app.match.runner.speed = 40; await new Promise((r) => setTimeout(r, 3000)); const g = app.match.game; g.over = true; g.winner = 0; app.endMatch(true); await new Promise((r) => setTimeout(r, 1500))"),
@@ -72,6 +79,8 @@ SCREENS = [
     ('history', "document.getElementById('anasheet')?.remove(); H.showHistory(app)"),
     ('profile-career', "H.showProfile(app, 'career')"),
     ('public-profile', "app.menu(); await new Promise((r) => setTimeout(r, 300)); await SO.showPlayer(app, (N.getAccount() || { id: 'AAAAAAAAAA' }).id, { name: app.name })"),
+    # co-op results: a vs-AI match recorded as a co-op one (two coaches on blue; the credit panel under the progress)
+    ('results-coop', "for (const e of document.querySelectorAll('.modal')) e.remove(); app.startVsAI('classic'); const m = await import('./src/sim/draft.js'); const s = app.session; while (!s.draft.done) { const t = m.currentTurn(s.draft); m.apply(s.draft, t.team, m.autoChoice(s.draft, t.team, s.rng, 1)); } app.afterDraftAct(); await new Promise((r) => setTimeout(r, 1500)); app.prepReady(); await new Promise((r) => setTimeout(r, 1200)); app.match.runner.speed = 40; await new Promise((r) => setTimeout(r, 2500)); s.mode = 'coop'; s.kind = 'ai'; s.mySeat = 0; s.slot = 0; s.players = [{ slot: 0, name: app.name, team: 0, seat: 0 }, { slot: 1, name: 'Benedikt', team: 0, seat: 1, pid: 'BBBBBBBBBB' }]; s.coop = [{ seats: 2, own: { top: 0, jungle: 0, mid: 0, bot: 1, support: 1 }, lead: 0, coaches: s.players }, null]; s.draft.seats = [[0, 1, 0, 1, 0], []]; s.names = [app.name + ' & Benedikt', 'Normal AI']; const g = app.match.game; g.over = true; g.winner = 0; app.endMatch(true); await new Promise((r) => setTimeout(r, 1800)); document.querySelector('.coopres').scrollIntoView({ block: 'center' })"),
 ]
 CHECK = """([sl, sr]) => {
   const W = innerWidth, sc = document.getElementById('screen');
@@ -80,7 +89,7 @@ CHECK = """([sl, sr]) => {
   if (sc.scrollWidth > sc.clientWidth + 1) out.push(`horizontal overflow ${sc.scrollWidth - sc.clientWidth}px`);
   // the Analysis sheet covers the screen when it is open: audit it instead
   const sheet = document.querySelector('#anasheet .asbody'); if (sheet && sheet.scrollWidth > sheet.clientWidth + 1) out.push(`analysis overflow ${sheet.scrollWidth - sheet.clientWidth}px`);
-  const els = [...document.querySelectorAll(sheet ? '#anasheet button' : '#screen button, #screen input, #screen a, #screen select, .smodal button')].filter(vis);
+  const els = [...document.querySelectorAll(sheet ? '#anasheet button' : '#screen button, #screen input, #screen a, #screen select, .smodal button, .svmodal button')].filter(vis);
   for (const e of els) {
     const r = e.getBoundingClientRect(), name = (e.textContent || e.value || e.className || e.tagName).trim().slice(0, 24);
     if (r.left < sl - 1 || r.right > W - sr + 1) out.push(`outside safe area: ${name} (${Math.round(r.left)}-${Math.round(r.right)})`);

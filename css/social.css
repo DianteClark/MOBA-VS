@@ -50,7 +50,7 @@ button.fname:hover > span { color: var(--gold); }
 .invtxt { display: flex; flex-direction: column; gap: 3px; min-width: 0; max-width: 100%; }
 .invtxt b { font-weight: normal; font-size: 18px; color: var(--gold); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .invtxt span { font-size: 13px; }
-.invmodes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }
+.invmodes { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 8px; }
 .invmodes .btn { display: flex; flex-direction: column; gap: 2px; min-height: 64px; padding: 4px; }
 .invmodes .btn small { font-size: 10px; opacity: 0.85; }
 .invmodes .btn.ranked b { color: #fff1a8; }
