@@ -107,7 +107,7 @@ export const drMult = (tgt) => 1 - Math.min(0.3, tgt.stats.drPct || 0);
 // Hero hurt by hero (after damage): warden guard shields and duo combos.
 export function onHeroHurt(g, src, tgt) {
   const now = g.tick;
-  if (tgt.alive && tgt.hp > 0 && tgt.hp < tgt.maxHp * 0.4) {
+  if (tgt.alive && tgt.hp > 0 && tgt.hp < tgt.maxHp * 0.5) {
     for (const w of g.grid.query(tgt.x, tgt.y, 450)) {
       if (w === tgt || w.type !== 'hero' || !w.alive || w.team !== tgt.team || !(w.stats.guard > 0) || now < (w.guardCd || 0)) continue;
       g.addShield(tgt, w.maxHp * w.stats.guard, 3, w); w.guardCd = now + sec(18);

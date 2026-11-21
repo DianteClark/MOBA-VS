@@ -240,7 +240,7 @@ export const HEROES = [
   { id: 'shiro', clan: 'shinobi', pers: 'calm', name: 'Shiro', title: 'Silent Fang', role: 'jungle', flex: ['mid'], cls: 'assassin', dmgType: 'phys', curve: 'late',
     lore: 'Kaze\'s shadow. Where Kaze is loud, Shiro is a held breath in the dark.',
     tags: ['burst', 'pick', 'scaling'], builds: ['burst', 'pierce', 'haste'],
-    passive: { kind: 'lone', name: 'Isolation', pct: 0.18, desc: 'Deals 18% more damage to heroes with no ally within 500.' },
+    passive: { kind: 'lone', name: 'Isolation', pct: 0.22, desc: 'Deals 22% more damage to heroes with no ally within 500.' },
     abilities: [
       { name: 'Hush Needle', icon: 'Permutation', kind: 'shot', range: 380, speed: 1000, width: 26, cd: 9, dmg: { b: 55, l: 18, ad: 0.7 }, cc: { silence: 1.5 }, use: ['engage', 'poke'], proj: 'p_kunai', fx: 'cut' },
       { name: 'Shadow Pounce', icon: 'Camouflage', kind: 'dash', range: 320, cd: 8, dmg: { b: 70, l: 22, ad: 0.9 }, use: ['engage', 'escape'], fx: 'cutx' },
@@ -335,7 +335,7 @@ export const HEROES = [
     tags: ['poke', 'cc', 'teamfight', 'antiheal'], builds: ['burn', 'haste', 'burst'],
     passive: { kind: 'markAbilities', name: 'Witch Mark', pct: 0.12, dur: 3, desc: 'Ability hits mark enemies: the next hit from any ally deals 12% more damage.' },
     abilities: [
-      { name: 'Hex Bolt', icon: 'OrbDarkness', kind: 'shot', range: 440, speed: 750, width: 30, cd: 6, dmg: { b: 65, l: 22, ap: 0.6 }, cc: { slow: [0.2, 1] }, use: ['poke', 'clear'], proj: 'p_bigenergy', fx: 'spirit' },
+      { name: 'Hex Bolt', icon: 'OrbDarkness', kind: 'shot', range: 440, speed: 750, width: 30, cd: 6, dmg: { b: 72, l: 24, ap: 0.65 }, cc: { slow: [0.2, 1] }, use: ['poke', 'clear'], proj: 'p_bigenergy', fx: 'spirit' },
       { name: 'Wither', icon: 'Downgrade', kind: 'circle', range: 420, radius: 110, delay: 0.5, cd: 12, dmg: { b: 45, l: 15, ap: 0.4 }, cc: { shred: [0.2, 4], grievous: 4 }, use: ['poke', 'engage', 'clear'], fx: 'plant' },
       { name: 'Doom Circle', icon: 'BookDeath', kind: 'circle', range: 500, radius: 220, delay: 0.8, cd: 75, dmg: { b: 150, l: 45, ap: 0.7 }, cc: { fear: 1.0, shred: [0.25, 5] }, use: ['teamfight'], fx: 'explosion', ult: true },
     ] },
@@ -427,7 +427,7 @@ export const HEROES = [
     tags: ['dps', 'scaling', 'teamfight'], builds: ['crit', 'pierce', 'spellblade'], proj: 'p_arrow',
     passive: { kind: 'spellVamp', name: 'Bushido', pct: 0.06, desc: '6% omnivamp.' },
     abilities: [
-      { name: 'Piercing Arrow', icon: 'Cut', kind: 'line', range: 480, width: 36, cd: 7, dmg: { b: 65, l: 22, ad: 1.0 }, use: ['poke', 'clear'], fx: 'spark' },
+      { name: 'Piercing Arrow', icon: 'Cut', kind: 'line', range: 480, width: 36, cd: 6, dmg: { b: 70, l: 24, ad: 1.05 }, use: ['poke', 'clear'], fx: 'spark' },
       { name: 'Steady Stance', icon: 'Vision', kind: 'self', cd: 14, buff: { dur: 4, stats: { range: 30, asPct: 0.25 } }, use: ['engage'], fx: 'aura' },
       { name: 'Hundred Arrows', icon: 'AttackUpgrade', kind: 'self', cd: 70, buff: { dur: 6, stats: { asPct: 0.5, crit: 0.25, msPct: 0.1 } }, use: ['teamfight'], fx: 'boost', ult: true },
     ] },

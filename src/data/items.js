@@ -17,7 +17,7 @@ export const BUILDS = {
     goodAt: 'Picking off squishy mages and marksmen', weakTo: 'Tanks, shields and long fights', bestOn: 'Assassins and burst mages',
     items: [
       { name: 'Ambush Dirk', cost: 1100, icon: 'Cut', stats: { power: 28, pen: 0.1 } },
-      { name: "Executioner's Edge", cost: 2800, icon: 'Death', stats: { power: 45, pen: 0.1, execute: 0.15 } },
+      { name: "Executioner's Edge", cost: 2800, icon: 'Death', stats: { power: 50, pen: 0.1, execute: 0.15 } },
       { name: 'Shadowfang', cost: 2900, icon: 'BookDarkness', stats: { power: 50, haste: 20 } },
       { name: 'Void Lens', cost: 3000, icon: 'OrbDarkness', stats: { power: 60, pen: 0.15 } },
       { name: 'Deathcap', cost: 3400, icon: 'OrbFire', stats: { power: 40, powerMult: 0.2 } },
@@ -136,11 +136,11 @@ export const BUILDS = {
     desc: 'Vision, bodyguard shields and slows on whoever hits your team.',
     goodAt: 'Protecting carries from dive, map vision', weakTo: 'Poke and split-push (needs allies nearby)', bestOn: 'Tanks and engage supports',
     items: [
-      { name: 'Watch Lantern', cost: 700, icon: 'Vision', stats: { hp: 200, regen: 3, sight: 0.15 } },
+      { name: 'Watch Lantern', cost: 700, icon: 'Vision', stats: { hp: 250, armor: 8, mr: 8, regen: 3, sight: 0.15 } },
       { name: 'Bodyguard Charm', cost: 2500, icon: 'DefenseUpgrade', stats: { hp: 300, armor: 30, mr: 20, guard: 0.14 } },
       { name: "Knight's Vow", cost: 2600, icon: 'Counter', stats: { hp: 300, armor: 20, mr: 40, haste: 10, peelSlow: 0.3 } },
-      { name: 'Seer Stone', cost: 2400, icon: 'OrbLight', stats: { power: 30, hp: 250, haste: 15, sight: 0.1, tenacity: 0.15, healPower: 0.1 } },
-      { name: 'Gargoyle Plate', cost: 2900, icon: 'Upgrade', stats: { hp: 400, armor: 35, mr: 35, guard: 0.08 } },
+      { name: 'Seer Stone', cost: 2400, icon: 'OrbLight', stats: { power: 30, hp: 300, haste: 15, sight: 0.1, tenacity: 0.15, healPower: 0.1 } },
+      { name: 'Gargoyle Plate', cost: 2900, icon: 'Upgrade', stats: { hp: 450, armor: 35, mr: 35, guard: 0.08 } },
     ],
   },
 };
