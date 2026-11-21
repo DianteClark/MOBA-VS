@@ -19,6 +19,9 @@ const SPR = {
   grass1: [48, 160, 16, 16], grass2: [112, 160, 16, 16], grass3: [144, 160, 16, 16], reed: [112, 176, 16, 16],
   flowerY: [0, 176, 16, 16], flowerO: [16, 176, 16, 16], clover: [32, 176, 16, 16], flowerR: [48, 176, 16, 16], flowerW: [96, 176, 16, 16],
   bush1: [0, 160, 16, 16], bush2: [16, 160, 16, 16], bush3: [32, 160, 16, 16], pebble: [272, 272, 16, 16], pebble2: [288, 272, 16, 16], pebbleS: [240, 320, 16, 16],
+  fernO: [0, 224, 16, 16], fernB: [16, 224, 16, 16], fernP: [32, 224, 16, 16], fernG: [48, 224, 16, 16], berry1: [64, 224, 16, 16], berry2: [80, 224, 16, 16],
+  mossRock: [96, 224, 16, 16], berryBush: [112, 224, 32, 32], oreRock: [144, 224, 32, 32], stumpS: [64, 128, 16, 16], twig: [64, 144, 16, 16], pumpkin: [144, 128, 16, 16],
+  spikes: [96, 192, 16, 16], blueStone: [112, 192, 16, 16], snowMound: [128, 192, 16, 16], snowball: [144, 192, 16, 16], sprout: [192, 160, 16, 16], leafO: [192, 176, 16, 16],
 };
 
 export const THEMES = {
@@ -28,8 +31,9 @@ export const THEMES = {
     water: pal(['#5fa9c4', '#79b8ce', '#6db3cc']), waterHi: hex('#a6e3ef'), deep: hex('#4a8fb0'), shore: hex('#e7d9a8'),
     base: [pal(['#7d8ea6', '#8394ab', '#7889a1']), pal(['#a88480', '#ad8985', '#a37f7b'])], pit: pal(['#6d6157', '#776a5f', '#827468']), shrine: pal(['#d9c27a', '#e6cf86', '#cbb46c']),
     trees: ['g0', 'pine', 'roots', 'g1', 'g0', 'pine', 'g1', 'pine', 'g0', 'pink'], big: ['tGreen', 'tPine', 'tG2', 'bigGreen', 'tGreen', 'tPine', 'tG2', 'bigPink'],
-    rocks: ['rockGBig', 'rockTriG', 'rockGTall'], tall: ['grass1', 'grass2', 'grass3'], decor: ['flowerY', 'flowerO', 'clover', 'flowerR', 'flowerW', 'bush1', 'bush2', 'bush3', 'pebble'],
-    sky: '#1b2a1a', fog: [10, 18, 30],
+    rocks: ['rockGBig', 'rockTriG', 'rockGTall'], tall: ['grass1', 'grass2', 'grass3'], decor: ['flowerY', 'flowerO', 'clover', 'flowerR', 'flowerW', 'bush1', 'bush2', 'bush3', 'pebble', 'fernG', 'berry1', 'sprout', 'stumpS'],
+    edge: ['berryBush', 'bush1', 'fernG', 'bush2', 'berry2'],
+    sky: '#1b2a1a', fog: [10, 18, 30], wood: ['#9a6a3e', '#b07a48', '#875c35'],
   },
   winter: {
     ground: pal(['#e3eaf2', '#dbe4ee', '#eef3f8', '#d2dde9']), accent: pal(['#f7fafc', '#c9d6e4']), forestFloor: pal(['#9aaec2', '#a3b6c9']),
@@ -37,8 +41,9 @@ export const THEMES = {
     water: pal(['#a9dcef', '#b8e4f2', '#9fd4ea']), waterHi: hex('#e8f8fd'), deep: hex('#86c4dd'), shore: hex('#f2f6fa'),
     base: [pal(['#8a9bb4', '#93a3ba', '#8696ae']), pal(['#b0959a', '#b79ca1', '#aa8f94'])], pit: pal(['#7c8a99', '#8593a2', '#8e9cab']), shrine: pal(['#d6e6f2', '#e4eff7', '#c9dbe9']),
     trees: ['snowpine', 'snowpine2', 'white', 'snowpine', 'pine'], big: ['snowTri', 'snowTri2', 'tWhite', 'bigWhite', 'snowTri'],
-    rocks: ['snowRock', 'blueRock', 'rockTriG'], tall: ['grass2', 'reed', 'grass3'], decor: ['pebbleS', 'pebble2', 'snowRock', 'bush3'],
-    sky: '#1d2733', ice: true, fog: [20, 28, 48],
+    rocks: ['snowRock', 'blueRock', 'rockTriG'], tall: ['grass2', 'reed', 'grass3'], decor: ['pebbleS', 'pebble2', 'snowRock', 'bush3', 'snowMound', 'snowball', 'blueStone', 'spikes'],
+    edge: ['snowMound', 'blueStone', 'snowball', 'bush3'],
+    sky: '#1d2733', ice: true, fog: [20, 28, 48], wood: ['#7d6a5c', '#8e7a6a', '#6c5a4d'],
   },
   marsh: {
     ground: pal(['#3f6b4a', '#46744f', '#3a6345', '#4d7a53']), accent: pal(['#5f8f5e', '#6a9a62', '#557f55']), forestFloor: pal(['#1c3326', '#20392b']),
@@ -46,8 +51,9 @@ export const THEMES = {
     water: pal(['#3d6f78', '#467a83', '#386770']), waterHi: hex('#8fd0c8'), deep: hex('#2c5560'), shore: hex('#7c8a6a'),
     base: [pal(['#6d7f9c', '#7486a2', '#687a96']), pal(['#9a7c86', '#a1838d', '#94767f'])], pit: pal(['#4e4a58', '#575262', '#605b6b']), shrine: pal(['#a9e0d2', '#b8eadc', '#98d2c4']),
     trees: ['roots', 'g1', 'dead', 'pine', 'g0', 'roots'], big: ['tG2', 'deadTri', 'tPine', 'tG2', 'bigGreen'],
-    rocks: ['blueRock', 'rockGBig', 'rockGTall'], tall: ['reed', 'grass2', 'reed', 'grass3'], decor: ['clover', 'bush2', 'pebble2', 'flowerW', 'bush3'],
-    sky: '#0e1620', fog: [6, 10, 22], night: true,
+    rocks: ['blueRock', 'rockGBig', 'rockGTall'], tall: ['reed', 'grass2', 'reed', 'grass3'], decor: ['clover', 'bush2', 'pebble2', 'flowerW', 'bush3', 'fernB', 'fernP', 'mossRock', 'sprout'],
+    edge: ['fernB', 'fernP', 'mossRock', 'bush2', 'spikes'],
+    sky: '#0e1620', fog: [6, 10, 22], night: true, lily: true, wood: ['#5e5448', '#6b6052', '#51483e'],
   },
   autumn: {
     ground: pal(['#b59a3c', '#c4a442', '#a88a34', '#bd9f44']), accent: pal(['#d7b456', '#cfae4f', '#e0bd5c']), forestFloor: pal(['#5e4128', '#664630']),
@@ -55,8 +61,9 @@ export const THEMES = {
     water: pal(['#5e9a8f', '#6aa79a', '#589286']), waterHi: hex('#9fd1c3'), deep: hex('#4a7f74'), shore: hex('#d9b77a'),
     base: [pal(['#8a8f9e', '#9196a5', '#858a99']), pal(['#a9877a', '#b08e80', '#a48275'])], pit: pal(['#6e5546', '#785e4e', '#826756']), shrine: pal(['#e3b866', '#eec574', '#d6aa5a']),
     trees: ['yel', 'dead', 'yel', 'yel', 'dead'], big: ['tYel', 'bigOrange', 'deadTri', 'tYel', 'bigOrange', 'bigOrange'],
-    rocks: ['rockBig', 'rockTri', 'rockTall'], tall: ['grass1', 'grass3', 'reed'], decor: ['pebble', 'pebble2', 'flowerO', 'bush2', 'stump'],
-    sky: '#2a1d14', fog: [26, 16, 10],
+    rocks: ['rockBig', 'rockTri', 'rockTall'], tall: ['grass1', 'grass3', 'reed'], decor: ['pebble', 'pebble2', 'flowerO', 'bush2', 'stump', 'fernO', 'leafO', 'pumpkin', 'twig'],
+    edge: ['oreRock', 'fernO', 'twig', 'pumpkin', 'leafO'],
+    sky: '#2a1d14', fog: [26, 16, 10], wood: ['#8a5a36', '#9b6840', '#76492b'],
   },
 };
 
@@ -85,6 +92,34 @@ export function paintMap(world) {
     return world.walk[cy * N + cx] ? world.type[cy * N + cx] : T_FOREST;
   };
   const b0 = world.baseCenter[0], b1 = world.baseCenter[1];
+  // Bridges: lane cells that cross a (liquid) river get wooden planks laid along the river's flow.
+  // Frozen maps keep the packed-snow lane across the ice.
+  const bridge = new Float32Array(N * N).fill(NaN), rv = th.ice ? [] : world.river || [], rw = world.def.riverW || 60;
+  for (let cy = 0; cy < N; cy++) for (let cx = 0; cx < N; cx++) {
+    const i = cy * N + cx; if (world.type[i] !== T_LANE) continue;
+    const px = cx * C + C / 2, py = cy * C + C / 2;
+    for (let k = 1; k < rv.length; k++) {
+      const a = rv[k - 1], b = rv[k], dx = b.x - a.x, dy = b.y - a.y, l2 = dx * dx + dy * dy || 1;
+      const t = Math.max(0, Math.min(1, ((px - a.x) * dx + (py - a.y) * dy) / l2)), ex = a.x + dx * t - px, ey = a.y + dy * t - py;
+      if (ex * ex + ey * ey <= (rw + 30) ** 2) { bridge[i] = Math.atan2(dy, dx); break; }
+    }
+  }
+  // exact (per pixel) depth into the river: > 0 on the planks, < 0 off them
+  const waterDepth = (px, py) => {
+    let best = 1e9;
+    for (let k = 1; k < rv.length; k++) {
+      const a = rv[k - 1], b = rv[k], dx = b.x - a.x, dy = b.y - a.y, l2 = dx * dx + dy * dy || 1;
+      const t = Math.max(0, Math.min(1, ((px - a.x) * dx + (py - a.y) * dy) / l2)), ex = a.x + dx * t - px, ey = a.y + dy * t - py;
+      best = Math.min(best, ex * ex + ey * ey);
+    }
+    return rw - Math.sqrt(best);
+  };
+  const bridgeAt = (x, y) => {
+    const cx = Math.floor(x / C), cy = Math.floor(y / C); if (cx < 0 || cy < 0 || cx >= N || cy >= N) return NaN;
+    const a = bridge[cy * N + cx]; return a === a && waterDepth(x, y) > -2 ? a : NaN;
+  };
+  const wood = (th.wood || ['#9a6a3e', '#b07a48', '#875c35']).map(hex);
+  const mul = (c, k) => [c[0] * k, c[1] * k, c[2] * k];
   for (let y = 0; y < Wd; y++) for (let x = 0; x < Wd; x++) {
     const px = x * HALF + 1, py = y * HALF + 1;
     const jx = (n2(px / 22, py / 22) - 0.5) * 26, jy = (n1(px / 22 + 9, py / 22) - 0.5) * 26;
@@ -92,11 +127,25 @@ export function paintMap(world) {
     const tc = typeAt(px, py);
     const nz = n1(px / 90, py / 90) * 0.6 + n2(px / 25, py / 25) * 0.4;
     const j = rng.next();
-    let col;
+    let col, onBridge = false;
     switch (t) {
       case T_LANE: {
         const edge = typeAt(px + 14, py) !== T_LANE || typeAt(px - 14, py) !== T_LANE || typeAt(px, py + 14) !== T_LANE || typeAt(px, py - 14) !== T_LANE;
+        const ang = bridgeAt(px, py);
+        if (ang === ang) {
+          onBridge = true; // bridge planks: boards across the lane, dark seams, rails on the edges
+          const along = px * Math.cos(ang) + py * Math.sin(ang), across = -px * Math.sin(ang) + py * Math.cos(ang);
+          const board = Math.floor(across / 10), seam = ((across % 10) + 10) % 10 < 2;
+          const endBeam = waterDepth(px, py) < 4;
+          col = edge ? mul(wood[2], 0.7) : endBeam ? mul(wood[2], 0.62) : seam ? mul(wood[2], 0.75) : wood[(board * 7 + Math.floor(along / 40 + board * 0.5)) & 1 ? 0 : 1];
+          if (!edge && !seam && j < 0.05) col = mul(col, 0.88);
+          break;
+        }
+        // worn centre: lighter where the lane is wide open around this point; pebbles here and there
+        const centre = !edge && typeAt(px + 30, py) === T_LANE && typeAt(px - 30, py) === T_LANE && typeAt(px, py + 30) === T_LANE && typeAt(px, py - 30) === T_LANE;
         col = edge && j < 0.7 ? th.laneEdge : th.lane[Math.floor(nz * 3 + j * 0.9) % th.lane.length];
+        if (centre) col = mul(col, 1.06);
+        if (!edge && j > 0.992) col = mul(col, 1.22); else if (!edge && j < 0.006) col = mul(col, 0.78);
         break;
       }
       case T_PATH: col = th.path[Math.floor(nz * 3 + j * 0.6) % th.path.length]; if (j < 0.03) col = th.pathEdge; break;
@@ -105,6 +154,12 @@ export function paintMap(world) {
         col = shoreNear ? (j < 0.8 ? th.shore : th.water[0]) : (n3(px / 14 + py / 50, py / 14) > 0.8 && j < 0.6 ? th.waterHi : th.water[Math.floor(nz * 3) % 3]);
         if (!shoreNear && j < 0.08) col = th.deep;
         if (th.ice && !shoreNear && ((px * 7 + py * 3) % 97 < 2)) col = th.deep;
+        if (!shoreNear) {
+          // foam just off the shore, deeper colour toward the middle
+          const near2 = typeAt(px + 26, py) !== T_RIVER || typeAt(px - 26, py) !== T_RIVER || typeAt(px, py + 26) !== T_RIVER || typeAt(px, py - 26) !== T_RIVER;
+          if (near2) { if (j < 0.35) col = th.waterHi; }
+          else if (typeAt(px + 44, py) === T_RIVER && typeAt(px - 44, py) === T_RIVER && typeAt(px, py + 44) === T_RIVER && typeAt(px, py - 44) === T_RIVER) col = mul(col, 0.92);
+        }
         break;
       }
       case T_BASE: {
@@ -130,6 +185,11 @@ export function paintMap(world) {
       }
     }
     if (world.brush[world.idx(px, py)] && tc !== T_FOREST) col = col.map((v) => v * 0.8);
+    // soft shade on open ground just south of the forest (canopy shadow), for depth
+    if (t !== T_FOREST && t !== T_RIVER && !(t === T_LANE && onBridge)) {
+      if (typeAt(px, py - 16) === T_FOREST) col = mul(col, 0.8); else if (typeAt(px, py - 30) === T_FOREST) col = mul(col, 0.9);
+    }
+    if (t === T_GRASS && j > 0.985) col = mul(col, 1.14); // grass glints
     const i = (y * Wd + x) * 4; a[i] = col[0]; a[i + 1] = col[1]; a[i + 2] = col[2]; a[i + 3] = 255;
   }
   sctx.putImageData(img, 0, 0);
@@ -177,6 +237,32 @@ export function paintMap(world) {
     const x = rng.range(40, S - 40), y = rng.range(40, S - 40);
     const i = world.idx(x, y); if (!world.walk[i] || world.type[i] !== T_GRASS || world.brush[i]) continue;
     items.push({ x, y, key: th.decor[rng.int(th.decor.length)], s: 2, decor: true });
+  }
+  // forest-edge undergrowth: ferns, berry bushes, stones where open grass meets the trees
+  if (th.edge) for (let cy = 1; cy < N - 1; cy++) for (let cx = 1; cx < N - 1; cx++) {
+    const i = cy * N + cx; if (!world.walk[i] || world.type[i] !== T_GRASS || world.brush[i]) continue;
+    if (world.walk[i - 1] && world.walk[i + 1] && world.walk[i - N] && world.walk[i + N]) continue;
+    if (rng.next() > 0.22) continue;
+    const key = th.edge[rng.int(th.edge.length)], big = SPR[key][2] > 16;
+    items.push({ x: cx * C + rng.range(4, 20), y: cy * C + rng.range(6, 22), key, s: big ? 1.4 : 1.8, decor: !big });
+  }
+  // marsh lily pads (code-drawn, under everything else)
+  if (th.lily) for (let cy = 1; cy < N - 1; cy++) for (let cx = 1; cx < N - 1; cx++) {
+    const i = cy * N + cx; if (world.type[i] !== T_RIVER || world.type[i - 1] !== T_RIVER || world.type[i + 1] !== T_RIVER || world.type[i - N] !== T_RIVER || world.type[i + N] !== T_RIVER || rng.next() > 0.12) continue;
+    const x = cx * C + rng.range(4, 20), y = cy * C + rng.range(4, 20), r = rng.range(5, 9), a = rng.range(0, 6.28);
+    ctx.fillStyle = 'rgba(10,30,30,0.35)'; ctx.beginPath(); ctx.ellipse(x + 1, y + 2, r, r * 0.7, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#4f8f4a'; ctx.beginPath(); ctx.moveTo(x, y); ctx.ellipse(x, y, r, r * 0.7, 0, a + 0.5, a + 6.0); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#6fb35f'; ctx.fillRect(Math.round(x - r * 0.5), Math.round(y - r * 0.3), 3, 2);
+    if (rng.next() < 0.25) { ctx.fillStyle = '#f2a9d0'; ctx.fillRect(Math.round(x - 1), Math.round(y - 2), 3, 3); ctx.fillStyle = '#fff'; ctx.fillRect(Math.round(x), Math.round(y - 1), 1, 1); }
+  }
+  // bridge posts along both rails
+  for (let cy = 1; cy < N - 1; cy++) for (let cx = 1; cx < N - 1; cx++) {
+    const i = cy * N + cx; if (bridge[i] !== bridge[i]) continue;
+    const nb = [i - 1, i + 1, i - N, i + N].find((q) => world.type[q] !== T_LANE); if (nb === undefined || (cx + cy) % 2) continue;
+    const x = cx * C + C / 2 + (nb === i - 1 ? -10 : nb === i + 1 ? 10 : 0), y = cy * C + C / 2 + (nb === i - N ? -10 : nb === i + N ? 10 : 0);
+    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(Math.round(x) - 3, Math.round(y) + 2, 7, 3);
+    ctx.fillStyle = (th.wood || ['#9a6a3e', '#b07a48', '#875c35'])[2]; ctx.fillRect(Math.round(x) - 3, Math.round(y) - 10, 6, 13);
+    ctx.fillStyle = (th.wood || ['#9a6a3e', '#b07a48', '#875c35'])[1]; ctx.fillRect(Math.round(x) - 2, Math.round(y) - 10, 2, 11);
   }
   items.sort((u, v) => u.y - v.y);
   for (const it of items) {

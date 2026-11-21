@@ -11,12 +11,20 @@ export const FX = {
   shield: { frames: 6 }, shield_yellow: { frames: 6 }, aura: { frames: 5 }, boost: { frames: 8 }, spirit: { frames: 5 },
   smoke: { frames: 6 }, smoke_ring: { frames: 8 }, cut: { frames: 4 }, claw: { frames: 4 }, circular: { frames: 4 },
   slash: { frames: 4 }, cutx: { frames: 4 }, impact: { frames: 4, img: 'circular' }, rock: { frames: 10, img: 'rockspike' },
+  // v21 variants (render-only remaps per hero, see vfx.js)
+  pillar: { frames: 6 }, crystal: { frames: 9 }, leafspike: { frames: 7 }, holy: { frames: 6 }, ringw: { frames: 4 },
+  spirit_blue: { frames: 5 }, spirit_double: { frames: 5 }, wave: { frames: 6 }, slash_curved: { frames: 4 }, claw_double: { frames: 4 },
+  slash_double: { frames: 4 }, cut_double: { frames: 5 }, arc: { frames: 6 }, multi: { frames: 9 }, crescent: { frames: 4 },
 };
 export const PROJ = {
   p_fireball: { frames: 4, round: true }, p_energy: { frames: 4, round: true }, p_shuriken: { frames: 2, round: true },
   p_cannon: { frames: 5, round: true }, p_bigenergy: { frames: 4, round: true }, p_plant: { frames: 4 }, p_icespike: { frames: 6 },
   p_arrow: { frames: 1 }, p_kunai: { frames: 1 }, p_bigkunai: { frames: 1 },
+  p_bigshuriken: { frames: 2, round: true }, p_magicstar: { frames: 2, round: true }, p_rock: { frames: 4, round: true },
 };
+// Ambient atlas rows (fx/ambient.png): [y, frame w, frame h, frames]
+export const AMB = { parrot_b: [0, 16, 16, 2], parrot_r: [16, 16, 16, 2], frog: [32, 16, 16, 2], fish: [48, 16, 16, 2], leaf: [64, 12, 7, 6], leafpink: [71, 12, 7, 6],
+  snow: [78, 8, 8, 7], flag_b: [86, 16, 16, 4], flag_r: [102, 16, 16, 4], flower: [118, 16, 16, 4] };
 const UNITS = ['minion_blue_melee', 'minion_blue_caster', 'minion_blue_siege', 'minion_red_melee', 'minion_red_caster', 'minion_red_siege',
   'camp_bluebuff', 'camp_redbuff', 'camp_wolf', 'camp_raptor', 'camp_gromp', 'camp_krug'];
 const BOSS = ['dragon_green_body1', 'dragon_green_body2', 'dragon_green_bodyend', 'dragon_green_head', 'dragon_green_wing',
@@ -48,6 +56,7 @@ export async function loadAssets(onProgress, early = false) {
   for (const f of new Set(Object.keys(FX).map((k) => FX[k].img || k))) rest.push(['fx_' + f, `${BASE}fx/${f}.png`]);
   for (const p of Object.keys(PROJ)) rest.push(['fx_' + p, `${BASE}fx/${p}.png`]);
   rest.push(['shadow', `${BASE}fx/shadow.png`]);
+  rest.push(['ambient', `${BASE}fx/ambient.png`]);
   for (const e of ['ok', 'think', 'doubt', 'up', 'down', 'tilt']) rest.push(['emote_' + e, `${BASE}emote/${e}.png`]);
   let done = 0;
   await Promise.all(crit.map(([k, s]) => load(k, s).then(() => { done++; onProgress && onProgress(done / crit.length); })));
@@ -82,7 +91,7 @@ export function recolor(img, { hue = 0, sat = 1, light = 0 } = {}) {
   x.putImageData(d, 0, 0);
   return c;
 }
-function silhouette(img, color) {
+export function silhouette(img, color) {
   const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
   const x = c.getContext('2d'); x.drawImage(img, 0, 0); x.globalCompositeOperation = 'source-in'; x.fillStyle = color; x.fillRect(0, 0, c.width, c.height);
   return c;
