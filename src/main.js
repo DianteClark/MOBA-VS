@@ -462,6 +462,7 @@ class App {
       this.camCtl = bindCamera(this.renderer, canvas, this.minimap, mmc, {
         onKey: (e) => this.match && this.match.hud.onKey(e),
         onClick: (w, sx, sy) => this.clickWorld(w, sx, sy),
+        onManual: () => this.match && this.match.hud.manualCam(),
       });
       onViewport(() => { if (this.match) { this.renderer.resize(); this.minimap.resize(); } });
     }
@@ -483,7 +484,7 @@ class App {
     runner.onHalftimeEnd = () => hideHalftime();
     if (runner.online) runner.onDesync = (k) => { console.warn('desync at', k); toast('Warning: games out of sync (tick ' + k + ')', 4000); };
     const hud = new Hud(this, game, runner, this.renderer, this.minimap, s.myTeam, s.mode);
-    if (s.mode === 'watch') hud.toggleDirector();
+    hud.toggleDirector(); // the auto-camera follows the action until the player drags, pans or picks a hero
     if (s.potg) {
       const p = s.potg; this.renderer.cam.x = p.x; this.renderer.cam.y = p.y; this.renderer.cam.zoom = Math.max(this.renderer.cam.zoom, short < 600 ? 0.8 : 1.3);
       hud.banner('PLAY OF THE GAME', '#ffd84a', 1600, null, true); hud.banner(p.title.toUpperCase(), TEAM_COL[p.team] || '#ffd84a', 1800);

@@ -38,7 +38,6 @@ export async function recover(code) {
   setAccount({ id: a.id, secret: a.secret, code: a.code });
   return a; // { name, profile, profileAt }
 }
-export function signOut() { setAccount(null); }
 export async function fetchMe() { return account ? call('/api/me', { auth: true }) : null; }
 
 // Cloud save: debounced upload of the whole profile blob (+ coach name).

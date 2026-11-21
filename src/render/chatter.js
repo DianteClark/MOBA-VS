@@ -81,9 +81,10 @@ export class Chatter {
       const pop = tt < 0.18 ? 0.4 + 0.75 * Math.sin(tt / 0.18 * Math.PI * 0.62) / Math.sin(Math.PI * 0.62) : 1;
       const a = k > 0.85 ? (1 - k) / 0.15 : 1;
       const s = r.w2s(p.x, p.y - 64);
+      if (s.x < 0 || s.x > r.W || s.y < 0 || s.y > r.H) continue; // speaker off-screen: no bubble pinned to a corner under the HUD
       const txt = String(b.text).replace(/ /g, ' ');
       const tw = ctx.measureText(txt).width, w = tw + 12 * d, hh = fs + 9 * d;
-      const x = Math.max(w / 2 + 4 * d, Math.min(r.W - w / 2 - 4 * d, s.x)), y = Math.max(hh + 4 * d, s.y - 4 * d * (1 - Math.min(1, tt * 4)));
+      const x = Math.max(w / 2 + 4 * d, Math.min(r.W - w / 2 - 4 * d, s.x)), y = r.dodge(x, Math.max(hh + 4 * d, s.y - 4 * d * (1 - Math.min(1, tt * 4))), w, hh);
       ctx.save(); ctx.globalAlpha = a; ctx.translate(x, y); ctx.scale(pop, pop);
       const bx = -w / 2, by = -hh;
       // shadow, body, team stripe, tail

@@ -28,20 +28,20 @@ export const fpsCap = () => (settings.quality === 'battery' ? 30 : 0);
 function systemReduced() { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { return false; } }
 
 export const settings = { ...DEFAULTS };
-export function loadSettings() {
+function loadSettings() {
   let saved = null;
   try { saved = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch { /* ignore */ }
   Object.assign(settings, DEFAULTS, saved && typeof saved === 'object' ? saved : { reducedMotion: systemReduced() });
   applySettings();
   return settings;
 }
-export function saveSettings() { try { localStorage.setItem(KEY, JSON.stringify(settings)); } catch { /* ignore */ } }
+function saveSettings() { try { localStorage.setItem(KEY, JSON.stringify(settings)); } catch { /* ignore */ } }
 export function setSetting(k, v) { settings[k] = v; saveSettings(); applySettings(); }
 
-export const TEXT_SCALE = { small: 0.88, normal: 1, large: 1.16 };
+const TEXT_SCALE = { small: 0.88, normal: 1, large: 1.16 };
 export function textScale() { return TEXT_SCALE[settings.textSize] || 1; }
 
-export function applySettings() {
+function applySettings() {
   const p = settings.colorblind ? PALETTES.cb : PALETTES.classic;
   TEAM_COL[0] = p.col[0]; TEAM_COL[1] = p.col[1];
   TEAM_DARK[0] = p.dark[0]; TEAM_DARK[1] = p.dark[1];

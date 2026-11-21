@@ -222,7 +222,6 @@ h1, h2, h3 { margin: 0; font-weight: normal; }
 .plan { cursor: pointer; font-family: inherit; color: var(--ink); text-align: left; display: flex; flex-direction: column; gap: 3px; background: #1e1928; border: 2px solid var(--line); border-bottom-width: 4px; padding: 6px 8px; min-height: 60px; }
 .plan b { font-weight: normal; font-size: 13px; } .plan small { font-size: 9px; color: var(--muted); line-height: 1.3; }
 .plan.on { border-color: var(--gold); background: #3a2d18; } .plan.on b { color: var(--gold); }
-.cchips { display: flex; gap: 6px; flex-wrap: wrap; }
 .cchip { --cc: #888; display: flex; flex-direction: column; gap: 1px; border: 2px solid var(--cc); padding: 4px 8px; background: #120f18; opacity: 0.7; }
 .cchip b { font-weight: normal; font-size: 12px; color: var(--cc); } .cchip small { font-size: 9px; color: var(--muted); }
 .cchip.on { opacity: 1; background: color-mix(in srgb, var(--cc) 15%, #120f18); } .cchip.on small { color: var(--ink); }
@@ -467,8 +466,8 @@ canvas.graph { width: 100%; height: 150px; background: #120f18; border: 2px soli
 .sh-row.oni span { color: var(--gold); }
 .chip { cursor: pointer; background: #241d30; border: 2px solid var(--line); color: var(--ink); font-size: 12px; padding: 5px 14px; min-height: 34px; }
 .chip:hover { border-color: var(--gold); }
-.chip, .mapchip, .tile, .call, .tcard, .bopt, .card, .hcard, .skinopt, .titlerow, .bannercard { transition: transform 0.08s, border-color 0.12s, background 0.12s, filter 0.12s; }
-.chip:active, .mapchip:active, .skinopt:active, .titlerow:active, .bannercard:active, .bopt:active, .card:active, .hcard:active { transform: scale(0.96); }
+.chip, .mapchip, .tile, .call, .tcard, .card, .hcard, .skinopt, .titlerow, .bannercard { transition: transform 0.08s, border-color 0.12s, background 0.12s, filter 0.12s; }
+.chip:active, .mapchip:active, .skinopt:active, .titlerow:active, .bannercard:active, .card:active, .hcard:active { transform: scale(0.96); }
 :focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; } .chip.gold { border-color: var(--gold); color: var(--gold); }
 
 /* decision tray: one slot above the calls (coach's calls, hero requests, surge, payoffs, suggestions) */
@@ -586,7 +585,8 @@ canvas.graph { width: 100%; height: 150px; background: #120f18; border: 2px soli
   #cmdbar { left: calc(58px + var(--safe-l)); right: calc(4px + var(--safe-r)); bottom: calc(3px + var(--safe-b)); gap: 4px; }
   #scorebar { padding: 1px 8px; gap: 8px; }
   #scorebar .tw { font-size: 18px; min-width: 20px; }
-  #scorebar .ticon { display: none; }
+  #scorebar .ticon { width: 11px; height: 11px; background-size: 132px 33px; background-position: 0 -11px; } /* small, but the big numbers must read as towers */
+  #scorebar .side.red .ticon { background-position: 0 0; }
   #scorebar .clock { font-size: 14px; }
   #scorebar .mid { min-width: 48px; }
   #scorebar .meta { display: none; }
@@ -726,6 +726,7 @@ canvas.graph { width: 100%; height: 150px; background: #120f18; border: 2px soli
 .alert .arw { position: absolute; left: 50%; top: 50%; width: 0; height: 0; margin: -7px 0 0 -6px; border-left: 12px solid var(--ac, var(--gold)); border-top: 7px solid transparent; border-bottom: 7px solid transparent; transform-origin: 6px 7px; filter: drop-shadow(0 0 2px #000); }
 .alert b { position: absolute; bottom: -3px; right: -4px; font-weight: normal; font-size: 9px; background: #000c; color: #fff; padding: 0 2px; min-width: 0; }
 .alert b:empty { display: none; }
+.alert.fresh { visibility: hidden; } /* measured, not yet placed on the screen edge */
 .alert.fight { --ac: #ff9a3c; } .alert.tower { --ac: #ff3b3b; } .alert.obj { --ac: #c98cff; } .alert.bigfight { --ac: var(--gold); }
 /* fight cam prompt: "FIGHT AT KAMI / tap to watch" */
 .alert.bigfight { width: auto; height: 46px; padding: 0 8px 0 4px; display: flex; gap: 5px; align-items: center; background: rgba(18, 14, 26, 0.94); border: 2px solid var(--gold); box-shadow: 0 3px 0 #000a; }
@@ -1000,10 +1001,9 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 20px; border-radius: 
 #scorebar { flex-wrap: wrap; justify-content: center; cursor: pointer; }
 #scorebar .meta .drag-pips { display: none; }
 #scorebar .markrow { flex: 1 0 100%; display: flex; align-items: center; justify-content: space-between; gap: 6px; min-height: 12px; margin-top: 1px; }
-#scorebar .markrow .kk { display: none; font-size: 10px; color: var(--ink); }
+#scorebar .markrow .kk { display: none; font-size: 11px; color: var(--ink); }
 .omarks { display: flex; gap: 3px; align-items: center; min-width: 30px; }
 .omarks.red { flex-direction: row-reverse; }
-.omarks .om { width: 8px; height: 8px; transform: rotate(45deg); border: 1px solid #000; display: inline-block; }
 .omarks .oms { width: 7px; height: 7px; transform: rotate(45deg); background: currentColor; display: inline-block; }
 .omarks.blue { color: var(--blue); } .omarks.red { color: var(--red); }
 .omarks .omi { display: inline-flex; align-items: center; font-size: 8px; color: var(--ink); }
@@ -1207,7 +1207,7 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 20px; border-radius: 
 }
 /* short landscape screens: compact results footer and draft role tabs that fit without scrolling */
 @media (max-height: 500px) {
-  .rbtns { padding: 4px 0 2px; gap: 6px; } .rbtns .btn.big { min-height: 38px; font-size: 14px; padding: 2px 6px; white-space: nowrap; }
+  .rbtns { padding: 10px 0 2px; gap: 6px; background: linear-gradient(transparent, var(--bg) 9px); } .rbtns .btn.big { min-height: 38px; font-size: 14px; padding: 2px 6px; white-space: nowrap; }
   .rtab small { display: none; } .rtab { padding: 2px 7px; }
 }
 /* narrow landscape phones: the queue toggle gets its own row under "Online" instead of truncating */

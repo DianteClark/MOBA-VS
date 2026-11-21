@@ -1,5 +1,5 @@
 // Front end: home, season pass, profile (banners/titles/borders), Season Cup bracket, patch notes, and post-match progression.
-import { h, mount, face, emptyState } from './dom.js';
+import { h, mount, face, emptyState, fmtTime, MODE_LABEL } from './dom.js';
 import { HERO_BY_ID } from '../data/heroes.js';
 import { MAPS, MAP_BY_ID, RUSH_MAPS } from '../maps/defs.js';
 import { CLANS } from '../sim/constants.js';
@@ -18,14 +18,13 @@ import { mapThumb, showHowTo } from './screens.js';
 import { audio } from '../audio.js';
 import { shareMatch } from './share.js';
 import { showLeaderboard } from './online.js';
-import { fmtTime } from './dom.js';
 import { showSettings } from './settings.js';
 
 const screen = () => document.getElementById('screen');
 const item = (n) => `assets/img/${n}.png`;
 const DIFF = ['Easy', 'Normal', 'Hard'];
 
-export function rankBadge(rk, big) { return tierBadge(rk, big ? 58 : 38, 'rbadge2' + (big ? ' big' : '')); }
+function rankBadge(rk, big) { return tierBadge(rk, big ? 58 : 38, 'rbadge2' + (big ? ' big' : '')); }
 function bar(frac, color) { return h('div', { class: 'pbar' }, h('i', { style: { width: Math.round(Math.max(0, Math.min(1, frac)) * 100) + '%', background: color || 'var(--gold)' } })); }
 function back(app) { return h('button', { class: 'btn backbtn', onclick: () => { audio.sfx('move', 0.5); app.menu(); } }, '‹ Back'); }
 
@@ -224,7 +223,6 @@ export function progressPanel(sum, cupOut) {
 }
 
 // ───────────── match history ─────────────
-const MODE_L = { ai0: 'Easy AI', ai1: 'Normal AI', ai2: 'Hard AI', online: 'Online Ranked', casual: 'Online Casual', rush: 'Lane Rush vs AI', rushOnline: 'Lane Rush Online', cup: 'Cup' };
 export function showHistory(app, open = 0) {
   const list = profile.d.history;
   const coach = { name: app.name, rank: profile.rank.label };
@@ -241,7 +239,7 @@ export function showHistory(app, open = 0) {
       : h('div', { class: 'hist' }, ...list.map((m, i) => h('div', { class: 'hentry' + (m.won ? ' win' : ' loss') + (i === open ? ' open' : '') },
         h('button', { class: 'hrow2', onclick: () => showHistory(app, i === open ? -1 : i) },
           h('b', { class: 'res' }, m.won ? 'WIN' : 'LOSS'),
-          h('div', { class: 'hmeta' }, h('span', {}, `${MODE_L[m.mode] || m.mode}${m.cup ? ' · ' + m.cup : ''} · ${(MAP_BY_ID[m.map] || {}).name || m.map}`), h('small', {}, `${ago(m.t)} · ${fmtTime(m.len)}${m.crystal === false ? ' · on towers' : ''}${m.rpDelta ? ` · ${m.rpDelta > 0 ? '+' : ''}${m.rpDelta} rating` : ''}`)),
+          h('div', { class: 'hmeta' }, h('span', {}, `${MODE_LABEL[m.mode] || m.mode}${m.cup ? ' · ' + m.cup : ''} · ${(MAP_BY_ID[m.map] || {}).name || m.map}`), h('small', {}, `${ago(m.t)} · ${fmtTime(m.len)}${m.crystal === false ? ' · on towers' : ''}${m.rpDelta ? ` · ${m.rpDelta > 0 ? '+' : ''}${m.rpDelta} rating` : ''}`)),
           h('div', { class: 'hfaces' }, ...m.picks[m.side].map((id) => h('img', { src: face(id) }))),
           h('b', { class: 'hk' }, `${m.kills[m.side]}-${m.kills[1 - m.side]}`)),
         i === open ? detail(m) : null)))));

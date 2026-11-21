@@ -3,7 +3,7 @@
 //   · a hand of tactic cards · the decision tray (one slot) · a target sheet · a map ring menu
 //   · the charge + momentum meter (tap it when full for Kami Surge).
 // Everything here is built once and updated in place (no rebuilds while open = no flicker).
-import { h, mount, face, icon, fmtTime, toast, bossFace, kamiNow } from './dom.js';
+import { h, mount, face, icon, fmtTime, toast, bossFace, kamiNow, setText, setCss, setOff } from './dom.js';
 import { BUILDS } from '../data/items.js';
 import { TACTICS } from '../data/tactics.js';
 import { CMD, DRAGON_INFO, TICK_RATE, OBJ_NAME, MOMENTUM } from '../sim/constants.js';
@@ -76,19 +76,19 @@ export class Dock {
   tick() {
     if (this.my < 0) return;
     const g = this.g, team = this.team, c = team.charges;
-    this.pips.forEach((p, i) => { const f = Math.max(0, Math.min(1, c - i)); p.firstChild.style.height = f * 100 + '%'; p.classList.toggle('full', f >= 1); });
+    this.pips.forEach((p, i) => { const f = Math.max(0, Math.min(1, c - i)); setCss(p.firstChild, 'height', Math.round(f * 50) * 2 + '%'); p.classList.toggle('full', f >= 1); });
     const mom = Math.min(1, team.momentum / MOMENTUM.max), surging = team.surgeUntil > g.tick, full = mom >= 1 && !surging;
-    this.momFill.style.setProperty('--m', surging ? Math.max(0, (team.surgeUntil - g.tick) / (MOMENTUM.surgeSec * TICK_RATE)) : mom);
+    setCss(this.momFill, '--m', String(Math.round((surging ? Math.max(0, (team.surgeUntil - g.tick) / (MOMENTUM.surgeSec * TICK_RATE)) : mom) * 100) / 100));
     this.meterEl.classList.toggle('full', full); this.meterEl.classList.toggle('surging', surging);
     const nextIn = full ? 'SURGE!' : surging ? 'Surging' : c >= CMD.maxCharges ? '' : `+1 in ${Math.ceil((1 - (c % 1)) * CMD.regen)}s`;
-    if (this.chargeTxt.textContent !== nextIn) this.chargeTxt.textContent = nextIn;
+    setText(this.chargeTxt, nextIn);
     for (const b of this.callBtns) {
-      b.disabled = !this.afford(CORE_COST[b._id]);
+      setOff(b, !this.afford(CORE_COST[b._id]));
       b.classList.toggle('on', this.sheetId === b._id);
       const rel = this.relevance(b._id);
       b.classList.toggle('hot', rel === 'hot'); b.classList.toggle('danger', rel === 'danger'); b.classList.toggle('dim', rel === 'dim');
     }
-    for (const b of this.cards) { b.disabled = b._d.used; b.classList.toggle('used', b._d.used); b.classList.toggle('on', this.sheetId === 'card:' + b._d.id); }
+    for (const b of this.cards) { setOff(b, b._d.used); b.classList.toggle('used', b._d.used); b.classList.toggle('on', this.sheetId === 'card:' + b._d.id); }
     const left = MOMENT_IDS.filter((k) => !team.moments[k]).length, anyReady = MOMENT_IDS.some((k) => momentReady(g, this.my, k));
     if (this.momentN.textContent !== String(left)) this.momentN.textContent = String(left);
     this.momentBtn.classList.toggle('spent', !left); this.momentBtn.classList.toggle('ready', anyReady); this.momentBtn.classList.toggle('lock', !!left && !anyReady);
@@ -303,8 +303,8 @@ export class Dock {
   // Coach's Call: a decision card with 2-3 concrete options.
   coachCall(m, hooks = {}) {
     return this.tray.push({ key: m.key, prio: PRIO.call, ttl: hooks.ttl || 8000, cls: 'ccall ' + (m.danger ? 'danger' : 'act'),
-      build: (it) => [h('div', { class: 'tc-head' }, h('b', {}, "COACH'S CALL"), h('span', {}, m.title)), h('div', { class: 'tc-text' }, m.text),
-        h('div', { class: 'tc-opts' }, ...m.opts.map((o) => this.choice(o, it, hooks.onPick)))],
+      build: (it) => { const tt = h('span', {}, m.title); if (m.liveTitle) it.upd = () => { const v = m.liveTitle(); if (tt.textContent !== v) tt.textContent = v; };
+        return [h('div', { class: 'tc-head' }, h('b', {}, "COACH'S CALL"), tt), h('div', { class: 'tc-text' }, m.text), h('div', { class: 'tc-opts' }, ...m.opts.map((o) => this.choice(o, it, hooks.onPick)))]; },
       onShow: hooks.onShow, onEnd: hooks.onEnd });
   }
   // A hero asks for the green light: Yes sends the request's command, No costs nothing.

@@ -6,11 +6,11 @@ import { settings, setSetting } from './settings.js';
 import { audio } from '../audio.js';
 
 export const LINES = ['GG', 'Nice call', 'Watch Oni', 'Push now', 'Well played', 'Oops', 'Thanks', 'Hold up'];
-export const EMOTES = ['up', 'ok', 'think', 'doubt', 'down', 'tilt'];
+const EMOTES = ['up', 'ok', 'think', 'doubt', 'down', 'tilt'];
 const SHOW_MS = 3500, GAP_MS = 1500, BURST = 4, BURST_MS = 12000;
 
 // Allows one message per GAP_MS and BURST per BURST_MS (the same rule guards what we receive).
-export class RateLimit {
+class RateLimit {
   constructor() { this.t = []; }
   ok(now = performance.now()) {
     this.t = this.t.filter((x) => now - x < BURST_MS);
@@ -20,7 +20,7 @@ export class RateLimit {
   }
 }
 // A message is only ever an index into LINES or a key from EMOTES: nothing free-form crosses the wire.
-export function validMsg(m) {
+function validMsg(m) {
   return m && m.t === 'qc' && ((Number.isInteger(m.i) && m.i >= 0 && m.i < LINES.length && m.e === undefined) || (m.i === undefined && EMOTES.includes(m.e)));
 }
 

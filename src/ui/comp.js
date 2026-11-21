@@ -5,12 +5,11 @@ import { h, face } from './dom.js';
 import { HERO_BY_ID } from '../data/heroes.js';
 
 let SYN = null;
-export const synergyLoaded = import('../data/synergy.js').then((m) => { SYN = m; return m; }).catch(() => null);
-export const hasSynergy = () => !!SYN;
+const synergyLoaded = import('../data/synergy.js').then((m) => { SYN = m; return m; }).catch(() => null);
 
 const known = (id) => !!HERO_BY_ID[id];
 // Normalised comp state for a (partial) team: { id, name, color, count, need, active, bonus, desc }
-export function compState(ids) {
+function compState(ids) {
   if (!SYN || !SYN.compOf || !ids.length) return null;
   let c; try { c = SYN.compOf(ids.filter(known)); } catch { return null; }
   if (Array.isArray(c)) c = c[0];
@@ -21,10 +20,10 @@ export function compState(ids) {
 }
 // Duos with both heroes on the roster.
 function allDuos() { return SYN && Array.isArray(SYN.DUOS) ? SYN.DUOS.filter((d) => known(d.a) && known(d.b)) : []; }
-export function duosFor(id) { return allDuos().filter((d) => d.a === id || d.b === id).map((d) => ({ ...d, partner: d.a === id ? d.b : d.a })); }
-export function activeDuos(ids) { const s = new Set(ids); return allDuos().filter((d) => s.has(d.a) && s.has(d.b)); }
+function duosFor(id) { return allDuos().filter((d) => d.a === id || d.b === id).map((d) => ({ ...d, partner: d.a === id ? d.b : d.a })); }
+function activeDuos(ids) { const s = new Set(ids); return allDuos().filter((d) => s.has(d.a) && s.has(d.b)); }
 // Duos still possible: one hero picked, partner not taken (for the "+1 for a duo" hint).
-export function openDuos(ids, takenSet) { const s = new Set(ids); return allDuos().filter((d) => (s.has(d.a) !== s.has(d.b)) && !takenSet.has(s.has(d.a) ? d.b : d.a)); }
+function openDuos(ids, takenSet) { const s = new Set(ids); return allDuos().filter((d) => (s.has(d.a) !== s.has(d.b)) && !takenSet.has(s.has(d.a) ? d.b : d.a)); }
 const comboText = (d) => (SYN && SYN.COMBO_TEXT && SYN.COMBO_TEXT[d.combo]) || '';
 
 // Draft header: archetype + progress bar, then active duos (gold) and one open duo (purple).

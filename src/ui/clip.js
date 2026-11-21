@@ -29,7 +29,7 @@ function overlay(ctx, potg, k, names) {
   const col = TEAM_COL[potg.team] || '#ffd84a';
   ctx.fillStyle = 'rgba(0,0,0,0.62)'; ctx.fillRect(0, 0, W, 30);
   ctx.fillStyle = col; ctx.fillRect(0, 30, W * k, 3);
-  ctx.font = '12px PixelFont, monospace'; ctx.textBaseline = 'middle';
+  ctx.font = '12px PixelFont, monospace'; ctx.textBaseline = 'middle'; ctx.textAlign = 'left'; // the renderer leaves it centred
   ctx.fillStyle = '#ffd84a'; ctx.fillText('PLAY OF THE GAME', 10, 15);
   ctx.fillStyle = '#f3ead8'; ctx.fillText(potg.title.toUpperCase(), 22 + ctx.measureText('PLAY OF THE GAME').width, 15);
   ctx.textAlign = 'right'; ctx.fillStyle = '#a99fb3'; ctx.fillText(`${names[0]} vs ${names[1]} · ${potg.at}`, W - 10, 15); ctx.textAlign = 'left';
