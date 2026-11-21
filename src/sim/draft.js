@@ -89,11 +89,35 @@ export function aiPrep(ids, enemyIds) {
   const p = defaultPrep(ids);
   const enemy = enemyIds.map((id) => HERO_BY_ID[id]);
   for (const h of p.heroes) h.build = chooseBuild(HERO_BY_ID[h.id], enemy).id;
-  const early = ids.filter((id) => HERO_BY_ID[id].curve === 'early').length, late = ids.filter((id) => HERO_BY_ID[id].curve === 'late').length;
-  p.plan = early >= 2 ? 'aggressive' : late >= 3 ? 'scaling' : 'balanced';
-  // tactic deck that fits the plan
-  p.deck = p.plan === 'aggressive' ? ['rally', 'ambush', 'smoke'] : p.plan === 'scaling' ? ['fortify', 'wind', 'pact'] : ['rally', 'wind', 'pact'];
+  p.plan = recommendPlan(ids, enemyIds).id;
+  p.deck = PLAN_DECK[p.plan].slice();
   return p;
+}
+// A tactic deck that fits each game plan.
+export const PLAN_DECK = { aggro: ['rally', 'ambush', 'smoke'], scale: ['fortify', 'wind', 'pact'], objective: ['eyes', 'pact', 'smoke'], split: ['siege', 'fortify', 'rally'], protect: ['barrier', 'wind', 'rally'] };
+
+// Recommended game plan for a comp vs the enemy comp: { id, why, scores }. Pure + deterministic.
+// Reads hero curves (early/late), tags and classes on both sides; the reason names what drove the pick.
+export function recommendPlan(ids, enemyIds) {
+  const mine = ids.map((id) => HERO_BY_ID[id]).filter(Boolean), foe = (enemyIds || []).map((id) => HERO_BY_ID[id]).filter(Boolean);
+  const n = (list, f) => list.filter(f).length, tag = (t) => (x) => x.tags.includes(t);
+  const early = n(mine, (x) => x.curve === 'early' || x.tags.includes('early')), late = n(mine, (x) => x.curve === 'late') + n(mine, tag('scaling')) * 0.5;
+  const fEarly = n(foe, (x) => x.curve === 'early' || x.tags.includes('early')), fLate = n(foe, (x) => x.curve === 'late') + n(foe, tag('scaling')) * 0.5;
+  const fDive = n(foe, tag('dive')) + n(foe, tag('pick')) * 0.5 + n(foe, (x) => x.cls === 'assassin') * 0.5;
+  const peel = n(mine, tag('peel')) + n(mine, tag('shield')) * 0.5 + n(mine, tag('heal')) * 0.5;
+  const carry = Math.max(0, ...mine.filter((x) => x.cls === 'marksman' || x.cls === 'mage').map((x) => (x.curve === 'late' ? 2 : 1) + (x.tags.includes('scaling') ? 1 : 0)));
+  const split = n(mine, tag('split')) + n(mine, tag('siege')) * 0.8, fFight = n(foe, tag('teamfight')) + n(foe, tag('engage')) * 0.5;
+  const fight = n(mine, tag('teamfight')) * 0.6 + n(mine, tag('cc')) * 0.4 + n(mine, tag('engage')) * 0.4 + n(mine, tag('vision'));
+  const sc = {
+    aggro: [early * 1.1 + n(mine, tag('dive')) * 0.5 + n(mine, tag('burst')) * 0.3 + fLate * 0.5 - late * 0.4 - 0.3, fLate >= 2 ? 'Punish their late-game picks before they come online' : 'Your early picks win fights before 8:00'],
+    scale: [late * 1.0 + n(mine, tag('sustain')) * 0.2 - fEarly * 0.6 + 0.2, fEarly === 0 ? 'They have no early threat: farm up and out-scale' : 'Your comp peaks late'],
+    objective: [fight * 0.8 + 0.55 + (fLate >= 2 && early < 2 ? 0.3 : 0), 'Teamfight and control: win the fights at Kami and Kraken'],
+    split: [split * 1.0 + 0.45 + n(mine, (x) => x.cls === 'bruiser') * 0.25 - n(foe, tag('split')) * 0.3 + fFight * 0.25, fFight >= 3 ? 'Avoid their teamfight: pressure the side lanes' : 'Your side laners take towers alone'],
+    protect: [carry * 0.6 + peel * 0.45 + fDive * 0.3 - 0.45, fDive >= 2 ? 'They dive: peel for your carry' : 'One hero carries late: keep them alive'],
+  };
+  let id = 'objective', bs = -Infinity;
+  for (const k of Object.keys(sc)) if (sc[k][0] > bs) { bs = sc[k][0]; id = k; }
+  return { id, why: sc[id][1], scores: Object.fromEntries(Object.entries(sc).map(([k, v]) => [k, Math.round(v[0] * 10) / 10])) };
 }
 
 // Draft synergy: picking a duo partner or pushing toward a team-comp archetype.

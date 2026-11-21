@@ -14,6 +14,7 @@ import { Coach } from './coach.js';
 import * as FX from './effects.js';
 import { rulesFor } from './modes.js';
 import { applyMoment } from './moments-coach.js';
+import { normPlan, planChangeOk } from './plans.js';
 
 // Champion-vs-champion damage scale: keeps fights readable and lanes from snowballing at level 1.
 const STEER_K = +(globalThis.process?.env?.SK || 0.45);
@@ -76,7 +77,7 @@ export class Game {
     this.lastSeen = [{}, {}];
     this.callLog = [];
     this.teams = [0, 1].map((t) => ({
-      id: t, plan: cfg.teams[t].plan || 'balanced', name: cfg.teams[t].name || (t === 0 ? 'Blue' : 'Red'),
+      id: t, plan: normPlan(cfg.teams[t].plan), name: cfg.teams[t].name || (t === 0 ? 'Blue' : 'Red'),
       charges: 1, kills: 0, towers: 0, dragons: [], soul: null, heraldEye: 0, baronUntil: 0, elderUntil: 0,
       focus: null, call: null, heroes: [], goldHistory: [], invadeCamp: null,
       deck: (cfg.teams[t].deck || DEFAULT_DECK).slice(0, 3).map((id) => ({ id, used: false })), siegeWaves: {}, siegeUntil: 0, fortifyUntil: 0, pactUntil: 0, swapUntil: 0,
@@ -113,7 +114,7 @@ export class Game {
     }
     FX.setupSynergy(this); // team comp bonus joins the clan stats; duo links
     for (let t = 0; t < 2; t++) for (const h of this.teams[t].heroes) { this.recalc(h); h.hp = h.maxHp; }
-    for (let t = 0; t < 2; t++) if (cfg.coach && cfg.coach[t]) this.coaches[t] = new Coach(this, t, cfg.coachLevel?.[t] ?? 1);
+    for (let t = 0; t < 2; t++) if (cfg.coach && cfg.coach[t]) this.coaches[t] = new Coach(this, t, cfg.coachLevel?.[t] ?? 1, cfg.coachStyle?.[t] || null);
   }
 
   get time() { return this.tick * DT; }
@@ -496,7 +497,12 @@ export class Game {
         for (const h of alive) this.fx.push({ kind: 'emote', id: h.id, e: c.mode === 'go' ? 'up' : 'ok' });
         break;
       }
-      case 'plan': if (!['balanced', 'aggressive', 'scaling'].includes(c.plan)) { ok = false; break; } team.plan = c.plan; break;
+      case 'plan': { // halftime only (the halftime window); the last pick in the window stands
+        if (!planChangeOk(this, team, c.plan) || c.plan === team.plan) { ok = false; break; }
+        if (!team.planFrom) team.planFrom = team.plan;
+        team.plan = c.plan; team.planAt = this.tick; this.emit({ type: 'plan', team: c.team, plan: c.plan, from: team.planFrom });
+        break;
+      }
       case 'redraw': {
         // Halftime only: swap one unused tactic card for another not in the deck.
         const ht = this.halftimeTick, now = this.tick;

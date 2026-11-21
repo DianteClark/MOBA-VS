@@ -11,6 +11,7 @@ function run(name, cfg, seconds, calls) {
   let extra = 0;
   while (g1.time < seconds && !g1.over) {
     if (g1.tick % 400 === 7) r1.send(calls[k++ % calls.length]);
+    if (g1.tick === g1.halftimeTick + 2) r1.send({ type: 'plan', plan: g1.teams[0].plan === 'split' ? 'protect' : 'split' }); // the one halftime plan change
     if (g1.tick % 100 === 3) {
       const me = g1.teams[0];
       if (me.momentum >= 100) { r1.send({ type: 'surge' }); extra++; }
@@ -23,12 +24,15 @@ function run(name, cfg, seconds, calls) {
   const g2 = new Game(JSON.parse(JSON.stringify(cfg))), r2 = new LocalRunner(g2, -1, { noHalftime: true, script: log });
   while (g2.tick < g1.tick && !g2.over) r2.update(0.05);
   console.log(`[${name}] commands ${log.reduce((a, b) => a + b[1].length, 0)} (${extra} surge/permit), applied permits ${g1.callLog.filter((c) => c.type === 'permit').length}, surges ${g1.events.filter((e) => e.type === 'surge' && e.team === 0).length}, moments ${g1.events.filter((e) => e.type === 'moment').length}, ticks ${g1.tick}`);
-  const ok = g1.tick === g2.tick && g1.checksum() === g2.checksum();
+  const plans = g1.events.filter((e) => e.type === 'plan');
+  if (g1.halftimeTick > 0 && g1.tick > g1.halftimeTick + 10) console.log(`[${name}] plans ${g1.cfg.teams.map((t) => t.plan).join(' vs ')}; halftime change: ${plans.map((e) => `T${e.team} ${e.from}→${e.plan}`).join(', ') || 'NONE'}`);
+  const ok = g1.tick === g2.tick && g1.checksum() === g2.checksum() && (g1.halftimeTick < 0 || g1.tick < g1.halftimeTick + 10 || plans.some((e) => e.team === 0)) && g2.teams.every((t, i) => t.plan === g1.teams[i].plan);
   console.log(`[${name}] ` + (ok ? 'replay matches' : 'replay DIVERGED'));
   return ok;
 }
-const okC = run('classic', { seed: 4242, map: 'frost', coach: [false, true], teams }, 600,
-  [{ type: 'gank', lane: 'mid' }, { type: 'group', lane: 'bot' }, { type: 'objective', obj: 'dragon' }, { type: 'moment', id: 'rally' }, { type: 'ult', mode: 'go' }, { type: 'safe' }, { type: 'plan', plan: 'aggressive' }, { type: 'moment', id: 'timeout' }]);
+// (Red is a rival-style coach: Coach Moments early, a backup plan for halftime.)
+const okC = run('classic', { seed: 4242, map: 'frost', coach: [false, true], coachStyle: [null, { moment: 'early', backup: 'protect' }], teams }, 600,
+  [{ type: 'gank', lane: 'mid' }, { type: 'group', lane: 'bot' }, { type: 'objective', obj: 'dragon' }, { type: 'moment', id: 'rally' }, { type: 'ult', mode: 'go' }, { type: 'safe' }, { type: 'plan', plan: 'aggro' }, { type: 'moment', id: 'timeout' }]);
 const okR = run('rush', { seed: 4243, map: 'rush_sakura', mode: 'rush', coach: [false, true], teams }, 480,
   [{ type: 'moment', id: 'rally' }, { type: 'group', lane: 'mid' }, { type: 'objective', obj: 'dragon' }, { type: 'moment', id: 'push' }, { type: 'ult', mode: 'go' }, { type: 'objective', obj: 'baron' }, { type: 'moment', id: 'timeout' }]);
 console.log(okC && okR ? 'REPLAY MATCHES ✔' : 'REPLAY DIVERGED ✘');

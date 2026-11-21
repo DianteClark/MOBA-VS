@@ -3,6 +3,8 @@
 //   node tools/balance.mjs --from a.jsonl[,b.jsonl] [--json out.json]   (re-aggregate saved games)
 //   --duos P    in a share P of games (default 0.5) one random cross-role duo is put on a random team, so
 //               every duo gets measured (reported with its members' overall win rates for comparison)
+//   --plans     give every game a pair of different game plans (src/sim/plans.js), cycling evenly through all
+//               20 ordered pairs, and report per-plan win rates (overall, by side) and the plan-vs-plan matrix
 //   --nudge K   also move each hero's TUNE multiplier toward 50% (delta = (0.5 - shrunk win rate) * K,
 //               max ±6% per pass, clamp 0.8-1.2) and rewrite src/data/tuning.js (same format as tune.mjs)
 // Each game draws heroes from shuffled per-role decks so every hero gets the same number of games.
@@ -36,10 +38,12 @@ if (!isMainThread) {
       if (workerData.smart) return aiPrep(ids, other);
       const p = defaultPrep(ids); p.heroes.forEach((x, k) => { x.build = builds[k]; }); return p;
     };
-    const g = new Game({ seed: job.seed, map: MAPS[job.seed % 4], coach: [true, true], teams: [prep(ida, idb, job.builds[0]), prep(idb, ida, job.builds[1])] });
+    const teams = [prep(ida, idb, job.builds[0]), prep(idb, ida, job.builds[1])];
+    if (job.plans) teams.forEach((t, k) => { t.plan = job.plans[k]; });
+    const g = new Game({ seed: job.seed, map: MAPS[job.seed % 4], coach: [true, true], teams });
     while (!g.over) { g.step([]); g.fx.length = 0; }
     const ev = {}; for (const e of g.events) if (e.type === 'duo' || e.type === 'comp' || e.type === 'reset') ev[e.type] = (ev[e.type] || 0) + 1;
-    const out = { seed: job.seed, winner: g.winner, min: g.time / 60, timeout: g.events.some((e) => e.type === 'victory' && e.timeout), ev,
+    const out = { seed: job.seed, winner: g.winner, plans: g.teams.map((t) => g.cfg.teams[t.id].plan || 'balanced'), half: g.events.filter((e) => e.type === 'plan').map((e) => [e.team, e.plan]), min: g.time / 60, timeout: g.events.some((e) => e.type === 'victory' && e.timeout), ev,
       teams: g.teams.map((t) => ({ comp: t.comp && t.comp.active ? t.comp.id : null, heroes: t.heroes.map((h) => ({ id: h.heroId, role: h.role, build: h.build, k: h.kills, d: h.deaths, a: h.assists, dmg: h.dmgHeroes, taken: h.dmgTaken, healed: h.healed, gold: h.goldEarned, bh: h._bh || 0, ab: h._ab || [[0, 0], [0, 0], [0, 0]] })) })) };
     parentPort.postMessage(out);
   }
@@ -84,7 +88,9 @@ if (!isMainThread) {
       if (!other.includes(d.a) && !other.includes(d.b)) for (const id of [d.a, d.b]) mine[ROLES.indexOf(HERO_BY_ID[id].role)] = id;
     }
     const pb = (ids) => ids.map((id) => { const bl = HERO_BY_ID[id].builds; return bl[rng.int(bl.length)]; });
-    jobs.push({ seed: seed0 + i, teams: [a, b], builds: [pb(a), pb(b)] });
+    const job = { seed: seed0 + i, teams: [a, b], builds: [pb(a), pb(b)] };
+    if (flag('plans')) { const P = ['aggro', 'scale', 'objective', 'split', 'protect'], pairs = []; for (const x of P) for (const y of P) if (x !== y) pairs.push([x, y]); job.plans = pairs[i % pairs.length]; }
+    jobs.push(job);
   }
   const results = [];
   const t0 = Date.now(), log = opt('log', null), from = opt('from', null);
@@ -138,6 +144,27 @@ if (!isMainThread) {
   console.log(`Duos: all ${pct(dw, dg)}% of ${dg} (their heroes ${(100 * dx / (dg || 1)).toFixed(0)}%) · ${duoRows.join(' · ')}`);
   const over = rangeRows.filter((r) => r.max > cap);
   console.log(`\nRange sanity: hero attack range cap ${cap} (towers ${RANGE.tower}). Would exceed without cap: ${over.map((r) => `${r.id} ${r.max}`).join(', ') || 'none'}`);
+  // game plans: overall, by side, the matrix (row plan's win% vs column plan), halftime switches
+  if (results.some((r) => r.plans && r.plans[0] !== r.plans[1])) {
+    const P = {}, M = {}, sw = {};
+    for (const r of results) {
+      const [a, b] = r.plans; if (a === b) continue;
+      for (let t = 0; t < 2; t++) {
+        const me = r.plans[t], op = r.plans[1 - t], w = r.winner === t ? 1 : 0;
+        const s = P[me] || (P[me] = { g: 0, w: 0, side: [[0, 0], [0, 0]], min: 0 }); s.g++; s.w += w; s.side[t][0]++; s.side[t][1] += w; s.min += r.min;
+        const m = (M[me] || (M[me] = {}))[op] || (M[me][op] = { g: 0, w: 0 }); m.g++; m.w += w;
+      }
+      for (const [t, p] of r.half || []) { const k = r.plans[t] + '>' + p; sw[k] = (sw[k] || 0) + 1; }
+    }
+    const ids = Object.keys(P).sort();
+    const se = (s) => (100 * Math.sqrt(0.25 / s.g)).toFixed(1);
+    console.log('\nGame plans   games  win%  (±1se)  as Blue  as Red  avg min');
+    for (const k of ids) { const s = P[k]; console.log(`${k.padEnd(11)} ${String(s.g).padStart(6)}  ${pct(s.w, s.g).padStart(4)}  ±${se(s).padStart(4)}   ${pct(s.side[0][1], s.side[0][0]).padStart(5)}   ${pct(s.side[1][1], s.side[1][0]).padStart(5)}   ${(s.min / s.g).toFixed(1)}`); }
+    console.log('Matrix (row win% vs column, games):');
+    console.log(''.padEnd(11) + ids.map((k) => k.slice(0, 9).padStart(11)).join(''));
+    for (const a of ids) console.log(a.padEnd(11) + ids.map((b) => (a === b ? '-' : M[a][b] ? `${pct(M[a][b].w, M[a][b].g)}% ${M[a][b].g}` : '').padStart(11)).join(''));
+    if (Object.keys(sw).length) console.log('Halftime switches:', Object.entries(sw).map(([k, v]) => `${k} ${v}`).join(' · '));
+  }
   const out = opt('json', null);
   if (out) writeFileSync(out, JSON.stringify({ n, blue, len, timeouts, ev, H, B: Object.fromEntries(Object.entries(B).map(([k, v]) => [k, { g: v.g, w: v.w, heroes: [...v.heroes] }])), HB, C, D, rangeRows, cap }, null, 1));
   const K = +opt('nudge', 0);
