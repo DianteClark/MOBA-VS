@@ -45,6 +45,10 @@ SCREENS = [
     ('profile', 'H.showProfile(app)'),
     ('profile-mastery', "H.showProfile(app, 'mastery')"),
     ('profile-banners', "H.showProfile(app, 'banners')"),
+    ('profile-achievements', "H.showProfile(app, 'achievements')"),
+    ('profile-collection', "H.showProfile(app, 'collection')"),
+    ('profile-emotes', "H.showProfile(app, 'emotes')"),
+    ('profile-borders', "H.showProfile(app, 'borders')"),
     ('home-casual-rush', "app.queueMode = 'casual'; app.mapPref = 'frost'; app.menu()"),
     ('cup', 'H.showCup(app)'),
     ('patch', 'H.showPatch(app)'),
@@ -56,7 +60,8 @@ SCREENS = [
     ('howto', 'S.showHowTo(app)'),
     ('dojo', "D.showDojo(app, { tab: 'heroes', hero: null })"),
     ('dojo-hero', "D.showDojo(app, { tab: 'heroes', hero: 'kaze' })"),
-    ('dojo-lineups', "D.showDojo(app, { tab: 'lineups' })"),
+    ('dojo-skinviewer', "(await import('./src/ui/collection.js')).skinViewer('bastion', null, 'leg_bastion'); await new Promise((r) => setTimeout(r, 400))"),
+    ('dojo-lineups', "document.querySelector('.svmodal')?.remove(); D.showDojo(app, { tab: 'lineups' })"),
     ('dojo-builds', "D.showDojo(app, { tab: 'builds' })"),
     ('lobby-host', "S.showLobby(app, { code: 'KAZEX', status: 'Waiting for opponent…', onCancel: () => app.menu() })"),
     ('lobby-invite', "S.showLobby(app, { code: 'KAZEX', status: 'Waiting for opponent…', onCancel: () => app.menu(), extra: SO.lobbyInvite(app, 'KAZEX', { gameMode: 'classic' }) })"),
@@ -80,7 +85,7 @@ CHECK = """([sl, sr]) => {
   if (sc.scrollWidth > sc.clientWidth + 1) out.push(`horizontal overflow ${sc.scrollWidth - sc.clientWidth}px`);
   // the Analysis sheet covers the screen when it is open: audit it instead
   const sheet = document.querySelector('#anasheet .asbody'); if (sheet && sheet.scrollWidth > sheet.clientWidth + 1) out.push(`analysis overflow ${sheet.scrollWidth - sheet.clientWidth}px`);
-  const els = [...document.querySelectorAll(sheet ? '#anasheet button' : '#screen button, #screen input, #screen a, #screen select, .smodal button')].filter(vis);
+  const els = [...document.querySelectorAll(sheet ? '#anasheet button' : '#screen button, #screen input, #screen a, #screen select, .smodal button, .svmodal button')].filter(vis);
   for (const e of els) {
     const r = e.getBoundingClientRect(), name = (e.textContent || e.value || e.className || e.tagName).trim().slice(0, 24);
     if (r.left < sl - 1 || r.right > W - sr + 1) out.push(`outside safe area: ${name} (${Math.round(r.left)}-${Math.round(r.right)})`);

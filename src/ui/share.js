@@ -5,11 +5,18 @@ import { MAP_BY_ID } from '../maps/defs.js';
 import { mapThumb } from './screens.js';
 import { toast, fmtTime, MODE_LABEL } from './dom.js';
 import { createShare, shareUrl } from '../net/online.js';
+import { skinFace, loadSkinBodies, loadFace } from '../render/skins.js';
+import { EMOTES, BORDERS, emoteSrc } from '../data/cosmetics.js';
 
 const BLUE = '#4aa3ff', RED = '#ff5a5a', GOLD = '#ffd84a', INK = '#f3ead8', MUTED = '#a99fb3';
 
+const loadImg = (src) => new Promise((res) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = src; });
 export async function drawShareCard(m, coach) {
   try { await document.fonts.load('32px PixelFont'); } catch { /* fallback font */ }
+  // cosmetics: skinned portraits, the signature emote and the coach border (coach.border)
+  const mine = ((m.picks && m.picks[m.side]) || []).filter((id) => HERO_BY_ID[id]);
+  await Promise.all([loadSkinBodies(), ...mine.map(loadFace)]);
+  const emote = m.emote && EMOTES[m.emote] ? await loadImg(emoteSrc(m.emote)) : null, bd = coach.border && BORDERS[coach.border];
   const W = 1200, H = 630, c = document.createElement('canvas'); c.width = W; c.height = H;
   const x = c.getContext('2d'); x.imageSmoothingEnabled = false;
   const me = m.side, them = 1 - me, won = m.won;
@@ -20,6 +27,7 @@ export async function drawShareCard(m, coach) {
   x.fillStyle = gl; x.fillRect(0, 0, W, H);
   x.fillStyle = 'rgba(10,8,14,0.55)'; x.fillRect(0, H - 250, W, 250);
   x.strokeStyle = won ? GOLD : '#7a3a3a'; x.lineWidth = 8; x.strokeRect(4, 4, W - 8, H - 8);
+  if (bd) { x.strokeStyle = bd.c1; x.lineWidth = 6; x.strokeRect(14, 14, W - 28, H - 28); x.strokeStyle = bd.c2; x.lineWidth = 3; x.strokeRect(19, 19, W - 38, H - 38); }
   const T = (s, px, py, size, col, align = 'left', shadow = true) => {
     x.font = `${size}px PixelFont, monospace`; x.textAlign = align; x.textBaseline = 'alphabetic';
     const str = String(s).replace(/ /g, ' ');
@@ -40,6 +48,7 @@ export async function drawShareCard(m, coach) {
   T(`${m.towers[me]} towers standing`, 800, 236, 18, MUTED, 'center');
   // coach line
   T(coach.name, 40, 300, 30, INK);
+  if (emote) { x.font = '30px PixelFont, monospace'; const nw = x.measureText(String(coach.name)).width; x.drawImage(emote, 40 + nw + 14, 268, 42, 39); }
   T(`${m.rank || coach.rank}${m.rpDelta ? `  ${m.rpDelta > 0 ? '+' : ''}${m.rpDelta} rating` : ''}${m.calls ? `  ·  ${m.calls} calls paid off` : ''}`, 40, 334, 20, GOLD);
   if (m.potg) T(`POTG: ${m.potg}`, 40, 368, 20, '#ffe3a3');
   // your five heroes
@@ -49,7 +58,7 @@ export async function drawShareCard(m, coach) {
     const px = x0 + i * (sz + gap), mvp = m.mvp && m.mvp.id === id && m.mvp.team === me;
     x.fillStyle = '#1e1928'; x.fillRect(px - 6, y0 - 6, sz + 12, sz + 12);
     x.strokeStyle = mvp ? GOLD : me === 0 ? BLUE : RED; x.lineWidth = mvp ? 6 : 3; x.strokeRect(px - 6, y0 - 6, sz + 12, sz + 12);
-    const img = IMG['face_' + id]; if (img) x.drawImage(img, px, y0, sz, sz);
+    const img = (m.sk && m.sk[id] && skinFace(id, m.sk[id])) || IMG['face_' + id]; if (img) x.drawImage(img, px, y0, sz, sz);
     if (mvp) { x.fillStyle = GOLD; x.fillRect(px + sz / 2 - 34, y0 - 22, 68, 26); T('MVP', px + sz / 2, y0 - 2, 20, '#2a1608', 'center', false); }
     T((HERO_BY_ID[id] || { name: id }).name, px + sz / 2, y0 + sz + 34, 20, INK, 'center');
     const k = kda[i]; if (k) T(`${k[0]}/${k[1]}/${k[2]}`, px + sz / 2, y0 + sz + 62, 22, GOLD, 'center');

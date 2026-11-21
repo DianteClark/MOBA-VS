@@ -1,6 +1,6 @@
 // Canvas renderer: interpolated sprites, FX, fog of war, floating combat text.
-import { IMG, VAR, FX, flashOf, recolor } from './assets.js';
-import { SKINS } from '../data/seasons.js';
+import { IMG, VAR, FX, flashOf } from './assets.js';
+import { skinSheet } from './skins.js';
 import { paintMap, THEMES } from './mapgen.js';
 import { S as MAP_SIZE, N as GN } from '../sim/world.js';
 import { TICK_RATE, DRAGON_INFO, OBJ_NAME, T as TIMERS } from '../sim/constants.js';
@@ -134,13 +134,8 @@ export class Renderer {
     this.cam.y = Math.max(Math.min(hh, MAP_SIZE / 2), Math.min(MAP_SIZE - Math.min(hh, MAP_SIZE / 2), this.cam.y));
   }
 
-  heroImg(u) {
-    const base = IMG['hero_' + u.heroId]; if (!base) return null;
-    const sk = this.skins && this.skins[u.team] && this.skins[u.team][u.heroId];
-    if (!sk || !SKINS[sk] || !SKINS[sk].recolor) return base;
-    const k = 'skin_' + u.heroId + '_' + sk;
-    return VAR[k] || (VAR[k] = recolor(base, SKINS[sk].recolor));
-  }
+  // Cosmetic skin per team (session metadata, never the sim): src/render/skins.js validates the key for the hero.
+  heroImg(u) { return skinSheet(u.heroId, this.skins && this.skins[u.team] && this.skins[u.team][u.heroId]); }
   snapshot() { this.prev.clear(); for (const u of this.game.units) if (u.alive && !u.structure) this.prev.set(u.id, { x: u.x, y: u.y }); this.vfx.snapshot(this.game); }
   visible(u) {
     if (!this.fogOn || this.viewTeam < 0) return true;
@@ -655,7 +650,7 @@ export class Renderer {
     for (const c of this.corpses) {
       const u = c.u, k = (this.time - c.born) / c.dur, sy = 1 - 0.55 * k * k, sx = 1 + 0.25 * k;
       ctx.globalAlpha = 1 - k;
-      if (u.type === 'hero') { const img = this.heroImg(u); if (img) this.drawSheetFrame(k < 0.2 ? flashOf('hero_' + u.heroId, img) : img, 16, 16, u.facing, 5, c.x, c.y + 4, 2.2, false, sx, sy); }
+      if (u.type === 'hero') { const img = this.heroImg(u); if (img) this.drawSheetFrame(k < 0.2 ? flashOf(img._fk || 'hero_' + u.heroId, img) : img, 16, 16, u.facing, 5, c.x, c.y + 4, 2.2, false, sx, sy); }
       else if (u.type === 'minion') { const key = `minion_${u.team ? 'red' : 'blue'}_${u.kind === 'super' ? 'siege' : u.kind}`, img = IMG[key]; if (img) this.drawSheetFrame(k < 0.3 ? flashOf(key, img) : img, 16, 16, u.facing, 0, c.x, c.y + 3, u.kind === 'super' ? 2.4 : u.kind === 'siege' ? 1.9 : 1.5, false, sx, sy); }
       else if (u.type === 'mob') { const img = IMG[u.kind]; if (img) this.drawSheetFrame(k < 0.3 ? flashOf(u.kind, img) : img, 16, 16, u.facing, 0, c.x, c.y + 3, u.big ? 2.6 : 1.7, false, sx, sy); }
       else if (u.type === 'objective' && u.kind !== 'dragon') { ctx.save(); ctx.translate(c.x, c.y); ctx.scale(sx, sy); ctx.translate(-c.x, -c.y); this.drawBoss(u, c.x, c.y, k < 0.3, false); ctx.restore(); }
@@ -699,7 +694,7 @@ export class Renderer {
       const dashing = u.dash && !u.dash.pulled;
       let row = attacking ? 4 : d.moving ? walkF : 0, col = u.facing;
       if (dashing) row = 5; else if (casting && !d.moving) { row = 6; col = 1; }
-      const src = flashing ? flashOf('hero_' + u.heroId, img) : img;
+      const src = flashing ? flashOf(img._fk || 'hero_' + u.heroId, img) : img;
       if (u.recallAt) { ctx.strokeStyle = '#7fe0ff'; ctx.lineWidth = 2; const p = 1 - (u.recallAt - g.tick) / (4 * TICK_RATE); ctx.beginPath(); ctx.arc(x, y - 12, 22, -Math.PI / 2, -Math.PI / 2 + p * Math.PI * 2); ctx.stroke(); }
       const hidden = u.stealthUntil > g.tick || g.world.inBrush(u.x, u.y);
       let a = hidden ? 0.55 : 1;
