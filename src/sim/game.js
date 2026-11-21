@@ -1557,8 +1557,11 @@ export class Game {
       const f = this.world.fountain[t];
       for (const u of this.grid.query(f.x, f.y, 300)) {
         if (!u.alive) continue;
-        if (u.team !== t && dist2(u, f) > 190 * 190) continue;
-        if (u.team === t && u.type === 'hero') { if (u.hp < u.maxHp) u.hp = Math.min(u.maxHp, u.hp + u.maxHp * 0.15 * DT); if (this.tick % 10 === 0) this.buyItems(u); }
+        const inner = dist2(u, f) <= 190 * 190;
+        if (u.team !== t && !inner) continue;
+        // the healing platform is the inner circle only: the Crystal (226-269px from the fountain) sits
+        // outside it, so defenders at their Crystal no longer regenerate 15% HP per second
+        if (u.team === t && u.type === 'hero') { if (inner && u.hp < u.maxHp) u.hp = Math.min(u.maxHp, u.hp + u.maxHp * 0.15 * DT); if (this.tick % 10 === 0) this.buyItems(u); }
         else if (u.team === 1 - t && (u.type === 'hero' || u.type === 'minion' || u.type === 'summon')) this.dealDamage(null, u, 900 * DT, 'true', {});
       }
     }

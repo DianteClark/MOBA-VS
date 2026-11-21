@@ -384,7 +384,7 @@ export function heroThink(g, h) {
       return;
     }
     if (threats.length && combat(g, h, C, true)) return;
-    if (task.kind === 'heal') { h.why = 'heal at base'; return; }
+    if (task.kind === 'heal') { h.why = 'heal at base'; const f = g.world.fountain[h.team]; if (dist2(h, f) > 150 * 150) g.moveToward(h, f); else h.vx = h.vy = 0; return; }
     h.why = 'walk home: enemies near'; g.moveToward(h, g.world.fountain[h.team]); return;
   }
   if (combat(g, h, C, false)) return;

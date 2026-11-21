@@ -23,9 +23,10 @@ async function play(ids) {
   const { HEROES, ROLES } = await import('../src/data/heroes.js');
   const { Rng } = await import('../src/sim/rng.js');
   const { aiPrep } = await import('../src/sim/draft.js');
-  // pacing experiments: --pace='{"rampPer":240}' merges into this mode's pace rules (also --final, --T)
+  // pacing experiments: --pace='{"rampPer":240}' merges into this mode's pace rules (also --final, --T, --rules)
   const { rulesFor } = await import('../src/sim/modes.js'), R = rulesFor(MODE);
   for (const [k, o] of [['pace', R.pace], ['final', R.final], ['T', R.T]]) { const v = flag(k, null); if (v) Object.assign(o, JSON.parse(v)); }
+  if (flag('rules', null)) Object.assign(R, JSON.parse(flag('rules', null)));
   const rows = [];
   for (const id of ids) {
     const i = SWAP ? id >> 1 : id, flip = SWAP && (id & 1);
@@ -85,8 +86,8 @@ if (process.env.SIDE_WORKER) {
     const first = (k) => { const S = R.filter((r) => r.first[k] !== undefined); return S.length ? `${pct(S.filter((r) => r.first[k] === 0).length, S.length)} (${S.length})` : '-'; };
     const lost = (t) => ['top', 'mid', 'bot', 'base'].map((l) => l + ' ' + avg((r) => r.lost[t][l] || 0).toFixed(2)).join(' ');
     console.log(`${name}: ${R.length} games | blue wins ${pct(blue, done.length)}${MINS ? '' : ` | Crystal ${pct(cr.length, R.length)} | Crystal 12-15 ${pct(cr12.length, R.length)} | median end ${em[em.length >> 1].toFixed(2)} min | ends <10 min ${pct(R.filter((r) => r.crystal && r.min < 10).length, R.length)}`}`);
-    const TO = R.filter((r) => r.lo);
-    if (TO.length && !MINS) console.log(`   clock games: trailing side still had ${(TO.reduce((s, r) => s + r.lo.towers, 0) / TO.length).toFixed(1)} towers, ${(TO.reduce((s, r) => s + r.lo.inhibs, 0) / TO.length).toFixed(1)} inhibs, Crystal ${(100 * TO.reduce((s, r) => s + r.lo.nexus, 0) / TO.length).toFixed(0)}% HP | Crystal end minutes: ${[8, 10, 11, 12, 13, 14, 15].map((m, i, A) => `<${m} ${R.filter((r) => r.crystal && r.min < m && (i === 0 || r.min >= A[i - 1])).length}`).join(' ')}`);
+    const TO = R.filter((r) => r.lo), B = MODE === 'rush' ? [5, 6, 7, 8] : [8, 10, 11, 12, 13, 14, 15];
+    if (TO.length && !MINS) console.log(`   clock games: trailing side still had ${(TO.reduce((s, r) => s + r.lo.towers, 0) / TO.length).toFixed(1)} towers, ${(TO.reduce((s, r) => s + r.lo.inhibs, 0) / TO.length).toFixed(1)} inhibs, Crystal ${(100 * TO.reduce((s, r) => s + r.lo.nexus, 0) / TO.length).toFixed(0)}% HP | Crystal end minutes: ${(MODE === 'rush' ? [5, 6, 7, 8] : [8, 10, 11, 12, 13, 14, 15]).map((m, i, A) => `<${m} ${R.filter((r) => r.crystal && r.min < m && (i === 0 || r.min >= A[i - 1])).length}`).join(' ')}`);
     console.log(`   blue-red @5: gold ${at(5, 'gold')} kills ${at(5, 'kills')} towers ${at(5, 'towers')} | @10: gold ${at(10, 'gold')} kills ${at(10, 'kills')} towers ${at(10, 'towers')} | end: gold ${(avg((r) => r.end[0].gold - r.end[1].gold)).toFixed(0)}`);
     console.log(`   blue first: tower ${first('tower')} dragon ${first('dragon')} herald ${first('herald')} baron ${first('baron')} | towers lost blue: ${lost(0)} | red: ${lost(1)}`);
   };
