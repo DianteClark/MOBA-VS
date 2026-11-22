@@ -609,7 +609,7 @@ export class Hud {
           break;
         }
         case 'pivot': if (e.team === this.view) this.ticker(`${this.name(e.hero)} will now build ${BUILDS[e.build].name}`, 'n', 0); break;
-        case 'trust': if (e.team === this.view && this.my >= 0) { const x = g.byId(e.hero); this.ticker(e.tier === 2 ? `${x.def.name} is Inspired by your calls!` : e.tier === 0 ? `${x.def.name} is losing faith in your calls` : `${x.def.name} trusts you again`, e.tier === 0 ? 'danger' : 'n', 1); } break;
+        case 'trust': if (e.team === this.view && this.my >= 0) { const x = g.byId(e.hero); this.ticker(e.tier === 2 ? `${x.def.name} is Inspired by your calls!` : e.tier === 0 ? `${x.def.name} is losing faith in your calls` : `${x.def.name} trusts you again`, e.tier === 0 ? 'danger' : 'n', e.tier === 0 ? 1 : 0); } break;
         case 'tactic': if (e.team === this.view || this.my < 0) { this.banner(TACTICS[e.card].name.toUpperCase(), TEAM_COL[e.team], 1500); } break;
         case 'finalPhase': this.banner('LAST STAND', '#ff8a3a', 2200, null); this.ticker(`Final ${Math.round(g.timeLeft / 60)} minutes: gold ×1.5, longer respawns. Every tower counts!`, 'act', 3); break;
         case 'stolenCamp': if (e.big && e.team !== this.view) this.ticker('Enemy invaded your jungle!', 'danger', 2); break;
@@ -751,11 +751,18 @@ export class Hud {
       if (s.shrine) this.stats.shrineOpen++;
       this.dock.suggest(s.key, s.text, s.label, s.cmd, { cls: s.cls, valid: s.valid, topic: s.target ? 'pick:' + s.target.id : undefined });
     }
+    // missing laners: one line for everyone who just went missing (their portraits say MIA too), at most every 20s
+    const gone = [];
     for (const e of enemy) {
       if (!e.alive || e.role === 'jungle' || vis.has(e.id)) { this.missing[e.id] = 0; continue; }
       const ls = g.lastSeen[me][e.id]; if (!ls) continue;
-      const gone = (now - ls.t) / TICK_RATE;
-      if (gone > 8 && gone < 30 && g.time > 100 && !this.missing[e.id]) { this.missing[e.id] = 1; this.ticker(`${e.def.name} is missing!`, 'danger', 2); }
+      const s = (now - ls.t) / TICK_RATE;
+      if (s > 8 && s < 30 && g.time > 100 && !this.missing[e.id]) gone.push(e);
+    }
+    if (gone.length && ready('missing', 20)) {
+      for (const e of gone) this.missing[e.id] = 1;
+      const from = (e) => { const ls = g.lastSeen[me][e.id], l = g.world.closestLane(ls); return g.world.distToLane(l, ls) < 400 && LANE_L[l] ? ` from ${LANE_L[l]}` : ''; };
+      this.ticker(gone.length === 1 ? `${gone[0].def.name} is missing${from(gone[0])}` : `${gone.length} missing: ${gone.slice(0, 3).map((e) => e.def.name).join(', ')}`, 'danger', 2);
     }
   }
   // Coach's Call moments and hero requests (rate-limited; never around halftime or with a sheet open).

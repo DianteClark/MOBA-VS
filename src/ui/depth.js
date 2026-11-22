@@ -31,7 +31,7 @@ export class Depth {
       }
       case 'ultUp': {
         const x = g.byId(e.hero); if (!x) break;
-        if (x.team === this.my) hud.ticker(`${x.def.name}'s ultimate is EMPOWERED (${e.why === 'streak' ? 'kill streak' : 'objective'})`, 'act', 1);
+        if (x.team === this.my) hud.ticker(`${x.def.name}'s ultimate is EMPOWERED (${e.why === 'streak' ? 'kill streak' : 'objective'})`, 'act', 0); // (its portrait's ult dot glows too)
         else if (this.my < 0) hud.ticker(`${x.def.name}'s ultimate is empowered`, x.team === 0 ? 'b' : 'r', 0);
         break;
       }

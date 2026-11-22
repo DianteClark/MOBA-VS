@@ -91,11 +91,12 @@ INSTR = r"""async (passive) => {
   if (H.depth) { const sf = H.depth.showForecast.bind(H.depth); H.depth.showForecast = (f) => { sf(f); const r = L.log.filter((x) => x.home === 'tray' && x.act === 'req').pop(); if (r) { r.at = { x: Math.round(f.at.x), y: Math.round(f.at.y) }; r.kind = 'forecast'; r.place = placeName(g, f.at, H.my); } }; }
   // ── edge alerts ──
   const live = new Map();
+  // (diffed on the prompts that really exist after each sync: lingering and re-keyed prompts count once)
   const sy = A.sync.bind(A); A.sync = (list) => {
-    const keys = new Set(list.map((a) => a.key));
-    for (const a of list) if (!live.has(a.key)) live.set(a.key, rec({ home: 'edge', act: 'show', key: a.key, kind: a.kind, text: a.label, at: { x: Math.round(a.x), y: Math.round(a.y) }, place: placeName(g, a, H.my) }));
-    for (const [k, r] of live) if (!keys.has(k)) { rec({ home: 'edge', act: 'end', key: k, kind: r.kind, ms: Math.round(now() - r.w) }); live.delete(k); }
-    return sy(list); };
+    const res = sy(list);
+    for (const [k, it] of A.items) if (!live.has(k)) live.set(k, rec({ home: 'edge', act: 'show', key: k, kind: it.kind, text: it.label, at: { x: Math.round(it.x), y: Math.round(it.y) }, place: placeName(g, it, H.my) }));
+    for (const [k, r] of live) if (!A.items.has(k)) { rec({ home: 'edge', act: 'end', key: k, kind: r.kind, ms: Math.round(now() - r.w) }); live.delete(k); }
+    return res; };
   // ── kill feed, toasts, chatter ──
   const kf = H.killfeed.bind(H); H.killfeed = (k, v, a) => { rec({ home: 'feed', act: 'show', text: (k ? k.def.name : 'Tower') + ' > ' + v.def.name, topic: evTopic() }); return kf(k, v, a); };
   new MutationObserver((ms) => { for (const m of ms) for (const n of m.addedNodes) if (n.classList && n.classList.contains('toast')) rec({ home: 'toast', act: 'show', text: n.textContent }); }).observe(document.body, { childList: true });
