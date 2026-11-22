@@ -17,7 +17,7 @@ import { dist2 } from './geom.js';
 
 export const ULT_UP = { streak: 3, dmg: 1.25, area: 1.15, cc: 1.2, heal: 1.25, objR: 1000 }; // objR: heroes this close to the boss when it falls
 export const REVENGE = { dur: 90, dmg: 0.08, gold: 60 };
-export const DUO_ULT = { window: 2, range: 900, cd: 60, burstR: 340, burstPct: 0.07, allyR: 450 };
+const DUO_ULT = { window: 2, range: 900, cd: 60, burstR: 340, burstPct: 0.07, allyR: 450 };
 export const DUO_ULT_TEXT = {
   burst: 'Duo ult: 7% max HP true damage + slow around them',
   shield: 'Duo ult: allies nearby get a 12% max HP shield',

@@ -22,7 +22,7 @@ export const TALENT_LEVELS = [4, 8, 12];
 export const TALENT_WINDOW = 6; // seconds after the level-up in which a coach may swap the pick
 
 const pct = (v) => Math.round(v * 100) + '%';
-export const TEMPLATES = {
+const TEMPLATES = {
   // ── ability modifiers (need a slot) ──
   dmg: { name: (a) => `Honed ${a}`, text: (a, r) => `${a} deals +${pct(r ? 0.15 : 0.18)} damage.`, ab: (r) => ({ dmg: r ? 1.15 : 1.18 }), tags: [] },
   cd: { name: (a) => `Swift ${a}`, text: (a, r) => `${a} cooldown -${pct(r ? 0.2 : 0.18)}.`, ab: (r) => ({ cd: r ? 0.8 : 0.82 }), tags: [] },
@@ -142,7 +142,7 @@ export function parseTalent(key) {
   return tpl ? { key, tpl, slot } : null;
 }
 // Display info for one talent of a hero: { key, name, text, icon, tags, slot }.
-export function talentInfo(heroId, key) {
+function talentInfo(heroId, key) {
   const def = HERO_BY_ID[heroId], t = parseTalent(key); if (!def || !t) return null;
   const ab = t.slot >= 0 ? def.abilities[t.slot] : null, an = ab ? ab.name : '', ult = !!(ab && ab.ult);
   return { key, slot: t.slot, name: t.tpl.name(an), text: t.tpl.text(an, ult), icon: ab ? ab.icon : TALENT_ICON[key] || 'LuckUpgrade', tags: t.tpl.tags };

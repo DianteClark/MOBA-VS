@@ -706,11 +706,11 @@ export class Renderer {
       let a = hidden ? 0.55 : 1;
       const st = this.spawnT.get(u.id);
       if (st !== undefined) { const k = (this.time - st) / 0.45; if (k >= 1) this.spawnT.delete(u.id); else { a *= k; if (this.motion) { sy *= 1 + 0.4 * (1 - k); sx *= 1 - 0.25 * (1 - k); } } }
+      if (u.ultUp) drawUltUp(this, u, x, y); // v23: empowered ultimate tell, under the sprite
       if (dashing && this.motion) this.vfx.afterimage(u, x, y + 4 - lift, col, row, 2.2);
       ctx.globalAlpha = a;
       this.drawSheetFrame(src, 16, 16, col, row, x, y + 4 - lift, 2.2, false, sx, sy);
       ctx.globalAlpha = 1;
-      if (u.ultUp) drawUltUp(this, u, x, y - lift);
       if (u.stunUntil > g.tick) this.drawStars(x, y - 40 - lift);
       if (u.shields.length) { ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y - 14, 20, 0, Math.PI * 2); ctx.stroke(); }
       if (u.burns.length && Math.random() < 0.15) this.fxSprite('flame', x + (Math.random() - 0.5) * 16, y - 10, 0.5);

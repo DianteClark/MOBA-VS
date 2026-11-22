@@ -27,6 +27,5 @@ const BY = new Map();
 for (const [a, b, ab, ba] of FEUDS) { BY.set(a + '>' + b, ab); BY.set(b + '>' + a, ba); }
 // The killer's line, or null when the two have no history.
 export const feudLine = (killerId, victimId) => BY.get(killerId + '>' + victimId) || null;
-export const hasFeud = (a, b) => BY.has(a + '>' + b);
 // Display list for the Dojo hero page: [{ id, line }] rivals of this hero.
 export const feudsOf = (id) => FEUDS.filter((f) => f[0] === id || f[1] === id).map((f) => (f[0] === id ? { id: f[1], line: f[2] } : { id: f[0], line: f[3] }));

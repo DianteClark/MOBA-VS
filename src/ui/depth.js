@@ -9,7 +9,7 @@ import { TEAM_COL } from '../render/renderer.js';
 import { audio } from '../audio.js';
 import { forecastFight } from './forecast.js';
 
-export const PRIO_TALENT = 35, PRIO_FORECAST = 45; // tray order: call 50 > forecast > request 40 > talent > surge 30
+const PRIO_TALENT = 35, PRIO_FORECAST = 45; // tray order: call 50 > forecast > request 40 > talent > surge 30
 const PROMPT_MS = 5000;
 
 export class Depth {

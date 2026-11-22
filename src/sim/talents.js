@@ -29,7 +29,7 @@ function ccScale(cc, k) {
   for (const q of ['shred', 'mark']) if (c[q]) c[q] = [c[q][0], c[q][1] * k];
   return c;
 }
-export function modAbility(ab, m, slot) {
+function modAbility(ab, m, slot) {
   const a = { ...ab, slot };
   if (m.dmg && a.dmg) a.dmg = scale(a.dmg, m.dmg, DMG_KEYS);
   if (m.cd) a.cd *= m.cd;
