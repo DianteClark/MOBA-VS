@@ -55,7 +55,7 @@ export class Caster {
       if (comeback) return { text: comeback, prio: 5 };
       if (e.obj === 'baron') return { text: pick([`${t} slay the Kraken: now they march!`, `The Kraken falls to ${t}. Here comes the push.`]), prio: 5 };
       if (e.obj === 'herald') return { text: `${t} tame the Oni. A tower is about to feel it.`, prio: 4 };
-      if (e.obj === 'boss') return { text: pick([`${t} bring down the ${nm}! Its push is at their backs.`, `The ${nm} falls to ${t}: ninety seconds to break the base open.`]), prio: 6 };
+      if (e.obj === 'boss') return { text: pick([`${t} bring down the ${nm}! Its push is at their backs.`, `The ${nm} falls to ${t}: two minutes to break the base open.`]), prio: 6 };
       if (e.rare) return { text: pick([`A shiny one! ${t} take the ${nm}, and the bonus gold with it.`, `${t} claim the ${nm}. Rare, and it pays.`]), prio: 5 };
       if (e.obj === 'yokai') return { text: `${t} tame the Yokai Parade. The lanterns march for them now.`, prio: 4 };
       return { text: pick([`${t} secure the ${nm}.`, `${nm} goes to ${t}${who ? ', last hit by ' + who : ''}.`]), prio: 3 };
