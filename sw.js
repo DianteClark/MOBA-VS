@@ -9,14 +9,31 @@
 //   ready (it reloads on the menu). So the cache always holds one consistent build.
 // * Audio (range requests) and the online API are left to the network / HTTP cache.
 const V = new URL(self.location.href).searchParams.get('v') || '0';
-const CACHE = `mobavs-v${V}`, STAGE = CACHE + '-next';
-const SHELL = ['./', './index.html', './css/style.css', './src/main.js', './manifest.webmanifest', './favicon.ico', './apple-touch-icon.png',
+// REV: bump when the cache layout itself changes. r2: never store or serve redirected responses
+// (Cloudflare answers /index.html with a redirect to /, and Safari refuses a redirected page from a worker).
+const REV = 'r2';
+const CACHE = `mobavs-v${V}-${REV}`, STAGE = CACHE + '-next';
+const SHELL = ['./', './css/style.css', './src/main.js', './manifest.webmanifest', './favicon.ico', './apple-touch-icon.png',
   './assets/img/app/icon-192.png', './assets/font/NormalFont.ttf'];
 const PEERJS = 'https://unpkg.com/peerjs@';
 
+// A response that went through a redirect cannot be handed to a navigation (Safari: "Response served by
+// service worker has redirections"). Copy it into a plain response before it is cached or served.
+async function clean(res) {
+  if (!res || !res.redirected) return res;
+  const body = await res.blob();
+  return new Response(body, { status: res.status, statusText: res.statusText, headers: res.headers });
+}
+
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' })))));
-  // no skipWaiting here: the page decides when switching builds is safe
+  e.waitUntil((async () => {
+    const c = await caches.open(CACHE);
+    for (const u of SHELL) { const r = await clean(await fetch(new Request(u, { cache: 'reload' }))); if (r && r.ok) await c.put(u, r); }
+    // A cache from before r2 may hold a redirected page that breaks launching: take over at once.
+    // Otherwise the page decides when switching builds is safe (on the menu, never mid-match).
+    const old = (await caches.keys()).filter((k) => k.startsWith('mobavs-') && !k.endsWith('-' + REV) && !k.includes('-' + REV + '-'));
+    if (old.length) await self.skipWaiting();
+  })());
 });
 self.addEventListener('message', (e) => { if (e.data && e.data.t === 'skipWaiting') self.skipWaiting(); });
 self.addEventListener('activate', (e) => {
@@ -34,10 +51,11 @@ self.addEventListener('fetch', (e) => {
   e.respondWith((async () => {
     const cache = await caches.open(CACHE);
     // launches with ?join=CODE or ?s=... still open the cached page
-    const hit = await cache.match(req, { ignoreSearch: nav }) || (nav ? await cache.match('./index.html') : null);
-    const net = fetch(nav ? req.url : req, { cache: 'no-cache' }).then(async (res) => {
+    let hit = await cache.match(req, { ignoreSearch: nav }) || (nav ? await cache.match('./') : null);
+    if (hit && hit.redirected) { hit = null; } // never serve a redirected response
+    const net = fetch(nav ? req.url : req, { cache: 'no-cache' }).then(clean).then(async (res) => {
       if (!res || (!res.ok && res.type !== 'opaque')) return res;
-      if (!hit) await cache.put(nav ? './index.html' : req, res.clone());
+      if (!hit) await cache.put(nav ? './' : req, res.clone());
       else if (await changed(hit, res.clone())) await scheduleRefresh();
       return res;
     }).catch(() => null);
@@ -68,7 +86,7 @@ function scheduleRefresh() {
       const stage = await caches.open(STAGE);
       for (const k of keys) {
         if (!k.url.startsWith(self.location.origin)) continue; // pinned CDN files never change
-        const res = await fetch(k.url, { cache: 'no-cache' });
+        const res = await clean(await fetch(k.url, { cache: 'no-cache' }));
         if (!res || (!res.ok && res.type !== 'opaque')) throw new Error('refresh failed ' + k.url);
         await stage.put(k, res);
       }
