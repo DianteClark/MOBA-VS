@@ -384,7 +384,7 @@ export function heroThink(g, h) {
     const threats = C.enemies.filter((e) => dist2(e, h) < 700 * 700);
     if (task.kind === 'recall' && !threats.length && now - h.lastCombat > sec(2)) {
       h.why = task.why || 'recall';
-      if (!h.recallAt) { h.recallAt = now + sec(4); h.vx = h.vy = 0; g.fx.push({ kind: 'recall', id: h.id }); }
+      if (!h.recallAt) { h.recallLen = sec(4 * (g.beasts ? g.beasts.recallMult(h) : 1)); h.recallAt = now + h.recallLen; h.vx = h.vy = 0; g.fx.push({ kind: 'recall', id: h.id }); } // (Spring Water: faster)
       return;
     }
     if (threats.length && combat(g, h, C, true)) return;
@@ -395,6 +395,7 @@ export function heroThink(g, h) {
   const crystal = task.kind === 'defend' ? null : crystalSiege(g, h);
   if (combat(g, h, C, false, crystal)) return;
   if (crystal && hitCrystal(g, h, crystal)) return;
+  if (g.beasts && g.beasts.swat(h)) return; // Bosses & Beasts: an enemy scout pet in reach
 
   switch (task.kind) {
     case 'lane': return doLane(g, h, task.lane, false);

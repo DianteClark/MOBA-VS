@@ -16,13 +16,14 @@
 //   Living World (cfg.living, src/sim/living.js): walls = breakable walls [x1, y1, x2, y2, 'wall' | 'thicket'] (a corridor
 //            through the forest, closed until it breaks; a thicket turns into tall grass), moon = the river spot of the
 //            night-only Moon Spirits, yokai = the Yokai Parade's waypoint in Blue's jungle (its loop: river, jungle, mirrors)
+//   Bosses & Beasts (cfg.beasts, src/sim/beasts.js): kami = the map's Kami species (base Kami + its Elder recolor)
 //   Lane Rush maps live in rush.js (single lane, smaller base); they are looked up by id like any map.
 import { RUSH_MAPS } from './rush.js';
 export { RUSH_MAPS };
 
 export const MAPS = [
   {
-    id: 'sakura', name: 'Sakura Valley', theme: 'spring', weather: ['clear', 'rain', 'clear', 'fog', 'clear', 'wind'],
+    id: 'sakura', kami: 'frog', name: 'Sakura Valley', theme: 'spring', weather: ['clear', 'rain', 'clear', 'fog', 'clear', 'wind'],
     blurb: 'Classic three-lane valley. Wide river, cherry groves, balanced jungle.',
     top: [[330, 2070], [262, 1760], [244, 1250], [252, 760], [292, 470], [380, 345], [500, 280], [760, 250], [1250, 244], [1760, 262], [2070, 330]],
     midHalf: [[330, 2070], [560, 1840], [880, 1520], [1200, 1200]],
@@ -50,7 +51,7 @@ export const MAPS = [
     walls: [[612, 1044, 756, 900, 'wall'], [1452, 1596, 1406, 1707, 'thicket']], moon: [514, 461], yokai: [1510, 1724],
   },
   {
-    id: 'frost', name: 'Frostfang Pass', theme: 'winter', weather: ['snow', 'clear', 'blizzard', 'snow', 'clear', 'fog'],
+    id: 'frost', kami: 'tengu', name: 'Frostfang Pass', theme: 'winter', weather: ['snow', 'clear', 'blizzard', 'snow', 'clear', 'fog'],
     blurb: 'Winding mountain lanes around a frozen central lake. Long rotations, deadly chokepoints.',
     top: [[330, 2070], [300, 1800], [400, 1560], [300, 1300], [250, 1000], [360, 760], [300, 520], [430, 360], [640, 300], [900, 380], [1150, 260], [1460, 300], [1800, 250], [2070, 330]],
     midHalf: [[330, 2070], [620, 1880], [760, 1640], [1000, 1520], [1200, 1200]],
@@ -77,7 +78,7 @@ export const MAPS = [
     walls: [[636, 780, 636, 924, 'wall'], [1260, 1764, 1404, 1620, 'thicket']], moon: [559, 547], yokai: [1398, 1604],
   },
   {
-    id: 'ember', name: 'Ember Canyon', theme: 'autumn', weather: ['clear', 'wind', 'heat', 'clear', 'dust', 'wind'],
+    id: 'ember', kami: 'samurai', name: 'Ember Canyon', theme: 'autumn', weather: ['clear', 'wind', 'heat', 'clear', 'dust', 'wind'],
     blurb: 'Tight canyon lanes and the Sunstone mesa guarding the mid river crossing. Brawly and fast.',
     top: [[330, 2070], [240, 1780], [300, 1450], [230, 1100], [280, 760], [250, 470], [420, 300], [760, 270], [1100, 220], [1450, 290], [1780, 230], [2070, 330]],
     midHalf: [[330, 2070], [640, 1780], [880, 1560], [960, 1300], [1200, 1200]],
@@ -104,7 +105,7 @@ export const MAPS = [
     walls: [[612, 828, 612, 900, 'wall'], [1404, 1812, 1548, 1668, 'thicket']], moon: [461, 529], yokai: [662, 1054],
   },
   {
-    id: 'marsh', name: 'Moonlit Marsh', theme: 'marsh', weather: ['fog', 'clear', 'rain', 'fog', 'clear', 'rain'],
+    id: 'marsh', kami: 'slime', name: 'Moonlit Marsh', theme: 'marsh', weather: ['fog', 'clear', 'rain', 'fog', 'clear', 'rain'],
     blurb: 'A misty swamp at night. Two jungle crossings, reed beds everywhere: vision wins games here.',
     top: [[330, 2070], [280, 1820], [330, 1560], [250, 1300], [270, 1000], [240, 720], [330, 470], [480, 330], [720, 290], [1000, 250], [1300, 300], [1600, 250], [1820, 280], [2070, 330]],
     midHalf: [[330, 2070], [520, 1900], [700, 1640], [960, 1440], [1200, 1200]],
@@ -133,7 +134,7 @@ export const MAPS = [
     walls: [[564, 1020, 708, 876, 'thicket'], [1452, 1620, 1452, 1740, 'wall']], moon: [798, 910], yokai: [802, 1012],
   },
   {
-    id: 'oasis', name: 'Sunscar Oasis', theme: 'desert', weather: ['heat', 'clear', 'dust', 'heat', 'clear', 'dust'],
+    id: 'oasis', kami: 'racoon', name: 'Sunscar Oasis', theme: 'desert', weather: ['heat', 'clear', 'dust', 'heat', 'clear', 'dust'],
     blurb: 'Desert roads cut the corners: the Kraken and Kami lairs hide in dune pockets behind the side lanes. A causeway crosses the central oasis.',
     top: [[330, 2070], [250, 1760], [240, 1300], [270, 1060], [560, 770], [770, 560], [1060, 270], [1300, 240], [1760, 250], [2070, 330]],
     midHalf: [[330, 2070], [600, 1800], [900, 1500], [1200, 1200]],
@@ -158,7 +159,7 @@ export const MAPS = [
     walls: [[660, 1092, 828, 924, 'wall'], [1380, 1812, 1476, 1908, 'thicket']], moon: [843, 927], yokai: [1482, 1690],
   },
   {
-    id: 'ruins', name: 'Mossgate Ruins', theme: 'ruins', weather: ['clear', 'rain', 'fog', 'clear', 'wind', 'rain'],
+    id: 'ruins', kami: 'bamboo', name: 'Mossgate Ruins', theme: 'ruins', weather: ['clear', 'rain', 'fog', 'clear', 'wind', 'rain'],
     blurb: 'A ruined temple city. Narrow stone streets, stepped corners, and a pillared plaza around the centre made for ambushes.',
     laneW: 58,
     top: [[330, 2070], [250, 1780], [250, 1000], [250, 640], [310, 580], [400, 580], [470, 510], [510, 470], [580, 400], [580, 310], [640, 250], [1000, 250], [1780, 250], [2070, 330]],

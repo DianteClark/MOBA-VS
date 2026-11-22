@@ -2,6 +2,7 @@
 // offseason steps live here too), Market (free agents, trades), League (standings, fixtures, playoffs),
 // Club (finances, trophy room, history, news, settings) and Pro (the weekly Pro League, src/ui/franchise-pro.js).
 // All rules live in src/franchise/*; this file only shows the state and calls them.
+import { clubMascotImg } from './beastsui.js';
 import { h, mount, face, toast } from './dom.js';
 import { HERO_BY_ID, ROLES, ROLE_LABEL } from '../data/heroes.js';
 import { audio } from '../audio.js';
@@ -32,7 +33,9 @@ export function crest(tm, size = 36, cls = '') {
   return h('span', { class: 'frcrest ' + cls, style: { width: size + 'px', height: Math.round(size * 1.15) + 'px', '--c1': tm.c1, '--c2': tm.c2, background: (PAT[D.PATTERNS[tm.p]] || PAT.plain)(tm.c1, tm.c2) }, title: tm.name },
     h('img', { src: D.emblemSrc(tm.e), alt: '' }));
 }
-const teamChip = (fr, t, extra = '') => h('span', { class: 'frteam' }, crest(fr.teams[t], 18), h('span', {}, fr.teams[t].name), extra ? h('small', { class: 'muted' }, extra) : null);
+// (Bosses & Beasts: every club has a monster mascot, fixed by its name)
+const mascotOf = (tm) => { let x = 7; for (const c of String(tm.name || '')) x = (x * 31 + c.charCodeAt(0)) >>> 0; return x; };
+const teamChip = (fr, t, extra = '') => h('span', { class: 'frteam' }, crest(fr.teams[t], 18), clubMascotImg(mascotOf(fr.teams[t])), h('span', {}, fr.teams[t].name), extra ? h('small', { class: 'muted' }, extra) : null);
 
 // ── small hero widgets ──
 const moraleWord = (m) => (m >= 80 ? 'Fired up' : m >= 62 ? 'Happy' : m >= 45 ? 'Content' : m >= 30 ? 'Unhappy' : 'Wants out');

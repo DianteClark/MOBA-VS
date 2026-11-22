@@ -6,6 +6,7 @@ import { aiMoment } from './moments-coach.js';
 import { aiSkillTactic } from './sidegrades.js';
 import { coachWeights, PLAN_IDS, PLAN_BEATS } from './plans.js';
 import { openCrystal } from './endgame.js';
+import { KAMI_VALUE } from './beasts.js';
 
 export class Coach {
   // style (rival coaches, part of the match cfg): { moment: 'early'|'late', backup: plan id for halftime }
@@ -16,11 +17,11 @@ export class Coach {
     this.cooldown = { surge: 0, ult: 0, gank: 0, objective: 0, reset: 0, group: 0, focus: 0, herald: 0, build: 0, invade: 0, shrine: 0 };
   }
   issue(c) { c.team = this.team; return this.g.applyCommand(c); }
-  // Living World (src/sim/living.js): the Tengu breaks stalemates, the Yokai Parade is worth a detour, and at
-  // night the enemy's Moon Spirits are worth stealing.
+  // Living World (src/sim/living.js): the Elder Kami breaks stalemates (Bosses & Beasts), the Yokai Parade is
+  // worth a detour, and at night the enemy's Moon Spirits are worth stealing.
   livingCalls(takeObj, s) {
     const g = this.g, me = g.teams[this.team], jg = me.heroes.find((h) => h.role === 'jungle'), y = g.objectives.yokai;
-    // The Tengu breaks stalemates: whoever can, takes it (its Gale is how a late lead becomes a Crystal)
+    // The Elder Kami breaks stalemates: whoever can, takes it (its Push is how a late lead becomes a Crystal)
     if (takeObj('boss', 3, s.deadEnemies >= 1 || s.alive.length >= s.enemyAlive.length + (this.level >= 1 ? 0 : 1))) return true;
     // the parade on our half of the map (closer to our fountain), or an enemy down; late on, charges go to pushes
     const f = g.world.fountain[this.team], o = g.world.fountain[1 - this.team];
@@ -35,6 +36,28 @@ export class Coach {
       }
     }
     return false;
+  }
+  // Bosses & Beasts: the scout pet (a free call). Eyes on an objective about to be fought where we have no
+  // sight; otherwise (Normal/Hard) a peek into the enemy jungle when their jungler has been missing a while.
+  scoutCall(vis) {
+    const g = this.g, me = g.teams[this.team], now = g.tick, W = g.world;
+    if (now < me.scoutCd || g.beasts.pet(this.team) || now < this.scoutNext) return;
+    this.scoutNext = now + sec(4);
+    const dark = (p) => !g.visGrid[this.team][W.idx(p.x, p.y)];
+    const send = (p) => this.issue({ type: 'scout', x: Math.round(p.x), y: Math.round(p.y) });
+    for (const k of ['boss', 'baron', 'dragon', 'herald']) {
+      const o = g.objectives[k], t = g.objTimers[k];
+      if (!(o && o.alive) && !(t && t - now < sec(30))) continue;
+      const p = g.objPit(k);
+      if (dark(p) && (this.level >= 1 || g.rng.chance(0.3))) { send(p); return; }
+    }
+    if (this.level < 1 || g.time < 240) return;
+    const ej = g.teams[1 - this.team].heroes.find((h) => h.role === 'jungle'), seen = ej && g.lastSeen[this.team][ej.id];
+    if (!ej || !ej.alive || vis.has(ej.id) || (seen && now - seen.t < sec(15))) return;
+    const camps = g.camps.filter((c) => c.side !== this.team && !c.night && dark(c));
+    if (!camps.length) return;
+    const near = seen ? camps.sort((a, b) => dist2(a, seen) - dist2(b, seen))[0] : camps[g.rng.int(camps.length)];
+    send(near);
   }
 
   update() {
@@ -53,6 +76,7 @@ export class Coach {
     const deadEnemies = them.heroes.filter((h) => !h.alive && h.respawnAt - now > sec(12 * Math.max(0.6, g.rules.respawn))).length;
     const k = g.rules.k, LANE_NAMES = g.world.laneNames; // k: clock scale for short modes (thresholds below are for a 15-minute match)
 
+    if (g.beasts) this.scoutCall(vis); // free: never takes the coach's turn
     if (this.useTactics(me, them, alive, visibleEnemies, deadEnemies)) return;
     if (me.momentum >= 100 && ready('surge') && this.useSurge(me, alive, visibleEnemies)) { cd('surge', 10); return; }
     if (aiMoment(this, { alive, visibleEnemies, deadEnemies })) return;
@@ -104,7 +128,7 @@ export class Coach {
       if (!(o && o.alive) && !spawnSoon) return false;
       if (charges < 2 || !ready('objective')) return false;
       const pit = g.objPit(obj);
-      const enemiesNearPit = near(pit, LANE_NAMES.length === 1 || obj === 'boss' ? 650 : 1100, visibleEnemies); // (the Tengu sits on mid lane: only count those right on it)
+      const enemiesNearPit = near(pit, LANE_NAMES.length === 1 || obj === 'boss' ? 650 : 1100, visibleEnemies); // (the Elder Kami sits on mid lane: only count those right on it)
       if (alive.length < minAlive) return false;
       if (enemiesNearPit > 1 && deadEnemies === 0) return false;
       if (W.objWait && deadEnemies < 1) return false;
@@ -117,7 +141,9 @@ export class Coach {
     const jg = me.heroes.find((h) => h.role === 'jungle');
     const enemyJgVisibleTop = them.heroes.some((h) => h.role === 'jungle' && vis.has(h.id) && h.x + h.y < 2400 && h.alive);
     const botAlive = me.heroes.filter((h) => (h.role === 'bot' || h.role === 'support') && h.alive).length;
-    if (takeObj('dragon', 3, jg && jg.alive && (botAlive >= 1) && (deadEnemies >= 1 || enemyJgVisibleTop || this.level >= 1 && g.rng.chance(0.25)))) return;
+    // (Bosses & Beasts: how much this map's blessing is worth, more so when it would be their second)
+    const kamiK = g.beasts ? KAMI_VALUE[g.beasts.species] * (them.dragons.length ? 1.4 : 1) : 1;
+    if (takeObj('dragon', 3, jg && jg.alive && (botAlive >= 1) && (deadEnemies >= 1 || enemyJgVisibleTop || this.level >= 1 && g.rng.chance(0.25 * kamiK)))) return;
     if (takeObj('herald', 3, jg && jg.alive && (deadEnemies >= 1 || g.rng.chance(0.2)))) return;
 
     // Shrines: grab one when it's quiet
@@ -156,7 +182,9 @@ export class Coach {
     // (Split Push groups mid, Protect the Carry groups where the carry is; both start earlier.)
     // (an open enemy Crystal counts as late: group up and finish it, src/sim/endgame.js)
     const late = g.time > W.lateAt * k || (LANE_NAMES.length === 1 && deadEnemies >= 2) || !!openCrystal(g, this.team); // one lane: every won fight is a push
-    if (ready('group') && late && charges >= 1 && alive.length >= 3 && (deadEnemies >= 1 || alive.length >= enemyAlive.length || g.time > 780 * k)) {
+    // (Bosses & Beasts: with the Elder Kami up or about to land, keep two charges for it rather than another push call)
+    const elder = g.beasts && g.beasts.full && me.elderPush <= now && ((g.objectives.boss && g.objectives.boss.alive) || (g.objTimers.boss && g.objTimers.boss - now < sec(25)));
+    if (ready('group') && late && charges >= (elder ? 3 : 1) && alive.length >= 3 && (deadEnemies >= 1 || alive.length >= enemyAlive.length || g.time > 780 * k)) {
       const lane = W.groupLane && LANE_NAMES.includes(W.groupLane) && g.time < 780 * k ? W.groupLane : this.weakestLane();
       if (this.issue({ type: 'group', lane })) { cd('group', g.time > 780 * k ? 25 : W.groupCd); return; }
     }

@@ -8,6 +8,7 @@ import { SEASON_REWARDS, tierById, rankOf, TIERS } from '../data/ranks.js';
 import { THEMES, ACC_NAMES, sigKey, legKey, SIG_MASTERY } from '../data/skins.js';
 import { EMOTES, EMOTE_IDS, BORDERS, emoteSrc, borderStyle } from '../data/cosmetics.js';
 import { ACH, ACH_BY_ID } from '../data/achievements.js';
+import { PETS, PET_IDS, FAMILIES, FAMILY_IDS, hasPet, hasFamily, petFace, monSrc, unlockText } from '../data/beasts.js';
 import { profile, titleName } from '../profile.js';
 import { skinSheet, skinFace, loadSkinBodies, loadFace } from '../render/skins.js';
 import { heroStill } from './heroui.js';
@@ -40,6 +41,9 @@ function howToEarn(kind, id) {
   if (id === 'tripleChamp') return 'Win 3 Season Cups';
   return 'Locked';
 }
+// Bosses & Beasts unlocks (derived from the profile)
+const beastHow = (u) => unlockText(u, (id) => (ACH_BY_ID[id] ? ACH_BY_ID[id].name : id));
+const shortBeast = (u) => beastHow(u).replace('Season Pass level ', 'Pass Lv ').replace('Achievement: ', '★ ');
 const shortHow = (kind, id) => howToEarn(kind, id).replace(/Season (\d+) Pass level /, 'S$1 Pass Lv ').replace('Achievement: ', '★ ').replace('Season end at ', 'Rank: ').replace('Finish a season at ', 'Season: ');
 
 // Skins that fit a hero, unique ones first: base, Signature, Legendary, then the account-wide tints.
@@ -124,9 +128,9 @@ export function skinViewer(id, onChange, start) {
 }
 
 // ───────────── Profile → Collection ─────────────
-const SECTIONS = [['skins', 'Skins'], ['emotes', 'Emotes'], ['banners', 'Banners'], ['borders', 'Borders'], ['titles', 'Titles']];
+const SECTIONS = [['skins', 'Skins'], ['emotes', 'Emotes'], ['banners', 'Banners'], ['borders', 'Borders'], ['titles', 'Titles'], ['pets', 'Scouts'], ['troops', 'Minions']];
 export function collectionTab(app, section, go) {
-  const p = profile, un = p.d.unlocked;
+  const p = profile, un = p.d.unlocked, wev = app && app.weekEvent && app.weekEvent() ? app.weekEvent().id : null; // (the week's featured minion family)
   section = SECTIONS.some(([k]) => k === section) ? section : 'skins';
   const heroSkins = Object.entries(SKINS).filter(([, s]) => s.hero);
   const count = {
@@ -135,6 +139,8 @@ export function collectionTab(app, section, go) {
     banners: [Object.keys(BANNERS).filter((k) => un.banners.includes(k)).length, Object.keys(BANNERS).length],
     borders: [Object.keys(BORDERS).filter((k) => p.hasBorder(k)).length, Object.keys(BORDERS).length],
     titles: [un.titles.filter((k) => TITLES[k]).length, Object.keys(TITLES).length],
+    pets: [PET_IDS.filter((k) => hasPet(p, k)).length, PET_IDS.length],
+    troops: [FAMILY_IDS.filter((k) => hasFamily(p, k, wev)).length, FAMILY_IDS.length],
   };
   const chips = h('div', { class: 'colchips' }, ...SECTIONS.map(([k, l]) => h('button', { class: 'chip' + (section === k ? ' on' : ''), onclick: () => { tap(); go(k); } }, l, h('small', {}, ` ${count[k][0]}/${count[k][1]}`))));
   let body;
@@ -180,6 +186,30 @@ export function collectionTab(app, section, go) {
             b.tier ? tierBadge(rankOf(Math.max(850, TIERS.find((t) => t.id === k).min)), 30) : null,
             h('b', { style: { color: b.c1 } }, b.name), h('small', {}, have ? (cur === k ? 'Equipped' : seasons.length ? `Season ${seasons.join(', ')}` : 'Equip') : shortHow('border', k)));
         })));
+  } else if (section === 'pets') {
+    // Bosses & Beasts: the scout animal (looks only: every one runs, watches and dies the same)
+    const cur = hasPet(p, p.d.equip.pet) ? p.d.equip.pet : 'dog';
+    body = h('div', { class: 'col' }, h('small', { class: 'muted center colnote' }, 'Your scout pet: in a 5v5 match, tap the map to send it from 3:00. Every animal has the same stats; online opponents see yours.'),
+      h('div', { class: 'colemotes' }, ...PET_IDS.map((k) => {
+        const own = hasPet(p, k), on = cur === k;
+        return h('button', { class: 'colemote colpet' + (own ? '' : ' locked') + (on ? ' on' : ''), title: own ? PETS[k].name : beastHow(PETS[k].unlock),
+          onclick: () => { if (!own) { toast(`${PETS[k].name}: ${beastHow(PETS[k].unlock)}`); return; } p.equip('pet', k); audio.sfx('accept', 0.5); go('pets'); } },
+          h('img', { src: petFace(k), alt: '' }), h('b', {}, PETS[k].name), h('small', {}, on ? 'Equipped' : own ? 'Equip' : shortBeast(PETS[k].unlock)));
+      })));
+  } else if (section === 'troops') {
+    // Bosses & Beasts: minion families (looks only); "Map's own" wears each map's family
+    const cur = p.d.equip.troop && hasFamily(p, p.d.equip.troop, wev) ? p.d.equip.troop : null;
+    const strip = (f) => h('span', { class: 'famstrip' }, ...(f.set ? ['melee', 'caster', 'siege', 'super'].map((r) => h('i', { style: { backgroundImage: `url(${monSrc(f.set[r])})` } }))
+      : ['minion_blue_melee', 'minion_blue_caster', 'minion_blue_siege'].map((k) => h('i', { style: { backgroundImage: `url(assets/img/units/${k}.png)` } }))));
+    body = h('div', { class: 'col' }, h('small', { class: 'muted center colnote' }, 'Your minion family in 5v5 matches. Rings under them show their team. Online opponents see yours; each weekly event features one family anyone may wear.'),
+      h('div', { class: 'cardgrid' },
+        h('button', { class: 'bannercard famcard' + (!cur ? ' on' : ''), onclick: () => { p.equip('troop', null); go('troops'); } }, h('b', {}, "Map's own"), h('small', {}, !cur ? 'Equipped' : 'Each map has its family')),
+        ...FAMILY_IDS.map((k) => {
+          const f = FAMILIES[k], own = hasFamily(p, k, wev), on = cur === k;
+          return h('button', { class: 'bannercard famcard' + (own ? '' : ' locked') + (on ? ' on' : ''), title: own ? f.name : beastHow(f.unlock),
+            onclick: () => { if (!own) { toast(`${f.name}: ${beastHow(f.unlock)}`); return; } p.equip('troop', k); audio.sfx('accept', 0.5); go('troops'); } },
+            strip(f), h('b', {}, f.name), h('small', {}, on ? 'Equipped' : own ? f.blurb : shortBeast(f.unlock)));
+        })));
   } else {
     const keys = [...Object.keys(TITLES), ...un.titles.filter((k) => !TITLES[k])];
     body = h('div', { class: 'col' }, ...keys.map((k) => {
@@ -204,6 +234,12 @@ export function rewardIcon(r) {
   if (r.kind === 'border') return h('i', { class: 'bdr cbd', style: borderStyle(r.id) });
   return h('i', { class: 'tt' }, 'T');
 }
+// Bosses & Beasts: a scout pet or minion family that an achievement also unlocks
+function beastRewards(id) {
+  const pets = PET_IDS.filter((k) => PETS[k].unlock && PETS[k].unlock.ach === id).map((k) => h('span', { class: 'achrwi', title: `${PETS[k].name} scout pet` }, h('img', { class: 'rwemote', src: petFace(k), alt: '' }), h('small', {}, `${PETS[k].name} scout`)));
+  const fams = FAMILY_IDS.filter((k) => FAMILIES[k].unlock && FAMILIES[k].unlock.ach === id).map((k) => h('span', { class: 'achrwi', title: `${FAMILIES[k].name} minions` }, h('small', {}, `${FAMILIES[k].name} minions`)));
+  return pets.length || fams.length ? [h('span', { class: 'achrw' }, ...pets, ...fams)] : [];
+}
 export function achievementsTab() {
   const p = profile, got = ACH.filter((a) => p.hasAch(a.id)).length;
   const card = (a) => {
@@ -213,7 +249,7 @@ export function achievementsTab() {
       h('img', { class: 'achi', src: achIcon(a), alt: '' }),
       h('div', { class: 'achtx' }, h('b', {}, a.name), h('small', {}, a.desc), hint ? h('small', { class: 'muted' }, hint) : null,
         pr ? h('div', { class: 'achprog' }, pbar(pr[0] / pr[1]), h('small', {}, `${Math.min(pr[0], pr[1])}/${pr[1]}`)) : null),
-      h('div', { class: 'achside' }, rewardChip(a.reward), h('small', { class: have ? 'gold' : 'muted' }, have ? `✓ ${when}` : 'Locked')));
+      h('div', { class: 'achside' }, rewardChip(a.reward), ...beastRewards(a.id), h('small', { class: have ? 'gold' : 'muted' }, have ? `✓ ${when}` : 'Locked')));
   };
   const sorted = ACH.slice().sort((a, b) => p.hasAch(a.id) - p.hasAch(b.id));
   return h('div', { class: 'col achtab' },

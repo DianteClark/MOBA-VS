@@ -4,13 +4,16 @@
 //    Reduced effects: no flicker. Dusk and dawn add a brief warm wash.
 //  - Breakable walls: boulders / brambles drawn over the painted ground, cracking hit by hit (one cached
 //    sprite per wall and damage stage), with chips, dust and debris when they go.
-//  - Bodies for the Tengu, the Yokai Parade (leader, followers, tamed band) and the Moon Spirits' glow.
-//  - Event moments: the Tengu's landing, a tamed parade, Moonsight, a wall coming down.
+//  - Bodies for the Yokai Parade (leader, followers, tamed band; each map's band, src/data/beasts.js) and the Moon
+//    Spirits' glow. The Elder Kami's body is in beastsfx.js.
+//  - Event moments: the Elder Kami's landing, a tamed parade, Moonsight, a wall coming down.
 import { IMG } from './assets.js';
 import { SPR } from './mapgen.js';
 import { TEAM_COL, rgba } from './palette.js';
 import { P_DEBRIS, P_SPARK, P_GLOW, P_BEAM, glowSprite } from './particles.js';
 import { C as CELL, N as GN } from '../sim/world.js';
+import { DRAGON_INFO } from '../sim/constants.js';
+import { elderName } from '../sim/beasts.js';
 
 const NIGHT = [16, 24, 58], BLOOD = [58, 8, 22];
 let holeSpr = null; // soft round hole (alpha falloff), drawn with destination-out
@@ -28,7 +31,7 @@ export class LivingFx {
     this.g = game; this.on = !!game.living; this.wallSpr.clear(); this.hitT.clear(); this.warn = null;
   }
 
-  // ───────── ground layer: walls (and the Tengu's landing mark) ─────────
+  // ───────── ground layer: walls (and the Elder Kami's landing mark) ─────────
   drawGround(ctx, inView) {
     if (!this.on) return;
     const g = this.g, W = g.world, L = g.living, r = this.r;
@@ -40,10 +43,10 @@ export class LivingFx {
       const ht = this.hitT.get(w.id); if (ht !== undefined && r.time - ht < 0.18 && r.motion) ox = Math.sin((r.time - ht) * 90) * 2.5;
       ctx.drawImage(spr.c, spr.x + ox, spr.y);
     }
-    // warning sigil where the Tengu will land (the last 30s before it does)
+    // warning sigil where the Elder Kami will land (the last 30s before it does), in its colour
     if (this.warn && !g.objectives.boss) {
       const p = L.bossSpot, k = (r.time * 0.8) % 1;
-      ctx.save(); ctx.globalAlpha = 0.35 + 0.25 * Math.sin(r.time * 4); ctx.strokeStyle = '#ff4a5a'; ctx.lineWidth = 3;
+      ctx.save(); ctx.globalAlpha = 0.35 + 0.25 * Math.sin(r.time * 4); ctx.strokeStyle = this.warn; ctx.lineWidth = 3;
       ctx.beginPath(); ctx.ellipse(p.x, p.y, 120, 100, 0, 0, Math.PI * 2); ctx.stroke();
       ctx.globalAlpha = 0.5 * (1 - k); ctx.beginPath(); ctx.ellipse(p.x, p.y, 120 * k, 100 * k, 0, 0, Math.PI * 2); ctx.stroke();
       ctx.restore();
@@ -96,20 +99,11 @@ export class LivingFx {
   }
 
   // ───────── bodies ─────────
-  // Tengu (objective 'boss') and the parade leader (objective 'yokai'). Returns true when drawn.
+  // The parade leader (objective 'yokai'). Returns true when drawn.
   drawBoss(u, x, y, flashing, attacking) {
     const r = this.r, ctx = r.ctx;
-    if (u.kind === 'boss') {
-      const img = flashing ? IMG.tengu_hit : attacking ? IMG.tengu_attack : IMG.tengu_idle; if (!img) return true;
-      const frames = Math.max(1, Math.round(img.width / 82)), f = Math.floor(r.time * (attacking ? 14 : 8)) % frames;
-      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.35 + 0.1 * Math.sin(r.time * 3);
-      ctx.drawImage(glowSprite('#ff3a4a'), x - 90, y - 120, 180, 150); ctx.restore();
-      const bob = Math.sin(r.time * 2.2) * 4;
-      r.drawSheetFrame(img, 82, 82, f, 0, x, y + 18 + bob, 2.0);
-      return true;
-    }
     if (u.kind === 'yokai') {
-      const img = IMG.yokai_lantern; if (!img) return true;
+      const img = IMG[r.bf.paradeKey('yokai_lantern')]; if (!img) return true;
       const bob = Math.sin(r.time * 3 + u.id) * 3, walkF = Math.floor(r.time * 6 + u.id) % 4;
       ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.55 + 0.15 * Math.sin(r.time * 7);
       ctx.drawImage(glowSprite('#ffb347'), x - 40, y - 70, 80, 80); ctx.restore();
@@ -120,7 +114,7 @@ export class LivingFx {
   }
   // Tamed yokai (summon 'yokai'): the parade's sprites with a team-coloured aura.
   drawTamed(u, x, y, moving) {
-    const r = this.r, ctx = r.ctx, img = IMG[u.look]; if (!img) return;
+    const r = this.r, ctx = r.ctx, img = IMG[r.bf.paradeKey(u.look)]; if (!img) return;
     const big = u.look === 'yokai_lantern', bob = Math.sin(r.time * 4 + u.id) * 2;
     ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.45;
     ctx.drawImage(glowSprite(TEAM_COL[u.team]), x - 28, y - 44, 56, 56); ctx.restore();
@@ -202,17 +196,18 @@ export class LivingFx {
         r.shakeBy(thicket ? 0.15 : 0.35);
         break;
       }
-      case 'bossSoon': this.warn = true; break;
+      case 'bossSoon': this.warn = (DRAGON_INFO[e.kami] || { color: '#ff4a5a' }).color; break;
       case 'spawn': {
         if (e.obj === 'boss') {
           this.warn = null;
-          // the landing: a dark wash, a red beam, feathers and a shockwave (seen from anywhere: it's the map centre)
-          r.screenTint('#2a0010', 0.35, 1.2); r.shakeBy(0.8, 1); r.impact(0.2, 0.06);
+          // the Elder's landing: a dark wash, a beam in its colour, debris and a shockwave (seen from anywhere: it's the map centre)
+          const c = (DRAGON_INFO[e.element] || { color: '#ff4a5a' }).color;
+          r.screenTint('#100818', 0.35, 1.2); r.shakeBy(0.8, 1); r.impact(0.2, 0.06);
           if (r.onScreen(e.x, e.y, 400)) {
-            const b = r.fxp.spawn(P_BEAM, e.x, e.y + 10, 1.8); b.s = 140; b.s2 = 600; b.c = rgba('#ff3a4a', 0.9);
-            for (let k = 0; k < 4; k++) r.ring(e.x, e.y, 20, 260 + k * 90, k ? '#ff4a5a' : '#ffffff', 1.1, 7 - k, k * 0.12);
-            for (let k = 0; k < 26; k++) { const a = Math.random() * 6.283, sp = 120 + Math.random() * 260, q = r.fxp.spawn(P_DEBRIS, e.x, e.y - 60, 1.6); q.vx = Math.cos(a) * sp; q.vy = -160 - Math.random() * 220; q.g = 420; q.c = k % 3 ? '#2a2630' : '#5a3a4a'; q.s = 3 + (k % 3); q.ground = e.y + Math.sin(a) * 50; }
-            r.text(e.x, e.y - 190, 'THE TENGU DESCENDS', '#ff6a7a', 16, 2.2, 'crit');
+            const b = r.fxp.spawn(P_BEAM, e.x, e.y + 10, 1.8); b.s = 140; b.s2 = 600; b.c = rgba(c, 0.9);
+            for (let k = 0; k < 4; k++) r.ring(e.x, e.y, 20, 260 + k * 90, k ? c : '#ffffff', 1.1, 7 - k, k * 0.12);
+            for (let k = 0; k < 26; k++) { const a = Math.random() * 6.283, sp = 120 + Math.random() * 260, q = r.fxp.spawn(P_DEBRIS, e.x, e.y - 60, 1.6); q.vx = Math.cos(a) * sp; q.vy = -160 - Math.random() * 220; q.g = 420; q.c = k % 3 ? '#2a2630' : '#5a4a3a'; q.s = 3 + (k % 3); q.ground = e.y + Math.sin(a) * 50; }
+            r.text(e.x, e.y - 190, `THE ${elderName(e.element).toUpperCase()} DESCENDS`, c, 16, 2.2, 'crit');
           }
         }
         break;

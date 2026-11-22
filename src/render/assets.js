@@ -1,6 +1,7 @@
 // Image loading + small pixel utilities (hue shifting for team/element variants).
 import { HEROES } from '../data/heroes.js';
 import { SKIN_BODIES } from '../data/skins.js';
+import { KAMI_ART, MON_SHEETS } from '../data/beasts.js';
 
 const BASE = 'assets/img/';
 export const IMG = {};
@@ -32,7 +33,8 @@ const UNITS = ['minion_blue_melee', 'minion_blue_caster', 'minion_blue_siege', '
 const BOSS = ['dragon_green_body1', 'dragon_green_body2', 'dragon_green_bodyend', 'dragon_green_head', 'dragon_green_wing',
   'dragon_blue_body1', 'dragon_blue_body2', 'dragon_blue_bodyend', 'dragon_blue_head', 'dragon_blue_wing',
   'herald_idle', 'herald_walk', 'herald_hit', 'herald_faceset', 'baron_idle', 'baron_attack', 'baron_hit', 'baron_faceset',
-  'kami_infernal', 'kami_ocean', 'kami_mountain', 'kami_cloud', 'kami_elder', 'tengu_idle', 'tengu_attack', 'tengu_hit', 'tengu_faceset', 'yokai_faceset'];
+  'kami_infernal', 'kami_ocean', 'kami_mountain', 'kami_cloud', 'kami_elder', 'yokai_faceset',
+  'oni_rare_idle', 'oni_rare_hit', 'oni_rare_walk', 'oni_rare_faceset', 'kraken_rare_idle', 'kraken_rare_attack', 'kraken_rare_hit', 'kraken_rare_faceset']; // Bosses & Beasts: rare Oni / Kraken
 const TILES = ['TilesetTowers', 'TilesetNature', 'TilesetFloor', 'TilesetWater', 'TilesetFloorDetail'];
 
 function load(key, src) {
@@ -55,6 +57,9 @@ export async function loadAssets(onProgress, early = false) {
   for (const h of HEROES) { crit.push(['hero_' + h.id, `${BASE}heroes/${h.id}.png`]); rest.push(['face_' + h.id, `${BASE}faces/${h.id}.png`]); }
   for (const u of UNITS) rest.push([u, `${BASE}units/${u}.png`]);
   for (const b of BOSS) rest.push([b, `${BASE}boss/${b}.png`]);
+  for (const k of Object.keys(KAMI_ART)) rest.push(['kami_' + k, `${BASE}kami/${k}.png`], ['kface_' + k, `${BASE}kami/${k}_face.png`], ['kface_' + k + '_elder', `${BASE}kami/${k}_elder_face.png`]); // Bosses & Beasts: Kami species atlases + faces
+  for (const m of MON_SHEETS) rest.push(['mon_' + m, `${BASE}mon/${m}.png`]); // minion families, themed camps, night forms, parades
+  rest.push(['pets', `${BASE}pets.png`]); // scout animals
   for (const f of new Set(Object.keys(FX).map((k) => FX[k].img || k))) rest.push(['fx_' + f, `${BASE}fx/${f}.png`]);
   for (const p of Object.keys(PROJ)) rest.push(['fx_' + p, `${BASE}fx/${p}.png`]);
   for (const t of ['TilesetDesert', 'TilesetVillageAbandoned']) rest.push([t, `${BASE}tiles/${t}.png`]); // Sunscar Oasis / Mossgate Ruins decor

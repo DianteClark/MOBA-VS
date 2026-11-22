@@ -30,7 +30,7 @@ export class Attention {
     if (!s || (!s.lines.length && !s.banners.length)) return;
     const hud = this.hud;
     // the best line: a caster line reads best, then the most important one, then the first
-    // ('extra' lines are news of their own, e.g. what a Tengu kill unlocks: they follow on the ticker)
+    // ('extra' lines are news of their own, e.g. what an Elder Kami kill unlocks: they follow on the ticker)
     const extra = s.lines.filter((l) => /\bextra\b/.test(l.cls)), lines = s.lines.filter((l) => !extra.includes(l));
     const best = lines.slice().sort((a, b) => (b.cls === 'cast') - (a.cls === 'cast') || b.prio - a.prio)[0] || null;
     if (s.banners.length) {

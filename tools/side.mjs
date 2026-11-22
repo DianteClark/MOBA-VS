@@ -5,7 +5,7 @@
 //   --swap    every seed is played twice with the teams swapped (cancels draft luck; pairs share a seed).
 //   --mins=M  stop each game at M minutes (fast early-game read: gold / kills / towers per side).
 //   --pace='{"rampPer":240}' / --final='{...}' / --T='{...}'  try pacing rules without editing them.
-//   --noliving  classic games without the Living World (night, Yokai Parade, walls, Tengu), which they play by default.
+//   --noliving  classic games without the Living World (night, Yokai Parade, walls) and Bosses & Beasts, which they play by default.
 // Prints, overall and per map: blue win %, how and when games end (Crystal / clock, 12-15 min share),
 // and per side at 5 / 10 min: team gold, kills, towers taken; first tower / first Kami / Kraken by side;
 // towers lost per lane per side (spots a lopsided lane).
@@ -39,7 +39,7 @@ async function play(ids) {
     if (flip) [a, b] = [b, a];
     const map = ONLY || MAPS[i % MAPS.length];
     const pa = aiPrep(a, b), pb = MIRROR ? JSON.parse(JSON.stringify(pa)) : aiPrep(b, a);
-    const g = new Game({ seed: 4200 + i, map, ...(MODE === 'rush' ? { mode: 'rush' } : {}), ...(LIVING ? { living: 1 } : {}), ...(EVENT ? { event: EVENT } : {}), coach: [true, true], teams: [pa, pb] });
+    const g = new Game({ seed: 4200 + i, map, ...(MODE === 'rush' ? { mode: 'rush' } : {}), ...(LIVING ? { living: 1, beasts: 1 } : {}), ...(EVENT ? { event: EVENT } : {}), coach: [true, true], teams: [pa, pb] });
     const r = { map, at: {}, first: {}, lost: [{}, {}] };
     const snap = () => g.teams.map((t) => ({ gold: t.heroes.reduce((s, h) => s + h.goldEarned, 0), kills: t.kills, towers: t.towers || 0 }));
     const end = MINS ? MINS * 60 : Infinity;
