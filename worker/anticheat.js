@@ -48,7 +48,7 @@ export function pruneStmts(db, env, now) {
   return [db.prepare(`DELETE FROM replays WHERE status IN ('ok', 'skip', 'new') AND created < ?`).bind(cut)];
 }
 
-const tokenOk = async (req, env, sha) => {
+export const tokenOk = async (req, env, sha) => {
   const tok = env && env.MOBAVS_ADMIN;
   if (!tok || String(tok).length < 16) return false;
   const m = (req.headers.get('authorization') || '').match(/^Bearer (\S{16,200})$/);
