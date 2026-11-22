@@ -13,7 +13,7 @@
 # API=<base> also audits the online screens (parties, clubs, friends) against a Worker, as tools/screen_audit.py.
 # VERBOSE=1 prints every failure (default: the first 6 per state); ONLY=<state,...> limits the states run.
 import sys, os, re, asyncio
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); sys.dont_write_bytecode = True  # no tools/__pycache__
 URL = sys.argv[1] if len(sys.argv) > 1 else 'http://127.0.0.1:8891/'
 SPEC = sys.argv[2] if len(sys.argv) > 2 and sys.argv[2] else 'iphones'
 WHAT = sys.argv[3] if len(sys.argv) > 3 else 'both'
