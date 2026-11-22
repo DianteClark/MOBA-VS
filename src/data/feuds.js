@@ -22,6 +22,17 @@ const FEUDS = [
   ['akaro', 'wu', 'Your palms are weak, old man.', 'Patience beats horns.'],
   ['hex', 'kurai', 'One thread unravels the sage.', 'I read that rune coming.'],
   ['bonehook', 'aurelia', 'Hooked the sun!', 'Light finds every hook.'],
+  // v24
+  ['mame', 'akaro', 'Oni out! Luck in!', 'Beans? Really? Ow.'],
+  ['daichi', 'tetsu', 'Fields outlast forges.', 'Crushed like grain.'],
+  ['kenta', 'saru', 'Beat you to the roof!', 'Cute jump, kid.'],
+  ['fukuro', 'hebi', 'Owls eat snakes. Hoo.', 'Swallowed whole, bird.'],
+  ['aki', 'hotaru', 'One lantern stays lit.', 'Every flame goes out.'],
+  ['ume', 'mori', 'Curses? I raised four sons.', 'Your tonic is bitter, granny.'],
+  ['isamu', 'fang', 'Tracked you to your den.', 'The hunter becomes dinner.'],
+  ['kuma', 'leonin', 'Bears outrank cats.', 'King of beasts, not of naps.'],
+  ['tako', 'nami', 'Ink beats water!', 'The tide takes everything.'],
+  ['mogura', 'bastion', 'Under your wall, over your gate.', 'Dig deeper, mole.'],
 ];
 const BY = new Map();
 for (const [a, b, ab, ba] of FEUDS) { BY.set(a + '>' + b, ab); BY.set(b + '>' + a, ba); }

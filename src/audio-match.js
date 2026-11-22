@@ -12,7 +12,18 @@
 import { audio } from './audio.js';
 import { settings } from './ui/settings.js';
 
-const CLAN = { iron: ['iron1', 'iron2'], beast: ['beast1', 'beast2'], shinobi: ['shin1', 'shin2'], spirit: ['spir1', 'spir2'], wild: ['wild1', 'wild2'] };
+const CLAN = { iron: ['iron1', 'iron2'], beast: ['beast1', 'beast2'], shinobi: ['shin1', 'shin2'], spirit: ['spir1', 'spir2'], wild: ['wild1', 'wild2'], hearth: ['hearth1', 'hearth2'] };
+// v24 map music packs: [laning theme, fight theme]. Other maps (Lane Rush) keep the classic calm/calm2 + tension.
+const MAP_MUSIC = { sakura: ['map_sakura', 'fight_bright'], frost: ['map_frost', 'fight_cold'], ember: ['map_ember', 'fight_cold'],
+  marsh: ['map_marsh', 'fight_dark'], oasis: ['map_oasis', 'fight_bright'], ruins: ['map_ruins', 'fight_dark'] };
+export const mapMusic = (mapId) => MAP_MUSIC[mapId] || null;
+// Victory theme: the clan with the most heroes on the winning team (2+, ties to the earlier pick), else the classic one.
+export function victoryTheme(game, team) {
+  const tm = game && game.teams && game.teams[team]; if (!tm) return 'victory';
+  const n = {}; let best = null;
+  for (const h of tm.heroes) { const c = h.def.clan; n[c] = (n[c] || 0) + 1; if (!best || n[c] > n[best]) best = c; }
+  return best && n[best] >= 2 ? 'win_' + best : 'victory';
+}
 const CLS_RATE = { tank: 0.86, bruiser: 0.94, assassin: 1.08, mage: 1, marksman: 1.04, support: 1.06 };
 // ability fx sprite → element layer
 const ELEM = { explosion: 'fireball', flame: 'fire', circle_orange: 'fireball', water: 'water1', ice: 'ice', thunder: 'zap', spark: 'zap',
@@ -23,13 +34,14 @@ const TENSION_IN = 0.6, TENSION_OUT = 0.2, CALM_AFTER = 5, MIN_TENSION = 12, MIN
 
 export const matchAudio = {
   g: null, r: null, runner: null, my: -1, evIdx: 0, pid: 0, heat: 0, state: null, calm: 'calm', tensionAt: 0, calmAt: 0, quietFor: 0, contested: false,
-  nextScan: 0, lastT: 0, roared: {}, objAt: {},
+  nextScan: 0, lastT: 0, roared: {}, objAt: {}, fight: 'tension',
 
   attach(game, renderer, runner, myTeam) {
     this.g = game; this.r = renderer; this.runner = runner; this.my = myTeam;
     this.evIdx = game.events.length; this.pid = 0; for (const p of game.projectiles) this.pid = Math.max(this.pid, p.id);
     this.heat = 0; this.state = null; this.tensionAt = 0; this.calmAt = 0; this.quietFor = 0; this.contested = false; this.nextScan = 0; this.lastT = performance.now(); this.roared = {}; this.objAt = {};
-    this.calm = Math.random() < 0.5 ? 'calm' : 'calm2';
+    const pack = mapMusic(game.cfg.map);
+    this.calm = pack ? pack[0] : Math.random() < 0.5 ? 'calm' : 'calm2'; this.fight = pack ? pack[1] : 'tension';
     audio.preload(PRELOAD);
     this.setState(game.finalPhase ? 'laststand' : 'calm');
   },
@@ -150,7 +162,7 @@ export const matchAudio = {
   setState(s, fadeMs) {
     if (s === this.state) return;
     this.state = s; audio.log('state', s, +this.heat.toFixed(2));
-    audio.music(s === 'calm' ? this.calm : s, fadeMs ?? (s === 'tension' ? 900 : 2200));
+    audio.music(s === 'calm' ? this.calm : s === 'tension' ? this.fight : s, fadeMs ?? (s === 'tension' ? 900 : 2200));
   },
 
   frame() {

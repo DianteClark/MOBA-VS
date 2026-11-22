@@ -18,6 +18,7 @@ import { applyMoment } from './moments-coach.js';
 import { normPlan, planChangeOk, planEdge } from './plans.js';
 import { setupCoop, coopGate } from './coop.js';
 import { openCrystal } from './endgame.js';
+import * as HE from './hearth.js'; // v24 Hearth clan: Hearthfire embers
 import * as D from './talents.js'; // v23 match depth (cfg.depth): talents, item override, ult upgrades, revenge, duo ults
 
 // Champion-vs-champion damage scale: keeps fights readable and lanes from snowballing at level 1.
@@ -121,6 +122,7 @@ export class Game {
       this.clanStats[t] = st; this.teams[t].clans = active;
     }
     FX.setupSynergy(this); // team comp bonus joins the clan stats; duo links
+    HE.setupHearth(this);
     for (let t = 0; t < 2; t++) for (const h of this.teams[t].heroes) { this.recalc(h); h.hp = h.maxHp; }
     for (let t = 0; t < 2; t++) if (cfg.coach && cfg.coach[t]) this.coaches[t] = new Coach(this, t, cfg.coachLevel?.[t] ?? 1, cfg.coachStyle?.[t] || null);
   }
@@ -1295,6 +1297,7 @@ export class Game {
         h.silenceUntil = h.fearUntil = h.shredUntil = h.grievousUntil = 0; h.mark = null;
         this.buyItems(h);
         this.rejoinCall(h);
+        if (this.hearth) HE.hearthRespawn(this, h);
       }
       return;
     }
@@ -1697,6 +1700,7 @@ export class Game {
         const ev = { type: 'objective', obj: u.kind, element: u.element, team, killer: killer ? killer.id : 0, steal: smite };
         this.emit(ev); this.resolveCalls(ev);
         if (this.depth) D.depthObjective(this, team, u);
+        if (this.hearth) HE.hearthObjective(this, team, u);
         break;
       }
       case 'tower': case 'inhib': case 'nexus': {

@@ -12,6 +12,7 @@
 import { sec } from './constants.js';
 import { dist2, dist, norm } from './geom.js';
 import { DUOS, COMPS, compOf } from '../data/synergy.js';
+import { hearthStats, hearthTakedown, hearthHit } from './hearth.js';
 
 export const SHRED_CAP = 0.4;
 const TEN_CAP = 0.6;
@@ -74,6 +75,7 @@ export function passiveStats(g, h, s) {
   else if (p.kind === 'sight') s.sight += p.pct;
   else if (p.kind === 'stackOnKill' && h.tribute) s.power += p.power * h.tribute;
   if (h.duoStats) for (const k in h.duoStats) s[k] = (s[k] || 0) + h.duoStats[k];
+  if (g.hearth) hearthStats(g, h, s); // v24 Hearth clan
 }
 
 // ── damage pipeline hooks ──
@@ -159,6 +161,7 @@ export function onBasicHit(g, att, tgt) {
   if (!tgt.alive || tgt.structure) return;
   if (hero && s.sunder) addShred(g, tgt, s.sunder, 3, true);
   if (hero && s.peelSlow && tgt.lastHitHero > now - sec(2)) tgt.slows.push({ pct: s.peelSlow, until: now + sec(1) });
+  if (att.def.clan === 'hearth') hearthHit(g, att, tgt, hero);
   switch (p.kind) {
     case 'shredHits': if (hero) addShred(g, tgt, p.pct, p.dur, true, p.cap); break;
     case 'grievousHits': tgt.grievousUntil = Math.max(tgt.grievousUntil || 0, now + sec(p.dur)); break;
@@ -260,6 +263,7 @@ export function onTakedown(g, victim, killer, assists) {
     if (h && h.alive && h.team !== victim.team) { h.cds[r.i] = now; g.fx.push({ kind: 'fx', name: 'boost', x: h.x, y: h.y, s: 1.3, follow: h.id }); g.emit({ type: 'reset', hero: h.id, team: h.team }); }
   }
   victim.resetBy = null;
+  if (g.hearth) hearthTakedown(g, victim, killer, assists);
 }
 
 // ── periodic: auras, solo-resist, duo proximity (every 10 ticks) ──

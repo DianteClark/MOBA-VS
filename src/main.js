@@ -27,7 +27,7 @@ import { toast, h, setFaceSkins } from './ui/dom.js';
 import { myLooks, cleanLooks, cleanSkins, matchSkins, faceMap } from './looks.js';
 import { achToasts, resultEmotes } from './ui/collection.js';
 import { audio } from './audio.js';
-import { matchAudio } from './audio-match.js';
+import { matchAudio, victoryTheme } from './audio-match.js';
 import { DEFAULT_DECK } from './data/tactics.js';
 import { fpsCap } from './ui/settings.js';
 import { showHalftime, hideHalftime } from './ui/halftime.js';
@@ -726,7 +726,7 @@ class App {
     this.teardownMatch(m);
     this.fade(() => {
       this.showScreen(true);
-      audio.music(won ? 'victory' : 'defeat');
+      audio.music(won ? victoryTheme(m.game, this.session ? this.session.myTeam : 0) : 'defeat');
       const s = this.session;
       // Online: both players report (ranked counts for the ladder; casual only feeds hero balance stats)
       const ladder = s.matchId && s.oppId && getAccount() ? this.reportOnline(m, s) : null;

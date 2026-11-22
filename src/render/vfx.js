@@ -1,7 +1,7 @@
 // Ability VFX (render-only). Every hero gets a visual profile:
 //  * element per ability, from its fx / proj sprite names (fire, frost, water, storm, nature, earth, spirit,
 //    shadow, blade, guard): colours, impact bursts, line streaks and zone patterns;
-//  * clan motif (iron hex, beast fangs, shinobi star, spirit runes, wild petals) for ult sigils;
+//  * clan motif (iron hex, beast fangs, shinobi star, spirit runes, wild petals, hearth lanterns) for ult sigils;
 //  * a signature colour sampled from the hero's own sprite (projectile glow, trails, dash afterimages, sigils);
 //  * pack-sprite variants (cut / cut_double / multi...) picked per hero, so two heroes sharing a sim fx name
 //    still look different.
@@ -39,7 +39,7 @@ const VARIANTS = {
   spark: ['spark', 'holy'], circle: ['circle', 'ringw', 'holy'], ice: ['ice', 'crystal'], water: ['water', 'pillar', 'wave'], plant: ['plant', 'leafspike'],
   p_shuriken: ['p_shuriken', 'p_bigshuriken', 'p_magicstar'], p_cannon: ['p_cannon', 'p_rock'],
 };
-const CLAN_SIGIL = { iron: 'hex', beast: 'fang', shinobi: 'star', spirit: 'rune', wild: 'petal' };
+const CLAN_SIGIL = { iron: 'hex', beast: 'fang', shinobi: 'star', spirit: 'rune', wild: 'petal', hearth: 'lantern' };
 const hash = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619); return h >>> 0; };
 
 function hsl2hex(h, s, l) {
@@ -305,6 +305,9 @@ export class Vfx {
       case 'star': ctx.beginPath(); for (let i = 0; i <= 8; i++) { const t = i / 8 * Math.PI * 2, rad = i % 2 ? R * 0.28 : R * 0.9; i ? ctx.lineTo(Math.cos(t) * rad, Math.sin(t) * rad) : ctx.moveTo(Math.cos(t) * rad, Math.sin(t) * rad); }
         ctx.globalAlpha = a * 0.3; ctx.fill(); ctx.globalAlpha = a * 0.9; ctx.stroke(); ctx.beginPath(); ctx.arc(0, 0, R * 0.18, 0, Math.PI * 2); ctx.stroke(); break;
       case 'petal': for (let i = 0; i < 6; i++) { ctx.save(); ctx.rotate(i / 6 * Math.PI * 2); ctx.beginPath(); ctx.ellipse(R * 0.5, 0, R * 0.34, R * 0.13, 0, 0, Math.PI * 2); ctx.globalAlpha = a * 0.3; ctx.fill(); ctx.globalAlpha = a * 0.9; ctx.stroke(); ctx.restore(); } break;
+      case 'lantern': // hearth: a ring of eight lantern flames around a hearth square
+        for (let i = 0; i < 8; i++) { const t = i / 8 * Math.PI * 2, c = Math.cos(t) * R * 0.82, s = Math.sin(t) * R * 0.82; ctx.beginPath(); ctx.moveTo(c, s - 9); ctx.quadraticCurveTo(c + 6, s, c, s + 5); ctx.quadraticCurveTo(c - 6, s, c, s - 9); ctx.globalAlpha = a * 0.5; ctx.fill(); ctx.globalAlpha = a * 0.9; ctx.stroke(); }
+        ctx.strokeRect(-R * 0.32, -R * 0.32, R * 0.64, R * 0.64); ctx.beginPath(); ctx.moveTo(-R * 0.32, 0); ctx.lineTo(R * 0.32, 0); ctx.moveTo(0, -R * 0.32); ctx.lineTo(0, R * 0.32); ctx.stroke(); break;
       default: // rune
         ctx.beginPath(); ctx.arc(0, 0, R * 0.8, 0, Math.PI * 2); ctx.stroke(); poly(3, R * 0.78, -Math.PI / 2); poly(3, R * 0.78, Math.PI / 2);
         for (let i = 0; i < 8; i++) { const t = i / 8 * Math.PI * 2; ctx.fillRect(Math.cos(t) * R * 0.9 - 2, Math.sin(t) * R * 0.9 - 2, 4, 4); }

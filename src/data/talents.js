@@ -132,6 +132,27 @@ export const HERO_TALENTS = {
   daikoku: [['q.area', 'w.mend'], ['armor', 'guard'], ['r.hold', 'r.cd']],
   kinta: [['q.reach', 'w.area'], ['sight', 'swift'], ['r.buff', 'r.cd']],
   zahra: [['q.buff', 'w.area'], ['healer', 'swift'], ['r.mend', 'r.cd']],
+  // v24
+  daichi: [['q.hold', 'w.mend'], ['armor', 'guard'], ['r.area', 'aftershock']],
+  tobi: [['q.dmg', 'w.hold'], ['pierce', 'siege'], ['r.dmg', 'r.cd']],
+  kuma: [['q.cd', 'w.hold'], ['vamp', 'laststand'], ['r.area', 'aftershock']],
+  mogura: [['q.cd', 'w.buff'], ['siege', 'lone'], ['r.hold', 'r.area']],
+  kenta: [['q.cd', 'w.dmg'], ['rampage', 'ambush'], ['r.dmg', 'overdrive']],
+  isamu: [['q.hold', 'w.reach'], ['bully', 'sight'], ['r.buff', 'r.cd']],
+  hebi: [['q.dmg', 'w.cd'], ['execute', 'ambush'], ['r.dmg', 'r.hold']],
+  upa: [['q.hold', 'w.mend'], ['vamp', 'armor'], ['r.area', 'r.cd']],
+  taro: [['q.dmg', 'w.area'], ['power', 'focus'], ['r.area', 'r.dmg']],
+  mame: [['q.cd', 'w.hold'], ['focus', 'bully'], ['r.hold', 'r.area']],
+  fukuro: [['q.dmg', 'w.cd'], ['execute', 'power'], ['r.hold', 'overdrive']],
+  hitotsume: [['q.reach', 'w.area'], ['power', 'pierce'], ['r.dmg', 'r.hold']],
+  suzu: [['q.dmg', 'w.buff'], ['crit', 'siege'], ['r.dmg', 'r.cd']],
+  momo: [['q.hold', 'w.cd'], ['swift', 'fury'], ['r.area', 'r.dmg']],
+  komori: [['q.hold', 'w.buff'], ['crit', 'vamp'], ['r.area', 'r.dmg']],
+  tako: [['q.dmg', 'w.cd'], ['fury', 'bully'], ['r.hold', 'r.area']],
+  ume: [['q.mend', 'w.hold'], ['healer', 'tenacity'], ['r.mend', 'r.cd']],
+  aki: [['q.mend', 'w.area'], ['healer', 'guard'], ['r.buff', 'r.mend']],
+  bao: [['q.hold', 'w.mend'], ['armor', 'guard'], ['r.area', 'r.hold']],
+  kinoko: [['q.mend', 'w.hold'], ['healer', 'focus'], ['r.mend', 'r.cd']],
 };
 
 const SLOT = { q: 0, w: 1, r: 2 };

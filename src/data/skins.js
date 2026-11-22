@@ -46,6 +46,14 @@ const SIG = [
   ['bonehook', 'ocean', 'horns', 'Drowned Bonehook'], ['frost', 'infernal', 'horns', 'Volcanic Frost'], ['gizmo', 'crimson', 'antenna', 'Red Alert Gizmo'],
   ['ruga', 'storm', 'feather', 'Thunder Drum Ruga'], ['hotaru', 'sakura', 'wisp', 'Blossom Lantern Hotaru', 1], ['hoshi', 'void', 'star', 'Black Hole Hoshi', 1],
   ['daikoku', 'jade', 'crown', 'Jade Fortune Daikoku'], ['kinta', 'spectral', 'star', 'Silver Luck Kinta'], ['zahra', 'ocean', 'blossom', 'Oasis Zahra'],
+  // v24
+  ['daichi', 'golden', 'halo', 'Harvest Moon Daichi', 1], ['tobi', 'autumn', 'leaf', 'Red Maple Tobi'], ['kuma', 'frost', 'icecrown', 'Polar Kuma', 1],
+  ['mogura', 'golden', 'gem', 'Gold Vein Mogura'], ['kenta', 'storm', 'bolt', 'Thunder Roof Kenta'], ['isamu', 'jade', 'feather', 'Evergreen Isamu'],
+  ['hebi', 'void', 'gem', 'Night Scale Hebi', 1], ['upa', 'sakura', 'blossom', 'Blossom Upa'], ['taro', 'celestial', 'star', 'Starburst Taro', 1],
+  ['mame', 'crimson', 'horns', 'Oni Mask Mame'], ['fukuro', 'celestial', 'halo', 'Moonlit Fukuro', 1], ['hitotsume', 'infernal', 'flame', 'Magma Eye Hitotsume', 1],
+  ['suzu', 'storm', 'antenna', 'Spark Coil Suzu'], ['momo', 'sakura', 'feather', 'Peach Blossom Momo'], ['komori', 'shadow', 'ears', 'Vampire Komori', 1],
+  ['tako', 'toxic', 'wisp', 'Abyss Glow Tako', 1], ['ume', 'spectral', 'blossom', 'Ghost Plum Ume'], ['aki', 'infernal', 'flame', 'Bonfire Aki', 1],
+  ['bao', 'jade', 'leaf', 'Bamboo Grove Bao'], ['kinoko', 'ocean', 'wisp', 'Tidepool Kinoko', 1],
 ];
 // [hero, pack body (assets/img/skins/<body>.png + <body>_face.png), name, accessory or null, accent for the accessory]
 const LEG = [

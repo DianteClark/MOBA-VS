@@ -15,6 +15,13 @@ const MUSIC_DIR = 'assets/audio/music/', SFX_DIR = 'assets/audio/sfx/';
 const TRACKS = {
   menu: { f: 'menu', g: 0.88, resume: true }, draft: { f: 'draft', g: 1 }, calm: { f: 'calm', g: 0.88, resume: true }, calm2: { f: 'match1', g: 1.35, resume: true },
   tension: { f: 'match2', g: 0.98 }, laststand: { f: 'laststand', g: 0.8 }, victory: { f: 'victory', g: 0.42 }, defeat: { f: 'defeat', g: 1.6 },
+  // v24 music packs (tools/music_assets.py, mastered to about -20 LUFS): each classic map's laning theme, three fight
+  // moods shared between maps, and a victory theme per clan. Streamed on demand like every track.
+  map_sakura: { f: 'map_sakura', g: 0.95, resume: true }, map_frost: { f: 'map_frost', g: 0.95, resume: true }, map_ember: { f: 'map_ember', g: 0.95, resume: true },
+  map_marsh: { f: 'map_marsh', g: 0.95, resume: true }, map_oasis: { f: 'map_oasis', g: 0.95, resume: true }, map_ruins: { f: 'map_ruins', g: 0.95, resume: true },
+  fight_bright: { f: 'fight_bright', g: 1 }, fight_cold: { f: 'fight_cold', g: 1 }, fight_dark: { f: 'fight_dark', g: 1 },
+  win_iron: { f: 'win_iron', g: 0.9 }, win_beast: { f: 'win_beast', g: 0.9 }, win_shinobi: { f: 'win_shinobi', g: 0.9 }, win_spirit: { f: 'win_spirit', g: 0.9 },
+  win_wild: { f: 'win_wild', g: 0.9 }, win_hearth: { f: 'win_hearth', g: 0.9 },
 };
 // One-shots. bus: sfx | ui | music (stingers). lim: max voices of the group at once. pv/vv: random pitch / volume spread.
 const D = (g, o = {}) => ({ g, bus: 'sfx', grp: null, lim: 4, pv: 0.05, vv: 0.12, ...o });
@@ -34,7 +41,7 @@ const SFX = {
   minion: D(0.5, { grp: 'minion', lim: 2, pv: 0.12, vv: 0.25 }), tshot: D(0.5, { grp: 'tower', lim: 2, pv: 0.06 }),
   iron1: D(0.7, { grp: 'cast', lim: 5 }), iron2: D(0.7, { grp: 'cast', lim: 5 }), beast1: D(0.75, { grp: 'cast', lim: 5 }), beast2: D(0.6, { grp: 'cast', lim: 5 }),
   shin1: D(0.7, { grp: 'cast', lim: 5 }), shin2: D(0.7, { grp: 'cast', lim: 5 }), spir1: D(0.65, { grp: 'cast', lim: 5 }), spir2: D(0.65, { grp: 'cast', lim: 5 }),
-  wild1: D(0.7, { grp: 'cast', lim: 5 }), wild2: D(0.6, { grp: 'cast', lim: 5 }),
+  wild1: D(0.7, { grp: 'cast', lim: 5 }), wild2: D(0.6, { grp: 'cast', lim: 5 }), hearth1: D(0.7, { grp: 'cast', lim: 5 }), hearth2: D(0.6, { grp: 'cast', lim: 5 }),
   fire: D(0.55, { grp: 'elem', lim: 3 }), fireball: D(0.6, { grp: 'elem', lim: 3 }), water1: D(0.6, { grp: 'elem', lim: 3 }), water2: D(0.6, { grp: 'elem', lim: 3 }),
   ice: D(0.55, { grp: 'elem', lim: 3 }), zap: D(0.55, { grp: 'elem', lim: 3 }), rock: D(0.6, { grp: 'elem', lim: 3 }), plant: D(0.6, { grp: 'elem', lim: 3 }),
   heal: D(0.55, { grp: 'elem', lim: 3 }), shield: D(0.5, { grp: 'elem', lim: 3 }),

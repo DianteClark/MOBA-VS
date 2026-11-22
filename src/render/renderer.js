@@ -11,6 +11,7 @@ import { Vfx } from './vfx.js';
 import { Ambient } from './ambient.js';
 import { EventFx } from './eventfx.js';
 import { depthFx, drawUltUp } from './depthfx.js';
+import { drawEmbers, hearthPop } from './hearthfx.js';
 import { feudLine } from '../data/feuds.js';
 import { settings, textScale, renderDpr } from '../ui/settings.js';
 
@@ -221,6 +222,7 @@ export class Renderer {
         case 'flash': if (this.visiblePoint(f.x, f.y)) { this.fxSprite('spark', f.x, f.y - 10, 1.4); this.text(f.x, f.y - 40, 'FLASH', '#fff', 9, 0.8); } break;
         case 'ward': if (f.team === this.viewTeam || this.viewTeam < 0) this.fxSprite('spirit', f.x, f.y, 1); break;
         case 'talent': case 'ultUp': case 'ultEmp': case 'revenge': case 'duoUlt': depthFx(this, f, u, byId); break; // v23 match depth
+        case 'hearth': hearthPop(this, f); break; // v24 Hearthfire
         case 'recall': break;
         case 'emote': if (u && (u.team === this.viewTeam || this.viewTeam < 0)) emotes.push({ u, e: f.e }); break;
       }
@@ -891,6 +893,7 @@ export class Renderer {
       ctx.fillText(String(u.level), x - w / 2 - 6.5, top + 2.6);
       if (this.showNames) { ctx.font = '7px PixelFont, monospace'; ctx.fillStyle = '#000'; const nm = sp_(u.def.name); ctx.fillText(nm, x + 0.6, top - 5.4); ctx.fillStyle = u.team === this.viewTeam ? '#fff' : '#ffd0d0'; ctx.fillText(nm, x, top - 6); }
       this.drawStatus(u, x, y, x + w / 2 + 2, top - 1);
+      if (g.hearth && u.def.clan === 'hearth') drawEmbers(this, u, x, top + h + 2);
       return;
     }
     if (u.structure) {
