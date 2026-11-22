@@ -78,7 +78,7 @@ export function installPack(pack) {
     if (c.textArgs.some(Boolean)) {
       const lits = c.k.split('{}');
       const need = lits.reduce((a, b) => (b.length > a.length ? b : a), '');
-      if (!/[\p{L}]/u.test(lits.join(''))) continue; // "{0} {1}": too generic to be a pattern
+      if ((lits.join('').match(/\p{L}/gu) || []).length < 4) continue; // "{0} {1}", "{0} the {1}": too generic to be a pattern
       pats.push({ re: new RegExp('^' + lits.map(esc).join('(.+?)') + '$', 's'), need, c, score: lits.join('').length });
     }
   }
@@ -112,14 +112,15 @@ function look(core, depth) {
     if (p.need && !k.includes(p.need)) continue;
     const m = p.re.exec(k); if (!m) continue;
     // each capture holds its own share of the numbers, in order
-    let ai = 0; const vals = [];
-    for (let i = 1; i < m.length; i++) {
-      const cap = m[i], n = (cap.match(/\{\}/g) || []).length;
-      const real = cap.replace(/\{\}/g, () => args[ai++]);
-      vals.push(/[A-Za-z]/.test(real) ? look(real, depth + 1) ?? real : real);
-      void n;
+    // a capture that reads like an untranslated English phrase means the pattern was the wrong fit
+    let ai = 0, bad = false; const vals = [];
+    for (let i = 1; i < m.length && !bad; i++) {
+      const real = m[i].replace(/\{\}/g, () => args[ai++]);
+      const x = /[A-Za-z]/.test(real) ? look(real, depth + 1) : real;
+      if (x == null && /\b[a-z]{2,}\b.*\b[a-z]{2,}\b/.test(real)) bad = true;
+      vals.push(x ?? real);
     }
-    return fill(p.c.out, vals);
+    if (!bad) return fill(p.c.out, vals);
   }
   // decorated text: "★ Title", "Label:", "\"Quote\"", "Happy (64)", "Name ×2"
   let m = core.match(/^([^\p{L}\p{N}"“'«{]+)(.+)$/u);
@@ -135,14 +136,15 @@ function look(core, depth) {
   // compound text: "Top · Tank", "Gold: 350", two sentences: translate each part
   for (const sep of [' · ', ' — ', ' | ', '. ', ': ', ' / ', ', ', '/']) {
     if (!core.includes(sep)) continue;
-    const parts = core.split(sep); let any = false;
+    const parts = core.split(sep); let any = false, bad = false;
     const outp = parts.map((x, i) => {
       const piece = sep === '. ' && i < parts.length - 1 ? x + '.' : x;
       const tx = /[A-Za-z]/.test(piece) ? look(piece.trim(), depth + 1) : null;
       if (tx != null) { any = true; return sep === '. ' && i < parts.length - 1 ? tx.replace(/[.。]$/, '') : tx; }
+      if (/\b[a-z]{2,}\b.*\b[a-z]{2,}\b/.test(x)) bad = true; // an English phrase left over: not this split
       return x;
     });
-    if (any) return outp.join(sep === '. ' && /^(ja|zh)$/.test(lang) ? '。' : sep);
+    if (any && !bad) return outp.join(sep === '. ' && /^(ja|zh)$/.test(lang) ? '。' : sep);
   }
   return null;
 }
