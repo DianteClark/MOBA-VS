@@ -28,7 +28,8 @@ import { DIV_SCHEMA, DIV_TABLES, divApi } from './divisions.js';
 import { DUO_SCHEMA, DUO_TABLES, duoApi } from './duo.js';
 import { CLUB_SCHEMA, CLUB_TABLES, clubApi, clubPointStmts, clubCron, clubOfStmt } from './clubs.js';
 import { HUB_SCHEMA, HUB_TABLES, hubApi, reelStmt, reelRow } from './hub.js';
-import { KOBAN_SCHEMA, KOBAN_TABLES, kobanApi, wipeApi, rankedOwned, rankedBlock, picksOwned, dataVersion } from './koban.js';
+import { KOBAN_SCHEMA, KOBAN_TABLES, kobanApi, wipeApi, autoWipeStep, rankedOwned, rankedBlock, picksOwned, dataVersion } from './koban.js';
+let wipeCurrent = false; // this isolate has seen the database at the shipped DATA_VERSION
 
 const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS players (id TEXT PRIMARY KEY, name TEXT NOT NULL, secret_hash TEXT NOT NULL, created INTEGER, updated INTEGER, profile TEXT, profile_at INTEGER DEFAULT 0)`,
@@ -347,7 +348,7 @@ async function route(req, env, url) {
     if (at < (me.profile_at || 0)) return json({ ok: false, stale: true, profileAt: me.profile_at });
     const pub = pubOf(b.profile);
     await db.prepare('UPDATE players SET name = ?, profile = ?, profile_at = ?, updated = ?, pub = ?, elo = ?, pfp = ? WHERE id = ?')
-      .bind(cleanName(b.name || me.name), JSON.stringify(b.profile || null), at, now, pub ? JSON.stringify(pub) : null, pub ? pub.elo : null, pub ? pub.pfp : null, me.id).run();
+      .bind(cleanName(b.name || me.name), JSON.stringify(b.profile || null), at, now, pub ? JSON.stringify(pub) : null, pub ? (pub.elo ?? null) : null, pub ? (pub.pfp ?? null) : null, me.id).run();
     return json({ ok: true, profileAt: at });
   }
 
@@ -554,6 +555,15 @@ export default {
       let dv = 1; if (tables) { try { dv = await dataVersion(env.DB); } catch { dv = 1; } }
       return json({ ok: true, db: !!env.DB, tables, missing, time: Date.now(), dv }); // dv: data version of the last launch wipe
     }
+    // launch wipe: a new DATA_VERSION ships with the code; requests archive-and-empty the old tables a few at a
+    // time until the database catches up. Writes wait (503) until it has, so nothing new lands in a table about to be emptied.
+    if (!wipeCurrent && env.DB && url.pathname.startsWith('/api/')) {
+      try {
+        await ensure(env.DB);
+        wipeCurrent = await autoWipeStep(env.DB, Date.now());
+        if (!wipeCurrent && req.method !== 'GET') return new Response(JSON.stringify({ error: 'The game is updating. Try again in a moment.' }), { status: 503, headers: { ...CORS, 'content-type': 'application/json', 'retry-after': '3' } });
+      } catch { /* keep serving; the next request retries */ }
+    }
     // short share links open the game with the shared item
     const s = url.pathname.match(/^\/s\/([A-Z0-9]{7})$/);
     if (s) return Response.redirect(`${url.origin}/?s=${s[1]}`, 302);
@@ -570,6 +580,15 @@ export default {
         return bad(m, m === 'too large' ? 413 : m === 'bad json' ? 400 : 500);
       }
     }
-    return env.ASSETS.fetch(req);
+    const res = await env.ASSETS.fetch(req);
+    // Files removed in newer builds: older service workers (r1/r2) re-download every cached file after a deploy and
+    // abandon the whole update if one is missing, which froze those phones on an old build. Answer removed game
+    // files with an empty 200 so their refresh completes and they move to the current build (sw r3 handles 404s).
+    if (res.status === 404 && req.method === 'GET' && /^\/(assets|src|css)\//.test(url.pathname)) {
+      const ext = (url.pathname.split('.').pop() || '').toLowerCase();
+      const type = { js: 'text/javascript', css: 'text/css', json: 'application/json', png: 'image/png', mp3: 'audio/mpeg', ogg: 'audio/ogg', ttf: 'font/ttf' }[ext] || 'application/octet-stream';
+      return new Response(ext === 'json' ? '{}' : '', { status: 200, headers: { 'content-type': type, 'cache-control': 'no-store', 'x-mobavs-gone': '1' } });
+    }
+    return res;
   },
 };

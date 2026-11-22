@@ -101,6 +101,26 @@ export async function dataVersion(db) {
   const r = await db.prepare("SELECT v FROM kv WHERE k = 'dv'").first();
   return r ? Number(r.v) | 0 : 1;
 }
+// Automatic launch wipe: when the shipped DATA_VERSION (src/data/unlocks.js, shared with the client) is ahead of the
+// database's, each API request archives-and-empties up to `step` more tables (same rules as POST /api/admin/wipe:
+// copy to <table>_beta, then empty; idempotent; finished tables skipped) until the database reaches it.
+// Returns true once the database is at DATA_VERSION. No token needed: shipping the new DATA_VERSION is the decision.
+export async function autoWipeStep(db, now, step = 2) {
+  const cur = await dataVersion(db);
+  if (cur >= DATA_VERSION) return true;
+  const dv = cur + 1;
+  const have = new Set(((await db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all()).results || []).map((r) => r.name));
+  const marks = new Set(((await db.prepare('SELECT k FROM kv WHERE k LIKE ?').bind(`wipe:${dv}:%`).all()).results || []).map((r) => r.k));
+  const todo = WIPE_TABLES.filter((t) => have.has(t) && !marks.has(`wipe:${dv}:${t}`));
+  for (const t of todo.slice(0, step)) {
+    const a = archiveName(t, dv);
+    await db.batch([db.prepare(`DROP TABLE IF EXISTS ${a}`), db.prepare(`CREATE TABLE ${a} AS SELECT * FROM ${t}`), db.prepare(`DELETE FROM ${t}`),
+      db.prepare('INSERT OR REPLACE INTO kv (k, v, updated) VALUES (?, ?, ?)').bind(`wipe:${dv}:${t}`, a, now)]);
+  }
+  if (todo.length > step) return false;
+  await db.prepare("INSERT OR REPLACE INTO kv (k, v, updated) VALUES ('dv', ?, ?)").bind(String(dv), now).run();
+  return dv >= DATA_VERSION;
+}
 export function wipeApi(H) {
   const { json, bad, body } = H;
   return async function wipe(req, env, db, url, p, M, now) {

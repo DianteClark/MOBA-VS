@@ -59,17 +59,38 @@
   </div>
 </div>
 <script>
-// Boot watchdog: if the game has not started 20s after the page loaded (for example a broken offline cache
-// left by an older build), clear this site's service worker and caches and reload once, fresh.
+// Boot watchdog: remembers startup errors; if the game has not started 20s after the page loaded (for example a
+// broken offline cache left by an older build), it clears this site's service worker and caches and reloads once.
+// If it is still stuck after that, it shows the error and a "Reset game data" button instead of a frozen screen.
+window.__bootErrs = [];
+window.addEventListener('error', function (e) { window.__bootErrs.push((e.message || 'error') + (e.filename ? ' (' + e.filename.split('/').pop() + ':' + e.lineno + ')' : '')); }, true);
+window.addEventListener('unhandledrejection', function (e) { var r = e.reason; window.__bootErrs.push(String(r && (r.message || r) || 'rejected')); });
 window.addEventListener('load', function () {
   setTimeout(function () {
-    if (window.__mobavsBooted || !navigator.onLine) return;
-    try { if (sessionStorage.getItem('mobavs_rescue')) return; sessionStorage.setItem('mobavs_rescue', '1'); } catch (e) { return; }
-    var tip = document.getElementById('ldtip'); if (tip) tip.textContent = 'Refreshing the game files…';
-    var jobs = [];
-    if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) jobs.push(navigator.serviceWorker.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); }));
-    if (window.caches && caches.keys) jobs.push(caches.keys().then(function (ks) { return Promise.all(ks.filter(function (k) { return k.indexOf('mobavs-') === 0; }).map(function (k) { return caches.delete(k); })); }));
-    Promise.all(jobs).catch(function () {}).then(function () { location.reload(); });
+    if (window.__mobavsBooted) return;
+    var tip = document.getElementById('ldtip');
+    var rescued = false; try { rescued = !!sessionStorage.getItem('mobavs_rescue'); } catch (e) { rescued = true; }
+    function wipeCaches(alsoData) {
+      var jobs = [];
+      if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) jobs.push(navigator.serviceWorker.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); }));
+      if (window.caches && caches.keys) jobs.push(caches.keys().then(function (ks) { return Promise.all(ks.filter(function (k) { return k.indexOf('mobavs-') === 0; }).map(function (k) { return caches.delete(k); })); }));
+      if (alsoData) { try { Object.keys(localStorage).forEach(function (k) { if (k.indexOf('mobavs_') === 0 && k !== 'mobavs_settings' && k !== 'mobavs_lang') localStorage.removeItem(k); }); } catch (e) { /* ignore */ } }
+      return Promise.all(jobs).catch(function () {});
+    }
+    if (!rescued && navigator.onLine) {
+      try { sessionStorage.setItem('mobavs_rescue', '1'); } catch (e) { /* ignore */ }
+      if (tip) tip.textContent = 'Refreshing the game files…';
+      wipeCaches(false).then(function () { location.reload(); });
+      return;
+    }
+    var ld = document.querySelector('#loading .ld'); if (!ld || document.getElementById('bootfail')) return;
+    var box = document.createElement('div'); box.id = 'bootfail';
+    box.style.cssText = 'margin-top:14px;font:12px/1.4 sans-serif;color:#ffd0c0;max-width:80vw;text-align:center';
+    box.textContent = 'MOBA-VS could not start' + (window.__bootErrs.length ? ': ' + window.__bootErrs.slice(0, 2).join(' | ') : '.') + ' ';
+    var btn = document.createElement('button'); btn.textContent = 'Reset game data and reload';
+    btn.style.cssText = 'display:block;margin:10px auto 0;padding:8px 14px;font:600 13px sans-serif;border-radius:6px;border:0;background:#ffd84a;color:#000';
+    btn.onclick = function () { btn.disabled = true; wipeCaches(true).then(function () { try { sessionStorage.clear(); } catch (e) { /* ignore */ } location.reload(); }); };
+    box.appendChild(btn); ld.appendChild(box);
   }, 20000);
 });
 </script>

@@ -7,7 +7,7 @@ import { HERO_TIER } from './unlocks-tiers.js';
 
 // Bump at a launch wipe (worker POST /api/admin/wipe with the same number): every client then clears its
 // local profile, history and account once (src/datareset.js) and starts fresh with the starters.
-export const DATA_VERSION = 1;
+export const DATA_VERSION = 2;
 
 export const TIERS = {
   G: { id: 'G', name: 'General', price: 1500, color: '#8fd16a', desc: 'Readable kits that do their job without many calls.' },

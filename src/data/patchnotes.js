@@ -1,6 +1,18 @@
 // Patch notes, newest first. tools/season.mjs prepends an entry at each season rollover.
 export const PATCHES = [
   {
+    version: '25.0', season: 1, date: '2026-11-22', title: 'Launch',
+    highlights: ['Fresh start for everyone', '80 heroes', '8 maps', 'Story campaign'],
+    notes: [
+      'MOBA-VS launches! Every account starts fresh with the same 15 champions, 3 per role. Beta progress has been archived.',
+      'Two new maps: Tidebreak Harbor, where the tide floods the shallows mid-match, and Skyreach Isles, floating islands linked by jump pads and shifting wind bridges.',
+      'Each new map has its own Kami: Ryujin the sea dragon (ability haste, wade through floodwater) and the Cloud Spirit (omnivamp, a shield on every jump-pad landing).',
+      'Earn Koban from every match to unlock 80 champions, climb to Ranked at 25, and play the 30-mission campaign, Coach Academy, Franchise, clubs, cups and more.',
+      'Thank you to every beta coach. See you on the battlefield.',
+    ],
+    heroes: [],
+  },
+  {
     version: '24.4', season: 1, date: '2026-11-22', title: 'Koban',
     highlights: ['Champion shop', 'Weekly rotation', 'Legend tier'],
     notes: [
