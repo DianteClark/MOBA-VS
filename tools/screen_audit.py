@@ -1,5 +1,5 @@
 # Menu / scene audit: visits every screen (home, dojo, draft, prep, results + its Analysis sheet, history, ladder,
-# season, settings, profile + career, cup, matchmaking, lobby, how-to-play, patch notes), screenshots it and checks
+# season, Today, season-end ceremony, settings, profile + coach + career, cup, matchmaking, lobby, how-to-play, patch notes), screenshots it and checks
 #   * no horizontal overflow (nothing pushes the page sideways),
 #   * every button / input sits inside the safe area (notch / Dynamic Island, home indicator),
 #   * no two buttons overlap (buttons under a sticky bar, e.g. the results footer, are scrolled content), and no button label is clipped.
@@ -42,6 +42,10 @@ SEED = """if (!window.__seeded) { window.__seeded = 1; try {
 SCREENS = [
     ('home', 'app.menu()'),
     ('season', 'H.showSeason(app)'),
+    ('today', "(await import('./src/ui/today.js')).showToday(app)"),
+    ('profile-coach', "H.showProfile(app, 'coach', 't1')"),
+    ('ceremony', "(await import('./src/ui/ceremony.js')).showCeremony({ from: 1, to: 2, peak: 'Diamond II', peakElo: 1530, tier: 'diamond', eligible: true, pass: 15, passMax: 20, w: 9, l: 5, elo: 1210, rewards: [{ kind: 'title', id: 'rankSilver' }, { kind: 'banner', id: 'jade' }, { kind: 'skin', id: 'platinum' }, { kind: 'border', id: 'moon' }] }, () => app.menu())"),
+    ('ceremony-next', "document.querySelector('.ceremony .btn').click()"),
     ('profile', 'H.showProfile(app)'),
     ('profile-mastery', "H.showProfile(app, 'mastery')"),
     ('profile-banners', "H.showProfile(app, 'banners')"),

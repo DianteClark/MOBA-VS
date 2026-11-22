@@ -4,6 +4,8 @@ import { talentPicker } from './talentui.js';
 import { cleanPrefs } from '../data/talents.js';
 import { HEROES, HERO_BY_ID, ROLES, ROLE_LABEL, matchupScore, PERSONALITIES } from '../data/heroes.js';
 import { TACTICS, TACTIC_IDS } from '../data/tactics.js';
+import { ownsTactic } from '../meta.js';
+import { profile } from '../profile.js';
 import { PLAN_IDS, PLAN_INFO, planLine, EDGE_TEXT } from '../data/plans.js';
 import { BUILDS } from '../data/items.js';
 import { aiPrep, recommendPlan } from '../sim/draft.js';
@@ -163,7 +165,7 @@ export function showPrep(app, prep, enemyIds, left, onChange, onReady, ready) {
         h('b', {}, h('img', { src: icon(P.icon), alt: '' }), P.name), h('small', {}, P.desc), h('small', { class: 'pvs' }, planLine(k)),
         rec.id === k ? h('span', { class: 'precw' }, '★ ' + rec.why) : null); }))),
     !lead || mirror ? null : sec('Tactic deck', h('span', { class: 'dcount' + (prep.deck.length === 3 ? ' full' : '') }, `${prep.deck.length}/3`),
-      h('div', { class: 'deck' }, ...TACTIC_IDS.map((id) => {
+      h('div', { class: 'deck' }, ...TACTIC_IDS.filter((id) => ownsTactic(profile.d.meta, id) || prep.deck.includes(id)).map((id) => {
         const t = TACTICS[id], on = prep.deck.includes(id);
         return h('button', { class: 'card' + (on ? ' sel' : ''), onclick: () => { if (on) prep.deck = prep.deck.filter((d) => d !== id); else if (prep.deck.length < 3) prep.deck = [...prep.deck, id]; else prep.deck = [...prep.deck.slice(1), id]; audio.sfx('move', 0.4); onChange(); } },
           h('img', { src: icon(t.icon) }), h('div', { class: 'cn' }, t.name), h('div', { class: 'cd' }, t.desc), on ? h('i', { class: 'tick' }) : null);

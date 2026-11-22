@@ -3,6 +3,7 @@
 import { sec } from './constants.js';
 import { dist2 } from './geom.js';
 import { aiMoment } from './moments-coach.js';
+import { aiSkillTactic } from './sidegrades.js';
 import { coachWeights, PLAN_IDS, PLAN_BEATS } from './plans.js';
 import { openCrystal } from './endgame.js';
 
@@ -171,6 +172,7 @@ export class Coach {
     if (has('council') && me.charges < 0.5 && g.time > 300 * k) return play({ card: 'council' });
     if (has('eyes') && obj && !fighting) return play({ card: 'eyes' });
     if (has('gate') && avgHp < 0.45 && !fighting && g.time > 300 * k) return play({ card: 'gate' });
+    if (aiSkillTactic(has, play, { fighting, vis, avgHp, obj, call: me.call })) return true;
     if (has('bait') && fighting >= 2) { const tank = alive.find((h) => h.def.cls === 'tank' && h.hp / h.maxHp > 0.6); if (tank) return play({ card: 'bait', hero: tank.id }); }
     return false;
   }
