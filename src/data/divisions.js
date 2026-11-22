@@ -33,7 +33,8 @@ export function aiSeat(week, league, grp, i, frac) {
   const r = hash(week, league, grp, i), r2 = hash(r, 7);
   const target = (40 + league * 22) * (0.35 + (r % 1000) / 1000 * 1.3);  // whole-week points
   const pace = 0.6 + (r2 % 100) / 100 * 0.8;                              // early birds vs late grinders
-  return { ai: true, name: `AI ${AI_NAMES[(r >>> 10) % AI_NAMES.length]}`, pts: Math.round(target * Math.min(1, Math.pow(frac, pace))) };
+  // names: a seeded rotation stepping by 7 (coprime with 30), so no name repeats inside a group
+  return { ai: true, name: `AI ${AI_NAMES[(hash(week, league, grp) + i * 7) % AI_NAMES.length]}`, pts: Math.round(target * Math.min(1, Math.pow(frac, pace))) };
 }
 // Fill a group to GROUP seats: real members (with pts) + AI seats, sorted (real players first on ties).
 export function fillGroup(week, league, grp, real, frac) {

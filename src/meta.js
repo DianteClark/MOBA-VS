@@ -137,6 +137,10 @@ export function adoptDivision(P, r, myId) {
     v.league = r.league;
     if (v.league > v.best) { for (let l = v.best + 1; l <= v.league; l++) P.unlock(LEAGUE_REWARDS[l], out); v.best = v.league; }
   }
+  if (r.last && r.week === v.week && r.last.week === v.week - 1) { // the Worker's finish for last week wins over the local estimate
+    const L = r.last, same = v.last && v.last.week === L.week;
+    v.last = { week: L.week, place: num(L.place, 1, GROUP), move: Math.sign(Number(L.move) || 0), league: num(L.league, 0, LEAGUES.length - 1), seen: same ? v.last.seen : false };
+  }
   if (r.joined && r.week === v.week) {
     v.grp = num(r.grp, 0, 1e6);
     const me = (r.members || []).find((x) => x.me);
@@ -197,5 +201,5 @@ export function recordMeta(P, ctx, { now = Date.now(), peakElo = 0 } = {}) {
   if (pr > M.prestige) { for (let l = M.prestige + 1; l <= pr; l++) P.unlock(PRESTIGE_REWARDS[l], unlocks); M.prestige = pr; }
   M.cxp += cxp;
   const after = coachLevelOf(M.cxp);
-  return { cxp, parts, lvBefore: before, lvAfter: after.lv, into: after.into, goals, streak, story, storyEv: ev && story.length ? ev.id : null, passXp, div: { pts: dpts, total: v.pts, league: v.league }, unlocks };
+  return { cxp, parts, calls: ctx.calls, lvBefore: before, lvAfter: after.lv, into: after.into, goals, streak, story, storyEv: ev && story.length ? ev.id : null, passXp, div: { pts: dpts, total: v.pts, league: v.league }, unlocks };
 }

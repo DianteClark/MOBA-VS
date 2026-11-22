@@ -3,11 +3,14 @@ import { h, mount, face, emptyState, fmtTime, MODE_LABEL } from './dom.js';
 import { HERO_BY_ID } from '../data/heroes.js';
 import { MAPS, MAP_BY_ID } from '../maps/defs.js';
 import { CLANS } from '../sim/constants.js';
-import { daysLeft, TRACK, MAX_LEVEL, XP_PER_LEVEL, rewardName } from '../data/seasons.js';
+import { daysLeft, XP_PER_LEVEL, rewardName, MATCH_XP } from '../data/seasons.js';
 import { borderStyle, BORDERS } from '../data/cosmetics.js';
 import { tierBadge } from './badges.js';
 import { collectionTab, achievementsTab, rewardIcon as cosmeticIcon } from './collection.js';
-import { rankRow, rankTab, seasonEndNote } from './ranks.js';
+import { rankRow, rankTab } from './ranks.js';
+import { showToday, todaySummary } from './today.js';
+import { showCeremony } from './ceremony.js';
+import { coachTab, coachRow } from './coach.js';
 import { masteryTab, masteryRow } from './mastery.js';
 import { PATCHES } from '../data/patchnotes.js';
 import { profile } from '../profile.js';
@@ -48,7 +51,9 @@ function patchHighlights(pt) {
   return pt.notes.slice(0, 3).map((n) => n.split(/[:.(]/)[0].trim()).filter(Boolean);
 }
 export function showHome(app) {
-  const p = profile, s = p.season, ss = p.ss(), rk = p.rank, pt = PATCHES[0];
+  // a season just ended: its ceremony first (once), then home
+  if (profile.newSeasonNote) { const n = profile.newSeasonNote; profile.newSeasonNote = null; showCeremony(n, () => showHome(app)); return; }
+  const p = profile, s = p.season, ss = p.ss(), rk = p.rank, pt = PATCHES[0], td = todaySummary(p);
   const qm = app.queueMode || 'ranked', unseen = p.d.seenPatch !== pt.version, newbie = !p.d.history.length;
   const cup = p.d.cup && p.d.cup.season === s.id && !p.d.cup.done ? p.d.cup : null;
   const mm = cup ? myMatch(cup) : null;
@@ -64,8 +69,9 @@ export function showHome(app) {
           h('input', { class: 'cname', value: app.name, maxlength: 12, title: 'Tap to rename', 'aria-label': 'Coach name', oninput: (e) => app.setName(e.target.value) }),
           h('small', { style: { color: rk.tier.color } }, `${rk.label} · ${ss.elo}`),
           bar(rk.into / rk.span, rk.tier.color))),
-      h('button', { class: 'h2season', style: { '--sc': s.color }, onclick: () => showSeason(app) },
-        h('small', {}, `SEASON ${s.id} · ${daysLeft(s)}d left`), h('b', {}, s.name), h('div', { class: 'slv' }, h('span', {}, `Pass ${p.level}`), bar(p.levelProgress, s.color))),
+      h('button', { class: 'h2season h2today' + (td.fresh ? ' fresh' : ''), style: { '--sc': s.color, ...(s.art ? { '--sart': s.art.bg } : {}) }, title: 'Today: daily goals, your division, the season pass and story weeks', onclick: () => { audio.sfx('move', 0.5); showToday(app); } },
+        h('small', {}, h('span', { class: 'tdk' }, 'TODAY'), ` · ${td.done}/${td.total} goals · `, h('span', { style: { color: td.league.color } }, td.league.name.replace(' League', ''))),
+        h('b', {}, s.name), h('div', { class: 'slv' }, h('span', {}, `Pass ${p.level}`), bar(p.levelProgress, s.color))),
       h('div', { class: 'h2icons' },
         fs ? h('button', { class: 'h2icon', title: 'Full screen', 'aria-label': 'Full screen', onclick: () => window.toggleFullscreen() }, h('i', { class: 'fsicon' })) : null,
         h('button', { class: 'h2icon', title: 'Settings', 'aria-label': 'Settings', onclick: () => { audio.sfx('move', 0.5); showSettings(app); } }, h('img', { src: 'assets/img/icons/Permutation.png', alt: '' })))),
@@ -106,28 +112,26 @@ export function showHome(app) {
       navTile('History', item('items/Hourglass'), () => showHistory(app), { title: 'Match history and replays' }),
       navTile('Watch', 'assets/img/icons/Vision.png', () => app.watch(), { title: 'Watch an AI vs AI match' }),
       navTile('Help', item('items/Letter'), () => showHowTo(app), { title: 'How to play', cls: newbie ? 'hl' : '' })),
-    seasonEndNote(p.newSeasonNote),
     h('div', { class: 'credits' }, 'Art & audio: ', h('a', { href: 'https://pixel-boy.itch.io/ninja-adventure-asset-pack', target: '_blank' }, 'Ninja Adventure'), ' by Pixel-boy & AAA (CC0)'),
   ));
-  p.newSeasonNote = null;
 }
 
 // ───────────── season pass ─────────────
 export function showSeason(app) {
-  const p = profile, s = p.season, ss = p.ss(), lv = p.level;
+  const p = profile, s = p.season, ss = p.ss(), lv = p.level, ps = p.pass;
   const cells = [];
-  for (let l = 1; l <= MAX_LEVEL; l++) {
-    const r = TRACK[l], got = l <= lv;
+  for (let l = 1; l <= ps.max; l++) {
+    const r = ps.track[l], got = l <= lv;
     cells.push(h('div', { class: 'tcell' + (got ? ' got' : '') + (l === lv ? ' cur' : '') },
       h('b', {}, l), r ? rewardIcon(r) : h('span', { class: 'dot' }), h('small', {}, r ? rewardName(r).replace('Title: ', '') : '')));
   }
   const rk = p.rank;
   mount(screen(), h('div', { class: 'subscreen' },
-    h('div', { class: 'shead', style: { '--sc': s.color } }, back(app), h('div', {}, h('small', {}, `SEASON ${s.id} · ${daysLeft(s)} days left`), h('h2', {}, s.name)), h('div')),
+    h('div', { class: 'shead passhead', style: { '--sc': s.color, ...(s.art ? { background: s.art.bg } : {}) } }, back(app), h('div', {}, h('small', {}, `SEASON ${s.id} · ${daysLeft(s)} days left`), h('h2', {}, s.name)), h('div')),
     h('p', { class: 'muted center' }, s.blurb),
-    h('div', { class: 'panel' }, h('div', { class: 'row', style: { justifyContent: 'space-between' } }, h('b', {}, `Season Pass · Level ${lv}`), h('small', { class: 'muted' }, lv >= MAX_LEVEL ? 'Complete!' : `${ss.xp % XP_PER_LEVEL}/${XP_PER_LEVEL} XP`)), bar(p.levelProgress, s.color),
-      h('div', { class: 'track' }, cells),
-      h('small', { class: 'muted' }, `Earn XP every match: win 120 · loss 70 · +15 per successful call · +10 per ${CLANS[s.clan].name} hero on your team · +50 in the Cup.`)),
+    h('div', { class: 'panel' }, h('div', { class: 'row', style: { justifyContent: 'space-between' } }, h('b', {}, `Season Pass · Level ${lv}/${ps.max}`), h('small', { class: 'muted' }, lv >= ps.max ? 'Complete!' : `${ss.xp % XP_PER_LEVEL}/${XP_PER_LEVEL} XP`)), bar(p.levelProgress, s.color),
+      h('div', { class: 'track' + (ps.max > 20 ? ' t30' : '') }, cells),
+      h('small', { class: 'muted' }, `Earn XP every match: win ${MATCH_XP.win} · loss ${MATCH_XP.loss} · +${MATCH_XP.perGoodCall} per successful call · +${MATCH_XP.featuredHero} per ${CLANS[s.clan].name} hero on your team · +${MATCH_XP.cup} in the Cup. Daily goals, story weeks and a top-5 division finish add more.`)),
     h('div', { class: 'panel row seasonrank', style: { gap: '10px' } }, rankBadge(rk), h('div', { class: 'col', style: { gap: '3px', flex: 1 } }, h('b', { style: { color: rk.tier.color } }, `${rk.label} · ${ss.elo}`),
       h('small', { class: 'muted' }, 'Ranks run Bronze → Kami with three divisions each. Your peak tier earns season rewards.')), h('button', { class: 'btn', onclick: () => showProfile(app, 'rank') }, 'Tiers & rewards')),
     h('div', { class: 'panel' }, h('b', {}, 'How seasons stay balanced'),
@@ -145,9 +149,10 @@ export function showProfile(app, tab = 'rank', all = false) {
   const p = profile;
   const sec = COLLECTION_OF[tab] || (tab === 'collection' ? all || 'skins' : null);
   if (sec) tab = 'collection';
-  const tabs = h('div', { class: 'tabs' }, ...[['rank', 'Rank'], ['career', 'Career'], ['mastery', 'Mastery'], ['achievements', 'Achievements'], ['collection', 'Collection'], ['friends', 'Friends']].map(([k, l]) => h('button', { class: 'chip' + (tab === k ? ' on' : ''), onclick: () => showProfile(app, k) }, l)));
+  const tabs = h('div', { class: 'tabs' }, ...[['rank', 'Rank'], ['coach', 'Coach'], ['career', 'Career'], ['mastery', 'Mastery'], ['achievements', 'Achievements'], ['collection', 'Collection'], ['friends', 'Friends']].map(([k, l]) => h('button', { class: 'chip' + (tab === k ? ' on' : ''), onclick: () => showProfile(app, k) }, l)));
   let body;
   if (tab === 'rank') body = rankTab();
+  else if (tab === 'coach') body = coachTab((sel) => { const y = screen().scrollTop; showProfile(app, 'coach', sel); screen().scrollTop = y; }, typeof all === 'string' ? all : null);
   else if (tab === 'career') body = careerTab(p.d, all, () => showProfile(app, 'career', !all));
   else if (tab === 'mastery') body = masteryTab();
   else if (tab === 'friends') body = friendsTab(app);
@@ -211,6 +216,7 @@ export function progressPanel(sum, cupOut) {
   return h('div', { class: 'panel prog' },
     rankRow(sum),
     masteryRow(sum),
+    coachRow(sum.meta),
     h('div', { class: 'prow' }, h('div', { class: 'lvb' }, `Lv ${sum.lvAfter}`),
       h('div', { class: 'col', style: { gap: '3px', flex: 1 } }, h('div', { class: 'xps' }, ...sum.xpParts.map(([l, v]) => h('span', {}, `${l} +${v}`))), bar(profile.levelProgress, profile.season.color))),
     sum.lvAfter > sum.lvBefore ? h('div', { class: 'gold center' }, `Season Pass level ${sum.lvAfter}!`) : null,

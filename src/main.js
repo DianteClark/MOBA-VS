@@ -37,7 +37,8 @@ import { showWeekendCup } from './ui/cups.js';
 import { packReplay } from './net/replaypack.js';
 import { startSocial, matchPresence, lobbyInvite, closeInvites, showInviteLink, socialPanel, onRematch, rematchGone } from './ui/social.js';
 import { profile } from './profile.js';
-import { momentLoadout, perksFor } from './meta.js';
+import { momentLoadout, perksFor, adoptDivision } from './meta.js';
+import { reportDivision } from './net/divisions.js';
 import { newCup, recordCup, myMatch } from './cup.js';
 import { findPOTG, reportCard } from './ui/moments.js';
 import { rankMoment } from './ui/ranks.js';
@@ -710,6 +711,7 @@ class App {
         if (sum && sum.ach) { sum.ach.push(...profile.checkState()); if (sum.ach.length) profile.save(); } // e.g. the Cup trophy just won
       } catch (e) { console.error(e); }
       if (s.rival && !s.replay) rivalPlayed(this, s.rival);
+      if (sum && sum.meta && !s.replay) reportDivision(won, sum.meta.calls).then((r) => r && adoptDivision(profile, r)); // Weekly Divisions (signed in)
       if (!s.replay && m.cfg) this.saveReplay(m, s, analytics, sum && profile.d.history[0] ? profile.d.history[0].t : Date.now());
       if (sum && (sum.promoted || sum.unlocks.length) && !sum.demoted) setTimeout(() => audio.sfx('powerup', 0.8), 700);
       const src = s.replay ? s.replay : m.cfg ? { cfg: m.cfg, log: m.runner.log, skins: this.renderer.skins } : null;

@@ -75,7 +75,7 @@ export function coachTab(refresh, sel = null) {
       h('div', { class: 'cbh' }, h('b', {}, b.name), h('small', { class: 'muted' }, b.desc)),
       h('div', { class: 'cnodes' }, ...TREE.filter((n) => n.branch === k).map(node))))),
     detail,
-    anyVariant ? h('div', { class: 'panel col', style: { gap: '6px' } }, h('b', {}, 'Coach Moment loadout'), h('div', { class: 'mvslots' }, ...Object.keys(MOMENTS).filter((id) => Object.values(MOMENT_VARIANTS).some((v) => v.slot === id)).map(slot))) : null,
+    anyVariant ? h('div', { class: 'panel col', style: { gap: '6px' } }, h('b', {}, 'Coach Moment loadout'), h('div', { class: 'mvslots' }, ...Object.keys(MOMENTS).filter((id) => Object.entries(MOMENT_VARIANTS).some(([k, v]) => v.slot === id && ownsVariant(M, k))).map(slot))) : null,
     h('small', { class: 'muted center' }, 'Sidegrades, never upgrades: every card and moment here trades shape, not strength, with the classic one it mirrors, so they are allowed in Ranked and Cups. Unlocked cards show up in Prep and in Dojo lineups.'));
 }
 

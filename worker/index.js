@@ -13,8 +13,10 @@
 // Weekend Cups (worker/cups.js): 8-coach brackets between real players. Anti-cheat (worker/anticheat.js):
 // ranked and cup reports carry the command log; a scheduled GitHub Action re-simulates it (tools/verify.mjs)
 // through the token-protected /api/admin/* endpoints and flags (and rolls back) results that do not hold up.
+// Weekly Divisions (worker/divisions.js): 30-coach league groups formed lazily from the first match of each week.
 import { CUP_SCHEMA, CUP_TABLES, cupApi, cupMatchFor, trophiesStmt, trophyRow } from './cups.js';
 import { REPLAY_SCHEMA, REPLAY_TABLES, REPLAY_MIGRATIONS, replayStmt, pruneStmts, adminApi } from './anticheat.js';
+import { DIV_SCHEMA, DIV_TABLES, divApi } from './divisions.js';
 
 const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS players (id TEXT PRIMARY KEY, name TEXT NOT NULL, secret_hash TEXT NOT NULL, created INTEGER, updated INTEGER, profile TEXT, profile_at INTEGER DEFAULT 0)`,
@@ -33,9 +35,9 @@ const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS invites (id TEXT PRIMARY KEY, sender TEXT, target TEXT, room TEXT, mode TEXT, status TEXT, created INTEGER)`,
   `CREATE INDEX IF NOT EXISTS invites_to ON invites (target, status, created)`,
   `CREATE INDEX IF NOT EXISTS invites_from ON invites (sender, created)`,
-  ...CUP_SCHEMA, ...REPLAY_SCHEMA,
+  ...CUP_SCHEMA, ...REPLAY_SCHEMA, ...DIV_SCHEMA,
 ];
-const TABLES = ['players', 'ladder', 'reports', 'matches', 'hero_results', 'queue', 'shares', 'friends', 'invites', ...CUP_TABLES, ...REPLAY_TABLES];
+const TABLES = ['players', 'ladder', 'reports', 'matches', 'hero_results', 'queue', 'shares', 'friends', 'invites', ...CUP_TABLES, ...REPLAY_TABLES, ...DIV_TABLES];
 // Columns added after launch: tables created by older deploys get them here. ALTER fails harmlessly
 // ("duplicate column") once the column exists, so each one is tried on its own.
 const MIGRATIONS = [
@@ -101,6 +103,7 @@ const ip = (req) => req.headers.get('cf-connecting-ip') || 'local';
 const slow = () => bad('Too many requests: try again in a minute', 429);
 const CUPS = cupApi({ json, bad, body, auth, rand, limited, slow });
 const admin = adminApi({ json, bad, body, sha });
+const DIVS = divApi({ json, bad, body, auth, limited, slow }); // Weekly Divisions (worker/divisions.js)
 
 // ── public profile ──
 // The read-only summary other coaches can see, cut from the uploaded cloud save: rank, title, banner, newest
@@ -450,6 +453,7 @@ async function route(req, env, url) {
   const soc = await social(req, db, url, p, M, now); if (soc) return soc;
   const cup = await CUPS.route(req, env, db, url, p, M, now); if (cup) return cup;
   const adm = await admin(req, env, db, url, p, M, now); if (adm) return adm;
+  const div = await DIVS(req, env, db, url, p, M, now); if (div) return div;
 
   // ── share links ──
   if (p === '/api/share' && M === 'POST') {

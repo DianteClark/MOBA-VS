@@ -4,23 +4,23 @@
 // Every match counts (vs AI, online, cups, co-op, Lane Rush), except matches you only watched.
 
 export const GOALS = {
-  calls3: { text: 'Land 3 successful calls', n: 3, tier: 0, inc: (m) => m.calls },
+  calls3: { text: 'Land 3 successful calls', n: 3, tier: 0, fam: 'calls', inc: (m) => m.calls },
   play2: { text: 'Coach 2 matches', n: 2, tier: 0, inc: () => 1 },
   tactic3: { text: 'Play 3 tactic cards', n: 3, tier: 0, inc: (m) => m.tactics },
   moment2: { text: 'Use 2 Coach Moments', n: 2, tier: 0, inc: (m) => m.moments },
-  win1: { text: 'Win a match', n: 1, tier: 1, inc: (m) => (m.won ? 1 : 0) },
+  win1: { text: 'Win a match', n: 1, tier: 1, fam: 'win', inc: (m) => (m.won ? 1 : 0) },
   kami2: { text: 'Take 2 Kami', n: 2, tier: 1, inc: (m) => m.kami },
   oni: { text: 'Take the Oni', n: 1, tier: 1, inc: (m) => m.oni },
   towers5: { text: 'Destroy 5 towers', n: 5, tier: 1, inc: (m) => m.towers },
   kills20: { text: 'Score 20 kills', n: 20, tier: 1, inc: (m) => m.kills },
-  calls6: { text: 'Land 6 successful calls', n: 6, tier: 1, inc: (m) => m.calls },
+  calls6: { text: 'Land 6 successful calls', n: 6, tier: 1, fam: 'calls', inc: (m) => m.calls },
   dive: { text: 'Win with a Dive comp', n: 1, tier: 2, inc: (m) => (m.won && m.comp === 'dive' ? 1 : 0) },
   poke: { text: 'Win with a Poke comp', n: 1, tier: 2, inc: (m) => (m.won && m.comp === 'poke' ? 1 : 0) },
   protect: { text: 'Win with a Protect comp', n: 1, tier: 2, inc: (m) => (m.won && m.comp === 'protect' ? 1 : 0) },
   teamfight: { text: 'Win with a Teamfight comp', n: 1, tier: 2, inc: (m) => (m.won && m.comp === 'teamfight' ? 1 : 0) },
   kraken: { text: 'Slay the Kraken', n: 1, tier: 2, inc: (m) => m.kraken },
   clan3: { text: 'Win with 3 heroes of one clan', n: 1, tier: 2, inc: (m) => (m.won && m.clans >= 3 ? 1 : 0) },
-  win2: { text: 'Win 2 matches', n: 2, tier: 2, inc: (m) => (m.won ? 1 : 0) },
+  win2: { text: 'Win 2 matches', n: 2, tier: 2, fam: 'win', inc: (m) => (m.won ? 1 : 0) },
   rushwin: { text: 'Win a Lane Rush match', n: 1, tier: 2, inc: (m) => (m.won && m.rush ? 1 : 0) },
 };
 export const GOAL_IDS = Object.keys(GOALS);
@@ -29,13 +29,17 @@ export const REROLLS = 1; // per day
 
 const hash = (...xs) => { let h = 2166136261; for (const x of xs) { h ^= x | 0; h = Math.imul(h, 16777619); h ^= h >>> 13; } return h >>> 0; };
 export const dayOf = (now = Date.now()) => Math.floor(now / 86400000); // UTC day number
+// Two goals of one family (e.g. 3 calls and 6 calls) never share a day.
+const clash = (k, list) => list.some((x) => x !== k && GOALS[k].fam && GOALS[x].fam === GOALS[k].fam);
 // The day's three goals: one per tier (easy, medium, hard), the same for everyone that day.
 export function dailyGoals(day) {
-  return [0, 1, 2].map((t) => { const ids = GOAL_IDS.filter((k) => GOALS[k].tier === t); return ids[hash(day, t) % ids.length]; });
+  const out = [];
+  for (const t of [0, 1, 2]) { const ids = GOAL_IDS.filter((k) => GOALS[k].tier === t && !clash(k, out)); out.push(ids[hash(day, t) % ids.length]); }
+  return out;
 }
 // A reroll replaces slot i with another goal of the same tier that is not already on the list.
 export function rerollGoal(day, list, i, n) {
-  const t = GOALS[list[i]].tier, ids = GOAL_IDS.filter((k) => GOALS[k].tier === t && !list.includes(k));
+  const rest = list.filter((_, j) => j !== i), t = GOALS[list[i]].tier, ids = GOAL_IDS.filter((k) => GOALS[k].tier === t && !list.includes(k) && !clash(k, rest));
   return ids.length ? ids[hash(day, i, n + 1, 99) % ids.length] : list[i];
 }
 
