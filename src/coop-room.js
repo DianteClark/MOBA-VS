@@ -292,7 +292,7 @@ function gotPrep(app, team, seat, prep) {
   const heroes = d.picks[team].map((id, i) => {
     const seat = c.seats === 2 ? d.seats[team][i] : 0, src = s.seatPreps[team][seat];
     const hp = src.heroes.find((x) => x.id === id) || lead.heroes.find((x) => x.id === id);
-    return { id, role: hp.role, build: hp.build };
+    return { id, role: hp.role, build: hp.build, ...(hp.tal ? { tal: hp.tal } : {}) }; // v23: each coach's talent defaults
   });
   const skins = {}; for (const k of need) Object.assign(skins, s.seatPreps[team][k].skins || {});
   s.preps[team] = { heroes, plan: lead.plan, deck: lead.deck, skins };

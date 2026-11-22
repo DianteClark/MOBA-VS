@@ -276,7 +276,8 @@ export class Dock {
       const x = g.byId(+id.slice(5)); if (!x) return null;
       if (x.team !== this.my) return { title: `${x.def.name}`, els: [h('div', { class: 'tiles' }, this.tile({ img: face(x.heroId), title: `Focus ${x.def.name}`, sub: 'Everyone targets them 20s', state: () => ({ off: !x.alive || !this.afford('focus') }), onclick: () => this.send({ type: 'focus', target: x.id }) }))] };
       const theirs = !this.hud.ownHero(x), owner = theirs ? this.hud.coachName(x.seat) : '';
-      return { title: `${x.def.name}: build path${theirs ? ` (${owner}'s hero)` : ''}`, els: [h('div', { class: 'tiles' }, ...x.def.builds.map((b) => { const t = this.tile({ ico: BUILDS[b].icon || 'Alchemy', title: BUILDS[b].name, sub: () => (x.build === b ? 'Current' : theirs ? `${owner} decides` : 'Free'), state: () => ({ off: x.build === b || theirs }), onclick: () => this.send({ type: 'build', hero: x.id, build: b }) }); t.setAttribute('data-build', b); t.title = BUILDS[b].desc; return t; }))] };
+      return { title: `${x.def.name}: ${this.hud.depth && x.tal ? 'build & talents' : 'build path'}${theirs ? ` (${owner}'s hero)` : ''}`, els: [h('div', { class: 'tiles' }, ...x.def.builds.map((b) => { const t = this.tile({ ico: BUILDS[b].icon || 'Alchemy', title: BUILDS[b].name, sub: () => (x.build === b ? 'Current' : theirs ? `${owner} decides` : 'Free'), state: () => ({ off: x.build === b || theirs }), onclick: () => this.send({ type: 'build', hero: x.id, build: b }) }); t.setAttribute('data-build', b); t.title = BUILDS[b].desc; return t; })),
+        ...(this.hud.depth && x.tal ? this.hud.depth.sheetRows(x, theirs) : [])] }; // v23: next item + talents
     }
     return null;
   }

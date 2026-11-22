@@ -18,6 +18,9 @@ import { masteryPanel } from './mastery.js';
 import { masteryBadge } from './badges.js';
 import { duoSection } from './comp.js';
 import { searchBox, applySearch } from './herosearch.js';
+import { talentList, talentPicker, talentSummary } from './talentui.js';
+import { heroPrefs, setHeroPref } from '../talentprefs.js';
+import { feudsOf } from '../data/feuds.js';
 
 const screen = () => document.getElementById('screen');
 const tap = () => audio.sfx('move', 0.4);
@@ -107,7 +110,11 @@ function heroPage(app, id) {
         h('div', {}, h('div', { class: 'dsh pos' }, 'Strong vs'), ...(mu.strong.length ? mu.strong.map(muRow) : [h('small', { class: 'muted' }, 'No clear edge')])),
         h('div', {}, h('div', { class: 'dsh neg' }, 'Weak vs'), ...(mu.weak.length ? mu.weak.map(muRow) : [h('small', { class: 'muted' }, 'No hard counters')]))),
       h('div', { class: 'dsec' }, h('div', { class: 'dsh' }, 'Builds'), h('div', { class: 'chips' }, ...x.builds.map((b) => h('span', { class: 'chipx', style: { '--cc': BUILDS[b].color }, title: buildLine(b), 'data-build': b, 'data-build-info': true }, BUILDS[b].name + (b === x.rec ? ' ★' : ''))))),
+      h('div', { class: 'dsec' }, h('div', { class: 'dsh' }, 'Talents ', h('small', { class: 'muted' }, 'levels 4 · 8 · 12 · tap one to make it your default')),
+        talentList(id, heroPrefs(id), (i, k) => { setHeroPref(id, i, k); showDojo(app, { keepScroll: true }); })),
       duoSection(id, (pid) => { tap(); showDojo(app, { hero: pid }); }),
+      feudsOf(id).length ? h('div', { class: 'dsec' }, h('div', { class: 'dsh' }, 'Rivals'), ...feudsOf(id).map((q) => h('button', { class: 'murow', onclick: () => { tap(); showDojo(app, { hero: q.id }); } },
+        h('img', { src: face(q.id) }), h('b', {}, HERO_BY_ID[q.id].name), h('small', {}, `"${q.line}"`)))) : null,
       masteryPanel(id),
       h('div', { class: 'dsec' }, h('div', { class: 'dsh row', style: { justifyContent: 'space-between' } }, 'Skins', h('button', { class: 'chip', onclick: () => viewer(equipped) }, 'Skin viewer')), skins,
         h('small', { class: 'muted' }, 'Skins change only the look: same hitbox, same effects. They show in every match, and online your opponent sees them too.'))));
@@ -128,7 +135,8 @@ function lineups(app) {
       id ? h('img', { src: face(id) }) : h('span', { class: 'plus' }, '+'), h('span', { class: 'ln' }, id ? HERO_BY_ID[id].name : kind === 'main' ? 'Choose' : 'Backup'));
   };
   const buildChips = (id) => id ? h('div', { class: 'lbuilds' }, ...HERO_BY_ID[id].builds.map((b) => h('button', { class: 'bchip' + (p.builds[id] === b ? ' on' : ''), style: { '--bc': BUILDS[b].color }, title: buildLine(b), 'data-build': b,
-    onclick: () => { tap(); p.builds[id] = b; save(app, p); } }, BUILDS[b].name))) : h('div', { class: 'lbuilds' });
+    onclick: () => { tap(); p.builds[id] = b; save(app, p); } }, BUILDS[b].name)),
+    h('button', { class: 'ltal', title: 'Talent defaults (levels 4, 8, 12)', onclick: () => { tap(); pickTalents(app, id); } }, talentSummary(id, heroPrefs(id)))) : h('div', { class: 'lbuilds' });
   const rows = ROLES.map((role) => h('div', { class: 'lrow2' },
     h('span', { class: 'lrole' }, ROLE_LABEL[role]),
     h('div', { class: 'lcell' }, heroBtn(role, 'main'), buildChips(p.main[role])),
@@ -172,6 +180,14 @@ function pickHero(app, role, kind) {
         h('img', { src: face(x.id) }), h('b', {}, x.name), h('small', {}, used ? `in ${used}` : x.role === role ? ROLE_LABEL[role] : 'flex'));
     })),
     here ? h('button', { class: 'btn', onclick: () => choose(null) }, 'Remove ' + HERO_BY_ID[here].name) : null);
+}
+// Talent defaults for one hero (shared by every lineup and the hero page).
+function pickTalents(app, id) {
+  const box = h('div');
+  const draw = () => mount(box, talentPicker(id, heroPrefs(id), (i, k) => { setHeroPref(id, i, k); draw(); }));
+  draw();
+  const close = modal(`${HERO_BY_ID[id].name} · talents`, h('small', { class: 'muted' }, 'Auto: the hero picks for the game it is having. You can still swap live in a match.'), box,
+    h('button', { class: 'btn big', onclick: () => { close(); showDojo(app, { keepScroll: true }); } }, 'Done'));
 }
 function pickCards(app) {
   const p = cur();
