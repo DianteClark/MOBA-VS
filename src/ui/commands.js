@@ -156,7 +156,7 @@ export class Dock {
     if (t.call && t.call.until > g.tick) return hud.callText({ ...t.call, team: this.my });
     if (t.focus && t.focus.until > g.tick && t.focus.target) return `Focus ${hud.name(t.focus.target)}`;
     const x = this.alive().find((y) => y.task && y.task.call);
-    if (x) { const k = x.task.kind, L = LANE_L[x.task.lane] || ''; return k === 'gank' ? `${x.def.name}: gank ${L}`.trim() : k === 'split' ? `${x.def.name}: split ${L}`.trim() : k === 'invade' ? 'Invade' : k === 'shrine' ? 'Take shrine' : `${x.def.name}: on your call`; }
+    if (x) { const k = x.task.kind, L = LANE_L[x.task.lane] || ''; return k === 'gank' ? `${x.def.name}: gank ${L}`.trim() : k === 'split' ? `${x.def.name}: split ${L}`.trim() : k === 'invade' ? 'Invade' : k === 'shrine' ? 'Take shrine' : k === 'safe' || k === 'defend' ? 'Defend' : k === 'group' ? `Push ${L}`.trim() : k === 'objective' ? `Take ${OBJ_NAME[x.task.obj] || 'objective'}` : `${x.def.name}: on your call`; }
     return 'Cancel calls';
   }
   // Why a call can't be paid for right now (a tap on a greyed control says so instead of doing nothing).
