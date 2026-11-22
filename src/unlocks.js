@@ -108,8 +108,9 @@ export function openRoles(s) {
   return (split ? seatRoles(split.own, s.mySeat) : ROLES).filter((r) => !have.includes(r));
 }
 // Would this hero take `role` in my team if locked now? (legal: the session's draft rule for my turn)
-export function fitsRole(s, id, role, legal) {
-  if (!HERO_BY_ID[id] || !HERO_BY_ID[id].roles.includes(role) || !legal(id)) return false;
+// offRole: the coach chose it from "All champions" (any hero may play any role); auto-picks stay on-role.
+export function fitsRole(s, id, role, legal, offRole = false) {
+  if (!HERO_BY_ID[id] || (!offRole && !HERO_BY_ID[id].roles.includes(role)) || !legal(id)) return false;
   if (s.mode === 'coop') return true;
   const mine = s.draft.picks[s.myTeam], roles = teamRoles([...mine, id], s.preset, { ...(s.pickRoles || {}), [id]: role });
   return !!roles && roles[roles.length - 1] === role;

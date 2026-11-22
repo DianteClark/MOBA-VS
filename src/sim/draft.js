@@ -44,10 +44,12 @@ export function assignRolesLoose(ids) {
   return out;
 }
 
+// Any champion may be picked for any role (v25.1 off-role picks): a pick only needs a free slot. The lane comes
+// from the role the coach gives it (prep / draft role step), not from the hero's main role.
 export function legal(d, team, heroId) {
   const t = currentTurn(d);
   if (!t || t.team !== team || !HERO_BY_ID[heroId] || taken(d, team).has(heroId)) return false;
-  if (t.act === 'pick') return !!assignRoles([...d.picks[team], heroId]);
+  if (t.act === 'pick') return d.picks[team].length < ROLES.length;
   return true;
 }
 export function apply(d, team, heroId) {
@@ -65,11 +67,12 @@ export function autoChoice(d, team, rng, skill = 1, pref = null) {
   const t = currentTurn(d); if (!t) return null;
   const tk = taken(d, team), avail = HEROES.filter((h) => !tk.has(h.id));
   const enemy = d.picks[1 - team].map((id) => HERO_BY_ID[id]);
-  const mine = d.picks[team];
+  const mine = d.picks[team], strict = t.act !== 'pick' || !!assignRoles(mine), loose = strict ? null : assignRolesLoose(mine);
   const score = (h) => {
     let s = matchupScore(h, enemy).score * 2;
     if (t.act === 'pick') {
-      if (!assignRoles([...mine, h.id])) return -Infinity;
+      // the AI drafts on-role; a team that already went off-role (a coach's timeout pick) just fills its gaps
+      if (!assignRoles([...mine, h.id])) { if (strict) return -Infinity; if (!h.roles.some((r) => !loose.includes(r))) s -= 6; }
       s += synergyScore(mine, h.id);
       // fill a role we don't have yet with a primary pick
       const roles = assignRoles(mine) || [];

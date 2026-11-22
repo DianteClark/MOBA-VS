@@ -155,7 +155,8 @@ function lineups(app) {
     const id = p[kind][role];
     return h('button', { class: 'lhero' + (id ? '' : ' empty') + (kind === 'backup' ? ' bk' : ''), onclick: () => { tap(); pickHero(app, role, kind); } },
       id ? h('img', { src: face(id) }) : h('span', { class: 'plus' }, '+'), h('span', { class: 'ln' }, id ? HERO_BY_ID[id].name : kind === 'main' ? 'Choose' : 'Backup'),
-      id && !owns(profile, id) ? accessBadge(inRotation(id) ? 'free' : null) : null);
+      id && !owns(profile, id) ? accessBadge(inRotation(id) ? 'free' : null) : null,
+      id && !HERO_BY_ID[id].roles.includes(role) ? h('span', { class: 'offr', title: `Off-role: ${HERO_BY_ID[id].name} usually plays ${HERO_BY_ID[id].roles.map((r) => ROLE_LABEL[r]).join(' / ')}` }, 'OFF') : null);
   };
   const buildChips = (id) => id ? h('div', { class: 'lbuilds' }, ...HERO_BY_ID[id].builds.map((b) => h('button', { class: 'bchip' + (p.builds[id] === b ? ' on' : ''), style: { '--bc': BUILDS[b].color }, title: buildLine(b), 'data-build': b,
     onclick: () => { tap(); p.builds[id] = b; save(app, p); } }, BUILDS[b].name)),
@@ -190,19 +191,25 @@ function modal(title, ...kids) {
 function pickHero(app, role, kind) {
   const p = cur(), here = p[kind][role];
   const usedAt = {}; for (const k of ['main', 'backup']) for (const r of ROLES) if (p[k][r] && !(k === kind && r === role)) usedAt[p[k][r]] = `${ROLE_LABEL[r]}${k === 'backup' ? ' backup' : ''}`;
-  // champion ownership: lineups hold heroes you own (or this week's free ones, which the draft skips once they rotate out)
-  const list = HEROES.filter((x) => x.roles.includes(role) && (owns(profile, x.id) || inRotation(x.id) || x.id === here)).sort((a, b) => (a.role === role ? 0 : 1) - (b.role === role ? 0 : 1));
+  // champion ownership: lineups hold heroes you own (or this week's free ones, which the draft skips once they rotate out).
+  // The role's own heroes come first; then every other champion you have, to play this role off-role.
+  const mayHave = (x) => owns(profile, x.id) || inRotation(x.id) || x.id === here;
+  const list = HEROES.filter((x) => x.roles.includes(role) && mayHave(x)).sort((a, b) => (a.role === role ? 0 : 1) - (b.role === role ? 0 : 1));
+  const others = HEROES.filter((x) => !x.roles.includes(role) && mayHave(x)).sort((a, b) => ROLES.indexOf(a.role) - ROLES.indexOf(b.role) || (a.name < b.name ? -1 : 1));
   let close = null;
   const choose = (id) => {
     if (id) p.builds[id] = p.builds[id] || HERO_BY_ID[id].rec;
     p[kind][role] = id; close(); save(app, p);
   };
+  const card = (x, off) => {
+    const used = usedAt[x.id];
+    return h('button', { class: 'dcard' + (here === x.id ? ' sel' : ''), disabled: !!used, style: { '--cc': CLANS[x.clan].color }, onclick: () => choose(x.id) },
+      h('img', { src: face(x.id) }), h('b', {}, x.name), h('small', {}, used ? `in ${used}` : off ? ROLE_LABEL[x.role] : x.role === role ? ROLE_LABEL[role] : 'flex'), owns(profile, x.id) ? null : accessBadge(inRotation(x.id) ? 'free' : null),
+      off ? h('span', { class: 'offr', title: 'Off-role for ' + ROLE_LABEL[role] }, 'OFF') : null);
+  };
   close = modal(`${ROLE_LABEL[role]} · ${kind === 'main' ? 'main pick' : 'backup'}`,
-    h('div', { class: 'pgrid' }, ...list.map((x) => {
-      const used = usedAt[x.id];
-      return h('button', { class: 'dcard' + (here === x.id ? ' sel' : ''), disabled: !!used, style: { '--cc': CLANS[x.clan].color }, onclick: () => choose(x.id) },
-        h('img', { src: face(x.id) }), h('b', {}, x.name), h('small', {}, used ? `in ${used}` : x.role === role ? ROLE_LABEL[role] : 'flex'), owns(profile, x.id) ? null : accessBadge(inRotation(x.id) ? 'free' : null));
-    })),
+    h('div', { class: 'pgrid' }, ...list.map((x) => card(x, false)),
+      others.length ? h('div', { class: 'pgall' }, `All champions: any of them can play ${ROLE_LABEL[role]} off-role`) : null, ...others.map((x) => card(x, true))),
     h('button', { class: 'linkbtn', onclick: () => { close(); openShop(app); } }, 'More champions in the Shop'),
     here ? h('button', { class: 'btn', onclick: () => choose(null) }, 'Remove ' + HERO_BY_ID[here].name) : null);
 }
