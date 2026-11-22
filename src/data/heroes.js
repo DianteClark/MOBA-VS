@@ -687,7 +687,7 @@ export const HEROES = [
     passive: { kind: 'burnAbilities', name: 'Molten', burn: { b: 5, l: 1.6, dur: 3 }, desc: 'Ability hits leave a molten burn.' },
     abilities: [
       { name: 'Forge Beam', icon: 'OrbFire', kind: 'line', range: 400, width: 40, cd: 6, dmg: { b: 75, l: 25, ap: 0.65 }, use: ['poke', 'clear'], fx: 'flame' },
-      { name: 'Slag Pool', icon: 'BookFire', kind: 'zone', range: 420, radius: 130, dur: 3, cd: 12, dmg: { b: 28, l: 9, ap: 0.22 }, cc: { slow: [0.35, 0.5], shred: [0.15, 3] }, use: ['peel', 'clear', 'poke'], fx: 'circle_orange' },
+      { name: 'Slag Pool', icon: 'BookFire', kind: 'zone', range: 420, radius: 130, dur: 3, cd: 12, dmg: { b: 28, l: 9, ap: 0.22 }, cc: { slow: [0.35, 0.5], shred: [0.1, 3] }, use: ['peel', 'clear', 'poke'], fx: 'circle_orange' },
       { name: 'Eye of the Forge', icon: 'Explosion', kind: 'line', range: 600, width: 90, cd: 70, dmg: { b: 180, l: 55, ap: 0.8 }, cc: { stun: 0.75 }, use: ['teamfight', 'poke'], fx: 'explosion', ult: true },
     ] },
   // bot
