@@ -85,7 +85,7 @@ export function accepted(g, my, cmd) {
   const team = g.teams[my], now = g.tick, alive = team.heroes.filter((h) => h.alive), lanes = g.world.laneNames;
   const hero = cmd.hero !== undefined ? team.heroes.find((h) => h.id === cmd.hero) : null;
   switch (cmd.type) {
-    case 'gank': return !!hero && hero.alive && lanes.includes(cmd.lane);
+    case 'gank': { const x = hero || team.heroes.find((h) => h.role === 'jungle'); return !!x && x.alive && lanes.includes(cmd.lane); } // no hero: the sim sends the jungler
     case 'objective': return g.objAvailable(cmd.obj) && alive.length > 0;
     case 'shrine': return g.time >= g.T.shrineUnlock && g.shrines.some((s) => s.owner !== my) && alive.length > 0;
     case 'group': return lanes.includes(cmd.lane) && alive.length > 0;
