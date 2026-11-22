@@ -71,7 +71,7 @@ import { startRelay, stopRelay, stopWatching, liveTag } from './ui/spectate.js';
 import { Broadcast } from './ui/broadcast.js';
 import { publishChip } from './ui/hub.js';
 
-const VERSION = 30; // bump whenever the sim or balance changes (peers must match)
+const VERSION = 31; // bump whenever the sim or balance changes (peers must match)
 const PREP_SECONDS = 60;
 installCrashReporter(VERSION); // window errors, unhandled rejections and lockstep desyncs → the owner dashboard (src/net/ops.js)
 
