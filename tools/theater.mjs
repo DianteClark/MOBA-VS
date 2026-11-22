@@ -10,6 +10,19 @@ import { MatchRecorder, analyze } from '../src/ui/analytics.js';
 const A = ['bastion', 'kaze', 'ember', 'fletch', 'aurelia'], B = ['varro', 'gama', 'hex', 'bolt', 'frost'];
 const teams = [aiPrep(A, B), aiPrep(B, A)];
 let ok = true;
+// Path to the first function value inside a snapshot (shared static data and the map are skipped), or null.
+function fnPath(s) {
+  const seen = new Set([s.world]), st = [[s, 'game']];
+  while (st.length) {
+    const [v, p] = st.pop();
+    if (typeof v === 'function') return p;
+    if (!v || typeof v !== 'object' || seen.has(v) || ArrayBuffer.isView(v)) continue;
+    seen.add(v);
+    if (v instanceof Map || v instanceof Set) { for (const x of v.values()) st.push([x, p + '[]']); continue; }
+    for (const k of Object.keys(v)) st.push([v[k], p + '.' + k]);
+  }
+  return null;
+}
 function run(name, cfg, seconds) {
   // 1. record a match with player commands
   const g = new Game(JSON.parse(JSON.stringify(cfg))), r = new LocalRunner(g, 0, { noHalftime: true });
@@ -21,14 +34,19 @@ function run(name, cfg, seconds) {
   const data = rec.finish({ my: 0 }), d = analyze(data);
   // 2. replay it with snapshots every 10s
   const g2 = new Game(JSON.parse(JSON.stringify(cfg))), r2 = new LocalRunner(g2, -1, { noHalftime: true, script: log });
-  const snaps = []; let ms = 0;
+  const snaps = []; let ms = 0, dashSnap = null;
   while (g2.tick < end && !g2.over) {
     if (g2.tick % 200 === 0) { const t0 = performance.now(); snaps.push(snapshot(g2)); ms += performance.now() - t0; }
+    // also seek into the middle of a hero's dash (its landing hit is pending state that must be copied)
+    if (!dashSnap && g2.tick > 600 && g2.units.some((u) => u.dash && u.dash.arrive)) dashSnap = snapshot(g2);
     r2.skipTo(g2.tick + 1);
   }
   // 3. restore a few snapshots and run each to the end
   let good = g2.checksum() === sum;
-  const picks = [0, Math.floor(snaps.length / 3), Math.floor(snaps.length * 2 / 3), snaps.length - 1];
+  // sim state must be plain data: a closure would keep pointing at the original game after a restore
+  for (const s of snaps) { const f = fnPath(s); if (f) { good = false; console.log(`[${name}] snapshot at tick ${s.tick} holds a function at ${f}`); break; } }
+  if (!dashSnap) { good = false; console.log(`[${name}] no mid-dash snapshot taken`); } else snaps.push(dashSnap);
+  const picks = [0, Math.floor(snaps.length / 3), Math.floor(snaps.length * 2 / 3), snaps.length - 2, snaps.length - 1];
   for (const i of picks) {
     const s = snaps[i], g3 = restore(s), r3 = new LocalRunner(g3, -1, { noHalftime: true, script: log });
     while (r3.si < log.length && log[r3.si][0] < g3.tick) r3.si++;

@@ -1329,11 +1329,22 @@ export class Game {
     const sp = d.speed * DT;
     if (l <= sp || this.tick >= d.until) {
       h.x = d.x; h.y = d.y; h.dash = null;
-      if (d.onArrive) d.onArrive();
+      if (d.arrive) this.dashArrive(h, d.arrive);
       return;
     }
     h.x += dx / l * sp; h.y += dy / l * sp; h.vx = dx / l * sp; h.vy = dy / l * sp;
     this.face(h, dx, dy);
+  }
+  // What a dash does when it lands. Plain data on h.dash (no closure), so Replay Theater snapshots copy it.
+  dashArrive(h, { ab, type, tid, ally }) {
+    if (ally) { if (ally.alive) this.applyAllyEffects(h, ally, ab); this.applyAllyEffects(h, h, ab); return; }
+    if (ab.radius) {
+      for (const e of this.grid.query(h.x, h.y, ab.radius + 20)) if (this.isEnemyHittable(h, e) && dist2(h, e) <= (ab.radius + e.radius) ** 2) this.abilityHit(h, e, ab, type, true);
+      this.fx.push({ kind: 'fx', name: ab.fx || 'smoke_ring', x: h.x, y: h.y, s: ab.radius / 50 });
+    } else if (ab.dmg || ab.cc) {
+      const t2 = this.units.find((u) => u.id === tid);
+      if (t2 && t2.alive && dist2(h, t2) < (90 + t2.radius) ** 2) { this.abilityHit(h, t2, ab, type); this.fx.push({ kind: 'fx', name: ab.fx || 'impact', x: t2.x, y: t2.y, s: 1.4 }); }
+    }
   }
 
   // ───────────────────────── abilities ─────────────────────────
@@ -1414,16 +1425,7 @@ export class Game {
           dest = { x: h.x + d.x * ab.range, y: h.y + d.y * ab.range };
         }
         dest = this.rayEnd(h, dest);
-        const tid = tgt ? tgt.id : 0;
-        h.dash = { x: dest.x, y: dest.y, speed: 1000, until: this.tick + sec(0.8), onArrive: () => {
-          if (ab.radius) {
-            for (const e of this.grid.query(h.x, h.y, ab.radius + 20)) if (this.isEnemyHittable(h, e) && dist2(h, e) <= (ab.radius + e.radius) ** 2) this.abilityHit(h, e, ab, type, true);
-            this.fx.push({ kind: 'fx', name: ab.fx || 'smoke_ring', x: h.x, y: h.y, s: ab.radius / 50 });
-          } else if (ab.dmg || ab.cc) {
-            const t2 = this.units.find((u) => u.id === tid);
-            if (t2 && t2.alive && dist2(h, t2) < (90 + t2.radius) ** 2) { this.abilityHit(h, t2, ab, type); this.fx.push({ kind: 'fx', name: ab.fx || 'impact', x: t2.x, y: t2.y, s: 1.4 }); }
-          }
-        } };
+        h.dash = { x: dest.x, y: dest.y, speed: 1000, until: this.tick + sec(0.8), arrive: { ab, type, tid: tgt ? tgt.id : 0 } };
         selfBuff();
         break;
       }
@@ -1434,7 +1436,7 @@ export class Game {
           // Intercept: dash to the ally, then protect both
           const d = norm(a.x - h.x, a.y - h.y), go = Math.min(ab.range, Math.max(0, dist(h, a) - 30));
           const dest = this.rayEnd(h, { x: h.x + d.x * go, y: h.y + d.y * go });
-          h.dash = { x: dest.x, y: dest.y, speed: 1100, until: this.tick + sec(0.6), onArrive: () => { if (a.alive) this.applyAllyEffects(h, a, ab); this.applyAllyEffects(h, h, ab); } };
+          h.dash = { x: dest.x, y: dest.y, speed: 1100, until: this.tick + sec(0.6), arrive: { ab, ally: a } };
         } else this.applyAllyEffects(h, a, ab);
         break;
       }
