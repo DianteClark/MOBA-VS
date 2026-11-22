@@ -93,6 +93,7 @@ html.hc { --panel: #000; --line: #f3ead8; --ink: #fff; --muted: #e8e2f0; --gold:
 /* translated banners: long words (ALLES-ODER-NICHTS-PUSH) wrap, and on phones the banner clears the minimap (hud.js sets --banner-side) */
 html:not([lang="en"]) #banner .big b, html:not([lang="en"]) #banner .big { overflow-wrap: anywhere; }
 @media (max-height: 500px) {
+  #hud.sheeting #qfeed.under { visibility: hidden; } /* centred chat feed vs a tall sheet (long translations): the open sheet wins */
   html:not([lang="en"]):not(.oh-left):not(.oh-right) #banner { left: var(--banner-side, 190px); right: var(--banner-side, 190px); }
 }
 
