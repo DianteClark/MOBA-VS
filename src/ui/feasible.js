@@ -4,6 +4,7 @@
 // runs it headless). Only uses what team `my` can see: enemy heroes count only while in its vision.
 import { CMD, TICK_RATE, PERMIT, MOMENTUM } from '../sim/constants.js';
 import { TACTICS } from '../data/tactics.js';
+import { N, C } from '../sim/world.js';
 
 // How long a moment stays worth acting on (seconds): a gank on an overextended laner, a carry caught out,
 // a shrine capture, the heroes needed on an objective.
@@ -27,19 +28,46 @@ export function busy(g, h, solo = true) {
   return '';
 }
 
-// Walking distance along the nav grid (A* polyline), cached per cell pair for one second of game time.
-let cache = new Map(), cacheAt = -1, cacheG = null;
-function pathLen(g, a, b) {
-  const W = g.world, sec = Math.floor(g.tick / TICK_RATE);
-  if (cacheG !== g || sec !== cacheAt) { cache = new Map(); cacheAt = sec; cacheG = g; }
-  const k = W.idx(a.x, a.y) * 100003 + W.idx(b.x, b.y);
-  let L = cache.get(k);
-  if (L === undefined) {
-    const p = W.findPath(a.x, a.y, b.x, b.y); L = 0; let x = a.x, y = a.y;
-    for (const q of p) { L += Math.sqrt((q.x - x) ** 2 + (q.y - y) ** 2); x = q.x; y = q.y; }
-    cache.set(k, L);
+// Walking distance along the nav grid. The grid never changes, so a distance field flooded out from a target
+// (8-dir Dijkstra, no corner cutting, like the sim's A*) stays valid for the whole match: one flood answers
+// every hero's distance to that spot. Targets share a field per 3x3-cell block (72px, under a second of walking);
+// the 40 most recently used fields are kept (pits, shrines and towers stay warm).
+const fields = new Map(); let fieldsOf = null;
+const DX = [1, -1, 0, 0, 1, 1, -1, -1], DY = [0, 0, 1, -1, 1, -1, 1, -1];
+function field(g, p) {
+  const W = g.world;
+  if (fieldsOf !== W) { fields.clear(); fieldsOf = W; }
+  const t = W.nearestOpen(p), cx = Math.min(N - 1, Math.max(0, Math.floor(t.x / C))), cy = Math.min(N - 1, Math.max(0, Math.floor(t.y / C)));
+  const key = Math.floor(cy / 3) * N + Math.floor(cx / 3);
+  let d = fields.get(key);
+  if (d) { fields.delete(key); fields.set(key, d); return d; } // most recently used last
+  d = new Float32Array(N * N).fill(Infinity);
+  const walk = W.walk, start = cy * N + cx, heap = [];
+  const push = (v) => { heap.push(v); let k = heap.length - 1; while (k > 0) { const q = (k - 1) >> 1; if (heap[q] <= v) break; heap[k] = heap[q]; k = q; } heap[k] = v; };
+  const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { let k = 0; for (;;) { const l = 2 * k + 1, r = l + 1; let m = k, mv = last; if (l < heap.length && heap[l] < mv) { m = l; mv = heap[l]; } if (r < heap.length && heap[r] < mv) m = r; if (m === k) break; heap[k] = heap[m]; k = m; } heap[k] = last; } return top; };
+  d[start] = 0; push(start);
+  const SH = 16384; // heap value = dist * SH + cell
+  while (heap.length) {
+    const v = pop(), cur = v % SH, dc = (v - cur) / SH;
+    if (dc > d[cur]) continue;
+    const x = cur % N, y = (cur / N) | 0;
+    for (let k = 0; k < 8; k++) {
+      const nx = x + DX[k], ny = y + DY[k];
+      if (nx < 0 || ny < 0 || nx >= N || ny >= N) continue;
+      const ni = ny * N + nx; if (!walk[ni]) continue;
+      if (DX[k] && DY[k] && (!walk[y * N + nx] || !walk[ny * N + x])) continue;
+      const nd = dc + (DX[k] && DY[k] ? 14 : 10);
+      if (nd < d[ni]) { d[ni] = nd; push(nd * SH + ni); }
+    }
   }
-  return L;
+  for (let i = 0; i < d.length; i++) d[i] *= C / 10;
+  fields.set(key, d);
+  if (fields.size > 40) fields.delete(fields.keys().next().value);
+  return d;
+}
+function pathLen(g, a, b) {
+  const s = g.world.nearestOpen(a), L = field(g, b)[g.world.idx(s.x, s.y)];
+  return L + Math.sqrt(d2(s, a)); // (an unreachable spot stays Infinity)
 }
 // Seconds for hero `h` to reach point `p`: walking time at its current base speed plus the trust delay
 // before it obeys a call (the same delay the sim's setCallTask applies). Dead heroes: Infinity.
