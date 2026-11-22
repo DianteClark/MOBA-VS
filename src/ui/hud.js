@@ -28,6 +28,7 @@ import { canCommand, HERO_CMDS } from '../sim/coop.js';
 import { COOP_COL, coachOf } from '../coop-room.js';
 import { Depth } from './depth.js';
 import { talentIcons, talentKey } from './talentui.js';
+import { Attention, cardTopic, BANNER } from './attention.js';
 import { livingEvent, livingObjective } from './livinghud.js';
 import { LIVING } from '../sim/living.js';
 
@@ -49,6 +50,7 @@ export class Hud {
     this.stats = { shrineOpen: 0, fullCharge: 0, coachCalls: 0, coachAnswered: 0, requests: 0, requestsYes: 0, lastTick: 0 };
     this.firstBlood = false;
     this.caster = new Caster(game, this.view);
+    this.att = new Attention(this); // one attention system: priorities, one home per message, budgets
     this.el = { score: byId('scorebar'), obj: byId('objtimers'), mine: byId('myteam'), enemy: byId('enemyteam'), ticker: byId('ticker'), kf: byId('killfeed'),
       banner: byId('banner'), ctrl: byId('ctrl'), cmd: byId('cmdbar'), detail: byId('detail') };
     mount(this.el.ticker); mount(this.el.kf); mount(this.el.banner); this.el.ticker.classList.add('hidden');
@@ -139,6 +141,7 @@ export class Hud {
     this.el.ctrl.onclick = (e) => { if (e.target.closest('.seg') && this.el.ctrl.classList.contains('open')) setTimeout(() => this.el.ctrl.classList.remove('open'), 150); };
     this.refreshCtrl();
     this.dock = new Dock(this);
+    if (this.dock.tray) this.dock.tray.topicOf = cardTopic;
     this.objTaken = [{ dragon: 0, herald: 0, baron: 0, yokai: 0, boss: 0 }, { dragon: 0, herald: 0, baron: 0, yokai: 0, boss: 0 }];
     this.el.score.onclick = () => this.toggleScoreboard();
     this.el.score.title = 'Tap for the scoreboard [Tab]';
@@ -244,6 +247,7 @@ export class Hud {
     if (this.pop) this.pop.upd();
     if (now - this.lastAnalyst > 1000) { this.lastAnalyst = now; this.analyst(); }
     this.tickTicker();
+    this.att.tick();
     if (this.tips) this.tips.tick();
     // halftime: decisions wait until play resumes
     if (this.holding() && this.my >= 0) { this.dock.tray.clear((it) => it.prio >= PRIO.request); this.unslow('call'); }
@@ -478,7 +482,7 @@ export class Hud {
   // Online quick chat (non-sim messages; see quickchat.js).
   enableChat(send, opts) { if (!this.chat) this.chat = new QuickChat(this, send, opts); return this.chat; }
   disableChat() { if (this.chat) { this.chat.destroy(); this.chat = null; } }
-  destroy() { if (Hud.current === this) Hud.current = null; this.closePop(); if (this.tips) this.tips.destroy(); this.alerts.destroy(); this.disableChat(); clearTimeout(this._bt); document.getElementById('hud').classList.remove('bannering'); window.removeEventListener('pointerdown', this._popClose, true); }
+  destroy() { if (Hud.current === this) Hud.current = null; this.closePop(); if (this.tips) this.tips.destroy(); this.alerts.destroy(); this.att.destroy(); this.disableChat(); clearTimeout(this._bt); document.getElementById('hud').classList.remove('bannering'); window.removeEventListener('pointerdown', this._popClose, true); }
   // The AI's own short reason for what it is doing (hero.why, e.g. "lane: hold behind wave"), for your own
   // heroes and spectators only: an enemy's reason would leak what the fog hides.
   whyText(x) {
@@ -535,6 +539,7 @@ export class Hud {
     const g = this.g, ev = g.events;
     for (; this.evIdx < ev.length; this.evIdx++) {
       const e = ev[this.evIdx];
+      this.att.begin(e); // everything this event says becomes one message
       switch (e.type) {
         case 'kill': {
           const v = g.byId(e.victim); const killer = e.killer ? g.byId(e.killer) : null;
@@ -608,20 +613,21 @@ export class Hud {
           break;
         }
         case 'pivot': if (e.team === this.view) this.ticker(`${this.name(e.hero)} will now build ${BUILDS[e.build].name}`, 'n', 0); break;
-        case 'trust': if (e.team === this.view && this.my >= 0) { const x = g.byId(e.hero); this.ticker(e.tier === 2 ? `${x.def.name} is Inspired by your calls!` : e.tier === 0 ? `${x.def.name} is losing faith in your calls` : `${x.def.name} trusts you again`, e.tier === 0 ? 'danger' : 'n', 1); } break;
+        case 'trust': if (e.team === this.view && this.my >= 0) { const x = g.byId(e.hero); this.ticker(e.tier === 2 ? `${x.def.name} is Inspired by your calls!` : e.tier === 0 ? `${x.def.name} is losing faith in your calls` : `${x.def.name} trusts you again`, e.tier === 0 ? 'danger' : 'n', e.tier === 0 ? 1 : 0); } break;
         case 'tactic': if (e.team === this.view || this.my < 0) { this.banner(TACTICS[e.card].name.toUpperCase(), TEAM_COL[e.team], 1500); } break;
         case 'finalPhase': this.banner('LAST STAND', '#ff8a3a', 2200, null); this.ticker(`Final ${Math.round(g.timeLeft / 60)} minutes: gold ×1.5, longer respawns. Every tower counts!`, 'act', 3); break;
         case 'stolenCamp': if (e.big && e.team !== this.view) this.ticker(e.camp && e.camp.endsWith(':moon') ? 'Enemy stole your Moon Spirits!' : 'Enemy invaded your jungle!', 'danger', 2); break;
         default: livingEvent(this, e);
       }
       if (this.depth) this.depth.event(e);
+      this.att.end();
     }
   }
   // A call in words (spectator ticker, a co-op partner's calls and suggestions).
   callText(c) {
-    return c.type === 'gank' ? `${c.hero ? this.name(c.hero) : 'Jungler'} gank ${LANE_L[c.lane]}` : c.type === 'objective' ? `Take ${OBJ_L[c.obj]}` : c.type === 'group' ? `Group ${LANE_L[c.lane]}` :
+    return c.type === 'gank' ? `${c.hero ? this.name(c.hero) : 'Jungler'} gank ${LANE_L[c.lane]}` : c.type === 'objective' ? `Take ${OBJ_L[c.obj]}` : c.type === 'group' ? `Push ${LANE_L[c.lane]}` :
       c.type === 'split' ? `${this.name(c.hero)} split ${LANE_L[c.lane]}` : c.type === 'focus' ? `Focus ${this.name(c.target)}` : c.type === 'build' ? `${this.name(c.hero)} → ${(BUILDS[c.build] || {}).name || 'new build'}` :
-      c.type === 'herald' ? `Oni ${LANE_L[c.lane]}` : c.type === 'shrine' ? 'Capture shrine' : c.type === 'safe' ? 'Play safe' : c.type === 'reset' ? 'Reset' : c.type === 'invade' ? 'Invade' :
+      c.type === 'herald' ? `Oni ${LANE_L[c.lane]}` : c.type === 'shrine' ? 'Capture shrine' : c.type === 'safe' ? 'Defend' : c.type === 'reset' ? 'Regroup' : c.type === 'invade' ? 'Invade' :
       c.type === 'permit' ? `${this.name(c.hero)} green-lit` : c.type === 'talent' ? `${this.name(c.hero)} talent` : c.type === 'item' ? `${this.name(c.hero)} item swap` : c.type === 'surge' ? 'Kami Surge' : c.type === 'moment' ? (MOMENTS[c.id] || {}).name || 'Coach Moment' :
       c.type === 'tactic' ? `${(TACTICS[c.card] || {}).name || 'Tactic card'}${c.lane ? ' ' + LANE_L[c.lane] : c.hero ? ' on ' + this.name(c.hero) : ''}` :
       c.type === 'ult' ? ({ go: 'ALL-IN, ultimates fire next fight!', save: 'Hold ultimates', free: 'Ults: heroes choose' })[c.mode] || 'Ult stance' : c.type === 'plan' ? `Plan: ${planName(c.plan)}` : c.type === 'redraw' ? 'Swapped a tactic card' : 'Cancel calls';
@@ -637,6 +643,11 @@ export class Hud {
     if (l.big) this.banner(l.big + '!', TEAM_COL[team] || '#ffd84a', 1500);
   }
   ticker(text, cls = 'n', prio = 1) {
+    if (this.att.takeLine(text, cls, prio)) return; // part of the event's one message (attention.js)
+    this.tickerNow(text, cls, prio);
+  }
+  tickerNow(text, cls = 'n', prio = 1) {
+    if (!this.att.tickerOk(text, prio)) return; // repeat, trivia during a decision, or over the low-priority budget
     const now = performance.now(), it = { text, cls, prio, t: now };
     if (this.tk && now - this.tk.t < 2500 && this.tk.prio > prio) { this.tkq.push(it); if (this.tkq.length > 4) this.tkq.shift(); return; }
     this.showTicker(it);
@@ -695,17 +706,23 @@ export class Hud {
   }
   // Banners queue up so a new one never cuts an old one off mid-animation.
   // node: a custom card (Coach Moments) that jumps the queue without dropping the others.
+  // Inside a sim event the banner joins that event's one message (attention.js), with its best line as a sub-line.
   banner(text, color, ms = 2200, img, urgent, node) {
+    const it = { text, color, ms, img, node, urgent, t: performance.now() };
+    if (this.att.takeBanner(it)) return;
+    this.showBannerItem(it);
+  }
+  showBannerItem(it) {
     this.bq = this.bq || [];
-    if (urgent) this.bq.length = 0;
-    const it = { text, color, ms, img, node };
-    if (node) this.bq.unshift(it); else this.bq.push(it);
-    if (this.bq.length > 3) { if (node) this.bq.splice(3); else this.bq.splice(0, this.bq.length - 3); }
-    if (!this._bannerBusy || urgent || node) this.nextBanner();
+    if (it.urgent) this.bq.length = 0;
+    if (it.node) this.bq.unshift(it); else this.bq.push(it);
+    if (this.bq.length > BANNER.queue) { if (it.node) this.bq.splice(BANNER.queue); else this.bq.splice(0, this.bq.length - BANNER.queue); }
+    if (!this._bannerBusy || it.urgent || it.node) this.nextBanner();
   }
   nextBanner() {
     clearTimeout(this._bt);
-    const n = this.bq.shift();
+    let n = this.bq.shift();
+    while (n && !n.urgent && !n.node && performance.now() - n.t > BANNER.staleMs) n = this.bq.shift(); // old news: dropped
     const hud = document.getElementById('hud');
     if (!n) { this._bannerBusy = false; hud.classList.remove('bannering'); mount(this.el.banner); return; }
     this._bannerBusy = true;
@@ -714,7 +731,7 @@ export class Hud {
     if (ob.height) hud.style.setProperty('--banner-top', Math.round(ob.bottom + 3) + 'px');
     hud.classList.add('bannering');
     const b = n.node ? h('div', { class: 'big mfxb', style: { '--mc': n.color } }, n.node)
-      : h('div', { class: 'big', style: { color: n.color } }, n.img ? h('img', { src: n.img }) : null, h('span', {}, n.text));
+      : h('div', { class: 'big' + (n.sub ? ' hassub' : ''), style: { color: n.color } }, n.img ? h('img', { src: n.img }) : null, n.sub ? h('div', { class: 'bcol' }, h('span', {}, n.text), h('small', { class: 'bsub' }, n.sub)) : h('span', {}, n.text));
     mount(this.el.banner, b);
     const ms = this.bq.length ? Math.min(n.ms, 1300) : n.ms;
     this._bt = setTimeout(() => { b.classList.add('out'); this._bt = setTimeout(() => this.nextBanner(), 380); }, ms);
@@ -737,13 +754,20 @@ export class Hud {
     }
     for (const s of analystSuggestions(g, me, { cool: this.cool, carding, own: (x) => this.ownHero(x) })) {
       if (s.shrine) this.stats.shrineOpen++;
-      this.dock.suggest(s.key, s.text, s.label, s.cmd, { cls: s.cls, valid: s.valid });
+      this.dock.suggest(s.key, s.text, s.label, s.cmd, { cls: s.cls, valid: s.valid, topic: s.target ? 'pick:' + s.target.id : undefined });
     }
+    // missing laners: one line for everyone who just went missing (their portraits say MIA too), at most every 20s
+    const gone = [];
     for (const e of enemy) {
       if (!e.alive || e.role === 'jungle' || vis.has(e.id)) { this.missing[e.id] = 0; continue; }
       const ls = g.lastSeen[me][e.id]; if (!ls) continue;
-      const gone = (now - ls.t) / TICK_RATE;
-      if (gone > 8 && gone < 30 && g.time > 100 && !this.missing[e.id]) { this.missing[e.id] = 1; this.ticker(`${e.def.name} is missing!`, 'danger', 2); }
+      const s = (now - ls.t) / TICK_RATE;
+      if (s > 8 && s < 30 && g.time > 100 && !this.missing[e.id]) gone.push(e);
+    }
+    if (gone.length && ready('missing', 20)) {
+      for (const e of gone) this.missing[e.id] = 1;
+      const from = (e) => { const ls = g.lastSeen[me][e.id], l = g.world.closestLane(ls); return g.world.distToLane(l, ls) < 400 && LANE_L[l] ? ` from ${LANE_L[l]}` : ''; };
+      this.ticker(gone.length === 1 ? `${gone[0].def.name} is missing${from(gone[0])}` : `${gone.length} missing: ${gone.slice(0, 3).map((e) => e.def.name).join(', ')}`, 'danger', 2);
     }
   }
   // Coach's Call moments and hero requests (rate-limited; never around halftime or with a sheet open).
@@ -754,14 +778,14 @@ export class Hud {
     if (cc.n < 8 && now - cc.last >= 45 * TICK_RATE && this.isLead() && !tray.items.some((i) => i.prio >= PRIO.call)) {
       const m = coachMoment(g, me, (x) => this.ownHero(x));
       if (m && !cc.keys.has(m.key)) {
-        cc.keys.add(m.key); cc.last = now; cc.n++; this.stats.coachCalls++;
-        this.dock.coachCall(m, {
+        cc.keys.add(m.key);
+        const it = this.dock.coachCall(m, {
           ttl: this.runner.online ? 7000 : 8000,
           onShow: () => { this.slow('call', 0.25, 3000); this.mm.ping(m.at.x, m.at.y, '#ffd84a'); audio.sfx('alert', 0.7); },
           onPick: () => { this.stats.coachAnswered++; },
           onEnd: () => this.unslow('call'),
         });
-        return;
+        if (it) { cc.last = now; cc.n++; this.stats.coachCalls++; return; } // (the same topic was just decided: no second card)
       }
     }
     const rq = this.rq;

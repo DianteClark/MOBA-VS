@@ -31,7 +31,7 @@ export class Depth {
       }
       case 'ultUp': {
         const x = g.byId(e.hero); if (!x) break;
-        if (x.team === this.my) hud.ticker(`${x.def.name}'s ultimate is EMPOWERED (${e.why === 'streak' ? 'kill streak' : 'objective'})`, 'act', 1);
+        if (x.team === this.my) hud.ticker(`${x.def.name}'s ultimate is EMPOWERED (${e.why === 'streak' ? 'kill streak' : 'objective'})`, 'act', 0); // (its portrait's ult dot glows too)
         else if (this.my < 0) hud.ticker(`${x.def.name}'s ultimate is empowered`, x.team === 0 ? 'b' : 'r', 0);
         break;
       }
@@ -126,7 +126,7 @@ export class Depth {
       : { label: 'Go', sub: 'All-in, ults ready', cmd: { type: 'ult', mode: 'go' } };
     const back = { label: 'Back off', sub: 'Hold at towers', cmd: { type: 'safe' } };
     hud.mm.ping(f.at.x, f.at.y, good ? '#ffd84a' : '#ff5a5a');
-    tray.push({ key: 'fc' + t0, prio: PRIO_FORECAST, ttl: Math.min(8000, f.eta * 1000), cls: 'ccall fcast ' + (good ? 'act' : 'danger'),
+    tray.push({ key: 'fc' + t0, prio: PRIO_FORECAST, at: f.at, ttl: Math.min(8000, f.eta * 1000), cls: 'ccall fcast ' + (good ? 'act' : 'danger'),
       build: (it) => {
         const tt = h('span', {}, title()); it.upd = () => setText(tt, title());
         return [h('div', { class: 'tc-head' }, h('b', {}, 'FIGHT FORECAST'), tt),
