@@ -191,10 +191,14 @@ class App {
   }
   // A new build is ready (new service worker waiting, or the cache was refreshed by a deploy):
   // switch only from the menu, with a quick fade, never during a draft, prep or match.
-  safeUpdate() {
+  // (The home screen is .home2: the old '.home' check never matched, so a waiting build was only picked up
+  // when the app was killed and relaunched, which an iOS Home Screen app rarely is.) Elsewhere in the menus an
+  // "Update ready" chip offers it right away; it is never shown during a draft, prep or match.
+  safeUpdate(force) {
     const u = this.update;
-    if (!u || u.busy || this.match || this.session || document.querySelector('.modal') || !document.querySelector('#screen .home')) return;
-    u.busy = true;
+    if (!u || u.busy || this.match || this.session) { updateChip(false); return; }
+    if (!force && (document.querySelector('.modal') || !document.querySelector('#screen .home2'))) { updateChip(true); return; }
+    u.busy = true; updateChip(false);
     document.getElementById('fade').classList.add('on');
     setTimeout(() => {
       if (u.reg && u.reg.waiting) u.reg.waiting.postMessage({ t: 'skipWaiting' }); // controllerchange reloads
@@ -904,6 +908,13 @@ class App {
 
 // Installable app: the service worker (sw.js) serves repeat launches from cache and keeps it fresh.
 // A new build is only switched in when it is safe: on the menu, never mid-match (see App.safeUpdate).
+function updateChip(on) {
+  let c = document.getElementById('updchip');
+  if (!on) { if (c) c.remove(); return; }
+  if (c) return;
+  c = h('button', { id: 'updchip', class: 'updchip', title: 'A new version of MOBA-VS is ready', onclick: () => app.safeUpdate(true) }, 'Update ready: tap to reload');
+  document.body.appendChild(c);
+}
 function registerSW() {
   if (!('serviceWorker' in navigator) || !(location.protocol === 'https:' || location.hostname === 'localhost')) return;
   const sw = navigator.serviceWorker;
@@ -911,7 +922,17 @@ function registerSW() {
     const waiting = () => { if (reg.waiting && sw.controller) { app.update = { reg }; app.safeUpdate(); } };
     waiting();
     reg.addEventListener('updatefound', () => { const w = reg.installing; if (w) w.addEventListener('statechange', () => { if (w.state === 'installed') waiting(); }); });
-    document.addEventListener('visibilitychange', () => { if (!document.hidden) reg.update().catch(() => {}); });
+    // An iOS Home Screen app is usually resumed, not relaunched, so no page load revalidates the cache. On every
+    // resume (and every 15 minutes while open) check the worker script and the two files every release changes,
+    // through the worker: a changed file makes it refresh the cached build and post 'sw-updated'.
+    let checked = 0;
+    const recheck = () => {
+      if (document.hidden || Date.now() - checked < 60000) return;
+      checked = Date.now(); reg.update().catch(() => {});
+      for (const f of ['src/main.js', 'src/data/patchnotes.js']) fetch(f).catch(() => {});
+    };
+    document.addEventListener('visibilitychange', recheck);
+    setInterval(recheck, 15 * 60000);
   }).catch(() => {});
   sw.addEventListener('message', (e) => { if (e.data && e.data.t === 'sw-updated') { app.update = app.update || {}; app.safeUpdate(); } });
   let reloaded = false;
