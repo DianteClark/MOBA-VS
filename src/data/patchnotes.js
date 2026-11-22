@@ -1,6 +1,21 @@
 // Patch notes, newest first. tools/season.mjs prepends an entry at each season rollover.
 export const PATCHES = [
   {
+    version: '24.4', season: 1, date: '2026-11-22', title: 'Koban',
+    highlights: ['Champion shop', 'Weekly rotation', 'Legend tier'],
+    notes: [
+      'Champions are now unlocked with Koban, earned from every match, first win of the day, daily goals, level-ups, achievements, the pass and the campaign. No real money.',
+      'Start with 15 champions, 3 per role. Prices: General 1,500, Specialist 3,000, Expert 4,500, Legend 6,000 (the hardest kits to master).',
+      'Free weekly rotation: 10 champions, 2 per role. Try It plays one vs-AI match with any champion you do not own.',
+      'Free champion pick every 4 coach levels (10 in total). Rookie boost: double match Koban for your first 30 matches.',
+      'Ranked opens once you own 25 champions. If bans leave you without a champion for a role, you get a loaner.',
+      'The draft now goes role by role: Top, Jungle, Mid, Bot, Support.',
+      'Profile pictures: any champion you own, plus 22 monster and boss portraits earned in play.',
+      'Balance: Umbra nerfed; Sanguis, Hex, Saru and Momo buffed; Raiden, Azim and Ember can play Bot.',
+    ],
+    heroes: [],
+  },
+  {
     version: '24.3', season: 1, date: '2026-11-22', title: 'Campaign',
     highlights: ['Story campaign', 'Coach Academy'],
     notes: [
