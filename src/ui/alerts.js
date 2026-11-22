@@ -13,7 +13,7 @@ const PANEL_IDS = ['banner', 'myteam', 'topcenter', 'rightcol', 'foestrip', 'brc
 const SIZE = 46, EDGE = 8, DEF_IMG = 'assets/img/icons/DefenseUpgrade.png';
 // Attention budget (attention.js): at most MAX arrows at once; a fight's arrow stays LINGER ms after the blows stop
 // (and keeps its key while the fight drifts), so one fight is one prompt, not a flicker of new ones.
-const MAX = 3, LINGER = { bigfight: 2500, fight: 1600 }, SAME_FIGHT = 900; // (other arrows: 1s)
+const MAX = 3, LINGER = { bigfight: 2500, fight: 1600, obj: 3000 }, SAME_FIGHT = 900; // (other arrows: 1s)
 
 export class Alerts {
   constructor(hud) {
