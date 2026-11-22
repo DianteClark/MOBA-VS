@@ -1,7 +1,7 @@
 // Champion scan, step 2: unlock price tiers from a tools/scan.mjs result plus the static kit data.
 //   node tools/scantiers.mjs scan.json [--ex 0.55] [--ge 0.1] [--out tiers.json]
 // Signals (all z-scored across the roster):
-//   coaching sensitivity CS = paired sharp-minus-passive gaps: win 50%, gold 30%, hero damage 20%
+//   coaching sensitivity CS = paired sharp-minus-passive gaps: win 50%, share of team gold 30%, share of team hero damage 20%
 //   (CS and PF use empirical-Bayes shrunk values over the sd of the raw values, so a measure that is mostly
 //   noise at this sample size carries little weight; the static signals are plain z-scores)
 //   skill load SK         = Difficulty rating (src/data/herostats.js) 60%, kit complexity (conditional mechanics) 40%
@@ -55,7 +55,7 @@ const col = (f) => z(H.map(f));
 // mostly noise its spread collapses, and so does its weight in the score
 const zs = (shr, raw) => { const v = H.map((h) => R[h.id][raw]), m = v.reduce((a, x) => a + x, 0) / v.length, sd = Math.sqrt(v.reduce((a, x) => a + (x - m) ** 2, 0) / v.length) || 1;
   const w = H.map((h) => R[h.id][shr]), ms = w.reduce((a, x) => a + x, 0) / w.length; return w.map((x) => (x - ms) / sd); };
-const zGap = zs('gapShr', 'gap'), zGold = zs('lgShr', 'lg'), zDmg = zs('ldShr', 'ld');
+const zGap = zs('gapShr', 'gap'), zGold = zs('gsShr', 'gs'), zDmg = zs('dsShr', 'ds');
 const zDiff = col((h) => heroRatings(h.id).difficulty), zCx = col((h) => complexity(h).c);
 const zPass = zs('rpShr', 'rp');
 const zSpread = col((h) => R[h.id].spread), zDep = col((h) => staticDep(h));
@@ -78,7 +78,7 @@ console.log(`n=${scan.n} games · sharp ${(100 * scan.S).toFixed(1)}% · tiers`,
 console.log('id         role    tier        E      G     CS    SK    PF    CD   diff  cx   passWR sharpWR gap(sh) gold% games');
 for (const ro of ROLES) for (const x of rows.filter((q) => q.h.role === ro).sort((a, b) => b.G - a.G)) {
   const r = x.r, f = (v) => v.toFixed(2).padStart(5);
-  console.log(`${x.h.id.padEnd(10)} ${ro.padEnd(7)} ${(x.tier + (x.border ? '?' : '')).padEnd(11)} ${f(x.E)} ${f(x.G)} ${f(x.CS)} ${f(x.SK)} ${f(x.PF)} ${f(x.CD)}  ${String(x.diff).padStart(2)}  ${x.cx.c.toFixed(1)}   ${(100 * r.pw / r.pg).toFixed(0).padStart(3)}    ${(100 * r.sw / r.sg).toFixed(0).padStart(3)}   ${(100 * r.gapShr).toFixed(1).padStart(5)}  ${(100 * r.lgShr).toFixed(1).padStart(5)}  ${r.sg + r.pg}`);
+  console.log(`${x.h.id.padEnd(10)} ${ro.padEnd(7)} ${(x.tier + (x.border ? '?' : '')).padEnd(11)} ${f(x.E)} ${f(x.G)} ${f(x.CS)} ${f(x.SK)} ${f(x.PF)} ${f(x.CD)}  ${String(x.diff).padStart(2)}  ${x.cx.c.toFixed(1)}   ${(100 * r.pw / r.pg).toFixed(0).padStart(3)}    ${(100 * r.sw / r.sg).toFixed(0).padStart(3)}   ${(100 * r.gapShr).toFixed(1).padStart(5)}  ${(100 * r.gsShr).toFixed(1).padStart(5)}  ${r.sg + r.pg}`);
 }
 const out = opt('out', null);
 if (out) writeFileSync(out, JSON.stringify(rows.map((x) => ({ id: x.h.id, tier: x.tier, border: x.border, E: x.E, G: x.G, CS: x.CS, SK: x.SK, PF: x.PF, CD: x.CD, diff: x.diff, cx: x.cx, price: PRICE[x.tier] })), null, 1));

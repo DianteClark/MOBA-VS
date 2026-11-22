@@ -13,7 +13,7 @@
 // Heroes come from shuffled per-role decks (even coverage); in a share P of matchups (default 0.4) one random
 // cross-role duo is put on a random team so duo dependence can be measured.
 // Report: per hero sharp/passive win rate, both centred on their condition's mean, the gap (sharp - passive,
-// centred), empirical-Bayes shrinkage of each, the context spread (comp / duo / clan / plan) used for the
+// centred), the paired change in the hero's share of team gold and hero damage, empirical-Bayes shrinkage of each, the context spread (comp / duo / clan / plan) used for the
 // Specialist call, and a relative-KDA impact under each coach.
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
 import { writeFileSync, appendFileSync, readFileSync } from 'node:fs';
@@ -113,10 +113,12 @@ if (!isMainThread) {
       const sg = t === 0 ? gs0 : gp0, pg = t === 0 ? gp0 : gs0; // the game where team t was sharp / passive
       const d = (sg.winner === t ? 1 : 0) - (pg.winner === t ? 1 : 0);
       for (const x of sg.teams[t].heroes) {
-        const s = H[x.id], y = pg.teams[t].heroes.find((q) => q.id === x.id); s.pd += d; s.pn++;
-        // continuous paired gaps (far less noisy than wins): log gold ratio and log hero-damage ratio
-        const lg = Math.log((x.gold + 1) / (y.gold + 1)), ld = Math.log((x.dmg + 500) / (y.dmg + 500));
-        s.lg = (s.lg || 0) + lg; s.lg2 = (s.lg2 || 0) + lg * lg; s.ld = (s.ld || 0) + ld; s.ld2 = (s.ld2 || 0) + ld * ld;
+        const s = H[x.id], y = pg.teams[t].heroes.find((q) => q.id === x.id); s.pd += d; s.pd2 = (s.pd2 || 0) + d * d; s.pn++;
+        // continuous paired gaps: the hero's share of its team's gold and hero damage, sharp minus passive
+        // (a within-team share removes the team's result, which the win gap already counts)
+        const share = (team, v, k) => v[k] / (team.heroes.reduce((a, q) => a + q[k], 0) || 1);
+        const gs = share(sg.teams[t], x, 'gold') - share(pg.teams[t], y, 'gold'), ds = share(sg.teams[t], x, 'dmg') - share(pg.teams[t], y, 'dmg');
+        s.gs = (s.gs || 0) + gs; s.gs2 = (s.gs2 || 0) + gs * gs; s.ds = (s.ds || 0) + ds; s.ds2 = (s.ds2 || 0) + ds * ds;
       }
     }
   }
@@ -125,23 +127,23 @@ if (!isMainThread) {
   const eb = (vals) => { // vals: [{ v, se2 }] -> shrink factor per item
     const m = vals.reduce((a, x) => a + x.v, 0) / vals.length;
     const varObs = vals.reduce((a, x) => a + (x.v - m) ** 2, 0) / Math.max(1, vals.length - 1), se2 = vals.reduce((a, x) => a + x.se2, 0) / vals.length;
-    const tau2 = Math.max(1e-4, varObs - se2);
+    const tau2 = Math.max(1e-6, varObs - se2);
     return { m, tau2, f: vals.map((x) => tau2 / (tau2 + x.se2)) };
   };
   const rows = ids.map((id) => {
     const s = H[id], ws = s.sw / s.sg, wp = s.pw / s.pg;
     const rs = ws - S, rp = wp - P, gapPair = s.pn ? s.pd / s.pn - (S - P) : rs - rp;
-    return { id, s, rs, rp, gap: gapPair, se2s: S * (1 - S) / s.sg, se2p: P * (1 - P) / s.pg, se2g: (s.pn ? 0.5 / s.pn : S * (1 - S) / s.sg + P * (1 - P) / s.pg) };
+    return { id, s, rs, rp, gap: gapPair, se2s: S * (1 - S) / s.sg, se2p: P * (1 - P) / s.pg, se2g: (s.pn ? Math.max(0.05, s.pd2 / s.pn - (s.pd / s.pn) ** 2) / s.pn : S * (1 - S) / s.sg + P * (1 - P) / s.pg) };
   });
   // continuous gaps, centred on the all-hero mean, with their own sampling variance
-  for (const k of ['lg', 'ld']) {
+  for (const k of ['gs', 'ds']) {
     const m = rows.reduce((a, r) => a + (r.s[k] || 0), 0) / rows.reduce((a, r) => a + r.s.pn, 0);
     for (const r of rows) { const nn = r.s.pn || 1, mu = (r.s[k] || 0) / nn; r[k] = mu - m; r[k + 'Se2'] = Math.max(1e-4, ((r.s[k + '2'] || 0) / nn - mu * mu) / Math.max(1, nn - 1)); }
   }
   const ebS = eb(rows.map((r) => ({ v: r.rs, se2: r.se2s }))), ebP = eb(rows.map((r) => ({ v: r.rp, se2: r.se2p }))), ebG = eb(rows.map((r) => ({ v: r.gap, se2: r.se2g })));
-  const ebLg = eb(rows.map((r) => ({ v: r.lg, se2: r.lgSe2 }))), ebLd = eb(rows.map((r) => ({ v: r.ld, se2: r.ldSe2 })));
+  const ebGs = eb(rows.map((r) => ({ v: r.gs, se2: r.gsSe2 }))), ebDs = eb(rows.map((r) => ({ v: r.ds, se2: r.dsSe2 })));
   rows.forEach((r, i) => {
-    r.lgShr = ebLg.m + (r.lg - ebLg.m) * ebLg.f[i]; r.ldShr = ebLd.m + (r.ld - ebLd.m) * ebLd.f[i];
+    r.gsShr = ebGs.m + (r.gs - ebGs.m) * ebGs.f[i]; r.dsShr = ebDs.m + (r.ds - ebDs.m) * ebDs.f[i];
     r.rsShr = ebS.m + (r.rs - ebS.m) * ebS.f[i]; r.rpShr = ebP.m + (r.rp - ebP.m) * ebP.f[i]; r.gapShr = ebG.m + (r.gap - ebG.m) * ebG.f[i];
     r.gapSe = Math.sqrt(ebG.f[i] * r.se2g); r.rpSe = Math.sqrt(ebP.f[i] * r.se2p); // posterior sd
     // context spread: for each factor, between-level variance of the residual beyond sampling noise
@@ -157,13 +159,13 @@ if (!isMainThread) {
     r.kdaS = r.s.sk / r.s.sg; r.kdaP = r.s.pk / r.s.pg;
   });
   console.log(`\n${n} games (${Object.values(pairs).filter((g) => g.length === 2).length} pairs) · sharp coach wins ${(100 * S).toFixed(1)}% · avg ${(len / n).toFixed(1)}m`);
-  console.log(`tau (between-hero sd): sharp ${(100 * Math.sqrt(ebS.tau2)).toFixed(1)} · passive ${(100 * Math.sqrt(ebP.tau2)).toFixed(1)} · gap ${(100 * Math.sqrt(ebG.tau2)).toFixed(1)} pts · gold gap ${(100 * Math.sqrt(ebLg.tau2)).toFixed(1)}% · dmg gap ${(100 * Math.sqrt(ebLd.tau2)).toFixed(1)}%`);
-  console.log('\nHero       role     games  sharpWR passWR | resS  resP   gap  (shrunk: resP  gap ±sd)  spread  gold%  dmg%  kdaS kdaP  context');
+  console.log(`tau (between-hero sd): sharp ${(100 * Math.sqrt(ebS.tau2)).toFixed(1)} · passive ${(100 * Math.sqrt(ebP.tau2)).toFixed(1)} · gap ${(100 * Math.sqrt(ebG.tau2)).toFixed(1)} pts · gold-share gap ${(100 * Math.sqrt(ebGs.tau2)).toFixed(2)} · dmg-share gap ${(100 * Math.sqrt(ebDs.tau2)).toFixed(2)} pts`);
+  console.log('\nHero       role     games  sharpWR passWR | resS  resP   gap  (shrunk: resP  gap ±sd)  spread  goldSh dmgSh  kdaS kdaP  context');
   const pc = (v) => (100 * v).toFixed(0).padStart(4), sg = (v) => ((v >= 0 ? '+' : '') + (100 * v).toFixed(1)).padStart(6);
   for (const r of rows.sort((a, b) => HEROES.findIndex((h) => h.id === a.id) - HEROES.findIndex((h) => h.id === b.id)).sort((a, b) => ROLES.indexOf(HERO_BY_ID[a.id].role) - ROLES.indexOf(HERO_BY_ID[b.id].role) || a.gapShr - b.gapShr)) {
     const s = r.s;
-    console.log(`${r.id.padEnd(10)} ${HERO_BY_ID[r.id].role.padEnd(7)} ${String(s.sg).padStart(3)}/${String(s.pg).padEnd(3)} ${pc(s.sw / s.sg)}   ${pc(s.pw / s.pg)}   | ${sg(r.rs)} ${sg(r.rp)} ${sg(r.gap)}   ${sg(r.rpShr)} ${sg(r.gapShr)} ±${(100 * r.gapSe).toFixed(1)}   ${(100 * r.spread).toFixed(1).padStart(4)}  ${sg(r.lgShr)} ${sg(r.ldShr)}  ${r.kdaS.toFixed(2)} ${r.kdaP.toFixed(2)}  ${r.ctxWhy}`);
+    console.log(`${r.id.padEnd(10)} ${HERO_BY_ID[r.id].role.padEnd(7)} ${String(s.sg).padStart(3)}/${String(s.pg).padEnd(3)} ${pc(s.sw / s.sg)}   ${pc(s.pw / s.pg)}   | ${sg(r.rs)} ${sg(r.rp)} ${sg(r.gap)}   ${sg(r.rpShr)} ${sg(r.gapShr)} ±${(100 * r.gapSe).toFixed(1)}   ${(100 * r.spread).toFixed(1).padStart(4)}  ${sg(r.gsShr)} ${sg(r.dsShr)}  ${r.kdaS.toFixed(2)} ${r.kdaP.toFixed(2)}  ${r.ctxWhy}`);
   }
   const out = opt('json', null);
-  if (out) writeFileSync(out, JSON.stringify({ n, S, tau: { s: Math.sqrt(ebS.tau2), p: Math.sqrt(ebP.tau2), g: Math.sqrt(ebG.tau2) }, rows: rows.map((r) => ({ id: r.id, sg: r.s.sg, sw: r.s.sw, pg: r.s.pg, pw: r.s.pw, pn: r.s.pn, rs: r.rs, rp: r.rp, gap: r.gap, rsShr: r.rsShr, rpShr: r.rpShr, gapShr: r.gapShr, gapSe: r.gapSe, rpSe: r.rpSe, spread: r.spread, lg: r.lg, lgShr: r.lgShr, ld: r.ld, ldShr: r.ldShr, ctxWhy: r.ctxWhy, kdaS: r.kdaS, kdaP: r.kdaP, ctx: r.s.ctx })) }, null, 1));
+  if (out) writeFileSync(out, JSON.stringify({ n, S, tau: { s: Math.sqrt(ebS.tau2), p: Math.sqrt(ebP.tau2), g: Math.sqrt(ebG.tau2) }, rows: rows.map((r) => ({ id: r.id, sg: r.s.sg, sw: r.s.sw, pg: r.s.pg, pw: r.s.pw, pn: r.s.pn, rs: r.rs, rp: r.rp, gap: r.gap, rsShr: r.rsShr, rpShr: r.rpShr, gapShr: r.gapShr, gapSe: r.gapSe, rpSe: r.rpSe, spread: r.spread, gs: r.gs, gsShr: r.gsShr, ds: r.ds, dsShr: r.dsShr, ctxWhy: r.ctxWhy, kdaS: r.kdaS, kdaP: r.kdaP, ctx: r.s.ctx })) }, null, 1));
 }
