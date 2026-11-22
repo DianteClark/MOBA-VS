@@ -1,6 +1,17 @@
 // Patch notes, newest first. tools/season.mjs prepends an entry at each season rollover.
 export const PATCHES = [
   {
+    version: '23.7', season: 1, date: '2026-11-22', title: 'Solid Ground',
+    notes: [
+      'Fight alerts name the right place: lanes by tower, river halves, jungle quadrants and camps. Pits only count when the fight is really in the pit.',
+      'Tapping a fight alert frames the middle of the fight and follows it for a few seconds.',
+      'Every tower on every map now stands on clean, widened lane ground with even spacing between tiers.',
+      'Marsh camps moved out of tower range, and the Ember Canyon mesa now guards the mid river crossing.',
+      'Fixed: heroes jittering in place at forest corners.',
+    ],
+    heroes: [],
+  },
+  {
     version: '23.6', season: 1, date: '2026-11-22', title: 'For Everyone',
     notes: [
       'MOBA-VS now speaks Spanish, Portuguese, French, German, Japanese, Korean, Chinese and Russian. It picks your phone\'s language automatically, or choose in Settings.',
