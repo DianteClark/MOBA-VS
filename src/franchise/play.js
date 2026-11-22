@@ -53,7 +53,7 @@ export function frRecord(s, game) {
   const sc = (x) => x.kills * 3 + x.assists * 1.5 - x.deaths + x.dmgHeroes / 1500 + x.cs / 40;
   const perf = {}; let mvp = null;
   for (const t of [0, 1]) for (const x of game.teams[t].heroes) { perf[x.heroId] = sc(x); if (t === 0 && (!mvp || perf[x.heroId] > perf[mvp])) mvp = x.heroId; }
-  const before = fr.phase, round = fr.round, place = L.standings(fr).findIndex((r) => r.t === 0) + 1;
+  const before = fr.phase, round = fr.round, st0 = L.standings(fr), r0 = st0.find((r) => r.t === 0), place = r0.w + r0.l ? st0.indexOf(r0) + 1 : 0;
   L.recordFixture(fr, L.matchContext(fr, fx), { w: game.winner === s.myTeam ? 0 : 1, k: [game.teams[0].kills, game.teams[1].kills], len: Math.round(game.time), perf, ids: F.ids, how: 'play', mvp });
   saveFr(fr);
   return { fr, fx, won: game.winner === s.myTeam, before, round, placeBefore: place };
@@ -62,7 +62,7 @@ export function frRecord(s, game) {
 export function simFixture() {
   const fr = getFr(); if (!fr) return null;
   const fx = L.nextFixture(fr); if (!fx) return null;
-  const n = fr.mine.length; L.quickFixture(fr); fr.live = null; saveFr(fr);
+  L.quickFixture(fr); fr.live = null; saveFr(fr);
   const last = fr.mine[fr.mine.length - 1];
-  return fr.mine.length > n || last ? { fx, won: last.won, k: last.k } : null;
+  return last ? { fx, won: last.won, k: last.k } : null;
 }

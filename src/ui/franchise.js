@@ -72,16 +72,17 @@ export function showFranchise(app, which) {
 const rerender = (app) => showFranchise(app);
 function frame(app, fr, fill) {
   const me = fr && fr.teams[0], st = fr && L.standings(fr), rec = fr && st.find((r) => r.t === 0);
-  const sub = !fr ? 'Pro League' : fr.phase === 'offseason' ? `Season ${fr.season} offseason` : fr.phase === 'playoffs' ? `Season ${fr.season} · Playoffs` : `Season ${fr.season} · Round ${Math.min(D.ROUNDS, fr.round + 1)} of ${D.ROUNDS} · ${rec.w}-${rec.l}`;
+  const sub = !fr ? (tab === 'pro' ? 'Pro League' : 'Found your club') : fr.phase === 'offseason' ? `Season ${fr.season} offseason` : fr.phase === 'playoffs' ? `Season ${fr.season} · Playoffs` : `Season ${fr.season} · Round ${Math.min(D.ROUNDS, fr.round + 1)} of ${D.ROUNDS} · ${rec.w}-${rec.l}`;
   const body = h('div', { class: 'frbody' });
   const root = h('div', { class: 'subscreen franchise', 'data-view': 'franchise', style: fr ? { '--c1': me.c1, '--c2': me.c2 } : {} },
     h('div', { class: 'frhead' },
       h('button', { class: 'btn backbtn', onclick: () => { sfx(); app.menu(); } }, '‹ Back'),
       fr ? crest(me, 34, 'big') : h('img', { class: 'frproicon', src: 'assets/img/items/GoldCup.png', alt: '' }),
       h('div', { class: 'frtitle' }, h('b', {}, fr ? me.name : 'Franchise'), h('small', {}, sub)),
-      h('div', { class: 'frtabs', role: 'tablist' }, ...TABS.filter(([k]) => fr || k === 'pro').map(([k, l]) => h('button', { class: 'chip' + (tab === k ? ' on' : ''), role: 'tab', 'aria-selected': String(tab === k),
-        onclick: () => { if (tab !== k) { sfx(); tab = k; fr ? showFranchise(app) : (k === 'pro' ? showFranchise(app, 'pro') : showFounding(app)); } } }, l)),
-        !fr ? h('button', { class: 'chip' + (tab !== 'pro' ? ' on' : ''), onclick: () => { tab = 'team'; showFounding(app); } }, 'Found a team') : null)),
+      h('div', { class: 'frtabs', role: 'tablist' },
+        !fr ? h('button', { class: 'chip' + (tab !== 'pro' ? ' on' : ''), role: 'tab', 'aria-selected': String(tab !== 'pro'), onclick: () => { if (tab === 'pro') { sfx(); showFounding(app); } } }, 'Found a team') : null,
+        ...TABS.filter(([k]) => fr || k === 'pro').map(([k, l]) => h('button', { class: 'chip' + (tab === k ? ' on' : ''), role: 'tab', 'aria-selected': String(tab === k),
+          onclick: () => { if (tab !== k) { sfx(); tab = k; showFranchise(app); } } }, l)))),
     body);
   mount(screen(), root);
   fill(body);
@@ -172,7 +173,7 @@ function teamTab(app, fr, body) {
     next = h('div', { class: 'panel frnext' + (fx.kind !== 'season' ? ' po' : '') },
       h('small', { class: 'kick' }, label),
       h('div', { class: 'frvs' }, crest(fr.teams[0], 40), h('b', { class: 'vs' }, 'vs'), crest(opp, 40),
-        h('div', { class: 'col' }, h('b', {}, opp.name), h('small', { class: 'muted' }, `${orec.w}-${orec.l} · ${ordinal(place(fx.opp))} · ${D.GM_STYLES[opp.gm].name}`))),
+        h('div', { class: 'col' }, h('b', {}, opp.name), h('small', { class: 'muted' }, `${orec.w}-${orec.l}${orec.w + orec.l ? ' · ' + ordinal(place(fx.opp)) : ''} · ${D.GM_STYLES[opp.gm].name}`))),
       h('div', { class: 'frodds' }, h('span', {}, 'Edge ', h('b', { class: ctx.str[0] >= 0 ? 'pos' : 'neg' }, pct(ctx.str[0])), ' vs ', h('b', { class: ctx.str[1] >= 0 ? 'pos' : 'neg' }, pct(ctx.str[1]))),
         h('span', { class: 'muted' }, `Sim odds ${Math.round(ctx.p * 100)}%`)),
       h('div', { class: 'frgo' },
@@ -202,7 +203,7 @@ function marketTab(app, fr, body) {
   const me = fr.teams[0], pay = L.payroll(fr, 0), ros = L.rosterOf(fr, 0);
   const head = h('div', { class: 'panel frmoney' },
     h('span', {}, 'Payroll ', h('b', {}, `${pay}k`), ` / budget ${me.bud}k`), h('span', { class: L.capSpace(fr, 0) < 0 ? 'neg' : 'pos' }, `Room ${L.capSpace(fr, 0)}k`), h('span', {}, `Roster ${ros.length}/${D.ROSTER_MAX}`),
-    h('div', { class: 'seg3 frseg' }, ...[['fa', 'Free agents'], ['trade', 'Trades']].map(([k, l]) => h('button', { class: 'chip' + (mkt === k ? ' on' : ''), onclick: () => { mkt = k; sfx(); rerender(app); } }, l))));
+    h('div', { class: 'frseg' }, ...[['fa', 'Free agents'], ['trade', 'Trades']].map(([k, l]) => h('button', { class: 'chip' + (mkt === k ? ' on' : ''), onclick: () => { mkt = k; sfx(); rerender(app); } }, l))));
   if (!M.marketOpen(fr)) { mount(body, head, h('div', { class: 'panel muted center' }, 'The market is closed during the playoffs. It reopens in the offseason.')); return; }
   mount(body, head, mkt === 'fa' ? faList(app, fr) : tradePanel(app, fr));
 }
@@ -334,9 +335,9 @@ function offseasonTab(app, fr, body) {
         h('button', { class: 'btn big', disabled: blockers.length > 0, onclick: () => { if (L.startNextSeason(fr)) { saveFr(fr); audio.sfx('accept', 0.9); buzz('callWin'); toast(`Season ${fr.season} begins!`, 2400); rerender(app); } } }, `Start season ${fr.season + 1}`)));
   }
   const ros = L.rosterOf(fr, 0).sort((a, b) => b.o - a.o);
-  mount(body, steps, h('div', { class: 'frteamtab' }, h('div', { class: 'col frcolL' }, main,
+  mount(body, steps, h('div', { class: 'frteamtab off' }, h('div', { class: 'col frcolL' }, main,
     h('button', { class: 'chip', title: 'Your assistant GM re-signs good value, drafts the best prospect and fills the roster', onclick: () => { if (confirm('Let your assistant GM finish the offseason (contracts, draft, free agency) and start the next season?')) { L.assistant(fr); saveFr(fr); rerender(app); } } }, 'Assistant GM: do it for me')),
-  h('div', { class: 'col frcolR' }, h('div', { class: 'panel frbench' }, h('div', { class: 'frh' }, h('b', {}, 'Your roster'), h('small', { class: 'muted' }, `${ros.length} heroes`)), ...ros.map((x) => heroLine(fr, x, { sub: h('small', { class: 'frrole' }, `${x.y ? `${x.s}k × ${x.y}` : 'expiring'} · ${x.a} seasons`) }))))));
+  h('div', { class: 'col frcolR' }, h('div', { class: 'panel frbench' }, h('div', { class: 'frh' }, h('b', {}, 'Your roster'), h('small', { class: 'muted' }, `${ros.length} heroes`)), ...ros.map((x) => heroLine(fr, x, { sub: h('small', { class: 'frrole' }, `${x.y ? `${x.s}k × ${x.y}` : 'expiring'} · ${x.a} seasons`), right: h('small', { class: 'frval ' + moraleCls(x.m) }, moraleWord(x.m)) }))))));
 }
 
 // ── results-screen panel (main.js endMatch): the league after your match ──
@@ -345,6 +346,6 @@ export function franchiseResults(app, out) {
   const fr = out.fr, st = L.standings(fr), place = st.findIndex((r) => r.t === 0) + 1, rec = st.find((r) => r.t === 0);
   const line = fr.phase === 'offseason' ? (fr.off.champ === 0 ? 'Champions! Season complete.' : `Season over: ${fr.teams[fr.off.champ].name} are champions.`)
     : fr.phase === 'playoffs' ? (L.nextFixture(fr) ? (fr.po.f && (fr.po.f[0] === 0 || fr.po.f[1] === 0) ? 'Into the Final!' : 'Playoffs: your semifinal is next.') : 'Your playoff run is over.')
-    : `${rec.w}-${rec.l} · ${ordinal(place)} of ${D.LEAGUE_TEAMS}${place !== out.placeBefore ? ` (was ${ordinal(out.placeBefore)})` : ''}`;
+    : `${rec.w}-${rec.l} · ${ordinal(place)} of ${D.LEAGUE_TEAMS}${out.placeBefore && place !== out.placeBefore ? ` (was ${ordinal(out.placeBefore)})` : ''}`;
   return h('div', { class: 'panel frres' }, crest(fr.teams[0], 30), h('div', { class: 'col' }, h('small', { class: 'muted' }, `${fr.teams[0].name} · ${out.fx.kind === 'season' ? `Round ${out.fx.round + 1}` : out.fx.kind === 'semi' ? 'Semifinal' : 'Final'}`), h('b', {}, line)));
 }

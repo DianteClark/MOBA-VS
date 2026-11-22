@@ -452,7 +452,7 @@ export function quickFixture(fr) {
   withRng(fr, (r) => {
     const sc = quickScore(r, ctx.str[0], ctx.str[1], ctx.p);
     const perf = {}; ctx.ids.forEach((ids, s) => ids.forEach((id, i) => { perf[id] = ctx.mods[s][i] * 20 + r.next() * 1.2; }));
-    recordFixture(fr, ctx, { w: sc.w, k: sc.k, tw: sc.tw, len: sc.len, crystal: sc.crystal, perf, ids: ctx.ids, how: 'quick' });
+    recordFixture(fr, ctx, { w: sc.w, k: sc.k, tw: sc.tw, len: sc.len, crystal: sc.crystal, perf, ids: ctx.ids, how: 'sim' });
   });
   return true;
 }
