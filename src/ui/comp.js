@@ -3,6 +3,7 @@
 // with a dynamic import so this UI degrades gracefully (hidden) if that module is absent.
 import { h, face } from './dom.js';
 import { HERO_BY_ID } from '../data/heroes.js';
+import { DUO_ULT_TEXT } from '../sim/interplay.js';
 
 let SYN = null;
 const synergyLoaded = import('../data/synergy.js').then((m) => { SYN = m; return m; }).catch(() => null);
@@ -24,7 +25,7 @@ function duosFor(id) { return allDuos().filter((d) => d.a === id || d.b === id).
 function activeDuos(ids) { const s = new Set(ids); return allDuos().filter((d) => s.has(d.a) && s.has(d.b)); }
 // Duos still possible: one hero picked, partner not taken (for the "+1 for a duo" hint).
 function openDuos(ids, takenSet) { const s = new Set(ids); return allDuos().filter((d) => (s.has(d.a) !== s.has(d.b)) && !takenSet.has(s.has(d.a) ? d.b : d.a)); }
-const comboText = (d) => (SYN && SYN.COMBO_TEXT && SYN.COMBO_TEXT[d.combo]) || '';
+const comboText = (d) => [(SYN && SYN.COMBO_TEXT && SYN.COMBO_TEXT[d.combo]) || '', DUO_ULT_TEXT[d.combo] || ''].filter(Boolean).join('. ');
 
 // Draft header: archetype + progress bar, then active duos (gold) and one open duo (purple).
 export function compLine(ids, takenSet) {

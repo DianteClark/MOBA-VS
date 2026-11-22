@@ -155,6 +155,10 @@ STATES = [
     ('scoreboard', "() => app.match.hud.toggleScoreboard(true)"),
     ('hpop', "() => { const H = app.match.hud; H.openPop(H.g.teams[0].heroes[0], H.mineRows[0]); }"),
     ('settings', "() => import('./src/ui/settings.js').then((m) => m.openSettingsModal(app.match.runner))"),
+    # v23 match depth: hero sheet with next-item + talent rows, the live talent prompt, a fight forecast
+    ('herosheet', "() => { const H = app.match.hud, x = H.g.teams[0].heroes[1]; if (!x.tal) return; x.tal = [0, 1, -1]; x.talAt = [H.g.tick, H.g.tick, 0]; H.dock.open('hero:' + x.id); }"),
+    ('talentprompt', "() => { const H = app.match.hud, x = H.g.teams[0].heroes[3]; if (!H.depth) return; H.dock.tray.clear(); x.tal = [1, -1, -1]; x.talAt = [H.g.tick, 0, 0]; H.depth.talentPrompt(x, 0, 1); }"),
+    ('forecast', "() => { const H = app.match.hud; if (!H.depth) return; H.dock.tray.clear(); H.depth.showForecast({ at: { x: 649, y: 678 }, where: 'Kraken', obj: 'baron', eta: 8, mine: 4, theirs: 3, unseen: 1, edge: 1 }); }"),
     ('halftime', "() => { const r = app.match.runner; import('./src/ui/halftime.js').then((m) => m.showHalftime(app, app.match.game, 0, r, { end: performance.now() + 60000 })); }"),
 ]
 

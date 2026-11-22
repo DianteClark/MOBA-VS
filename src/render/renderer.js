@@ -10,6 +10,8 @@ import { Chatter } from './chatter.js';
 import { Vfx } from './vfx.js';
 import { Ambient } from './ambient.js';
 import { EventFx } from './eventfx.js';
+import { depthFx, drawUltUp } from './depthfx.js';
+import { feudLine } from '../data/feuds.js';
 import { settings, textScale, renderDpr } from '../ui/settings.js';
 
 export { TEAM_COL, TEAM_DARK };
@@ -218,6 +220,7 @@ export class Renderer {
         case 'shield': if (u) this.fxSprite('shield', u.x, u.y - 14, 1.3, u.id); break;
         case 'flash': if (this.visiblePoint(f.x, f.y)) { this.fxSprite('spark', f.x, f.y - 10, 1.4); this.text(f.x, f.y - 40, 'FLASH', '#fff', 9, 0.8); } break;
         case 'ward': if (f.team === this.viewTeam || this.viewTeam < 0) this.fxSprite('spirit', f.x, f.y, 1); break;
+        case 'talent': case 'ultUp': case 'ultEmp': case 'revenge': case 'duoUlt': depthFx(this, f, u, byId); break; // v23 match depth
         case 'recall': break;
         case 'emote': if (u && (u.team === this.viewTeam || this.viewTeam < 0)) emotes.push({ u, e: f.e }); break;
       }
@@ -306,7 +309,7 @@ export class Renderer {
             const w = this.fxp.spawn(P_WISP, e.x, e.y - 22, 2.2); w.target = k.id; w.c = TEAM_COL[k.team]; w.vx = (Math.random() - 0.5) * 120; w.vy = -160;
           } else { const s = this.fxp.spawn(P_SPRITE, e.x, e.y - 20, 1.6); s.sprite = 'spirit'; s.vy = -45; s.s = 1.4; }
           if (k && (k.team === this.viewTeam || this.viewTeam < 0) && this.onScreen(e.x, e.y, 60)) this.coins(e.x, e.y - 18, 9);
-          if (k) this.chatter.say(k, 'kill', 2);
+          if (k) this.chatter.say(k, 'kill', 2, k.type === 'hero' ? feudLine(k.heroId, v.heroId) : null); // rivals have a line of their own
           if (v.def.pers === 'hothead' && Math.random() < 0.6) this.chatter.say(v, 'tilted', 2); else this.chatter.say(v, 'death', 2);
           break;
         }
@@ -703,6 +706,7 @@ export class Renderer {
       let a = hidden ? 0.55 : 1;
       const st = this.spawnT.get(u.id);
       if (st !== undefined) { const k = (this.time - st) / 0.45; if (k >= 1) this.spawnT.delete(u.id); else { a *= k; if (this.motion) { sy *= 1 + 0.4 * (1 - k); sx *= 1 - 0.25 * (1 - k); } } }
+      if (u.ultUp) drawUltUp(this, u, x, y); // v23: empowered ultimate tell, under the sprite
       if (dashing && this.motion) this.vfx.afterimage(u, x, y + 4 - lift, col, row, 2.2);
       ctx.globalAlpha = a;
       this.drawSheetFrame(src, 16, 16, col, row, x, y + 4 - lift, 2.2, false, sx, sy);

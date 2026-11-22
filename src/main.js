@@ -14,6 +14,7 @@ import { MAPS, RUSH_MAPS } from './maps/defs.js';
 import { EVENT_BY_ID, weekEvent, mirrorLineup } from './data/events.js';
 import { newDraft, mirrorDraft, apply as draftApply, currentTurn, autoChoice, aiPrep, fitPrep, fitMirror, TURN_SECONDS } from './sim/draft.js';
 import { presetChoice, prepFromPreset } from './presets.js';
+import { heroPrefs } from './talentprefs.js';
 import { readyCheck } from './ui/readycheck.js';
 import { HERO_BY_ID } from './data/heroes.js';
 import { LocalRunner, LockstepRunner } from './net/runner.js';
@@ -62,7 +63,7 @@ import { openAdminReplay } from './ui/adminreplay.js';
 import { frPrep, frRecord } from './franchise/play.js';
 import { showFranchise, franchiseResults } from './ui/franchise.js';
 
-const VERSION = 26; // bump whenever the sim or balance changes (peers must match)
+const VERSION = 27; // bump whenever the sim or balance changes (peers must match)
 const PREP_SECONDS = 60;
 installCrashReporter(VERSION); // window errors, unhandled rejections and lockstep desyncs → the owner dashboard (src/net/ops.js)
 
@@ -547,6 +548,7 @@ class App {
     const pp = coop ? { prep: coopPrep(s), fromPreset: [] } : prepFromPreset(d.picks[me], d.picks[1 - me], s.preset, s.gameMode);
     if (d.mirror) { pp.prep = fitMirror(pp.prep, d.mirror); pp.fromPreset = []; } // Mirror Match: lanes + deck are fixed
     s.myPrep = pp.prep; s.prepFromPreset = pp.fromPreset; s.prepAdjust = false;
+    for (const hp of s.myPrep.heroes) if (!hp.tal) hp.tal = heroPrefs(hp.id); // the coach's talent defaults (Dojo)
     s.myPrep.skins = profile.skinsFor(coop ? myHeroIds(s) : d.picks[me]);
     if (s.mode === 'ai') { const rv = s.rival && RIVAL_BY_ID[s.rival]; s.preps[1 - me] = rv ? rivalPrep(rv, d.picks[1 - me], d.picks[me], s.rng, s.gameMode) : aiPrep(d.picks[1 - me], d.picks[me], s.gameMode); s.ready[1 - me] = true; }
     if (s.pendingPrep) { s.preps[s.pendingPrep.team] = s.pendingPrep.prep; s.ready[s.pendingPrep.team] = true; s.pendingPrep = null; }
@@ -594,6 +596,7 @@ class App {
     if (!s.replay && s.draft && s.preps) for (let t = 0; t < 2; t++) s.preps[t] = s.draft.mirror ? fitMirror(s.preps[t], s.draft.mirror) : fitPrep(s.preps[t], s.draft.picks[t]);
     const cfg = s.replay ? JSON.parse(JSON.stringify(s.replay.cfg)) : {
       seed: s.seed, map: s.mapId, ...(s.gameMode === 'rush' ? { mode: 'rush' } : {}), ...(s.event ? { event: s.event } : {}),
+      ...(s.gameMode !== 'rush' ? { depth: true } : {}), // v23 match depth: talents, item override, ult upgrades, revenge, duo ults
       teams: [0, 1].map((t) => ({ heroes: s.preps[t].heroes, plan: s.preps[t].plan, deck: s.preps[t].deck, name: s.names[t], ...(s.preps[t].mv ? { mv: s.preps[t].mv } : {}) })),
       coach: s.mode === 'coop' ? s.ai.slice() : s.mode === 'ai' ? [s.myTeam !== 0, s.myTeam !== 1] : s.mode === 'watch' ? [true, true] : [false, false],
       coachLevel: [s.aiLevel ?? this.aiLevel, s.aiLevel ?? this.aiLevel],

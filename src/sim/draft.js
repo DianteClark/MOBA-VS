@@ -112,7 +112,8 @@ export function fitPrep(prep, picks) {
 // their builds and plan (that is where the coaching happens).
 export function fitMirror(prep, lineup) {
   const old = Object.fromEntries(((prep && prep.heroes) || []).filter((x) => x && HERO_BY_ID[x.id]).map((x) => [x.id, x.build]));
-  const heroes = lineup.heroes.map((id, i) => ({ id, role: ROLES[i], build: HERO_BY_ID[id].builds.includes(old[id]) ? old[id] : HERO_BY_ID[id].rec }));
+  const tal = Object.fromEntries(((prep && prep.heroes) || []).filter((x) => x && x.tal).map((x) => [x.id, x.tal])); // v23 talent defaults
+  const heroes = lineup.heroes.map((id, i) => ({ id, role: ROLES[i], build: HERO_BY_ID[id].builds.includes(old[id]) ? old[id] : HERO_BY_ID[id].rec, ...(tal[id] ? { tal: tal[id] } : {}) }));
   return { ...(prep || {}), plan: (prep && prep.plan) || 'balanced', heroes, deck: lineup.deck.slice() };
 }
 
