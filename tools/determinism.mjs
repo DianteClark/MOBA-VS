@@ -4,15 +4,15 @@ import { HEROES } from '../src/data/heroes.js';
 import { EVENTS } from '../src/data/events.js';
 const pick = (ids) => ids.map((id) => { const h = HEROES.find((x) => x.id === id); return { id, role: h.role, build: h.rec }; });
 // 'event': a weekly map event on a v22 map (Kami Storm on Mossgate Ruins); every other event gets a short run below
-// 'living': Living World (night, Moon Spirits, Yokai Parade, walls, Tengu) on Moonlit Marsh during Blood Moon week, with v23 match depth as the app plays it
-const cfg = (mode, ev) => ({ seed: 777, coach: [false, true], ...(mode === 'rush' ? { mode: 'rush', map: 'rush_ember' } : mode === 'event' ? { map: 'ruins', event: 'kamistorm' } : mode === 'living' ? { map: 'marsh', living: 1, depth: true, event: 'bloodmoon' } : ev ? { map: 'oasis', event: ev } : {}), teams: [
+// 'living': Living World + Bosses & Beasts (night, Moon Spirits, Yokai Parade, walls, Slime Kami + Elder, scout pets) on Moonlit Marsh during Blood Moon week, with v23 match depth as the app plays it
+const cfg = (mode, ev) => ({ seed: 777, coach: [false, true], ...(mode === 'rush' ? { mode: 'rush', map: 'rush_ember' } : mode === 'event' ? { map: 'ruins', event: 'kamistorm' } : mode === 'living' ? { map: 'marsh', living: 1, beasts: 1, depth: true, event: 'bloodmoon' } : ev ? { map: 'oasis', event: ev } : {}), teams: [
   { heroes: pick(['grok', 'umbra', 'totem', 'bolt', 'bonehook']), plan: 'aggro', deck: ['smoke', 'ambush', 'rally'] },
   { heroes: pick(['varro', 'gama', 'hex', 'sling', 'aurelia']), plan: 'scale' } ] });
 // A scripted "human" for blue.
 const script = { 1800: { type: 'gank', lane: 'bot' }, 3200: { type: 'objective', obj: 'dragon' }, 6000: { type: 'focus', targetIdx: 3 },
   1700: { type: 'moment', id: 'rally' }, 2600: { type: 'moment', id: 'timeout' }, 5000: { type: 'moment', id: 'push' },
   7000: { type: 'group', lane: 'mid' }, 7600: { type: 'tactic', card: 'smoke' }, 8200: { type: 'tactic', card: 'ambush', lane: 'bot' }, 9000: { type: 'reset' }, 11000: { type: 'objective', obj: 'baron' }, 12000: { type: 'build', heroIdx: 2, build: 'burn' } };
-const livingScript = { 5000: { type: 'objective', obj: 'yokai' }, 7400: { type: 'invade', camp: '1:moon' }, 14500: { type: 'objective', obj: 'boss' } };
+const livingScript = { 3700: { type: 'scout', x: 1500, y: 1400 }, 5000: { type: 'objective', obj: 'yokai' }, 7400: { type: 'invade', camp: '1:moon' }, 9000: { type: 'scout', x: 1200, y: 1200 }, 14500: { type: 'objective', obj: 'boss' } };
 function run(mode, ev, maxTick = 20 * 60 * 25) {
   const g = new Game(cfg(mode, ev)); const sums = [];
   while (!g.over && g.tick < maxTick) {

@@ -65,6 +65,6 @@ run('event', { seed: 779, map: 'oasis', event: 'shrine', coach: [false, true], t
 run('depth', { seed: 780, map: 'frost', depth: true, coach: [false, true], teams }, 540); // v23: per-hero talent views of the hero data, empowered ults
 // Living World: walls live on the World that snapshots share; every copy puts its own walls back before it steps
 // (thickets open at 6:00, every wall at 12:00), and a restored copy must still match the original.
-run('living', { seed: 780, map: 'marsh', living: 1, coach: [false, true], teams }, 750, [{ type: 'objective', obj: 'yokai' }, { type: 'invade', camp: '1:moon' }, { type: 'objective', obj: 'boss' }]);
+run('living', { seed: 780, map: 'marsh', living: 1, beasts: 1, coach: [false, true], teams }, 750, [{ type: 'objective', obj: 'yokai' }, { type: 'scout', x: 1300, y: 1000 }, { type: 'invade', camp: '1:moon' }, { type: 'objective', obj: 'boss' }]);
 console.log(ok ? 'THEATER SNAPSHOTS OK ✔' : 'THEATER SNAPSHOTS FAILED ✘');
 process.exit(ok ? 0 : 1);

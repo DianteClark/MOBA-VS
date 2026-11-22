@@ -47,6 +47,7 @@ export function validate(doc, heroIds) {
   // coach skill tree Moment variants: a small { slot: variant } map (the sim ignores unknown ones)
   for (const t of c.teams) if (t && t.mv !== undefined && (!t.mv || typeof t.mv !== 'object' || Array.isArray(t.mv) || JSON.stringify(t.mv).length > 120)) return 'bad moment variants';
   if (c.living !== undefined && c.living !== 1) return 'bad living flag'; // Living World (src/sim/living.js)
+  if (c.beasts !== undefined && c.beasts !== 1) return 'bad beasts flag'; // Bosses & Beasts (src/sim/beasts.js)
   for (const t of c.teams) {
     if (!t || !Array.isArray(t.heroes) || t.heroes.length !== 5) return 'a team does not have 5 heroes';
     for (const x of t.heroes) if (!x || !heroIds.has(x.id)) return `unknown hero ${x && x.id}`;
