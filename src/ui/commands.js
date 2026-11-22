@@ -72,8 +72,11 @@ export class Dock {
     this.momentBtn = h('button', { class: 'momentbtn', title: 'Coach Moments: Timeout, Rally, All-Out Push. Each once per match [M]', onclick: () => { audio.sfx('move', 0.5); this.open('moments'); } },
       h('img', { src: icon('BookThunder') }), h('span', { class: 'ml' }, 'Moments'), this.momentN = h('b', { class: 'mn' }, '3'));
     mount(el, this.trayEl, this.sheetEl, this.cancelEl,
-      h('div', { class: 'dock' }, h('div', { class: 'handrow' }, this.meterEl, h('div', { class: 'hand' }, this.cards), this.momentBtn, this.ultBtn = h('button', { class: 'ultbtn', title: 'Ult stance: Auto (heroes choose) → Hold → ALL-IN now [U]', onclick: () => this.cycleUlt() }, h('img', { src: icon('Death') }), h('span', { class: 'ul' }, 'Ults'), h('span', { class: 'ust' }, h('i'), h('i'), h('i')), h('b', {}, 'Auto'))),
+      h('div', { class: 'dock' }, this.handRow = h('div', { class: 'handrow' }, this.meterEl, ...this.cards, this.momentBtn, this.ultBtn = h('button', { class: 'ultbtn', title: 'Ult stance: Auto (heroes choose) → Hold → ALL-IN now [U]', onclick: () => this.cycleUlt() }, h('img', { src: icon('Death') }), h('span', { class: 'ul' }, 'Ults'), h('span', { class: 'ust' }, h('i'), h('i'), h('i')), h('b', {}, 'Auto'))),
         h('div', { class: 'callrow' }, this.callBtns)));
+    // the cards are direct grid items of the hand row, one explicit track each (css .handrow): no nested
+    // intrinsic sizing that WebKit could get wrong, so the cards can never slide under Moments
+    this.handRow.style.setProperty('--cards', String(this.cards.length));
     this.tick();
   }
 

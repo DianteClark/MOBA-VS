@@ -48,13 +48,13 @@ VIEWS = parse(sys.argv[3]) if len(sys.argv) > 3 else presets('all')
 # name -> selector; '*' suffix = use the union of the element's visible children
 PANELS = [('myteam', '#myteam'), ('scorebar', '#scorebar'), ('objtimers', '#objtimers'), ('ticker', '#ticker'), ('enemyteam', '#enemyteam'),
           ('killfeed', '#killfeed*'), ('mm', '#mm'), ('ctrl', '#ctrl*'), ('detail', '#detail'), ('foestrip', '#foestrip'),
-          ('tray', '#cmdbar .tray'), ('sheet', '#cmdbar .sheet'), ('cancel', '#cmdbar .cancelpill'), ('meter', '#cmdbar .meter'),
-          ('hand', '#cmdbar .hand'), ('stance', '#cmdbar .ultbtn'), ('moments', '#cmdbar .momentbtn'), ('calls', '#cmdbar .callrow'), ('banner', '#banner*'),
+          ('tray', '#cmdbar .tray'), ('sheet', '#cmdbar .sheet'), ('cancel', '#cmdbar .cancelpill'), 
+          ('handrow', '#cmdbar .handrow'), ('calls', '#cmdbar .callrow'), ('banner', '#banner*'),
           ('qchatbtn', '#qchatbtn'), ('qfeed', '#qfeed*'), ('ring', '#ring*'), ('theater', '#cmdbar .theaterbar')]
 # overlays that may cover the HUD on purpose: they only have to fit the safe area
 OVERLAYS = [('menu', '#ctrl.open .seg:last-child'), ('qchat', '#qchat'), ('scoreboard', '#scoreboard .sbcard'), ('hpop', '#hpop'), ('modal', '.modal .mpanel'), ('halftime', '#halftime .ht-card'), ('follow', '#thfollow'), ('analysis', '#anasheet')]
 # pairs that are allowed to touch (one lives inside the other's column / is drawn over the map on purpose)
-# (dock children - meter, hand, Moments, stance - are siblings in one grid row: they must never overlap)
+# (the hand row's children - meter, each card, Moments, stance - are checked against each other by DOCK_JS)
 SKIP = {frozenset(p) for p in [('ctrl', 'qchatbtn')]}
 
 # Dock row stress: every child of the hand row (meter, EACH tactic card, Moments, stance) must not overlap any
@@ -65,7 +65,7 @@ DOCK_JS = """async (wide) => {
   const D = app.match.hud.dock, out = [], st = document.createElement('style'); st.textContent = wide;
   const vis = (e) => e && e.offsetParent && e.getBoundingClientRect().width > 1;
   const kids = () => { const row = document.querySelector('#cmdbar .handrow'); if (!row) return [];
-    return [...row.children].flatMap((e) => (e.classList.contains('hand') ? [...e.children].map((c, i) => ['card' + (i + 1), c]) : [[e.className.split(' ')[0], e]])).filter(([, e]) => vis(e)); };
+    let c = 0; return [...row.children].map((e) => [e.classList.contains('tcard') ? 'card' + ++c : e.className.split(' ')[0], e]).filter(([, e]) => vis(e)); };
   const measure = (tag) => { const ks = kids(), rs = ks.map(([n, e]) => [n, e.getBoundingClientRect()]);
     for (let i = 0; i < rs.length; i++) for (let j = i + 1; j < rs.length; j++) { const [a, A] = rs[i], [c, C] = rs[j];
       const ox = Math.min(A.right, C.right) - Math.max(A.left, C.left), oy = Math.min(A.bottom, C.bottom) - Math.max(A.top, C.top);
@@ -81,8 +81,14 @@ DOCK_JS = """async (wide) => {
       D.ultBtn.className = 'ultbtn ' + ults[k]; D.ultBtn.lastChild.textContent = { auto: 'Auto', save: 'Hold', go: 'ALL-IN' }[ults[k]];
       await frame(); measure(`${font || 'normal'} ${cls}/${ults[k]}`);
     }
-    const hand = document.querySelector('#cmdbar .hand'), extra = hand && hand.lastElementChild.cloneNode(true);
-    if (extra) { hand.appendChild(extra); await frame(); measure(`${font || 'normal'} 4 cards`); extra.remove(); }
+    // 2 and 4 cards, as the dock would build them (cards are direct grid items; --cards = their count)
+    const row = document.querySelector('#cmdbar .handrow'), cs = [...row.querySelectorAll('.tcard')], n0 = cs.length;
+    if (cs.length) {
+      const extra = cs[cs.length - 1].cloneNode(true); cs[cs.length - 1].after(extra); row.style.setProperty('--cards', String(n0 + 1));
+      await frame(); measure(`${font || 'normal'} ${n0 + 1} cards`); extra.remove();
+      const gone = cs[cs.length - 1]; gone.remove(); row.style.setProperty('--cards', String(n0 - 1));
+      await frame(); measure(`${font || 'normal'} ${n0 - 1} cards`); cs[cs.length - 2].after(gone); row.style.setProperty('--cards', String(n0));
+    }
     st.remove();
   }
   D.ultBtn._m = null; D.tick();
