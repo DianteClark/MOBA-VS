@@ -108,5 +108,21 @@ console.log(`coop run B: ${cb.sums.length} checkpoints, winner ${cb.winner}, ver
 const coopRules = ca.accepted === expect && ca.ai && ca.owners === '00000';
 if (!coopRules) console.log(`coop rules: expected verdicts ${expect}`);
 ok = ok && coopSame && coopRules;
+// Custom games (src/sim/custom.js): rule toggles in cfg.custom, twice the same; and they really change the economy
+{
+  const { randomDraft } = await import('../src/sim/custom.js');
+  const runCustom = (custom, maxTick = 20 * 300) => {
+    const c = { ...cfg('classic'), ...(custom ? { custom } : {}) }, g = new Game(c), sums = [];
+    while (!g.over && g.tick < maxTick) { g.step([]); g.fx.length = 0; if (g.tick % 200 === 0) sums.push(g.checksum()); }
+    return { sums, gold: g.teams[0].heroes.reduce((a, x) => a + x.goldEarned, 0) };
+  };
+  const C = { gold2: true, respawn: true, backdoor: true };
+  const a = runCustom(C), b = runCustom(C), base = runCustom(null);
+  const same = a.sums.length === b.sums.length && a.sums.every((v, i) => v === b.sums[i]);
+  const rd = randomDraft(777), rd2 = randomDraft(777), uniq = new Set([...rd.picks[0], ...rd.picks[1]]).size === 10;
+  const rdOk = JSON.stringify(rd.picks) === JSON.stringify(rd2.picks) && uniq && rd.done;
+  console.log(`custom run A/B: ${a.sums.length} checkpoints, same ${same}; blue gold ${Math.round(a.gold)} vs standard ${Math.round(base.gold)}; all-random ${rd.picks.map((p) => p.join(',')).join(' | ')}`);
+  ok = ok && same && a.gold > base.gold * 1.4 && rdOk; // (start gold is not doubled)
+}
 console.log(ok ? 'DETERMINISTIC ✔' : 'DESYNC ✘');
 process.exit(ok ? 0 : 1);

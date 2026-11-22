@@ -12,6 +12,8 @@
 .home2 .seg2 .chip { min-height: 26px; padding: 1px 7px; font-size: 11px; }
 .seg2 .chip + .chip { border-left-width: 0; }
 .home2 .seg3 .chip:disabled { opacity: 0.38; }
+.h2row.h2row4 { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; } /* Host · Join / Party · Custom: two readable rows, not four squeezed chips */
+.home2 .h2row.h2row4 .chip { min-height: 30px; padding: 1px 4px; font-size: 13px; }
 .partychip.on { border-color: #6fe3c8; color: #d8fff4; }
 
 /* the party panel (Home's side column while in a party) */
@@ -51,10 +53,14 @@
 .pinvite .pcode b { font-size: 22px; letter-spacing: 4px; }
 .pfriends { gap: 4px; max-height: 46vh; overflow: auto; }
 .pfriends .frow .fname { flex: 1; }
-.invmodes .btn.party { grid-column: 1 / -1; min-height: 50px; border-color: #6fe3c8; }
+.invmodes .btn.party { grid-column: 1 / -1; min-height: 46px; border-color: #6fe3c8; }
+.smodal .invsec { display: block; margin: 8px 0 -4px; font-size: 10px; letter-spacing: 1px; color: var(--muted); }
+.smodal .invfoot { display: block; margin-top: 8px; }
 .invmodes .btn.party b { color: #bff7e8; }
 
 @media (max-height: 500px) {
+  .home2 .h2row.h2row4 .chip { min-height: 28px; font-size: 12px; }
+  .home2 .h2row.h2row4 { gap: 4px; }
   .h2coop b { font-size: 13px; }
   .ppanel { gap: 4px; }
   .pmem { min-height: 26px; }

@@ -75,7 +75,8 @@ export async function cancelDuo(ticket) { try { await call('/api/queue2/cancel',
 // Friend codes are the public player id shown as XXXXX-XXXXX (never the secret).
 export const friendCode = (id) => (id ? `${id.slice(0, 5)}-${id.slice(5)}` : '');
 // Heartbeat + inbox (friends with presence, requests, blocks, live invites). status: 'menu' | 'match'.
-export async function presence(status = 'menu') { return account ? call('/api/social/presence', { method: 'POST', auth: true, body: { status } }) : null; }
+// watch: in a match, the spectate relay's peer id friends may connect to (src/net/spectate.js), or null.
+export async function presence(status = 'menu', watch = null) { return account ? call('/api/social/presence', { method: 'POST', auth: true, body: { status, ...(watch ? { watch } : {}) } }) : null; }
 // action: add | accept | decline | remove | block | unblock; id: player id or friend code.
 export async function friendAction(action, id) { return call('/api/social/friend', { method: 'POST', auth: true, body: { action, id } }); }
 export async function playerProfile(id, season) { return call(`/api/player/${encodeURIComponent(id)}?season=${season | 0}`, { auth: !!account }); }

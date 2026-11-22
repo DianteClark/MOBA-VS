@@ -35,6 +35,9 @@ import { getFr } from '../franchise/play.js';
 import { nextFixture } from '../franchise/league.js';
 import { party, mate, onParty, queueSize, setQueueSize, partyStart, setMode } from '../party.js';
 import { partyPanel, openInvite } from './party.js';
+import { showClub, clubDot } from './clubs.js';
+import { showHub, featuredCard } from './hub.js';
+import { showCustom } from './custom.js';
 
 const screen = () => document.getElementById('screen');
 const item = (n) => `assets/img/${n}.png`;
@@ -120,10 +123,11 @@ export function showHome(app) {
         h('div', { class: 'seg3', role: 'radiogroup', 'aria-label': 'Queue' }, ...[['ranked', 'Ranked'], ['casual', 'Casual'], ['rush', 'Rush']].map(([k, l]) =>
           h('button', { class: 'chip' + ((duo ? k === 'casual' : qm === k) ? ' on' : ''), role: 'radio', 'aria-checked': String(duo ? k === 'casual' : qm === k), disabled: duo && k !== 'casual', title: duo ? (k === 'casual' ? '2v2 is casual' : '2v2 is casual only') : QDESC[k], onclick: () => { app.setQueueMode(k); showHome(app); } }, l))),
         h('button', { class: 'btn big h2go', onclick: () => app.findMatch() }, duo ? 'Find 2v2' : 'Find Match'),
-        h('div', { class: 'h2row' },
+        h('div', { class: 'h2row h2row4' },
           h('button', { class: 'chip', title: duo ? 'Private 2v2 room: share the code with another pair' : 'Private room: share a code with a friend', onclick: () => hostTap(app, duo) }, 'Host'),
           h('button', { class: 'chip', title: 'Join a friend\'s room or party code', onclick: () => app.joinScreen() }, 'Join'),
-          h('button', { class: 'chip partychip' + (P ? ' on' : ''), title: 'Party: team up with a friend for co-op and 2v2, match after match', onclick: () => { audio.sfx('move', 0.5); if (P && !P.leader) toast('You are in a party: see the panel on the right.', 2000); else openInvite(app); } }, 'Party'))),
+          h('button', { class: 'chip partychip' + (P ? ' on' : ''), title: 'Party: team up with a friend for co-op and 2v2, match after match', onclick: () => { audio.sfx('move', 0.5); if (P && !P.leader) toast('You are in a party: see the panel on the right.', 2000); else openInvite(app); } }, 'Party'),
+          h('button', { class: 'chip', title: 'Custom game: private room with rule toggles, or pass-and-play on this device (never ranked)', onclick: () => { audio.sfx('move', 0.5); showCustom(app); } }, 'Custom'))),
       P ? h('div', { class: 'h2side' }, partyPanel(app)) : h('div', { class: 'h2side' },
         h('button', { class: 'h2card h2rush', onclick: () => app.startVsAI('rush') },
           h('span', { class: 'h2h' }, h('b', {}, 'Lane Rush'), h('small', {}, `One lane · ~7 min · vs ${nextRival(app).name}`)),
@@ -131,7 +135,8 @@ export function showHome(app) {
         eventCard(app),
         h('button', { class: 'h2card h2new' + (unseen ? ' unseen' : ''), onclick: () => showPatch(app) },
           h('span', { class: 'h2h' }, h('small', { class: 'kick' }, unseen ? 'NEW' : 'PATCH NOTES'), h('b', {}, `What's new in ${pt.version}`)),
-          h('span', { class: 'h2hl' }, ...patchHighlights(pt).map((t) => h('i', {}, t)))))),
+          h('span', { class: 'h2hl' }, ...patchHighlights(pt).map((t) => h('i', {}, t)))),
+        featuredCard(app))),
     h('nav', { class: 'h2nav' },
       navTile('Dojo', heroSprite(p.activePreset && p.activePreset.main.mid || 'kaze', p.d.equip.skins[p.activePreset && p.activePreset.main.mid || 'kaze'], 28, 'walk'), () => { audio.sfx('move', 0.5); showDojo(app, { tab: 'heroes', hero: null }); }, { title: 'Dojo: heroes, builds and lineups' }),
       navTile('Profile', rankBadge(rk), () => { audio.sfx('move', 0.5); showProfile(app, socialBadge() ? 'friends' : 'rank'); }, { title: 'Rank, mastery, friends, banners and titles', cls: 'navprofile', dot: socialBadge() }),
@@ -140,7 +145,8 @@ export function showHome(app) {
       navTile('Pass', item('items/BigTreasureChest'), () => showSeason(app), { title: 'Season Pass' }),
       navTile('Ladder', item('items/BarGold'), () => showLeaderboard(app), { title: 'Online leaderboard' }),
       navTile('History', item('items/Hourglass'), () => showHistory(app), { title: 'Match history and replays' }),
-      navTile('Watch', 'assets/img/icons/Vision.png', () => app.watch(), { title: 'Watch an AI vs AI match' }),
+      navTile('Club', 'assets/img/crest/katana.png', () => { audio.sfx('move', 0.5); showClub(app); }, { title: 'Club: your club, club ladder, weekend Club Wars and weekly goals', dot: clubDot() }),
+      navTile('Watch', 'assets/img/icons/Vision.png', () => { audio.sfx('move', 0.5); showHub(app); }, { title: 'Watch: the Replay Hub, friends live, AI vs AI' }),
       navTile('Help', item('items/Letter'), () => showHowTo(app), { title: 'How to play', cls: newbie ? 'hl' : '' })),
     h('div', { class: 'credits' }, 'Art & audio: ', h('a', { href: 'https://pixel-boy.itch.io/ninja-adventure-asset-pack', target: '_blank' }, 'Ninja Adventure'), ' by Pixel-boy & AAA (CC0)'),
   ));

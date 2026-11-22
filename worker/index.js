@@ -24,6 +24,8 @@ import { PUSH_SCHEMA, PUSH_TABLES, pushApi, enqueueStmt, drainOutbox } from './p
 import { PRO_SCHEMA, PRO_TABLES, proApi } from './pro.js';
 import { DIV_SCHEMA, DIV_TABLES, divApi } from './divisions.js';
 import { DUO_SCHEMA, DUO_TABLES, duoApi } from './duo.js';
+import { CLUB_SCHEMA, CLUB_TABLES, clubApi, clubPointStmts, clubCron, clubOfStmt } from './clubs.js';
+import { HUB_SCHEMA, HUB_TABLES, hubApi, reelStmt, reelRow } from './hub.js';
 
 const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS players (id TEXT PRIMARY KEY, name TEXT NOT NULL, secret_hash TEXT NOT NULL, created INTEGER, updated INTEGER, profile TEXT, profile_at INTEGER DEFAULT 0)`,
@@ -42,9 +44,9 @@ const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS invites (id TEXT PRIMARY KEY, sender TEXT, target TEXT, room TEXT, mode TEXT, status TEXT, created INTEGER)`,
   `CREATE INDEX IF NOT EXISTS invites_to ON invites (target, status, created)`,
   `CREATE INDEX IF NOT EXISTS invites_from ON invites (sender, created)`,
-  ...CUP_SCHEMA, ...REPLAY_SCHEMA, ...OPS_SCHEMA, ...PUSH_SCHEMA, ...PRO_SCHEMA, ...DIV_SCHEMA, ...DUO_SCHEMA,
+  ...CUP_SCHEMA, ...REPLAY_SCHEMA, ...OPS_SCHEMA, ...PUSH_SCHEMA, ...PRO_SCHEMA, ...DIV_SCHEMA, ...CLUB_SCHEMA, ...HUB_SCHEMA, ...DUO_SCHEMA,
 ];
-const TABLES = ['players', 'ladder', 'reports', 'matches', 'hero_results', 'queue', 'shares', 'friends', 'invites', ...CUP_TABLES, ...REPLAY_TABLES, ...OPS_TABLES, ...PUSH_TABLES, ...PRO_TABLES, ...DIV_TABLES, ...DUO_TABLES];
+const TABLES = ['players', 'ladder', 'reports', 'matches', 'hero_results', 'queue', 'shares', 'friends', 'invites', ...CUP_TABLES, ...REPLAY_TABLES, ...OPS_TABLES, ...PUSH_TABLES, ...PRO_TABLES, ...DIV_TABLES, ...CLUB_TABLES, ...HUB_TABLES, ...DUO_TABLES];
 // Columns added after launch: tables created by older deploys get them here. ALTER fails harmlessly
 // ("duplicate column") once the column exists, so each one is tried on its own.
 const MIGRATIONS = [
@@ -57,6 +59,8 @@ const MIGRATIONS = [
   `ALTER TABLE players ADD COLUMN elo INTEGER`,
   // leaderboard pages walk (rating DESC, player) with a keyset cursor
   `CREATE INDEX IF NOT EXISTS ladder_page ON ladder (season, rating DESC, player)`,
+  // spectate friends live: the PeerJS id a coach in a match relays their command stream from (src/net/spectate.js)
+  `ALTER TABLE players ADD COLUMN watch TEXT`,
   ...REPLAY_MIGRATIONS, ...OPS_MIGRATIONS,
 ];
 async function migrate(db) { for (const q of MIGRATIONS) { try { await db.prepare(q).run(); } catch { /* already migrated */ } } }
@@ -115,7 +119,9 @@ const admin = adminApi({ json, bad, body, sha });
 const OPS = opsApi({ json, bad, body, auth, limited, slow, tokenOk, sha, ip });
 const PUSH = pushApi({ json, bad, body, auth, limited, slow, tokenOk, sha });
 const PRO = proApi({ json, bad, body, auth, limited, slow });
-const DIVS = divApi({ json, bad, body, auth, limited, slow }); // Weekly Divisions (worker/divisions.js)
+const DIVS = divApi({ json, bad, body, auth, limited, slow, onPoints: clubPointStmts }); // Weekly Divisions (worker/divisions.js); accepted matches also feed club points
+const CLUBS = clubApi({ json, bad, body, auth, limited, slow, ip }); // Clubs, club ladder, weekend Club Wars (worker/clubs.js)
+const HUB = hubApi({ json, bad, body, auth, limited, slow, rand, ip }); // Public Replay Hub (worker/hub.js)
 const DUO = duoApi({ json, bad, body, auth, rand, limited, slow, bumpStmts, dayOf }); // 2v2 matchmaking (worker/duo.js)
 
 // ── public profile ──
@@ -138,12 +144,17 @@ function pubOf(d) {
   const b = Array.isArray(d.borders) && d.borders.length ? d.borders[d.borders.length - 1] : null, eq = d.equip || {};
   return { season: sid, elo: num(ss.elo ?? 1000), peak: num(ss.peakElo ?? ss.elo ?? 1000), w: num(ss.w), l: num(ss.l), title: key(eq.title), banner: key(eq.banner),
     border: b && key(b.tier) ? { tier: b.tier, season: num(b.season) } : null,
-    trophies: { gold: num(d.trophies && d.trophies.gold), silver: num(d.trophies && d.trophies.silver) }, top, recent };
+    trophies: { gold: num(d.trophies && d.trophies.gold), silver: num(d.trophies && d.trophies.silver) }, top, recent,
+    // coach profile upgrade: signature heroes (most played, with wins) and the trophy cabinet's extra shelves
+    sig: Object.entries(d.heroStats && typeof d.heroStats === 'object' ? d.heroStats : {}).filter(([id, s]) => HID.test(id) && s && Number(s.g) > 0)
+      .map(([id, s]) => [id, num(s.g), Math.min(num(s.w), num(s.g))]).sort((a, b) => b[1] - a[1]).slice(0, 3),
+    ach: Object.keys((d.ach && typeof d.ach.got === 'object' && d.ach.got) || {}).length,
+    league: d.meta && d.meta.div ? Math.min(5, num(d.meta.div.best)) : 0, prestige: d.meta ? Math.min(10, num(d.meta.prestige)) : 0 };
 }
 
 // ── social: friends, presence, invites, public profiles ──
 const PAGE = 50, MAX_FRIENDS = 100;
-const MODES = ['casual', 'ranked', 'rush', 'coop', 'party']; // invite modes (coop: a co-op room, src/coop-room.js; party: a party, src/party.js)
+const MODES = ['casual', 'ranked', 'rush', 'coop', 'club', 'custom', 'party']; // invite modes (coop: a co-op room, src/coop-room.js; club: room = a club code, worker/clubs.js; custom: a custom-rules room; party: room = a party code, src/party.js)
 const INVITE_TTL = 3 * 60000, LINK_TTL = 30 * 60000, ONLINE_MS = 120000, MATCH_MS = 25 * 60000;
 const presenceOf = (r, now) => (r.status === 'match' && now - (r.seen || 0) < MATCH_MS ? 'match' : now - (r.seen || 0) < ONLINE_MS ? 'online' : 'offline');
 // Friend codes are player ids (shown as XXXXX-XXXXX); they are public (already on the leaderboard), unlike the secret.
@@ -161,9 +172,10 @@ async function social(req, db, url, p, M, now) {
     const me = await auth(req, db); if (!me) return bad('unauthorized', 401);
     if (limited('pr:' + me.id, 8)) return slow();
     const b = await body(req), status = b.status === 'match' ? 'match' : 'menu';
+    const watch = status === 'match' && /^[A-Za-z0-9-]{6,64}$/.test(String(b.watch || '')) ? String(b.watch) : null; // spectate: the relay's peer id (friends only)
     const [, fr, inc, inv] = await db.batch([
-      db.prepare('UPDATE players SET seen = ?, status = ? WHERE id = ?').bind(now, status, me.id),
-      db.prepare(`SELECT f.b AS id, f.state, p.name, p.seen, p.status, p.elo FROM friends f JOIN players p ON p.id = f.b WHERE f.a = ? LIMIT ${MAX_FRIENDS * 2}`).bind(me.id),
+      db.prepare('UPDATE players SET seen = ?, status = ?, watch = ? WHERE id = ?').bind(now, status, watch, me.id),
+      db.prepare(`SELECT f.b AS id, f.state, p.name, p.seen, p.status, p.elo, p.watch FROM friends f JOIN players p ON p.id = f.b WHERE f.a = ? LIMIT ${MAX_FRIENDS * 2}`).bind(me.id),
       db.prepare(`SELECT f.a AS id, p.name, p.elo FROM friends f JOIN players p ON p.id = f.a WHERE f.b = ? AND f.state = 'req'
         AND NOT EXISTS (SELECT 1 FROM friends x WHERE x.a = f.b AND x.b = f.a) ORDER BY f.created DESC LIMIT 50`).bind(me.id),
       db.prepare(`SELECT i.id, i.sender, p.name, i.mode, i.room, i.created FROM invites i JOIN players p ON p.id = i.sender
@@ -171,7 +183,7 @@ async function social(req, db, url, p, M, now) {
     ]);
     const rows = fr.results || [], pick = (st) => rows.filter((r) => r.state === st);
     const order = { match: 0, online: 0, offline: 1 };
-    const friends = pick('ok').map((r) => ({ id: r.id, name: r.name, elo: r.elo, presence: presenceOf(r, now), seen: r.seen || 0 }))
+    const friends = pick('ok').map((r) => { const pr = presenceOf(r, now); return { id: r.id, name: r.name, elo: r.elo, presence: pr, seen: r.seen || 0, ...(pr === 'match' && r.watch ? { watch: r.watch } : {}) }; })
       .sort((a, b) => order[a.presence] - order[b.presence] || b.seen - a.seen);
     return json({ friends, sent: pick('req').map((r) => ({ id: r.id, name: r.name })), blocked: pick('block').map((r) => ({ id: r.id, name: r.name })),
       requests: (inc.results || []).map((r) => ({ id: r.id, name: r.name, elo: r.elo })),
@@ -222,9 +234,9 @@ async function social(req, db, url, p, M, now) {
   if (pm && M === 'GET') {
     const who = await auth(req, db), id = pm[1], season = Number(url.searchParams.get('season')) | 0;
     if (limited('pl:' + (who ? who.id : ip(req)), 40)) return slow();
-    const stmts = [db.prepare('SELECT id, name, pub, seen, status FROM players WHERE id = ?').bind(id), db.prepare(rankSql).bind(season, id), trophiesStmt(db, id)];
+    const stmts = [db.prepare('SELECT id, name, pub, seen, status FROM players WHERE id = ?').bind(id), db.prepare(rankSql).bind(season, id), trophiesStmt(db, id), clubOfStmt(db, id), reelStmt(db, id)];
     if (who && who.id !== id) stmts.push(db.prepare('SELECT a, state FROM friends WHERE (a = ? AND b = ?) OR (a = ? AND b = ?)').bind(who.id, id, id, who.id));
-    const [pr, lr, tr, fr] = await db.batch(stmts);
+    const [pr, lr, tr, clr, rlr, fr] = await db.batch(stmts);
     const pl = (pr.results || [])[0]; if (!pl) return bad('Coach not found', 404);
     let pub = null; try { pub = pl.pub ? JSON.parse(pl.pub) : null; } catch { pub = null; }
     if (!pub) { // saved before public profiles existed: cut the summary from the cloud save once
@@ -234,7 +246,9 @@ async function social(req, db, url, p, M, now) {
     }
     const rows = (fr && fr.results) || [], mine = who && rows.find((r) => r.a === who.id), theirs = rows.find((r) => r.a === id);
     const relation = who && who.id === id ? 'me' : mine ? { ok: 'friend', req: 'sent', block: 'blocked' }[mine.state] || null : theirs && theirs.state === 'req' ? 'incoming' : null;
-    return json({ id, name: pl.name, pub, ladder: ladderRow((lr.results || [])[0]), cups: trophyRow((tr.results || [])[0]), relation, presence: relation === 'friend' ? presenceOf(pl, now) : null });
+    const club = (clr.results || [])[0] || null;
+    return json({ id, name: pl.name, pub, ladder: ladderRow((lr.results || [])[0]), cups: trophyRow((tr.results || [])[0]), relation, presence: relation === 'friend' ? presenceOf(pl, now) : null,
+      club: club ? { name: club.name, tag: club.tag, crest: club.crest, wars: club.wars || 0, role: club.role } : null, reel: (rlr.results || []).map(reelRow) });
   }
   // Invites to a private room. A friend invite shows up in their next heartbeat (3 min); a link invite (/i/ID)
   // can be opened by anyone for 30 min. The room itself is the existing PeerJS Host/Join code.
@@ -478,6 +492,8 @@ async function route(req, env, url) {
   const pro = await PRO.route(req, env, db, url, p, M, now); if (pro) return pro;
   const adm = await admin(req, env, db, url, p, M, now); if (adm) return adm;
   const div = await DIVS(req, env, db, url, p, M, now); if (div) return div;
+  const club = await CLUBS(req, env, db, url, p, M, now); if (club) return club;
+  const hub = await HUB(req, env, db, url, p, M, now); if (hub) return hub;
   const duo = await DUO(req, env, db, url, p, M, now); if (duo) return duo;
 
   // ── share links ──
@@ -508,7 +524,7 @@ export default {
     await ensure(env.DB);
     const now = Date.now();
     // every 5 minutes: drain queued pushes; once a day (03:07 UTC): stats rollup + pruning
-    if (event.cron === '7 3 * * *') ctx.waitUntil(OPS.rollup(env.DB, now));
+    if (event.cron === '7 3 * * *') ctx.waitUntil(Promise.all([OPS.rollup(env.DB, now), clubCron(env.DB, now)])); // + weekend Club War pairing / settling (worker/clubs.js)
     else ctx.waitUntil(drainOutbox(env.DB, env, now));
   },
   async fetch(req, env, ctx) {
