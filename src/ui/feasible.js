@@ -29,7 +29,7 @@ export function busy(g, h, solo = true) {
 
 // Walking distance along the nav grid (A* polyline), cached per cell pair for one second of game time.
 let cache = new Map(), cacheAt = -1, cacheG = null;
-export function pathLen(g, a, b) {
+function pathLen(g, a, b) {
   const W = g.world, sec = Math.floor(g.tick / TICK_RATE);
   if (cacheG !== g || sec !== cacheAt) { cache = new Map(); cacheAt = sec; cacheG = g; }
   const k = W.idx(a.x, a.y) * 100003 + W.idx(b.x, b.y);
