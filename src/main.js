@@ -50,6 +50,7 @@ import { installPressSounds, confetti } from './ui/juice.js';
 import { keepAwake } from './ui/awake.js';
 import { MatchRecorder, showAnalysis } from './ui/analytics.js';
 import { Theater } from './ui/theater.js';
+import { InstantReplay } from './ui/instant.js';
 import { loadLib, storeMatch } from './ui/replays.js';
 import { nextRival, rivalPlayed, rivalPref, rivalPrep, rivalStyle, rivalPanel } from './ui/rivals.js';
 import { RIVAL_BY_ID } from './data/rivals.js';
@@ -63,7 +64,7 @@ import { openAdminReplay } from './ui/adminreplay.js';
 import { frPrep, frRecord } from './franchise/play.js';
 import { showFranchise, franchiseResults } from './ui/franchise.js';
 
-const VERSION = 28; // bump whenever the sim or balance changes (peers must match)
+const VERSION = 29; // bump whenever the sim or balance changes (peers must match)
 const PREP_SECONDS = 60;
 installCrashReporter(VERSION); // window errors, unhandled rejections and lockstep desyncs → the owner dashboard (src/net/ops.js)
 
@@ -82,7 +83,7 @@ class App {
   // the map (Blood Moon) gets its own canvas, replacing that map's other one (one 2400px canvas per map at most).
   mapCanvas(world, event) {
     this.mapCache = this.mapCache || {};
-    const id = world.def.id, key = id + '|' + eventPaintKey(event);
+    const id = world.def.id, key = id + '|' + eventPaintKey(event) + (world.wallAt ? '|w' : ''); // Living World maps paint the ground under breakable walls
     if (!this.mapCache[key]) {
       for (const k of Object.keys(this.mapCache)) if (k.split('|')[0] === id) delete this.mapCache[k];
       this.mapCache[key] = paintEventMap(paintMap(world), event);
@@ -127,7 +128,7 @@ class App {
     const bar = document.querySelector('#loading .barw i');
     await loadAssets((p) => { bar.style.width = Math.round(p * 100) + '%'; }, true);
     try { await document.fonts.load('12px PixelFont'); } catch { /* ignore */ }
-    this.map = this.mapCanvas(new World(MAPS[0]));
+    this.map = this.mapCanvas(new World(MAPS[0], { walls: true })); // (painted as a Living World match will use it)
     document.getElementById('loading').remove();
     this.startBg();
     const q = new URLSearchParams(location.search), code = q.get('join'), shared = q.get('s'), invite = q.get('i');
@@ -191,10 +192,14 @@ class App {
   }
   // A new build is ready (new service worker waiting, or the cache was refreshed by a deploy):
   // switch only from the menu, with a quick fade, never during a draft, prep or match.
-  safeUpdate() {
+  // (The home screen is .home2: the old '.home' check never matched, so a waiting build was only picked up
+  // when the app was killed and relaunched, which an iOS Home Screen app rarely is.) Elsewhere in the menus an
+  // "Update ready" chip offers it right away; it is never shown during a draft, prep or match.
+  safeUpdate(force) {
     const u = this.update;
-    if (!u || u.busy || this.match || this.session || document.querySelector('.modal') || !document.querySelector('#screen .home')) return;
-    u.busy = true;
+    if (!u || u.busy || this.match || this.session) { updateChip(false); return; }
+    if (!force && (document.querySelector('.modal') || !document.querySelector('#screen .home2'))) { updateChip(true); return; }
+    u.busy = true; updateChip(false);
     document.getElementById('fade').classList.add('on');
     setTimeout(() => {
       if (u.reg && u.reg.waiting) u.reg.waiting.postMessage({ t: 'skipWaiting' }); // controllerchange reloads
@@ -595,7 +600,7 @@ class App {
     // (Mirror Match: both sides field the identical shared lineup, lanes and deck)
     if (!s.replay && s.draft && s.preps) for (let t = 0; t < 2; t++) s.preps[t] = s.draft.mirror ? fitMirror(s.preps[t], s.draft.mirror) : fitPrep(s.preps[t], s.draft.picks[t]);
     const cfg = s.replay ? JSON.parse(JSON.stringify(s.replay.cfg)) : {
-      seed: s.seed, map: s.mapId, ...(s.gameMode === 'rush' ? { mode: 'rush' } : {}), ...(s.event ? { event: s.event } : {}),
+      seed: s.seed, map: s.mapId, ...(s.gameMode === 'rush' ? { mode: 'rush' } : { living: 1 }), ...(s.event ? { event: s.event } : {}), // living: Living World (classic maps)
       ...(s.gameMode !== 'rush' ? { depth: true } : {}), // v23 match depth: talents, item override, ult upgrades, revenge, duo ults
       teams: [0, 1].map((t) => ({ heroes: s.preps[t].heroes, plan: s.preps[t].plan, deck: s.preps[t].deck, name: s.names[t], ...(s.preps[t].mv ? { mv: s.preps[t].mv } : {}) })),
       coach: s.mode === 'coop' ? s.ai.slice() : s.mode === 'ai' ? [s.myTeam !== 0, s.myTeam !== 1] : s.mode === 'watch' ? [true, true] : [false, false],
@@ -650,6 +655,7 @@ class App {
     matchAudio.attach(game, this.renderer, runner, s.myTeam);
     // post-match analytics are recorded live; a replay (not the Play of the Game) opens in the Theater
     if (!s.replay && !pre) this.match.rec = new MatchRecorder(game);
+    if (!s.replay && !pre) this.match.instant = new InstantReplay(this, this.match, s.myTeam); // the last 15s again, in a small panel
     if (s.replay && !s.potg) this.match.theater = new Theater(this, this.match, s.replay, { back: s.theaterBack });
     if (!pre && !s.replay && s.myTeam >= 0) matchPresence(); // friends see 'In a match'
     if (!pre && !s.replay && s.mode !== 'watch') track('match_start', { mode: modeKey(s), map: cfg.map, event: cfg.event || null });
@@ -660,7 +666,7 @@ class App {
     this.bgTick = setInterval(() => {
       const m = this.match; if (!m || !document.hidden) return;
       const now = performance.now(), dt = Math.min(1.5, (now - this.lastFrame) / 1000); this.lastFrame = now;
-      m.runner.update(dt, () => this.renderer.snapshot(), () => { this.renderer.game.fx.length = 0; if (m.rec) m.rec.step(); });
+      m.runner.update(dt, () => this.renderer.snapshot(), () => { this.renderer.game.fx.length = 0; if (m.rec) m.rec.step(); if (m.instant) m.instant.step(); });
     }, 100);
   }
   clickWorld(w, sx, sy) {
@@ -686,11 +692,12 @@ class App {
     const raw = (now - this.lastFrame) / 1000; this.lastFrame = now;
     const dt = Math.min(0.1, raw);
     const r = this.renderer;
-    m.runner.update(m.runner.online ? Math.min(1, raw) : dt, () => r.snapshot(), () => { matchAudio.consume(); r.consume(); if (m.rec) m.rec.step(); });
+    m.runner.update(m.runner.online ? Math.min(1, raw) : dt, () => r.snapshot(), () => { matchAudio.consume(); r.consume(); if (m.rec) m.rec.step(); if (m.instant) m.instant.step(); });
     this.camCtl.update(dt);
     r.draw(m.runner.alpha, dt);
     this.minimap.draw();
     m.hud.update(dt);
+    if (m.instant) m.instant.frame(dt);
     matchAudio.frame();
     if (m.theater) m.theater.frame(raw);
     const potg = this.session && this.session.potg;
@@ -717,6 +724,7 @@ class App {
     matchAudio.detach();
     for (const id of ['scoreboard', 'halftime']) { const el = document.getElementById(id); if (el) el.remove(); }
     if (m && m.hud) m.hud.destroy();
+    if (m && m.instant) m.instant.destroy();
   }
   // The Play of the Game pre-roll fast-forwards a whole match in the background: stop it once the results are left.
   dropReel() { if (this.potgReel) { this.potgReel.stop = true; this.potgReel = null; } }
@@ -904,6 +912,13 @@ class App {
 
 // Installable app: the service worker (sw.js) serves repeat launches from cache and keeps it fresh.
 // A new build is only switched in when it is safe: on the menu, never mid-match (see App.safeUpdate).
+function updateChip(on) {
+  let c = document.getElementById('updchip');
+  if (!on) { if (c) c.remove(); return; }
+  if (c) return;
+  c = h('button', { id: 'updchip', class: 'updchip', title: 'A new version of MOBA-VS is ready', onclick: () => app.safeUpdate(true) }, 'Update ready: tap to reload');
+  document.body.appendChild(c);
+}
 function registerSW() {
   if (!('serviceWorker' in navigator) || !(location.protocol === 'https:' || location.hostname === 'localhost')) return;
   const sw = navigator.serviceWorker;
@@ -911,7 +926,17 @@ function registerSW() {
     const waiting = () => { if (reg.waiting && sw.controller) { app.update = { reg }; app.safeUpdate(); } };
     waiting();
     reg.addEventListener('updatefound', () => { const w = reg.installing; if (w) w.addEventListener('statechange', () => { if (w.state === 'installed') waiting(); }); });
-    document.addEventListener('visibilitychange', () => { if (!document.hidden) reg.update().catch(() => {}); });
+    // An iOS Home Screen app is usually resumed, not relaunched, so no page load revalidates the cache. On every
+    // resume (and every 15 minutes while open) check the worker script and the two files every release changes,
+    // through the worker: a changed file makes it refresh the cached build and post 'sw-updated'.
+    let checked = 0;
+    const recheck = () => {
+      if (document.hidden || Date.now() - checked < 60000) return;
+      checked = Date.now(); reg.update().catch(() => {});
+      for (const f of ['src/main.js', 'src/data/patchnotes.js']) fetch(f).catch(() => {});
+    };
+    document.addEventListener('visibilitychange', recheck);
+    setInterval(recheck, 15 * 60000);
   }).catch(() => {});
   sw.addEventListener('message', (e) => { if (e.data && e.data.t === 'sw-updated') { app.update = app.update || {}; app.safeUpdate(); } });
   let reloaded = false;

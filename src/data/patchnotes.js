@@ -1,6 +1,15 @@
 // Patch notes, newest first. tools/season.mjs prepends an entry at each season rollover.
 export const PATCHES = [
   {
+    version: '23.2', season: 1, date: '2026-11-21', title: 'Full Screen',
+    notes: [
+      'Fixed: a black band at the bottom of the screen on iPhone. The match now always fills the whole screen, even after the Safari toolbar hides or you rotate.',
+      'Fixed: the Moments button covering a tactic card on iPhone. Every card and button has its own fixed slot.',
+      'Updates now arrive while the app stays open: a new build is picked up when you come back to the app, and an "Update ready" chip appears on the menus.',
+    ],
+    heroes: [],
+  },
+  {
     version: '23.1', season: 1, date: '2026-11-21', title: 'Hotfix',
     notes: [
       'Fixed: the app failing to open on iPhone ("Response served by service worker has redirections").',
