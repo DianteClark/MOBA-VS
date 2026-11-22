@@ -1019,7 +1019,7 @@ function doObjective(g, h, obj, task, contest) {
   task.started = true;
   if (ob.resetting) { h.why = obj + ': resetting'; if (arrive(g, h, pit, 120, 220)) h.vx = h.vy = 0; return; }
   const helpers = g.teams[h.team].heroes.filter((a) => a.alive && dist2(a, pit) < 420 * 420).length;
-  if (!contest && helpers < 2 && ob.hp > ob.maxHp * 0.6) { h.why = obj + ': wait for team'; h.vx = h.vy = 0; return; }
+  if (!contest && helpers < 2 && ob.hp > ob.maxHp * 0.6 && obj !== 'yokai') { h.why = obj + ': wait for team'; h.vx = h.vy = 0; return; } // (the Yokai Parade walks on: engage it)
   if (contest && h.role !== 'jungle' && ob.hp > ob.maxHp * 0.3) { h.why = 'contest ' + obj + ': zone'; if (!farmAround(g, h, 260, false) && arrive(g, h, zone, 40, 130)) h.vx = h.vy = 0; return; }
   if (contest && h.role === 'jungle' && dist2(h, ob) > 200 * 200) { h.why = 'contest ' + obj + ': smite range'; walk(g, h, ob, true, 150); return; }
   h.why = (contest ? 'steal ' : 'hit ') + obj;

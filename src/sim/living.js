@@ -225,7 +225,7 @@ export class Living {
     if (g.time < LIVING.breachFrom || this.mask === (1 << this.walls.length) - 1) return false;
     if (g.tick - h.lastHurtByHero < sec(4) || g.tick - h.lastHitHero < sec(4) || h.recallAt) return false; // never mid-fight
     for (const w of this.walls) {
-      if (w.open) continue;
+      if (w.open || (h.breachSkip && h.breachSkip.id === w.id && g.tick < h.breachSkip.until)) continue;
       for (let e = 0; e < 2; e++) {
         const here = w.ends[e], there = w.ends[1 - e];
         if (dist2(h, here) > 150 * 150) continue;
@@ -233,8 +233,10 @@ export class Living {
         const F = g.world.wallField[w.id], gi = g.world.idx(goal.x, goal.y), around = F[e][gi], through = F[1 - e][gi];
         if (around < 0 || through < 0 || around - through - Math.sqrt(dist2(here, there)) / 24 < 10) continue;
         h.why = w.kind === 'thicket' ? 'cut through the thicket' : 'break the wall';
-        if (dist2(h, here) > 30 * 30) { g.moveToward(h, here, true); return true; }
-        h.vx = h.vy = 0;
+        // in reach of the wall's nearest block: hit it; else close in (and give up on it for a while if that stalls)
+        const reach = h.stats.range + 24 + h.radius, nb = this.wallNearest(w, h);
+        if (nb.d2 > reach * reach) return this.approach(h, w, nb); // (A* stops on the open cell next to that block)
+        h.breachGo = null; h.vx = h.vy = 0;
         this.hitWall(h, w);
         return true;
       }
@@ -251,8 +253,26 @@ export class Living {
     }
     if (!best) return false;
     const e = dist2(h, best.ends[0]) < dist2(h, best.ends[1]) ? 0 : 1;
-    if (dist2(h, best.ends[e]) > 140 * 140) { h.why = 'jungle: go open a shortcut'; this.g.moveToward(h, best.ends[e], true); return true; }
+    if (dist2(h, best.ends[e]) > 140 * 140) {
+      if (h.breachSkip && h.breachSkip.id === best.id && g.tick < h.breachSkip.until) return false;
+      h.why = 'jungle: go open a shortcut'; return this.approach(h, best, best.ends[e]);
+    }
     return this.breach(h, best.ends[1 - e]);
+  }
+  // Walk to a wall's end; a walk that stops closing in for 2s gives that wall up for 20s (never stand stuck at it).
+  approach(h, w, p) {
+    const g = this.g, d = dist2(h, p);
+    const b = h.breachGo && h.breachGo.id === w.id && g.tick - h.breachGo.last <= 10 ? h.breachGo : (h.breachGo = { id: w.id, t: g.tick, d, last: g.tick });
+    b.last = g.tick;
+    if (d < b.d - 20 * 20) { b.d = d; b.t = g.tick; }
+    else if (g.tick - b.t > sec(2)) { h.breachSkip = { id: w.id, until: g.tick + sec(20) }; h.breachGo = null; return false; }
+    g.moveToward(h, p, true); return true;
+  }
+  // The closed block of a wall nearest to a point ({ x, y, d2 }).
+  wallNearest(w, p) {
+    const cells = this.g.world.walls[w.id].cells; let best = Infinity, bi = cells[0];
+    for (let k = 0; k < cells.length; k++) { const i = cells[k], dx = (i % 100) * 24 + 12 - p.x, dy = ((i / 100) | 0) * 24 + 12 - p.y, d = dx * dx + dy * dy; if (d < best) { best = d; bi = i; } }
+    return { x: (bi % 100) * 24 + 12, y: ((bi / 100) | 0) * 24 + 12, d2: best };
   }
   hitWall(h, w) {
     const g = this.g, now = g.tick;

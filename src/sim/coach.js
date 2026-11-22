@@ -19,10 +19,8 @@ export class Coach {
   // night the enemy's Moon Spirits are worth stealing.
   livingCalls(takeObj, s) {
     const g = this.g, me = g.teams[this.team], jg = me.heroes.find((h) => h.role === 'jungle'), y = g.objectives.yokai;
-    // The Tengu breaks stalemates: called when even or behind (or with enemies down). A team well ahead on towers
-    // keeps its siege going instead of walking to mid.
-    const lead = g.towersStanding(this.team) - g.towersStanding(1 - this.team);
-    if ((lead < 3 || s.deadEnemies >= 2) && takeObj('boss', 4, s.deadEnemies >= 1 || s.alive.length >= s.enemyAlive.length + (this.level >= 1 ? 0 : 1))) return true;
+    // The Tengu breaks stalemates: whoever can, takes it (its Gale is how a late lead becomes a Crystal)
+    if (takeObj('boss', 3, s.deadEnemies >= 1 || s.alive.length >= s.enemyAlive.length + (this.level >= 1 ? 0 : 1))) return true;
     // the parade on our half of the map (closer to our fountain), or an enemy down; late on, charges go to pushes
     const f = g.world.fountain[this.team], o = g.world.fountain[1 - this.team];
     const ours = y && y.alive && dist2(y, f) < dist2(y, o);
