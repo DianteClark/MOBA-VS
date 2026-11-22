@@ -25,7 +25,8 @@ export class Depth {
         const x = g.byId(e.hero); if (!x) break;
         if (e.live) { if (x.team === this.my) hud.ticker(`${x.def.name} takes ${this.talName(x, e.tier, e.pick)}`, 'n', 0); break; }
         // the hero picked on its own (no coach default for this tier): offer the swap for a few seconds
-        if (e.auto && this.mine(x) && !hud.holding() && hud.mode !== 'watch') this.talentPrompt(x, e.tier, e.pick);
+        // (at most one prompt per 15s, so a team levelling together does not flood the tray; the rest stay on the hero's pick)
+        if (e.auto && this.mine(x) && !hud.holding() && hud.mode !== 'watch' && performance.now() - (this.promptAt || -1e9) > 15000) { this.promptAt = performance.now(); this.talentPrompt(x, e.tier, e.pick); }
         break;
       }
       case 'ultUp': {

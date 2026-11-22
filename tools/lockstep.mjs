@@ -4,8 +4,9 @@ import { HEROES } from '../src/data/heroes.js';
 import { LockstepRunner } from '../src/net/runner.js';
 import { loopbackPair, Hub } from '../src/net/peer.js';
 import { DEFAULT_OWN } from '../src/sim/coop.js';
+import { itemOptions } from '../src/sim/talents.js';
 const pick = (ids) => ids.map((id) => { const h = HEROES.find((x) => x.id === id); return { id, role: h.role, build: h.rec }; });
-const cfg = (mode) => ({ seed: 4242, coach: [false, false], ...(mode === 'rush' ? { mode: 'rush', map: 'rush_sakura' } : mode === 'event' ? { map: 'oasis', event: 'shrine' } : {}), teams: [
+const cfg = (mode) => ({ seed: 4242, coach: [false, false], ...(mode === 'rush' ? { mode: 'rush', map: 'rush_sakura' } : mode === 'event' ? { map: 'oasis', event: 'shrine' } : mode === 'depth' ? { depth: true } : {}), teams: [
   { heroes: pick(['bastion', 'kaze', 'ember', 'fletch', 'oak']), plan: 'protect' },
   { heroes: pick(['kenshi', 'leonin', 'raiden', 'marlowe', 'wu']), plan: 'split' } ] });
 async function run(mode) {
@@ -31,6 +32,13 @@ async function run(mode) {
       for (let k = 0; k < 6; k++) { ra.update(0.05 + Math.random() * 0.02); rb.update(0.05 + Math.random() * 0.02); }
       if (++i % 37 === 0) ra.send(calls[i % calls.length]);
       if (i % 53 === 0) rb.send(calls[(i + 2) % calls.length]);
+      // match depth: talent picks (prefs before the level, swaps right after it) and item overrides from both coaches
+      if (mode === 'depth' && i % 29 === 0) for (const [r, g, t] of [[ra, ga, 0], [rb, gb, 1]]) {
+        const x = g.teams[t].heroes[(i / 29 | 0) % 5], tier = x.tal.findIndex((p) => p < 0), live = x.tal.findIndex((p, k) => p >= 0 && g.tick - x.talAt[k] < 60);
+        if (live >= 0) r.send({ type: 'talent', hero: x.id, tier: live, pick: 1 - x.tal[live] });
+        else if (tier >= 0) r.send({ type: 'talent', hero: x.id, tier, pick: (i / 29 | 0) % 2 });
+        const o = itemOptions(x); if (o.length > 1 && i % 58 === 0) r.send({ type: 'item', hero: x.id, item: o[1 + ((i / 58 | 0) % (o.length - 1))].name });
+      }
       if ((ga.tick >= TARGET || ga.over) && (gb.tick >= TARGET || gb.over)) { clearInterval(iv); res(); }
     }, 2);
   });
@@ -40,6 +48,7 @@ async function run(mode) {
   if (firstBad >= 0) console.log(`[${mode}] STATE MISMATCH at tick ${firstBad}: A ${snaps[0].get(firstBad)} B ${snaps[1].get(firstBad)}`);
   const last = Math.min(ga.tick, gb.tick);
   console.log(`[${mode}] A tick ${ga.tick} B tick ${gb.tick}; stalls A ${ra.stalls} B ${rb.stalls}; real ${(Date.now() - t0) / 1000}s`);
+  if (mode === 'depth') console.log(`[depth] talents ${ga.teams.map((t) => t.heroes.map((x) => x.tal.join('')).join(' ')).join(' | ')} vs ${gb.teams.map((t) => t.heroes.map((x) => x.tal.join('')).join(' ')).join(' | ')}; talent/item cmds ${ga.events.filter((e) => e.type === 'call' && (e.call.type === 'talent' || e.call.type === 'item')).length}`);
   console.log(`[${mode}] calls applied A: ${ga.callLog.length} B: ${gb.callLog.length}; moments ${ga.events.filter((e) => e.type === 'moment').length}; at tick ${last}: kills ${snaps[0].get(last)?.split('|')[1]} vs ${snaps[1].get(last)?.split('|')[1]}; ${compared} ticks compared`);
   return !desync && firstBad < 0 && compared >= Math.min(TARGET, last) - 1;
 }
@@ -130,5 +139,6 @@ const okCoop = coopAi.ok && room.ok && rules.every((x) => x[1]) && rules2.every(
 
 // 'event': Shrine Rush on Sunscar Oasis (v22 weekly event + map)
 const okC = process.env.COOP_ONLY ? true : await run('classic'), okR = process.env.COOP_ONLY ? true : await run('rush'), okE = process.env.COOP_ONLY ? true : await run('event');
-console.log(okC && okR && okE && okCoop ? 'LOCKSTEP IN SYNC ✔' : 'LOCKSTEP DESYNC ✘');
-process.exit(okC && okR && okE && okCoop ? 0 : 1);
+const okD = process.env.COOP_ONLY ? true : await run('depth'); // v23 match depth: talent and item commands from both peers
+console.log(okC && okR && okE && okD && okCoop ? 'LOCKSTEP IN SYNC ✔' : 'LOCKSTEP DESYNC ✘');
+process.exit(okC && okR && okE && okD && okCoop ? 0 : 1);
