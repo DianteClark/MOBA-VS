@@ -171,8 +171,9 @@ export function tutorialOffer(app) {
     mentor('Your heroes play themselves. You draft, plan and make the calls. Let Granny show you in one short guided match.'),
     h('div', { class: 'cpbbtns' }, h('button', { class: 'btn', onclick: () => { skipTutorial(); md.close(); toast('The Coach Academy waits in Campaign whenever you want it.', 2600); } }, 'Skip'),
       h('button', { class: 'btn big cpgo', onclick: () => { md.close(); audio.sfx('accept', 0.6); playTutorial(app); } }, 'Play the academy')));
-  const sc = screen(), first = sc.firstElementChild;
-  const obs = new MutationObserver(() => { if (sc.firstElementChild !== first) { obs.disconnect(); md.close(); } });
-  obs.observe(sc, { childList: true });
+  const sc = screen(), first = sc.firstElementChild, mt = document.getElementById('match');
+  // another screen, or a match (Watch, a link, a shortcut) taking over: the offer goes away
+  const obs = new MutationObserver(() => { if (sc.firstElementChild !== first || (mt && !mt.classList.contains('hidden'))) { obs.disconnect(); md.close(); } });
+  obs.observe(sc, { childList: true }); if (mt) obs.observe(mt, { attributes: true, attributeFilter: ['class'] });
   return md;
 }

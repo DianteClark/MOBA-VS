@@ -38,7 +38,7 @@ async def main():
         ok(sa == 'done' and sb == 'done', 'online draft finished on both tabs')
         ok(await B.evaluate("!!(app.session.oppLooks && app.session.oppLooks.emote === 'smug' && app.session.oppLooks.border === 'phoenix')"), 'B got A\'s looks in the hello/start metadata')
         await A.wait_for_timeout(1500)
-        for pg in (A, B): await pg.evaluate("app.prepReady()")
+        for pg in (A, B): await pg.wait_for_function("!!(app.session && app.session.ready && app.session.myPrep)", timeout=20000); await pg.evaluate("app.prepReady()")
         await A.wait_for_timeout(2500)
         ok(await A.evaluate("!!(app.match && app.match.runner.online)") and await B.evaluate("!!(app.match && app.match.runner.online)"), 'both tabs are in an online match')
         mine = await A.evaluate("JSON.stringify(app.renderer.skins[app.session.myTeam])")

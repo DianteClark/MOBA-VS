@@ -50,7 +50,7 @@ async def main():
         heaps = []
         for k in range(N):
             await pg.evaluate(START, 'classic'); await pg.wait_for_timeout(1500)
-            await pg.evaluate("app.prepReady()")
+            await pg.wait_for_function("!!(app.session && app.session.ready && app.session.myPrep)", timeout=20000); await pg.evaluate("app.prepReady()")
             await pg.wait_for_function("() => app.match && app.match.game", timeout=30000)
             await pg.evaluate("() => { app.match.runner.speed = 16; }")
             if k == 0:

@@ -52,7 +52,7 @@ async def draft(pages):
 async def play_to_results(pages):
     ok(await draft(pages), 'co-op draft finished')
     await pages[0].wait_for_timeout(1300)
-    for pg in pages: await pg.evaluate("app.prepReady()")
+    for pg in pages: await pg.wait_for_function("!!(app.session && app.session.ready && app.session.myPrep)", timeout=20000); await pg.evaluate("app.prepReady()")
     inm = True
     for pg in pages: inm = inm and await until(pg, "!!(app.match && app.match.runner.online)", 10000)
     ok(inm, 'everyone is in the co-op match')

@@ -655,7 +655,8 @@ class App {
     }, 250);
   }
   prepReady() {
-    const s = this.session, me = s.myTeam;
+    const s = this.session, me = s && s.myTeam;
+    if (!s || !s.ready || !s.myPrep) return; // prep has not opened yet (a key press or a late tap between draft and prep)
     if (s.mode === 'coop' ? seatReady(s, me, s.mySeat) : s.ready[me]) return;
     const deck = s.myPrep.deck || (s.myPrep.deck = []);
     for (const id of DEFAULT_DECK) if (deck.length < 3 && !deck.includes(id)) deck.push(id);
