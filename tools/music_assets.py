@@ -12,7 +12,7 @@ M = os.path.join(PACK, 'Musics')
 MUSIC = {
   # map packs
   'map_sakura': '31 - Sunny', 'map_frost': '22 - Dream', 'map_ember': '23 - Road', 'map_marsh': '13 - Mystical',
-  'map_oasis': '11 - Clearing', 'map_ruins': '30 - Ruins',
+  'map_oasis': '11 - Clearing', 'map_ruins': '30 - Ruins', 'map_tide': '39 - Boat', 'map_sky': '35 - Adventure',
   'fight_bright': '1 - Adventure Begin', 'fight_cold': '3 - Revelation', 'fight_dark': '14 - Curse',
   # clan victory themes
   'win_iron': '12 - Temple', 'win_beast': '2 - The Cave', 'win_shinobi': '6 - Story (Short)', 'win_spirit': '19 - Ascension',

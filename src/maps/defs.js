@@ -188,7 +188,7 @@ export const MAPS = [
     walls: [[708, 1212, 756, 1164, 'wall'], [1380, 1740, 1428, 1692, 'wall']], moon: [320, 320], yokai: [640, 856],
   },
   {
-    id: 'tide', kami: 'dragon', name: 'Tidebreak Harbor', theme: 'coast', weather: ['clear', 'wind', 'rain', 'clear', 'fog', 'wind'],
+    id: 'tide', kami: 'ryujin', name: 'Tidebreak Harbor', theme: 'coast', weather: ['clear', 'wind', 'rain', 'clear', 'fog', 'wind'],
     blurb: 'A harbor cut by a deep sea channel. The tide rises at 4:00 and 10:00: shallows flood and slow you, sandbars go under and log rafts float in.',
     top: [[330, 2070], [262, 1760], [244, 1250], [252, 760], [292, 470], [380, 345], [500, 280], [760, 250], [1250, 244], [1760, 262], [2070, 330]],
     midHalf: [[330, 2070], [560, 1840], [880, 1520], [1200, 1200]],
@@ -221,7 +221,7 @@ export const MAPS = [
     walls: [[612, 1044, 756, 900, 'wall'], [1410, 1890, 1480, 1770, 'thicket']], moon: [520, 470], yokai: [1412, 1572],
   },
   {
-    id: 'sky', kami: 'spirit', name: 'Skyreach Isles', theme: 'sky', weather: ['clear', 'wind', 'clear', 'fog', 'wind', 'clear'],
+    id: 'sky', kami: 'nimbus', name: 'Skyreach Isles', theme: 'sky', weather: ['clear', 'wind', 'clear', 'fog', 'wind', 'clear'],
     blurb: 'Floating islands over an endless sky. Jump pads fling heroes across the void, and the wind bridges take turns every 50 seconds.',
     top: [[330, 2070], [280, 1820], [330, 1560], [250, 1300], [270, 1000], [240, 720], [330, 470], [480, 330], [720, 290], [1000, 250], [1300, 300], [1600, 250], [1820, 280], [2070, 330]],
     midHalf: [[330, 2070], [520, 1900], [700, 1640], [960, 1440], [1200, 1200]],

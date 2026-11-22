@@ -19,6 +19,7 @@ const TRACKS = {
   // moods shared between maps, and a victory theme per clan. Streamed on demand like every track.
   map_sakura: { f: 'map_sakura', g: 0.95, resume: true }, map_frost: { f: 'map_frost', g: 0.95, resume: true }, map_ember: { f: 'map_ember', g: 0.95, resume: true },
   map_marsh: { f: 'map_marsh', g: 0.95, resume: true }, map_oasis: { f: 'map_oasis', g: 0.95, resume: true }, map_ruins: { f: 'map_ruins', g: 0.95, resume: true },
+  map_tide: { f: 'map_tide', g: 0.95, resume: true }, map_sky: { f: 'map_sky', g: 0.95, resume: true }, // v25 maps
   fight_bright: { f: 'fight_bright', g: 1 }, fight_cold: { f: 'fight_cold', g: 1 }, fight_dark: { f: 'fight_dark', g: 1 },
   win_iron: { f: 'win_iron', g: 0.9 }, win_beast: { f: 'win_beast', g: 0.9 }, win_shinobi: { f: 'win_shinobi', g: 0.9 }, win_spirit: { f: 'win_spirit', g: 0.9 },
   win_wild: { f: 'win_wild', g: 0.9 }, win_hearth: { f: 'win_hearth', g: 0.9 },

@@ -14,9 +14,11 @@ export const KAMI_ART = {
   racoon: [{ idle: [0, 60, 60, 6], atk: [60, 60, 60, 4] }, { idle: [120, 60, 60, 6], atk: [180, 60, 60, 4] }],
   tengu: [{ idle: [0, 68, 68, 6], atk: [68, 82, 82, 15] }, { idle: [150, 82, 82, 6], atk: [232, 82, 82, 15] }],
   samurai: [{ idle: [0, 96, 48, 6], atk: [48, 96, 96, 4] }, { idle: [144, 96, 48, 6], atk: [192, 96, 96, 4] }],
+  ryujin: [{ idle: [0, 128, 132, 6], atk: [132, 128, 132, 4] }, { idle: [264, 128, 132, 6], atk: [396, 128, 132, 4] }], // composed from the segmented pack dragon
+  nimbus: [{ idle: [0, 50, 50, 5], atk: [50, 50, 50, 3] }, { idle: [100, 50, 50, 5], atk: [150, 50, 50, 3] }],
 };
 // Draw scale per species (pack frames differ in size) and how high the HP bar sits.
-export const KAMI_SCALE = { frog: 2.6, slime: 2.0, bamboo: 1.9, racoon: 2.0, tengu: 1.7, samurai: 1.9 };
+export const KAMI_SCALE = { frog: 2.6, slime: 2.0, bamboo: 1.9, racoon: 2.0, tengu: 1.7, samurai: 1.9, ryujin: 1.25, nimbus: 2.3 };
 export const kamiFace = (sp, elder) => `assets/img/kami/${sp}${elder ? '_elder' : ''}_face.png`;
 export const monSrc = (k) => `assets/img/mon/${k}.png`;
 export const monFace = (k) => `assets/img/mon/${k}_face.png`;
@@ -34,7 +36,7 @@ export const FAMILIES = {
   tide: { name: 'Tide Swarm', set: { melee: 'Fish', caster: 'Octopus', siege: 'FishRed', super: 'RedOctopus' }, unlock: { club: true }, blurb: 'Club reward' },
 };
 export const FAMILY_IDS = Object.keys(FAMILIES);
-export const MAP_FAMILY = { sakura: 'garden', frost: 'frost', ember: 'ember', marsh: 'swamp', oasis: 'dune', ruins: 'temple' };
+export const MAP_FAMILY = { sakura: 'garden', frost: 'frost', ember: 'ember', marsh: 'swamp', oasis: 'dune', ruins: 'temple', tide: 'tide', sky: 'spirits' };
 // The featured family of each weekly event (src/data/events.js): the default look that week, and anyone may wear it.
 export const EVENT_FAMILY = { bloodmoon: 'ember', fog: 'frost', kamistorm: 'tide', golden: 'dune', swift: 'garden', iron: 'temple', shrine: 'spirits', mirror: 'swamp' };
 // Which monster sheet a minion of a family draws with (null: the classic team sprites).
@@ -49,6 +51,8 @@ export const CAMP_LOOK = {
   marsh: { bluebuff: ['Reptile', 'Bog Sentinel'], redbuff: ['RedOctopus', 'Mire Squid'], wolf: ['Lizard2', 'Marsh Lizards'], raptor: ['Larva2', 'Grubs'], gromp: ['GreenOctopus', 'Gromp'], krug: ['Mollusc2', 'Shellbacks'] },
   oasis: { bluebuff: ['Axolot', 'Oasis Sentinel'], redbuff: ['Racoon', 'Bandit Racoon'], wolf: ['SpiderYellow', 'Sand Spiders'], raptor: ['Snake4', 'Dune Vipers'], gromp: ['Dragon', 'Sand Drake'], krug: ['MouseBlack', 'Burrowers'] },
   ruins: { bluebuff: ['Panda', 'Temple Panda'], redbuff: ['GreyTrex', 'Stone Rex'], wolf: ['Beast2', 'Ruin Wolves'], raptor: ['SpiderRed', 'Crypt Spiders'], gromp: ['Mushroom2', 'Moss Cap'], krug: ['BambooYellow', 'Bamboo Kin'] },
+  tide: { bluebuff: ['AxolotBlue', 'Reef Sentinel'], redbuff: ['Mollusc', 'Giant Clam'], wolf: ['Fish', 'Leaping Koi'], raptor: ['Snake2', 'Sea Snakes'], gromp: ['KappaGreen', 'River Kappa'], krug: ['Octopus', 'Inkers'] },
+  sky: { bluebuff: ['Spirit2', 'Storm Sentinel'], redbuff: ['Eye2', 'Sun Eye'], wolf: ['ButterflyBlue', 'Cloud Moths'], raptor: ['Owl', 'Sky Owls'], gromp: ['HeartRed', 'Heart Wisp'], krug: ['LanternRed', 'Sky Lanterns'] },
 };
 // sprite key for a camp mob: map art for the camp kind (the mob's sprite key is camp_<kind>)
 export function campSprite(map, kind) { const L = CAMP_LOOK[map] || CAMP_DEFAULT, k = kind.replace(/^camp_/, ''); const v = L[k]; return v ? (v[0].startsWith('camp_') ? v[0] : 'mon_' + v[0]) : kind; }
@@ -59,6 +63,7 @@ export const NIGHT_LOOK = { bluebuff: 'Owl2', redbuff: 'KappaRed', wolf: 'Owl', 
 export const PARADE_LOOK = {
   sakura: ['yokai_lantern', 'yokai_skull', 'yokai_kappa'], frost: ['mon_LanternGreen', 'mon_SkullBlue', 'mon_Flam2'], ember: ['yokai_lantern', 'mon_Flam', 'yokai_skull'],
   marsh: ['mon_LanternGreen', 'yokai_kappa', 'mon_KappaRed'], oasis: ['yokai_lantern', 'mon_Snake2', 'yokai_skull'], ruins: ['mon_LanternGreen', 'mon_Eye', 'mon_Spirit'],
+  tide: ['mon_LanternRed', 'mon_KappaGreen', 'mon_FishRed'], sky: ['mon_LanternGreen', 'mon_Spirit2', 'mon_SkullBlue'],
 };
 // every monster sheet the match may draw (loaded with the match art)
 export const MON_SHEETS = [...new Set([

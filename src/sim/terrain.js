@@ -76,7 +76,7 @@ export class Terrain {
     const W = this.g.world;
     if (!W.flood) this.buildFlood();
     if (!W.flood[W.idx(u.x, u.y)] || u.type === 'objective') return 1;
-    if (u.type === 'hero' && this.g.beasts && this.g.beasts.species === 'dragon' && this.g.beasts.power(u.team) > 0) return 1;
+    if (u.type === 'hero' && this.g.beasts && this.g.beasts.species === 'ryujin' && this.g.beasts.power(u.team) > 0) return 1;
     return 1 - TERRAIN.tide.slow;
   }
   // The cells that flood (static per World): the channel's water and the tidal flats, never a lane.
@@ -102,7 +102,7 @@ export class Terrain {
   land(h) {
     const g = this.g;
     g.fx.push({ kind: 'padLand', id: h.id, team: h.team, x: h.x, y: h.y });
-    if (g.beasts && g.beasts.species === 'spirit') {
+    if (g.beasts && g.beasts.species === 'nimbus') {
       const p = g.beasts.power(h.team);
       if (p) g.addShield(h, h.maxHp * TERRAIN.pad.shield * p, TERRAIN.pad.shieldSec, h);
     }

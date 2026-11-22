@@ -4,6 +4,7 @@ import { IMG } from './assets.js';
 import { TEAM_COL } from './renderer.js';
 import { DRAGON_INFO } from '../sim/constants.js';
 import { BEASTS } from '../sim/beasts.js';
+import { drawTerrainMini } from './terrainfx.js';
 
 export class Minimap {
   constructor(canvas, renderer) {
@@ -66,6 +67,7 @@ export class Minimap {
       ctx.strokeStyle = '#8a6a44'; ctx.lineWidth = Math.max(2, S / 70);
       for (const w of g.living.walls) if (!w.open) { const d = g.world.walls[w.id]; ctx.beginPath(); ctx.moveTo(d.a.x * k, d.a.y * k); ctx.lineTo(d.b.x * k, d.b.y * k); ctx.stroke(); }
     }
+    if (g.terrain) drawTerrainMini(ctx, g, k, S); // v25 maps: open tide / wind crossings, jump pads
     // shrines
     for (const sh of g.shrines) {
       ctx.fillStyle = sh.owner >= 0 ? TEAM_COL[sh.owner] : '#ffe9a8'; ctx.strokeStyle = '#000'; ctx.lineWidth = 1;

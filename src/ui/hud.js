@@ -32,6 +32,7 @@ import { talentIcons, talentKey } from './talentui.js';
 import { HEARTH, HEARTH_TEXT } from '../data/hearth.js';
 import { Attention, cardTopic, BANNER } from './attention.js';
 import { livingEvent, livingObjective } from './livinghud.js';
+import { tideLabel } from './terrainhud.js';
 import { BEASTS, elderName } from '../sim/beasts.js';
 import { petFace } from '../data/beasts.js';
 
@@ -291,7 +292,7 @@ export class Hud {
     if (!this.sc) this.buildScore();
     const c = this.sc, left = g.timeLeft, wx = g.weatherList[Math.max(0, g.weatherIdx)], ot = this.objTaken || [{}, {}];
     set(c.clock, fmtTime(left)); c.clock.classList.toggle('late', left < 60);
-    set(c.wx, g.living && g.living.nightK > 0.5 ? (wx === 'clear' ? 'Night' : 'Night · ' + WEATHER[wx].name) : WEATHER[wx].name); // Living World: the dark reads on the clock if (c.wx.title !== (WEATHER[wx].desc || '')) c.wx.title = WEATHER[wx].desc || '';
+    set(c.wx, tideLabel(g, g.living && g.living.nightK > 0.5 ? (wx === 'clear' ? 'Night' : 'Night · ' + WEATHER[wx].name) : WEATHER[wx].name)); // (Tidebreak Harbor: the tide too) // Living World: the dark reads on the clock if (c.wx.title !== (WEATHER[wx].desc || '')) c.wx.title = WEATHER[wx].desc || '';
     set(c.kk, `${g.teams[0].kills} - ${g.teams[1].kills}`);
     for (let t = 0; t < 2; t++) {
       const sd = c.sides[t], team = g.teams[t];
