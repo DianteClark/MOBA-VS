@@ -135,7 +135,7 @@ export async function showShared(app, code) {
 }
 
 // ── Matchmaking search screen ──
-const QUEUE_L = { ranked: 'Ranked', casual: 'Casual 5v5', rush: 'Lane Rush (casual)' };
+const QUEUE_L = { ranked: 'Ranked', casual: 'Casual 5v5', rush: 'Lane Rush (casual)', coop2v2: '2v2 co-op (casual)' };
 export function showSearch(app, { elapsed, limit, status, onCancel, queue = 'ranked' }) {
   const left = Math.max(0, Math.ceil((limit - elapsed) / 1000)), frac = Math.min(1, elapsed / limit);
   const el = document.getElementById('mmsearch');

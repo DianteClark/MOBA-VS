@@ -18,6 +18,7 @@ import { applyMoment } from './moments-coach.js';
 import { normPlan, planChangeOk, planEdge } from './plans.js';
 import { setupCoop, coopGate } from './coop.js';
 import { openCrystal } from './endgame.js';
+import { customRules } from './custom.js'; // custom games (cfg.custom): double gold, fast respawns, no backdoor guard
 import * as D from './talents.js'; // v23 match depth (cfg.depth): talents, item override, ult upgrades, revenge, duo ults
 import { Living } from './living.js';
 
@@ -67,7 +68,7 @@ export class Game {
     this.cfg = cfg;
     this.rng = new Rng(cfg.seed >>> 0);
     this.depth = !!cfg.depth;
-    this.mode = cfg.mode || 'classic'; this.rules = rulesFor(this.mode, cfg.event); this.T = this.rules.T;
+    this.mode = cfg.mode || 'classic'; this.rules = rulesFor(this.mode, cfg.event); if (cfg.custom) this.rules = customRules(this.rules, cfg.custom); this.T = this.rules.T;
     this.event = this.rules.event; // weekly map event id (src/data/events.js) or null for Classic
     this.tick = 0;
     this.nextId = 1;

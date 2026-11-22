@@ -56,6 +56,7 @@ export function divApi(H) {
         const r = await db.prepare('UPDATE div_members SET pts = pts + ?, g = g + 1, at = ?, name = ? WHERE week = ? AND player = ? AND at <= ? AND g < ?')
           .bind(pts, now, me.name, w, me.id, now - MIN_GAP, MAX_GAMES).run();
         const ok = !!(r.meta && r.meta.changes);
+        if (ok && H.onPoints) await db.batch(H.onPoints(db, me.id, pts, !!b.won, now)); // club points (worker/clubs.js)
         row = await db.prepare('SELECT * FROM div_members WHERE week = ? AND player = ?').bind(w, me.id).first();
         return json({ ok, ...(await view(db, me.id, w, row)) });
       }
@@ -66,6 +67,7 @@ export function divApi(H) {
       const stmts = [db.prepare(`INSERT OR IGNORE INTO div_members (week, player, league, grp, name, pts, g, at, last_place, last_move, last_league) VALUES (?,?,?,?,?,?,1,?,?,?,?)`)
         .bind(w, me.id, st.league, grp, me.name, pts, now, st.last ? st.last.place : null, st.last ? st.last.move : null, st.last ? st.last.league : null)];
       if (now % 32 === 0) stmts.push(db.prepare('DELETE FROM div_members WHERE week < ?').bind(w - KEEP_WEEKS));
+      if (H.onPoints) stmts.push(...H.onPoints(db, me.id, pts, !!b.won, now)); // club points (worker/clubs.js)
       await db.batch(stmts);
       row = await db.prepare('SELECT * FROM div_members WHERE week = ? AND player = ?').bind(w, me.id).first();
       return json({ ok: true, ...(await view(db, me.id, w, row)) });
