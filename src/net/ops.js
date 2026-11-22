@@ -99,7 +99,7 @@ export function modeKey(s) {
   if (!s) return null;
   if (s.mode === 'watch') return 'watch';
   if (s.mode === 'coop') return 'coop';
-  if (s.mode === 'ai' && !s.wasOnline) return s.cup ? 'cup_ai' : s.gameMode === 'rush' ? 'rush_ai' : 'ai';
+  if (s.mode === 'ai' && !s.wasOnline) return s.franchise ? 'franchise' : s.cup ? 'cup_ai' : s.gameMode === 'rush' ? 'rush_ai' : 'ai';
   if (s.wcup) return 'cup';
   if (s.queue === 'ranked' && s.ranked) return 'ranked';
   if (s.queue === 'private' || !s.queue) return 'private';

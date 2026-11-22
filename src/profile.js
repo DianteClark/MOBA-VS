@@ -99,14 +99,15 @@ export class Profile {
   // Record a finished match; returns a summary for the results screen.
   //   mode: 'ai' | 'online'; ranked: online ranked queue; oppElo: the online opponent's season rating;
   //   potgHero: hero id of the Play of the Game (mastery points); analytics: the match's analytics record (career stats).
+  //   franchise: a Franchise mode match (key 'fr': never rated, its heroes carry roster edges).
   //   coop: { kind: 'ai' | '2v2', heroes: the hero ids this coach ran, info } for co-op rooms (casual: no rating;
   //   hero stats and mastery count for this coach's own heroes).
-  record({ game, myTeam, mode, aiLevel, cup, ranked, oppElo, potgHero, analytics, coop = null, rival = null }) {
+  record({ game, myTeam, mode, aiLevel, cup, ranked, oppElo, potgHero, analytics, coop = null, rival = null, franchise = false }) {
     if (myTeam < 0) return null;
     const s = this.ss(), season = this.season;
     const won = game.winner === myTeam;
     const rush = game.mode === 'rush';
-    const key = coop ? (coop.kind === '2v2' ? 'coop2' : 'coop') : cup ? 'cup' : mode === 'ai' ? (rush ? 'rush' : 'ai' + aiLevel) : ranked && !rush ? 'online' : rush ? 'rushOnline' : 'casual';
+    const key = franchise ? 'fr' : coop ? (coop.kind === '2v2' ? 'coop2' : 'coop') : cup ? 'cup' : mode === 'ai' ? (rush ? 'rush' : 'ai' + aiLevel) : ranked && !rush ? 'online' : rush ? 'rushOnline' : 'casual';
     const rated = !!RATED[key];
     const before = s.elo, rankBefore = rankOf(before);
     let elo = before;
