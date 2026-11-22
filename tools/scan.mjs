@@ -138,7 +138,7 @@ if (!isMainThread) {
   // continuous gaps, centred on the all-hero mean, with their own sampling variance
   for (const k of ['gs', 'ds']) {
     const m = rows.reduce((a, r) => a + (r.s[k] || 0), 0) / rows.reduce((a, r) => a + r.s.pn, 0);
-    for (const r of rows) { const nn = r.s.pn || 1, mu = (r.s[k] || 0) / nn; r[k] = mu - m; r[k + 'Se2'] = Math.max(1e-4, ((r.s[k + '2'] || 0) / nn - mu * mu) / Math.max(1, nn - 1)); }
+    for (const r of rows) { const nn = r.s.pn || 1, mu = (r.s[k] || 0) / nn; r[k] = mu - m; r[k + 'Se2'] = Math.max(1e-7, ((r.s[k + '2'] || 0) / nn - mu * mu) / Math.max(1, nn - 1)); }
   }
   const ebS = eb(rows.map((r) => ({ v: r.rs, se2: r.se2s }))), ebP = eb(rows.map((r) => ({ v: r.rp, se2: r.se2p }))), ebG = eb(rows.map((r) => ({ v: r.gap, se2: r.se2g })));
   const ebGs = eb(rows.map((r) => ({ v: r.gs, se2: r.gsSe2 }))), ebDs = eb(rows.map((r) => ({ v: r.ds, se2: r.dsSe2 })));
