@@ -103,7 +103,7 @@ function accessGroup(rerender) {
     h('div', { class: 'srow' }, h('div', { class: 'slab' }, 'Keys and controller', h('small', {}, 'Keyboard shortcuts and gamepad buttons [?]')),
       h('div', { class: 'sctl' }, h('button', { class: 'chip', onclick: () => { audio.sfx('move', 0.5); import('./keys.js').then((k) => k.openHelp()); } }, 'Show'))));
 }
-function body(rerender) {
+function body(rerender, app) { // app: the full Settings screen (from home); null in the in-match modal
   const sw = h('span', { class: 'swatches' }, h('i', { style: { background: TEAM_COL[0] } }), h('i', { style: { background: TEAM_COL[1] } }));
   return [
     h('div', { class: 'sgroup' }, h('div', { class: 'sgt' }, 'Sound'),
@@ -128,7 +128,9 @@ function body(rerender) {
       toggle('Mute quick chat', 'chatMute', "Hide your online opponent's quick chat and emotes", rerender),
       toggle('Ready check', 'readyCheck', 'Review your Dojo lineup before Find Match, vs AI and online rooms', rerender),
       h('div', { class: 'srow' }, h('div', { class: 'slab' }, 'Coach tips', h('small', {}, tipsLeft() ? 'Short tips in your next match explain calls, the map, Ults and Moments' : 'Seen. Replay them in your next match')),
-        h('div', { class: 'sctl' }, h('button', { class: 'chip', disabled: tipsLeft(), onclick: () => { resetTips(); audio.sfx('accept', 0.5); rerender(); } }, tipsLeft() ? 'On' : 'Replay')))),
+        h('div', { class: 'sctl' }, h('button', { class: 'chip', disabled: tipsLeft(), onclick: () => { resetTips(); audio.sfx('accept', 0.5); rerender(); } }, tipsLeft() ? 'On' : 'Replay'))),
+      app ? h('div', { class: 'srow' }, h('div', { class: 'slab' }, 'Coach Academy', h('small', {}, 'The guided first match: draft, prep, calls, the map and the Kami')),
+        h('div', { class: 'sctl' }, h('button', { class: 'chip', onclick: () => { audio.sfx('accept', 0.5); import('./campaign.js').then((c) => c.playTutorial(app)); } }, 'Play'))) : null),
   ];
 }
 
@@ -136,7 +138,7 @@ function body(rerender) {
 export function showSettings(app) {
   const render = () => mount(document.getElementById('screen'), h('div', { class: 'subscreen settings' },
     h('div', { class: 'shead' }, h('button', { class: 'btn backbtn', onclick: () => { audio.sfx('move', 0.5); app.menu(); } }, '< Back'), h('h2', {}, 'Settings'), h('div')),
-    h('div', { class: 'panel spanel' }, langGroup(render), ...body(render), accessGroup(render), ...opsGroups(render),
+    h('div', { class: 'panel spanel' }, langGroup(render), ...body(render, app), accessGroup(render), ...opsGroups(render),
       h('div', { class: 'srow sfoot' }, h('button', { class: 'chip', onclick: () => { Object.assign(settings, DEFAULTS, { reducedMotion: systemReduced() }); saveSettings(); applySettings(); audio.setMuted(false); render(); } }, 'Reset to defaults')))));
   render();
 }

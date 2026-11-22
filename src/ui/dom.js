@@ -74,5 +74,5 @@ export function fitText(els) {
 }
 export const setOff = (el, off) => { if (el.disabled !== off) el.disabled = off; };
 // History / share-card label for a profile history `mode` key.
-export const MODE_LABEL = { ai0: 'vs Easy AI', ai1: 'vs Normal AI', ai2: 'vs Hard AI', online: 'Online Ranked', casual: 'Online Casual', rush: 'Lane Rush vs AI', rushOnline: 'Lane Rush Online', cup: 'Season Cup', coop: 'Co-op vs AI', coop2: 'Co-op 2v2', fr: 'Franchise' };
+export const MODE_LABEL = { ai0: 'vs Easy AI', ai1: 'vs Normal AI', ai2: 'vs Hard AI', online: 'Online Ranked', casual: 'Online Casual', rush: 'Lane Rush vs AI', rushOnline: 'Lane Rush Online', cup: 'Season Cup', coop: 'Co-op vs AI', coop2: 'Co-op 2v2', fr: 'Franchise', story: 'Campaign' };
 export const fmtTime = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
