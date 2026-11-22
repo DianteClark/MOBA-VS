@@ -880,8 +880,10 @@ class App {
   playPOTG() {
     const reel = this.potgReel; if (!reel || reel.used) return;
     reel.used = true; reel.stop = true;
+    const s0 = this.session;
     const go = () => {
       const prev = this.session;
+      if (!prev || prev !== s0 || this.match) return; // left the results while it was rewinding (Main menu, Play again)
       this.session = { mode: 'watch', potg: reel.potg, replay: { cfg: reel.game.cfg, skins: reel.skins }, myTeam: -1, seed: prev.seed, mapId: prev.mapId, names: prev.names, rng: new Rng(1),
         prebuilt: { game: reel.game, runner: reel.runner } };
       this.fade(() => this.startMatch());
@@ -892,6 +894,7 @@ class App {
     document.body.append(box);
     const bar = box.querySelector('i');
     const step = () => {
+      if (this.potgReel !== reel || this.session !== s0) { box.remove(); return; } // dropReel() / a new screen: stop rewinding
       if (reel.slice(40)) { box.remove(); go(); return; }
       bar.style.width = Math.round(reel.game.tick / Math.max(1, reel.potg.start) * 100) + '%';
       requestAnimationFrame(step);
