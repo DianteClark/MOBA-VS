@@ -56,7 +56,7 @@ export const CMD = {
 };
 
 // Internal ids keep their old names (dragon/herald/baron); these are the names players see.
-export const OBJ_NAME = { dragon: 'Kami', herald: 'Oni', baron: 'Kraken', shrine: 'Shrine', boss: 'Tengu', yokai: 'Yokai Parade' }; // boss / yokai: Living World
+export const OBJ_NAME = { dragon: 'Kami', herald: 'Oni', baron: 'Kraken', shrine: 'Shrine', boss: 'Elder Kami', yokai: 'Yokai Parade' }; // yokai: Living World; boss: the map's Elder Kami (Bosses & Beasts)
 export const DRAGONS = ['infernal', 'ocean', 'mountain', 'cloud'];
 export const DRAGON_INFO = {
   infernal: { name: 'Ember Kami', short: 'Ember', color: '#ff6a3d', desc: '+5% damage per blessing' },

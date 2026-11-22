@@ -58,6 +58,7 @@ export function coopGate(g, c) {
     for (const h of team.heroes) if (h.alive && h.seat === seat) { if (h.task.call) h.task = { kind: 'idle' }; h.pendingCall = null; }
     return true;
   }
+  if (c.type === 'scout') return undefined; // the scout pet (Bosses & Beasts): either coach may send it
   if (HERO_CMDS.has(c.type)) {
     // the same hero the command code will use (gank falls back to the jungler)
     const h = team.heroes.find((x) => x.id === c.hero) || (c.type === 'gank' ? team.heroes.find((x) => x.role === 'jungle') : null);
@@ -81,7 +82,7 @@ function leave(g, t, seat) {
 export function canCommand(g, team, seat, cmd) {
   const co = g.teams[team] && g.teams[team].coop;
   if (!co || co.ai) return true;
-  if (cmd.type === 'cancel') return true;
+  if (cmd.type === 'cancel' || cmd.type === 'scout') return true;
   if (HERO_CMDS.has(cmd.type)) {
     const t = g.teams[team], h = t.heroes.find((x) => x.id === cmd.hero) || (cmd.type === 'gank' ? t.heroes.find((x) => x.role === 'jungle') : null);
     return !!h && h.seat === seat;

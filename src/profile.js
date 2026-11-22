@@ -1,6 +1,7 @@
 // The coach's profile: rank, season pass, cosmetics, trophies and match history.
 // Stored in this browser (localStorage). Every match is recorded in a compact, shareable
 // format so a future shared backend can feed real results into the season balancer.
+import { PETS, FAMILIES } from './data/beasts.js';
 import { seasonAt, seasonById, passOf, XP_PER_LEVEL, MATCH_XP, SKINS, BANNERS, TITLES } from './data/seasons.js';
 import { rankOf, eloDelta, START_ELO, AI_ELO, AI_CAP, CUP_ELO, RATED, SEASON_REWARDS, TIERS, MIN_RATED_GAMES } from './data/ranks.js';
 import { masteryInfo, masteryLevel, matchPoints, masteryRewards, masteryTitleName } from './mastery.js';
@@ -46,6 +47,7 @@ export class Profile {
     if (!e.skins || typeof e.skins !== 'object') e.skins = {};
     if (!EMOTES[e.emote]) e.emote = 'grin';
     if (e.border && !BORDERS[e.border]) e.border = null;
+    if (e.pet !== undefined && !PETS[e.pet]) delete e.pet; if (e.troop !== undefined && !FAMILIES[e.troop]) delete e.troop; // Bosses & Beasts looks
     const a = d.ach && typeof d.ach === 'object' ? d.ach : {};
     d.ach = { got: Object.fromEntries(Object.entries(a.got || {}).filter(([k]) => ACH.some((x) => x.id === k))), roles: (Array.isArray(a.roles) ? a.roles : []).slice(0, 5) };
     normalizeMeta(d); // coach level, skill tree, perks, goals, story weeks, divisions (src/meta.js)

@@ -110,7 +110,7 @@ export class InstantReplay {
     document.getElementById('hud').append(this.panel);
     this.place(this.panel, w, hh, 128);
     const rr = new Renderer(cv);
-    rr.resize(true); rr.attach(g, this.my, this.app.renderer.map); rr.skins = this.app.renderer.skins;
+    rr.resize(true); rr.attach(g, this.my, this.app.renderer.map); rr.skins = this.app.renderer.skins; rr.bf.setLooks(this.app.renderer.bf.looks);
     rr.fogOn = this.my >= 0; rr.showNames = false;
     rr.cam.x = o.x; rr.cam.y = o.y; rr.cam.zoom = Math.max(0.2, w / 620);
     this.play = { g, r, rr, o, label, ff: true, t0: performance.now() };

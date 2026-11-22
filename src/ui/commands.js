@@ -3,7 +3,7 @@
 //   · a hand of tactic cards · the decision tray (one slot) · a target sheet · a map ring menu
 //   · the charge + momentum meter (tap it when full for Kami Surge).
 // Everything here is built once and updated in place (no rebuilds while open = no flicker).
-import { h, mount, face, icon, fmtTime, toast, bossFace, kamiNow, setText, setCss, setOff, fitText } from './dom.js';
+import { h, mount, face, icon, fmtTime, toast, bossFace, kamiNow, objLabel, setText, setCss, setOff, fitText } from './dom.js';
 import { BUILDS } from '../data/items.js';
 import { TACTICS } from '../data/tactics.js';
 import { CMD, DRAGON_INFO, TICK_RATE, OBJ_NAME, MOMENTUM } from '../sim/constants.js';
@@ -15,7 +15,8 @@ import { audio } from '../audio.js';
 import { COOP_COL } from '../coop-room.js';
 import { canIssue, readyIn, bestGanker, busy } from './feasible.js';
 import { pips, paintPips, shortBy } from './cost.js';
-import { LIVING } from '../sim/living.js';
+import { BEASTS } from '../sim/beasts.js';
+import { PETS, petFace } from '../data/beasts.js';
 
 const LANE_L = { top: 'Top', mid: 'Mid', bot: 'Bot' };
 export const CORE = [
@@ -127,7 +128,7 @@ export class Dock {
   relevance(id) {
     const g = this.g, me = this.my, now = g.tick, alive = this.alive();
     if (id === 'objective') {
-      const ks = g.living ? ['dragon', 'herald', 'baron', 'boss', 'yokai'] : ['dragon', 'herald', 'baron'];
+      const ks = ['dragon', 'herald', 'baron', ...(g.living ? ['yokai'] : []), ...(g.beasts ? ['boss'] : [])];
       if (ks.some((k) => g.objectives[k] && g.objectives[k].alive)) return 'hot';
       return ks.some((k) => g.objAvailable(k)) ? '' : 'dim';
     }
@@ -157,7 +158,7 @@ export class Dock {
     if (t.call && t.call.until > g.tick) return hud.callText({ ...t.call, team: this.my });
     if (t.focus && t.focus.until > g.tick && t.focus.target) return `Focus ${hud.name(t.focus.target)}`;
     const x = this.alive().find((y) => y.task && y.task.call);
-    if (x) { const k = x.task.kind, L = LANE_L[x.task.lane] || ''; return k === 'gank' ? `${x.def.name}: gank ${L}`.trim() : k === 'split' ? `${x.def.name}: split ${L}`.trim() : k === 'invade' ? 'Invade' : k === 'shrine' ? 'Take shrine' : k === 'safe' || k === 'defend' ? 'Defend' : k === 'group' ? `Push ${L}`.trim() : k === 'objective' ? `Take ${OBJ_NAME[x.task.obj] || 'objective'}` : `${x.def.name}: on your call`; }
+    if (x) { const k = x.task.kind, L = LANE_L[x.task.lane] || ''; return k === 'gank' ? `${x.def.name}: gank ${L}`.trim() : k === 'split' ? `${x.def.name}: split ${L}`.trim() : k === 'invade' ? 'Invade' : k === 'shrine' ? 'Take shrine' : k === 'safe' || k === 'defend' ? 'Defend' : k === 'group' ? `Push ${L}`.trim() : k === 'objective' ? `Take ${OBJ_NAME[x.task.obj] ? objLabel(g, x.task.obj) : 'objective'}` : `${x.def.name}: on your call`; }
     return 'Cancel calls';
   }
   // Why a call can't be paid for right now (a tap on a greyed control says so instead of doing nothing).
@@ -279,15 +280,17 @@ export class Dock {
     }
     if (id === 'objective') {
       const obj = (k) => this.tile({
-        img: () => bossFace(k, kamiNow(g)),
-        title: k === 'dragon' ? DRAGON_INFO[kamiNow(g)].name : OBJ_NAME[k],
+        img: () => bossFace(k, kamiNow(g), g.objectives[k] && g.objectives[k].rare),
+        title: objLabel(g, k),
         sub: () => this.objStatus(k),
         state: () => ({ off: !g.objAvailable(k) || !this.afford('objective'), rec: !!(g.objectives[k] && g.objectives[k].alive) }),
         onclick: () => this.send({ type: 'objective', obj: k }), cost: 'objective',
       });
       const list = ['dragon', 'herald', 'baron'].filter((k) => !(k === 'herald' && g.time > g.T.heraldDespawn) && !(k === 'baron' && g.time < g.T.heraldDespawn - 90 && !g.objectives.baron));
-      // Living World: the Yokai Parade while it roams (or wakes soon), the Tengu from 10:00
-      if (g.living) { if (g.objAvailable('yokai')) list.push('yokai'); if (g.objectives.boss || g.time >= LIVING.bossAt - 120) list.push('boss'); }
+      // Living World: the Yokai Parade while it roams (or wakes soon); Bosses & Beasts: the Elder Kami from 10:00
+      if (g.living && g.objAvailable('yokai')) list.push('yokai');
+      if (g.beasts && (g.objectives.boss || g.time >= BEASTS.elderAt - 120)) list.push('boss');
+      if (g.beasts && !g.objectives.dragon && !g.objTimers.dragon) list.splice(list.indexOf('dragon'), 1); // both base Kami are taken
       return { title: 'Take which objective?', els: [h('div', { class: 'tiles' }, ...list.map(obj),
         !g.camps.length ? null : this.tile({ ico: 'Camouflage', title: 'Invade', sub: 'Steal a camp', state: () => ({ off: !this.afford('invade') }), onclick: () => this.send({ type: 'invade' }), cost: 'invade' }))] };
     }
@@ -416,13 +419,13 @@ export class Dock {
       for (const [k, pit] of [['dragon', W.pits.kami], ['baron', W.pits.kraken]]) {
         if (d2(pit, w) > 260 * 260) continue;
         const kk = k === 'baron' && g.time < g.T.heraldDespawn ? 'herald' : k;
-        title = OBJ_NAME[kk];
+        title = objLabel(g, kk);
         opts.push({ ico: 'OrbFire', label: 'Take it', type: 'objective', cmd: { type: 'objective', obj: kk }, off: !g.objAvailable(kk), sub: this.objStatus(kk) });
       }
       if (g.living) for (const k of ['boss', 'yokai']) {
-        const o = g.objectives[k], at = o && o.alive ? o : k === 'boss' && g.time >= LIVING.bossAt - 120 ? g.objPit(k) : null;
+        const o = g.objectives[k], at = o && o.alive ? o : k === 'boss' && g.beasts && g.time >= BEASTS.elderAt - 120 ? g.objPit(k) : null;
         if (!at || d2(at, w) > 220 * 220 || (k === 'yokai' && !r.visible(o))) continue;
-        title = OBJ_NAME[k];
+        title = objLabel(g, k);
         opts.push({ ico: 'OrbFire', label: 'Take it', type: 'objective', cmd: { type: 'objective', obj: k }, off: !g.objAvailable(k), sub: this.objStatus(k) });
       }
       for (const s of g.shrines) if (d2(s, w) < 220 * 220) { title = 'Shrine'; opts.push({ ico: 'OrbLight', label: 'Capture', type: 'shrine', cmd: { type: 'shrine', shrine: s.id }, off: s.owner === me || g.time < g.T.shrineUnlock, sub: s.owner === me ? 'Ours' : g.time < g.T.shrineUnlock ? `Opens ${fmtTime(g.T.shrineUnlock)}` : null }); }
@@ -442,13 +445,15 @@ export class Dock {
         }
       }
     }
+    // Bosses & Beasts: the scout pet (free) goes anywhere you tap, while it is ready
+    const sc = this.scoutOpt(w); if (sc) { opts.push(sc); if (!title) title = 'Scout'; }
     if (!opts.length) { this.closeRing(); return false; }
     const R = opts.length === 1 ? 0 : 58;
     const items = opts.map((o, i) => {
       const a = -Math.PI / 2 + (i - (opts.length - 1) / 2) * (Math.PI * 2 / Math.max(3, opts.length + 1));
       const off = o.off || !this.afford(o.type);
       return h('button', { class: 'ropt', disabled: off, style: { left: `${Math.cos(a) * R}px`, top: `${Math.sin(a) * R}px` }, onclick: (e) => { e.stopPropagation(); this.send(o.cmd); } },
-        h('img', { src: icon(o.ico) }), h('span', {}, o.label), paintPips(pips(this.cost(o.type)), this.team.charges), o.sub ? h('small', {}, o.sub) : null);
+        h('img', { src: o.img || icon(o.ico), class: o.img ? 'rpet' : null }), h('span', {}, o.label), paintPips(pips(this.cost(o.type)), this.team.charges), o.sub ? h('small', {}, o.sub) : null);
     });
     const vw = window.innerWidth, vh = window.innerHeight;
     const x = Math.max(80, Math.min(vw - 80, sx)), y = Math.max(110, Math.min(vh - 90, sy));
@@ -457,6 +462,14 @@ export class Dock {
     this.ring = { until: performance.now() + 5000 };
     audio.sfx('move', 0.5);
     return true;
+  }
+  // Scout pet: a ring option to send it to world point w (null while it is out or cooling down, or out of bounds).
+  scoutOpt(w) {
+    const g = this.g; if (!g.beasts || !this.hud.mayCommand({ type: 'scout' })) return null;
+    const t = this.team, ef = g.world.fountain[1 - this.my];
+    if (g.tick < t.scoutCd || g.beasts.pet(this.my) || (w.x - ef.x) ** 2 + (w.y - ef.y) ** 2 < 700 * 700) return null;
+    const pet = this.hud.r.bf.petId(this.my);
+    return { img: petFace(pet), label: 'Scout', type: 'scout', cmd: { type: 'scout', x: Math.round(w.x), y: Math.round(w.y) }, sub: `${PETS[pet].name} · ${BEASTS.scoutLife}s` };
   }
   closeRing() { if (!this.ring) return; this.ring = null; this.ringEl.classList.add('hidden'); mount(this.ringEl); }
 

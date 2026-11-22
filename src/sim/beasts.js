@@ -50,7 +50,9 @@ export class Beasts {
     this.species = KAMI[d.kami] ? d.kami : 'frog';
     this.kamiN = 0; // base Kami spawned so far
     this.landed = false;
-    g.objTimers.dragon = sec(BEASTS.kamiAt[0]);
+    // Kami Storm week: three base Kami, from 2:00, back 60s after one falls
+    this.at = g.event === 'kamistorm' ? [120, 300, 450] : BEASTS.kamiAt; this.gap = g.event === 'kamistorm' ? 60 : BEASTS.kamiGap;
+    g.objTimers.dragon = sec(this.at[0]);
     g.objectives.boss = null; g.objTimers.boss = sec(BEASTS.elderAt);
     this.arena = g.living ? g.living.bossSpot : W.nearestOpen({ x: 1200, y: 1200 });
     for (const t of g.teams) { t.kamiElder = 0; t.elderPush = 0; t.rareBaron = 0; t.rareOni = false; t.scoutCd = sec(BEASTS.scoutFrom); t.scout = 0; }
@@ -74,11 +76,11 @@ export class Beasts {
   // ───────── Kami ─────────
   // The base Kami that wakes now (game.updateObjectivesSpawn): this map's species.
   kamiSpawned() { this.kamiN++; }
-  // Next base Kami after one falls (or none: two per match, never after 10:40).
+  // Next base Kami after one falls (or none: two per match, three in Kami Storm week, never after 10:40).
   nextKami() {
     const g = this.g;
-    if (this.kamiN >= BEASTS.kamiAt.length) return 0;
-    const at = Math.max(sec(BEASTS.kamiAt[this.kamiN]), g.tick + sec(BEASTS.kamiGap));
+    if (this.kamiN >= this.at.length) return 0;
+    const at = Math.max(sec(this.at[this.kamiN]), g.tick + sec(this.gap));
     return at > sec(BEASTS.kamiLast) ? 0 : at;
   }
   spawnElder() {

@@ -1731,7 +1731,7 @@ export class Game {
           this.objTimers.baron = now + sec(this.T.baronRespawn);
         } else if (this.living) this.living.onObjective(u, team); // Yokai Parade tamed
         if (this.beasts) this.beasts.onObjective(u, team); // next Kami, the Elder's blessing, rare rewards
-        const ev = { type: 'objective', obj: u.kind, element: u.element, team, killer: killer ? killer.id : 0, steal: smite };
+        const ev = { type: 'objective', obj: u.kind, element: u.element, team, killer: killer ? killer.id : 0, steal: smite, ...(u.rare ? { rare: true } : {}) };
         this.emit(ev); this.resolveCalls(ev);
         if (this.depth) D.depthObjective(this, team, u);
         break;

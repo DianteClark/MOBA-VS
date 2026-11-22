@@ -24,7 +24,7 @@ import { DraftView, AUTO_GRACE } from './ui/draftview.js';
 import { Hud } from './ui/hud.js';
 import { TEAM_COL } from './render/palette.js';
 import { toast, h, setFaceSkins } from './ui/dom.js';
-import { myLooks, cleanLooks, cleanSkins, matchSkins, faceMap } from './looks.js';
+import { myLooks, cleanLooks, cleanSkins, matchSkins, faceMap, matchBeasts, cleanBeasts } from './looks.js';
 import { achToasts, resultEmotes } from './ui/collection.js';
 import { audio } from './audio.js';
 import { matchAudio } from './audio-match.js';
@@ -671,6 +671,7 @@ class App {
     this.renderer.resize(true);
     this.renderer.attach(game, s.myTeam, this.mapCanvas(game.world, game.event));
     this.renderer.skins = s.replay ? (s.replay.skins || [{}, {}]).map(cleanSkins) : matchSkins(s);
+    this.renderer.bf.setLooks(s.replay ? (s.replay.bl || [{}, {}]).map(cleanBeasts) : matchBeasts(s)); // Bosses & Beasts: minion families, scout animals
     setFaceSkins(faceMap(this.renderer.skins)); // HUD, results and share card portraits
     this.minimap.resize();
     refit();
@@ -936,7 +937,7 @@ class App {
   // with their analytics (src/ui/replays.js); `id` links one to its match-history entry.
   saveReplay(m, s, A, id) {
     storeMatch({ id, v: VERSION, t: Date.now(), cfg: m.cfg, log: m.runner.log, names: s.names, mapId: s.mapId,
-      myTeam: s.myTeam, winner: m.game.winner, skins: this.renderer.skins, len: Math.round(m.game.time), A });
+      myTeam: s.myTeam, winner: m.game.winner, skins: this.renderer.skins, bl: this.renderer.bf.looks, len: Math.round(m.game.time), A });
   }
   lastReplay() { const r = loadLib()[0]; return this.canPlay(r) ? r : null; }
   canPlay(r) { return !!(r && r.cfg && r.v === VERSION); }

@@ -1,7 +1,7 @@
 // In-match HUD. Layout is built from columns so panels never overlap:
 //   #leftcol  (my team)                     #topcenter (score + objectives + one-line ticker)   #rightcol (enemies + kill feed)
 //   #detail   (followed hero)               #cmdbar    (decision tray + tactic cards + calls)  #brcol    (controls + minimap)
-import { h, mount, face, icon, fmtTime, toast, bossFace, kamiNow, setText, setCss, setOff } from './dom.js';
+import { h, mount, face, icon, fmtTime, toast, bossFace, kamiNow, objLabel, setText, setCss, setOff } from './dom.js';
 import { BUILDS } from '../data/items.js';
 import { PERSONALITIES } from '../data/heroes.js';
 import { TACTICS } from '../data/tactics.js';
@@ -31,7 +31,8 @@ import { placeName, fightClusters, followFight, laneFront, towerName } from '../
 import { talentIcons, talentKey } from './talentui.js';
 import { Attention, cardTopic, BANNER } from './attention.js';
 import { livingEvent, livingObjective } from './livinghud.js';
-import { LIVING } from '../sim/living.js';
+import { BEASTS, elderName } from '../sim/beasts.js';
+import { petFace } from '../data/beasts.js';
 
 const LANE_L = { top: 'Top', mid: 'Mid', bot: 'Bot' };
 const OBJ_L = OBJ_NAME;
@@ -219,6 +220,7 @@ export class Hud {
   callPoint(c) {
     const W = this.g.world;
     if (c.obj) { const p = this.g.objPit(c.obj); return [p.x, p.y]; }
+    if (c.type === 'scout') return [c.x, c.y];
     if (c.type === 'shrine' && c.shrine !== undefined) { const s = this.g.shrines[c.shrine]; return [s.x, s.y]; }
     if (c.type === 'focus' || (c.type === 'permit' && c.target)) { const u = this.g.byId(c.target); if (u) return [u.x, u.y]; }
     if (c.lane && W.laneNames.includes(c.lane)) { // where the call plays out: the wave front (a gank: the enemy laner we can see there)
@@ -296,9 +298,9 @@ export class Hud {
       if (sig + ln === sd.sig) continue;
       sd.sig = sig + ln;
       mount(sd.pips, team.dragons.map((d) => h('i', { style: { background: DRAGON_INFO[d].color }, title: DRAGON_INFO[d].name })));
-      const omi = (k, n, title) => (n ? h('span', { class: 'omi', title }, h('img', { src: bossFace(k) }), n > 1 ? n : null) : null);
+      const omi = (k, n, title) => (n ? h('span', { class: 'omi', title }, h('img', { src: bossFace(k, kamiNow(g)) }), n > 1 ? n : null) : null);
       mount(sd.marks, team.dragons.map((d) => h('span', { class: 'omi kami', title: DRAGON_INFO[d].name, style: { color: DRAGON_INFO[d].color } }, h('img', { src: bossFace('dragon', d) }))),
-        omi('herald', ot[t].herald, 'Oni taken'), omi('baron', ot[t].baron, 'Kraken taken'), g.living ? [omi('yokai', ot[t].yokai, 'Yokai Parade tamed'), omi('boss', ot[t].boss, 'Tengu slain')] : null,
+        omi('herald', ot[t].herald, 'Oni taken'), omi('baron', ot[t].baron, 'Kraken taken'), g.living ? [omi('yokai', ot[t].yokai, 'Yokai Parade tamed'), omi('boss', ot[t].boss, `${objLabel(g, 'boss')} slain`)] : null,
         g.shrines.filter((x) => x.owner === t).map(() => h('i', { class: 'oms', title: 'Shrine held' })));
     }
     this.updateObjBar();
@@ -349,27 +351,43 @@ export class Hud {
   // Objective / shrine timers: built once, updated in place (no image reloads, no flicker).
   buildObjBar() {
     const g = this.g;
-    this.objCells = ['dragon', 'herald', 'baron', ...(g.living ? ['yokai', 'boss'] : [])].map((k) => {
+    this.objCells = ['dragon', 'herald', 'baron', ...(g.living ? ['yokai'] : []), ...(g.beasts ? ['boss'] : [])].map((k) => {
       const img = h('img', { src: bossFace(k, kamiNow(g)) }), lab = h('span', {}), val = h('b', {});
-      const el = h('div', { class: 'ot' + (k === 'yokai' || k === 'boss' ? ' lw-' + k : ''), title: OBJ_L[k], onclick: () => this.my >= 0 && this.dock.open('objective') }, img, lab, val);
+      const el = h('div', { class: 'ot' + (k === 'yokai' || k === 'boss' ? ' lw-' + k : ''), title: objLabel(g, k), onclick: () => this.my >= 0 && this.dock.open('objective') }, img, lab, val);
       return { k, el, img, lab, val };
     });
     this.shrCells = g.shrines.map((sh) => { const dot = h('span', { class: 'shr' }), val = h('b', {}); return { sh, dot, val, el: h('div', { class: 'ot', title: 'River shrine', onclick: () => this.my >= 0 && this.dock.press('shrine') }, dot, val) }; });
-    mount(this.el.obj, this.objCells.map((c) => c.el), this.shrCells.map((c) => c.el));
+    // Bosses & Beasts: the scout pet's state (tap: how to send it)
+    this.scoutCell = null;
+    if (g.beasts && this.my >= 0) {
+      const img = h('img', { src: petFace(this.r.bf.petId(this.my)), alt: '' }), val = h('b', {});
+      this.scoutCell = { img, val, el: h('div', { class: 'ot scout', title: 'Scout pet: tap the map to send it', onclick: () => toast(g.time < BEASTS.scoutFrom ? `Your scout is free from ${fmtTime(BEASTS.scoutFrom)}: then tap the map to send it` : 'Tap the map where you want eyes: your scout runs there and watches for 30s', 2400) }, img, val) };
+    }
+    mount(this.el.obj, this.objCells.map((c) => c.el), this.scoutCell ? this.scoutCell.el : null, this.shrCells.map((c) => c.el));
   }
   updateObjBar() {
     const g = this.g, set = setText;
     for (const c of this.objCells) {
       const k = c.k, o = g.objectives[k], tmr = g.objTimers[k];
       const hide = (k === 'herald' && (g.time > g.T.heraldDespawn || g.objectives.baron)) || (k === 'baron' && g.time < g.T.heraldDespawn - 60 && !o)
-        || (k === 'yokai' && !o && (!tmr || g.time >= LIVING.bossAt - 120)) || (k === 'boss' && !o && g.time < LIVING.bossAt - 120); // Living World: Tengu from 10:00
+        || (k === 'yokai' && !o && (!tmr || (g.beasts && g.time >= BEASTS.elderAt - 120))) || (k === 'boss' && !o && g.time < BEASTS.elderAt - 120) // Living World; the Elder Kami from 10:00
+        || (k === 'dragon' && g.beasts && !o && !tmr); // Bosses & Beasts: both base Kami are taken
       c.el.classList.toggle('hidden', !!hide); if (hide) continue;
       const up = !!(o && o.alive);
       if (k === 'dragon') { const el = kamiNow(g), src = bossFace(k, el); set(c.lab, DRAGON_INFO[el].short); if (c.img.getAttribute('src') !== src) c.img.setAttribute('src', src); }
-      else set(c.lab, k === 'yokai' ? 'Yokai' : OBJ_L[k]);
+      else {
+        set(c.lab, k === 'yokai' ? 'Yokai' : k === 'boss' ? 'Elder' : OBJ_L[k]);
+        if (k === 'herald' || k === 'baron') { const src = bossFace(k, null, up && o.rare); if (c.img.getAttribute('src') !== src) c.img.setAttribute('src', src); } // a rare one shows its colours
+      }
       set(c.val, up ? 'UP' : tmr ? fmtTime(Math.max(0, (tmr - g.tick) / TICK_RATE)) : '—');
       c.el.classList.toggle('up', up);
       c.el.classList.toggle('soon', !up && !!tmr && tmr - g.tick < 30 * TICK_RATE);
+    }
+    if (this.scoutCell) {
+      const t = g.teams[this.my], pet = g.beasts.pet(this.my), c = this.scoutCell;
+      const ready = !pet && g.tick >= t.scoutCd;
+      set(c.val, pet ? `${Math.max(0, Math.ceil((pet.expireAt - g.tick) / TICK_RATE))}s` : ready ? 'Go' : fmtTime(Math.max(0, (t.scoutCd - g.tick) / TICK_RATE)));
+      c.el.classList.toggle('ready', ready); c.el.classList.toggle('up', !!pet);
     }
     for (const c of this.shrCells) {
       const bg = c.sh.owner >= 0 ? TEAM_COL[c.sh.owner] : '#ffe9a8';
@@ -565,7 +583,7 @@ export class Hud {
         }
         case 'objective': {
           if (e.team === 0 || e.team === 1) this.objTaken[e.team][e.obj]++;
-          const nm = e.obj === 'dragon' ? DRAGON_INFO[e.element].name : OBJ_L[e.obj];
+          const nm = e.obj === 'dragon' ? DRAGON_INFO[e.element].name : e.obj === 'boss' ? elderName(e.element) : OBJ_L[e.obj];
           this.ticker(`${TEAM_NAME[e.team]} ${e.steal ? 'STOLE' : 'took'} ${nm}${e.killer ? ' (' + this.name(e.killer) + ')' : ''}`, e.team === 0 ? 'b' : 'r', 3);
           if (e.obj !== 'yokai') this.banner(`${e.steal ? 'STOLEN! ' : ''}${nm.toUpperCase()}`, TEAM_COL[e.team], 2200, bossFace(e.obj, e.element));
           this.cast(e, e.team); livingObjective(this, e);
@@ -579,7 +597,10 @@ export class Hud {
         case 'tower': this.ticker(`${TEAM_NAME[e.team]} destroyed the ${towerName(g.world, e)}`, e.team === 0 ? 'b' : 'r', 2); break;
         case 'inhib': this.ticker(`${TEAM_NAME[e.team]} broke the ${LANE_L[e.lane]} gate!`, e.team === 0 ? 'b' : 'r', 3); this.banner('GATE DESTROYED', TEAM_COL[e.team]); break;
         case 'inhibRespawn': this.ticker(`${TEAM_NAME[e.team]} ${LANE_L[e.lane]} gate restored`, 'n', 0); break;
-        case 'spawn': this.ticker(`${e.obj === 'dragon' ? DRAGON_INFO[e.element].name : OBJ_L[e.obj]} ${e.obj === 'yokai' ? 'is on the move' : 'has awakened'}`, 'act', 2); if (e.obj === 'boss') this.banner('THE TENGU DESCENDS', '#ff4a5a', 2400, bossFace('boss')); break;
+        case 'spawn': this.ticker(`${e.obj === 'dragon' ? DRAGON_INFO[e.element].name : e.obj === 'boss' ? elderName(e.element) : (e.rare ? 'A rare ' : '') + OBJ_L[e.obj]} ${e.obj === 'yokai' ? 'is on the move' : e.rare ? 'has awakened: bonus gold, a bigger buff' : 'has awakened'}`, 'act', 2);
+          if (e.obj === 'boss') this.banner(`THE ${elderName(e.element).toUpperCase()} DESCENDS`, DRAGON_INFO[e.element] ? DRAGON_INFO[e.element].color : '#ff4a5a', 2400, bossFace('boss', e.element));
+          if (e.rare) this.banner(`RARE ${OBJ_L[e.obj].toUpperCase()}!`, '#7dffb2', 1800, bossFace(e.obj, null, true));
+          break;
         case 'heraldDrop': this.ticker(`${TEAM_NAME[e.team]} unleashed the Oni ${LANE_L[e.lane]}!`, e.team === 0 ? 'b' : 'r', 2); break;
         case 'call': {
           const c = e.call;
@@ -636,10 +657,10 @@ export class Hud {
   }
   // A call in words (spectator ticker, a co-op partner's calls and suggestions).
   callText(c) {
-    return c.type === 'gank' ? `${c.hero ? this.name(c.hero) : 'Jungler'} gank ${LANE_L[c.lane]}` : c.type === 'objective' ? `Take ${OBJ_L[c.obj]}` : c.type === 'group' ? `Push ${LANE_L[c.lane]}` :
+    return c.type === 'gank' ? `${c.hero ? this.name(c.hero) : 'Jungler'} gank ${LANE_L[c.lane]}` : c.type === 'objective' ? `Take ${objLabel(this.g, c.obj)}` : c.type === 'group' ? `Push ${LANE_L[c.lane]}` :
       c.type === 'split' ? `${this.name(c.hero)} split ${LANE_L[c.lane]}` : c.type === 'focus' ? `Focus ${this.name(c.target)}` : c.type === 'build' ? `${this.name(c.hero)} → ${(BUILDS[c.build] || {}).name || 'new build'}` :
       c.type === 'herald' ? `Oni ${LANE_L[c.lane]}` : c.type === 'shrine' ? 'Capture shrine' : c.type === 'safe' ? 'Defend' : c.type === 'reset' ? 'Regroup' : c.type === 'invade' ? 'Invade' :
-      c.type === 'permit' ? `${this.name(c.hero)} green-lit` : c.type === 'talent' ? `${this.name(c.hero)} talent` : c.type === 'item' ? `${this.name(c.hero)} item swap` : c.type === 'surge' ? 'Kami Surge' : c.type === 'moment' ? (MOMENTS[c.id] || {}).name || 'Coach Moment' :
+      c.type === 'permit' ? `${this.name(c.hero)} green-lit` : c.type === 'talent' ? `${this.name(c.hero)} talent` : c.type === 'item' ? `${this.name(c.hero)} item swap` : c.type === 'surge' ? 'Kami Surge' : c.type === 'scout' ? 'Scout sent' : c.type === 'moment' ? (MOMENTS[c.id] || {}).name || 'Coach Moment' :
       c.type === 'tactic' ? `${(TACTICS[c.card] || {}).name || 'Tactic card'}${c.lane ? ' ' + LANE_L[c.lane] : c.hero ? ' on ' + this.name(c.hero) : ''}` :
       c.type === 'ult' ? ({ go: 'ALL-IN, ultimates fire next fight!', save: 'Hold ultimates', free: 'Ults: heroes choose' })[c.mode] || 'Ult stance' : c.type === 'plan' ? `Plan: ${planName(c.plan)}` : c.type === 'redraw' ? 'Swapped a tactic card' : 'Cancel calls';
   }
@@ -772,9 +793,9 @@ export class Hud {
     this.moments();
     if (this.depth) this.depth.tick(); // fight forecast
     const carding = this.dock.tray.items.some((i) => i.prio >= PRIO.request);
-    for (const k of ['dragon', 'baron', 'herald', ...(g.living ? ['boss', 'yokai'] : [])]) {
+    for (const k of ['dragon', 'baron', 'herald', ...(g.living ? ['boss', 'yokai'] : [])]) { // (boss: Bosses & Beasts' Elder Kami; its own warning at 30s)
       const t = g.objTimers[k];
-      if (t && t - now > 0 && t - now < 30 * TICK_RATE && ready('spawnwarn' + k + t, 60)) this.ticker(`${k === 'dragon' ? DRAGON_INFO[g.teams.some((x) => x.soul) ? 'elder' : g.nextDragon].name : OBJ_L[k]} awakens in 30s`, 'act', 1);
+      if (t && t - now > 0 && t - now < 30 * TICK_RATE && ready('spawnwarn' + k + t, 60)) if (k !== 'boss') this.ticker(`${k === 'dragon' ? DRAGON_INFO[kamiNow(g)].name : OBJ_L[k]} awakens in 30s`, 'act', 1);
     }
     for (const s of analystSuggestions(g, me, { cool: this.cool, carding, own: (x) => this.ownHero(x) })) {
       if (s.shrine) this.stats.shrineOpen++;

@@ -5,6 +5,7 @@ import { skinSheet } from './skins.js';
 import { paintMap, THEMES } from './mapgen.js';
 import { S as MAP_SIZE, N as GN } from '../sim/world.js';
 import { TICK_RATE, DRAGON_INFO, OBJ_NAME, T as TIMERS } from '../sim/constants.js';
+import { elderName } from '../sim/beasts.js';
 import { TEAM_COL, TEAM_DARK, rgba } from './palette.js';
 import { Particles, P_SQUARE, P_SPARK, P_SPRITE, P_COIN, P_WISP, P_DEBRIS, P_RING, P_PUFF, P_BEAM, P_GLOW, glowSprite } from './particles.js';
 import { Chatter } from './chatter.js';
@@ -14,6 +15,7 @@ import { EventFx } from './eventfx.js';
 import { depthFx, drawUltUp } from './depthfx.js';
 import { feudLine } from '../data/feuds.js';
 import { LivingFx } from './livingfx.js';
+import { BeastsFx } from './beastsfx.js';
 import { settings, textScale, renderDpr } from '../ui/settings.js';
 
 export { TEAM_COL, TEAM_DARK };
@@ -57,7 +59,8 @@ export class Renderer {
     this.vfx = new Vfx(this);
     this.amb = new Ambient(this);
     this.evfx = new EventFx(this); // weekly map event veil / motes
-    this.lw = new LivingFx(this); // Living World: night, walls, Tengu, Yokai Parade
+    this.lw = new LivingFx(this); // Living World: night, walls, Yokai Parade
+    this.bf = new BeastsFx(this); // Bosses & Beasts: Kami, rare bosses, minion families, themed camps, scout pets
     this.detail = 2; // 2 high, 1 medium (Auto, after a slow spell), 0 low
     this.castT = new Map(); this.corpses = []; this.wasAlive = new Map(); this.spawnT = new Map(); this.knock = new Map(); this.bossSeen = new Map();
     this.grad = this.makeGrad();
@@ -105,7 +108,7 @@ export class Renderer {
     this.game = game; this.viewTeam = viewTeam; this.map = map || paintMap(game.world); this.theme = THEMES[game.world.def.theme] || THEMES.spring;
     this.fogSmooth.fill(0); this.prev.clear(); this.effects = []; this.texts = []; this.lines = []; this.fxp.clear(); this.focus = null;
     this.dprCap = 0; this.slowT = 0; this.detail = settings.quality === 'battery' ? 0 : 2;
-    this.vfx.reset(); this.amb.attach(game.world, this.theme); this.evfx.attach(game); this.lw.attach(game);
+    this.vfx.reset(); this.amb.attach(game.world, this.theme); this.evfx.attach(game); this.lw.attach(game); this.bf.attach(game);
     this.castT.clear(); this.corpses = []; this.wasAlive.clear(); this.spawnT.clear(); this.knock.clear(); this.bossSeen.clear();
     for (const u of game.units) if (u.type === 'hero') this.wasAlive.set(u.id, u.alive);
     this.chatter.reset(); this.hpT.clear(); this.heroPos.clear(); this.callouts = []; this.trauma = 0; this.hitStop = 0; this.tint = null; this.panTo = null; this.visSlow = null;
@@ -291,7 +294,7 @@ export class Renderer {
   }
   // Boss slain: white flash at the pit, element-coloured explosion, light pillar and shockwaves.
   objectiveDeath(f, u) {
-    const c = u && u.kind === 'dragon' && DRAGON_INFO[u.element] ? DRAGON_INFO[u.element].color : OBJ_COL[u && u.kind] || '#ffffff';
+    const c = u && (u.kind === 'dragon' || u.elder) && DRAGON_INFO[u.element] ? DRAGON_INFO[u.element].color : OBJ_COL[u && u.kind] || '#ffffff';
     const b = this.fxp.spawn(P_BEAM, f.x, f.y + 10, 1.4); b.s = 110; b.s2 = 420; b.c = rgba(c, 0.95);
     for (let k = 0; k < 3; k++) this.ring(f.x, f.y, 16, 160 + k * 70, k ? c : '#ffffff', 0.9, 6 - k, k * 0.12);
     this.burst(f.x, f.y - 50, 46, [c, '#ffffff', '#ffd84a'], 90, 360, 200, 420, 4, 1.4);
@@ -321,13 +324,14 @@ export class Renderer {
         case 'spawn': {
           const o = g.objectives[e.obj]; const p = o || this.pitOf(e.obj);
           if (!this.onScreen(p.x, p.y, 120)) break;
-          const c = e.obj === 'dragon' && e.element && DRAGON_INFO[e.element] ? DRAGON_INFO[e.element].color : OBJ_COL[e.obj] || '#fff';
+          const c = e.rare ? '#7dffb2' : (e.obj === 'dragon' || e.obj === 'boss') && e.element && DRAGON_INFO[e.element] ? DRAGON_INFO[e.element].color : OBJ_COL[e.obj] || '#fff';
           if (o) this.bossSeen.set(o.id, this.time);
           { const b = this.fxp.spawn(P_BEAM, p.x, p.y + 10, 1.3); b.s = 90; b.s2 = 340; b.c = rgba(c, 0.9); }
           for (let k = 0; k < 16; k++) { const a = Math.random() * 6.283, sp = 60 + Math.random() * 200, q = this.fxp.spawn(P_DEBRIS, p.x + Math.cos(a) * 30, p.y + Math.sin(a) * 18, 1.4); q.vx = Math.cos(a) * sp; q.vy = -200 - Math.random() * 160; q.g = 700; q.c = ['#8a7a6a', '#6b5b52', '#b3957f'][k % 3]; q.s = 3 + (k % 3); q.ground = p.y + Math.sin(a) * 40; }
           for (let k = 0; k < 3; k++) this.ring(p.x, p.y, 20, 220 + k * 40, c, 0.9, 5 - k, k * 0.18);
           for (let k = 0; k < 10; k++) { const a = k / 10 * 6.283; this.puff(p.x + Math.cos(a) * 40, p.y + Math.sin(a) * 24, 8, 30, 'rgba(230,220,200,0.8)', 1.1, Math.cos(a) * 90, Math.sin(a) * 40); }
-          this.text(p.x, p.y - 150, 'ROOAAR!', c, 18, 1.4, 'crit');
+          this.text(p.x, p.y - 150, e.rare ? 'SHINY!' : 'ROOAAR!', c, 18, 1.4, 'crit');
+          if (e.rare) { this.burst(p.x, p.y - 60, 30, ['#eaffef', '#7dffb2', '#ffffff'], 60, 260, 120, 300, 3, 1.6); this.screenTint('#7dffb2', 0.18, 0.5); }
           this.shakeBy(0.45);
           break;
         }
@@ -665,9 +669,9 @@ export class Renderer {
       const u = c.u, k = (this.time - c.born) / c.dur, sy = 1 - 0.55 * k * k, sx = 1 + 0.25 * k;
       ctx.globalAlpha = 1 - k;
       if (u.type === 'hero') { const img = this.heroImg(u); if (img) this.drawSheetFrame(k < 0.2 ? flashOf(img._fk || 'hero_' + u.heroId, img) : img, 16, 16, u.facing, 5, c.x, c.y + 4, 2.2, false, sx, sy); }
-      else if (u.type === 'minion') { const key = `minion_${u.team ? 'red' : 'blue'}_${u.kind === 'super' ? 'siege' : u.kind}`, img = IMG[key]; if (img) this.drawSheetFrame(k < 0.3 ? flashOf(key, img) : img, 16, 16, u.facing, 0, c.x, c.y + 3, u.kind === 'super' ? 2.4 : u.kind === 'siege' ? 1.9 : 1.5, false, sx, sy); }
-      else if (u.type === 'mob') { const img = IMG[u.kind]; if (img) this.drawSheetFrame(k < 0.3 ? flashOf(u.kind, img) : img, 16, 16, u.facing, 0, c.x, c.y + 3, u.big ? 2.6 : 1.7, false, sx, sy); }
-      else if (u.type === 'objective' && u.kind !== 'dragon') { ctx.save(); ctx.translate(c.x, c.y); ctx.scale(sx, sy); ctx.translate(-c.x, -c.y); this.drawBoss(u, c.x, c.y, k < 0.3, false); ctx.restore(); }
+      else if (u.type === 'minion') { const { key, img } = this.bf.minion(u); if (img) this.drawSheetFrame(k < 0.3 ? flashOf(key, img) : img, 16, 16, u.facing, 0, c.x, c.y + 3, u.kind === 'super' ? 2.4 : u.kind === 'siege' ? 1.9 : 1.5, false, sx, sy); }
+      else if (u.type === 'mob') { const { key, img } = this.bf.mob(u); if (img) this.drawSheetFrame(k < 0.3 ? flashOf(key, img) : img, 16, 16, u.facing, 0, c.x, c.y + 3, u.big ? 2.6 : 1.7, false, sx, sy); }
+      else if (u.type === 'objective' && (u.kind !== 'dragon' || (DRAGON_INFO[u.element] && DRAGON_INFO[u.element].species))) { ctx.save(); ctx.translate(c.x, c.y); ctx.scale(sx, sy); ctx.translate(-c.x, -c.y); this.drawBoss(u, c.x, c.y, k < 0.3, false); ctx.restore(); }
     }
     ctx.globalAlpha = 1;
   }
@@ -709,7 +713,7 @@ export class Renderer {
       let row = attacking ? 4 : d.moving ? walkF : 0, col = u.facing;
       if (dashing) row = 5; else if (casting && !d.moving) { row = 6; col = 1; }
       const src = flashing ? flashOf(img._fk || 'hero_' + u.heroId, img) : img;
-      if (u.recallAt) { ctx.strokeStyle = '#7fe0ff'; ctx.lineWidth = 2; const p = 1 - (u.recallAt - g.tick) / (4 * TICK_RATE); ctx.beginPath(); ctx.arc(x, y - 12, 22, -Math.PI / 2, -Math.PI / 2 + p * Math.PI * 2); ctx.stroke(); }
+      if (u.recallAt) { ctx.strokeStyle = '#7fe0ff'; ctx.lineWidth = 2; const p = 1 - (u.recallAt - g.tick) / (u.recallLen || 4 * TICK_RATE); ctx.beginPath(); ctx.arc(x, y - 12, 22, -Math.PI / 2, -Math.PI / 2 + p * Math.PI * 2); ctx.stroke(); }
       const hidden = u.stealthUntil > g.tick || g.world.inBrush(u.x, u.y);
       let a = hidden ? 0.55 : 1;
       const st = this.spawnT.get(u.id);
@@ -726,19 +730,21 @@ export class Renderer {
       return;
     }
     if (u.type === 'minion') {
-      const key = `minion_${u.team ? 'red' : 'blue'}_${u.kind === 'super' ? 'siege' : u.kind}`;
-      const img = IMG[key]; if (!img) return;
+      const { key, img, fam } = this.bf.minion(u); if (!img) return; // Bosses & Beasts: the team's minion family
+      if (fam) this.bf.minionRing(u, x, y);
       const sc = u.kind === 'super' ? 2.4 : u.kind === 'siege' ? 1.9 : 1.5;
       this.drawSheetFrame(flashing ? flashOf(key, img) : img, 16, 16, u.facing, d.moving ? walkF : 0, x, y + 3 - lift, sc, false, sx, sy);
       if (u.empowered) { ctx.globalAlpha = 0.3; ctx.fillStyle = '#b56cff'; ctx.beginPath(); ctx.arc(x, y - 10, 10, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
       return;
     }
     if (u.type === 'mob') {
-      const img = IMG[u.kind]; if (!img) return;
+      const { key, img } = this.bf.mob(u); if (!img) return; // map-themed camps, night forms, the parade band
       if (u.moon || u.parade || u.kind === 'camp_wisp') this.lw.glow(u, x, y);
-      this.drawSheetFrame(flashing ? flashOf(u.kind, img) : img, 16, 16, u.facing, d.moving ? walkF : (Math.floor(this.time * 3 + u.id) % 2), x, y + 3 - lift, u.big ? 2.6 : 1.7, false, sx, sy);
+      this.bf.nightGlow(u, x, y);
+      this.drawSheetFrame(flashing ? flashOf(key, img) : img, 16, 16, u.facing, d.moving ? walkF : (Math.floor(this.time * 3 + u.id) % 2), x, y + 3 - lift, u.big ? 2.6 : 1.7, false, sx, sy);
       return;
     }
+    if (u.type === 'pet') { this.bf.drawPet(u, x, y, d.moving); return; } // Bosses & Beasts: a scout pet
     if (u.type === 'summon') {
       if (u.kind === 'yokai') { this.lw.drawTamed(u, x, y, d.moving); return; }
       const img = IMG.herald_walk; if (!img) return;
@@ -796,7 +802,8 @@ export class Renderer {
 
   drawBoss(u, x, y, flashing, attacking) {
     const ctx = this.ctx;
-    if (this.lw.drawBoss(u, x, y, flashing, attacking)) return; // Tengu, Yokai Parade
+    if (this.bf.drawBoss(u, x, y, flashing, attacking)) return; // map Kami + Elder, rare Oni / Kraken
+    if (this.lw.drawBoss(u, x, y, flashing, attacking)) return; // Yokai Parade
     if (u.kind === 'dragon') {
       const skin = VAR['dragon_' + u.element] || VAR.dragon_infernal; if (!skin || !skin.head) return;
       const t = this.time, bob = Math.sin(t * 3) * 4, flap = 0.75 + 0.25 * Math.sin(t * (attacking ? 14 : 6)), sc = 1.5;
@@ -912,9 +919,9 @@ export class Renderer {
     }
     if (u.type === 'objective') {
       const w = 70, top = y - (u.kind === 'baron' || u.kind === 'boss' ? 160 : u.kind === 'dragon' ? 130 : u.kind === 'yokai' ? 70 : 110);
-      this.bar(x - w / 2, top, w, 5, u, u.kind === 'dragon' ? DRAGON_INFO[u.element].color : OBJ_COL[u.kind] || '#9fd0ff');
+      this.bar(x - w / 2, top, w, 5, u, u.kind === 'dragon' || (u.kind === 'boss' && u.elder) ? DRAGON_INFO[u.element].color : u.rare ? '#7dffb2' : OBJ_COL[u.kind] || '#9fd0ff');
       ctx.font = '8px PixelFont, monospace'; ctx.textAlign = 'center'; ctx.fillStyle = '#000';
-      const nm = sp_(u.kind === 'dragon' ? DRAGON_INFO[u.element].name : OBJ_NAME[u.kind]);
+      const nm = sp_(u.kind === 'dragon' ? DRAGON_INFO[u.element].name : u.kind === 'boss' && u.elder ? elderName(u.element) : (u.rare ? 'Rare ' : '') + OBJ_NAME[u.kind]);
       ctx.fillText(nm, x + 0.6, top - 6.4); ctx.fillStyle = '#fff'; ctx.fillText(nm, x, top - 7);
       return;
     }

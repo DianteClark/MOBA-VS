@@ -1,0 +1,23 @@
+/* Bosses & Beasts: scout pets, minion families, the map Kami card, rare bosses, mascots */
+.colpet img { width: 30px; height: 30px; }
+.famcard { display: flex; flex-direction: column; align-items: center; gap: 3px; background: linear-gradient(160deg, #2a2236, #17121f); }
+.famstrip { display: flex; gap: 2px; justify-content: center; min-height: 28px; }
+.famstrip i { width: 26px; height: 26px; background-size: 104px 104px; background-position: 0 0; image-rendering: pixelated; display: inline-block; }
+.famcard.locked .famstrip { filter: brightness(0.5) saturate(0.4); }
+/* the map ring's scout option shows the pet's face */
+.ropt img.rpet { border-radius: 50%; background: #2a2236; }
+/* map select / draft: the map's Kami */
+.kamicard { display: flex; align-items: center; gap: 6px; padding: 3px 6px; border-radius: 6px; background: rgba(0, 0, 0, 0.35); border: 1px solid var(--kc, #ffd84a); max-width: 100%; }
+.kamicard img { width: 26px; height: 26px; image-rendering: pixelated; flex: none; }
+.kamicard .kt { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
+.kamicard b { color: var(--kc, #ffd84a); font-size: 11px; font-weight: normal; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kamicard small { font-size: 9px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.kamicard.mini { padding: 2px 5px; gap: 4px; }
+.kamicard.mini img { width: 20px; height: 20px; }
+.kamicard.mini small { display: none; }
+/* objective bar: the scout cell */
+.ot.scout img { border-radius: 50%; }
+.ot.scout.ready b { color: #7dffb2; }
+/* mascots */
+.mascot { width: 22px; height: 22px; image-rendering: pixelated; vertical-align: middle; }
+.mascot.big { width: 34px; height: 34px; }
