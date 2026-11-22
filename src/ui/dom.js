@@ -50,6 +50,21 @@ export const icon = (name) => `assets/img/icons/${name}.png`;
 // Per-tick HUD writes: touch the DOM only when a value really changes (no style recalc / mutations for nothing).
 export const setText = (el, v) => { v = tr(String(v)); if (el.textContent !== v) el.textContent = v; };
 export const setCss = (el, k, v) => { const c = el._css || (el._css = {}); if (c[k] !== v) { c[k] = v; if (k.startsWith('--')) el.style.setProperty(k, v); else el.style[k] = v; } };
+// Shrink one-line labels until they fit their box (long translations, narrow phones). Re-fits on resize.
+const FIT = new Set(); let fitHooked = false;
+function fitOne(e) {
+  e.style.fontSize = ''; const box = e.parentElement; if (!box || !e.isConnected) return;
+  let fs = parseFloat(getComputedStyle(e).fontSize); const w = box.clientWidth - 4;
+  while (e.scrollWidth > w && fs > 6) { fs -= 0.5; e.style.fontSize = fs + 'px'; }
+}
+export function fitText(els) {
+  if (!fitHooked) {
+    fitHooked = true;
+    addEventListener('resize', () => requestAnimationFrame(() => { for (const e of FIT) if (e.isConnected) fitOne(e); else FIT.delete(e); }));
+  }
+  for (const e of els) if (e) FIT.add(e);
+  requestAnimationFrame(() => { for (const e of els) if (e) fitOne(e); });
+}
 export const setOff = (el, off) => { if (el.disabled !== off) el.disabled = off; };
 // History / share-card label for a profile history `mode` key.
 export const MODE_LABEL = { ai0: 'vs Easy AI', ai1: 'vs Normal AI', ai2: 'vs Hard AI', online: 'Online Ranked', casual: 'Online Casual', rush: 'Lane Rush vs AI', rushOnline: 'Lane Rush Online', cup: 'Season Cup', coop: 'Co-op vs AI', coop2: 'Co-op 2v2', fr: 'Franchise' };

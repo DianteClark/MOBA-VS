@@ -3,7 +3,7 @@
 //   · a hand of tactic cards · the decision tray (one slot) · a target sheet · a map ring menu
 //   · the charge + momentum meter (tap it when full for Kami Surge).
 // Everything here is built once and updated in place (no rebuilds while open = no flicker).
-import { h, mount, face, icon, fmtTime, toast, bossFace, kamiNow, setText, setCss, setOff } from './dom.js';
+import { h, mount, face, icon, fmtTime, toast, bossFace, kamiNow, setText, setCss, setOff, fitText } from './dom.js';
 import { BUILDS } from '../data/items.js';
 import { TACTICS } from '../data/tactics.js';
 import { CMD, DRAGON_INFO, TICK_RATE, OBJ_NAME, MOMENTUM } from '../sim/constants.js';
@@ -74,6 +74,7 @@ export class Dock {
     mount(el, this.trayEl, this.sheetEl, this.cancelEl,
       h('div', { class: 'dock' }, h('div', { class: 'handrow' }, this.meterEl, h('div', { class: 'hand' }, this.cards), this.momentBtn, this.ultBtn = h('button', { class: 'ultbtn', title: 'Ult stance: Auto (heroes choose) → Hold → ALL-IN now [U]', onclick: () => this.cycleUlt() }, h('img', { src: icon('Death') }), h('span', { class: 'ul' }, 'Ults'), h('span', { class: 'ust' }, h('i'), h('i'), h('i')), h('b', {}, 'Auto'))),
         h('div', { class: 'callrow' }, this.callBtns)));
+    fitText([...this.callBtns.map((b) => b.querySelector('.l')), this.momentBtn.querySelector('.ml'), this.ultBtn.querySelector('.ul')]);
     this.tick();
   }
 

@@ -106,6 +106,10 @@ JS = """([panels, overlays]) => {
   return { panels: panels.map(([n, s]) => [n, box(s)]), overlays: overlays.map(([n, s]) => [n, box(s)]), safe: [px('--safe-l'), px('--safe-r'), px('--safe-t'), px('--safe-b')], clipped };
 }"""
 
+# a busy machine can still be mid entrance animation after the fixed wait: let finite animations finish (capped)
+SETTLE = """() => { const left = document.getAnimations().filter((a) => a.playState === 'running').map((a) => { const t = a.effect.getComputedTiming(); return t.endTime - (t.localTime || 0); }).filter((x) => x > 0 && x < 1000);
+  return left.length ? new Promise((r) => setTimeout(r, Math.max(...left) + 30)) : null; }"""
+
 def check(res, w, h):
     issues = []
     sl, sr, st, sb = res['safe']
@@ -230,6 +234,7 @@ async def main():
                 await pg.evaluate(RESET); await pg.evaluate(BASE)
                 if js: await pg.evaluate(js)
                 await pg.wait_for_timeout(450)
+                await pg.evaluate(SETTLE)
                 res = await pg.evaluate(JS, [PANELS, OVERLAYS])
                 issues += [f'[{state}] ' + x for x in check(res, w, h)]
                 if OUT and COOPIFY and state == 'tray': await pg.screenshot(path=f"{OUT}/ui_coop_{w}x{h}{'_' + name.split()[-1] if name else ''}_tray.png", timeout=20000, animations='disabled')
