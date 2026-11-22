@@ -109,7 +109,7 @@ function tutorialBrief(app) {
   const md = modal('cpbrief',
     h('div', { class: 'cpbhead' }, h('div', { class: 'cpbt' }, h('small', {}, 'Guided first match · about 8 minutes'), h('b', {}, 'Coach Academy'))),
     mentor('Your heroes play on their own, dear. You are the coach: you draft, you plan, you make the calls. Granny will show you.'),
-    h('ul', { class: 'cplist' }, h('li', {}, 'Draft: bans and one hero per role, then prep: plan and lineup'),
+    h('ul', { class: 'cplist' }, h('li', {}, 'The draft (bans and one hero per role), then prep (plan and lineup)'),
       h('li', {}, 'Calls, the map ring, stances, tactic cards and Coach Moments'), h('li', {}, 'The scout pet, fight forecasts and the decision tray'),
       h('li', {}, 'Kami and blessings, the Oni, the Kraken, the Elder and the minimap')),
     h('div', { class: 'cpgoals' }, h('div', { class: 'cpgoal' + (tut().paid ? ' got' : '') }, h('i', { class: 'cpgs' }, '★'), h('span', {}, 'Finish the academy match'), tut().paid ? h('small', { class: 'muted' }, 'Earned') : kobanTag(TUTORIAL_KOBAN))),

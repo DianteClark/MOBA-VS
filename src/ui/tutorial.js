@@ -145,7 +145,7 @@ const MATCH = [
   { id: 'm-tray', after: 'm-welcome', title: 'Decision tray', target: '#cmdbar .tray', when: (g, my, hud) => trayHas(hud, 'ccall') || trayHas(hud, 'req'),
     text: 'Coach\'s Calls and hero requests wait here, one at a time. Gold means act now. Answer, or let it pass.' },
   { id: 'm-stance', after: 'm-welcome', title: 'Ults stance', target: '#cmdbar .ultbtn', wait: true, when: (g, my) => team(g, my).heroes.some((x) => x.level >= 5),
-    done: (g, my) => !!team(g, my).ultMode, text: 'Auto: heroes choose. One tap: ALL-IN, ultimates fire together in the next fight. Again: Hold them.' },
+    done: (g, my) => !!team(g, my).ultMode, text: 'Auto lets heroes choose. One tap sets ALL-IN, so ultimates fire together in the next fight. Tap again to Hold them.' },
   { id: 'm-moments', after: 'm-welcome', title: 'Coach Moments', target: '#cmdbar .momentbtn', wait: true, when: (g, my) => MOMENT_IDS.some((k) => momentReady(g, my, k)),
     done: (g, my) => myEv(g, my, 'moment'), text: 'Timeout, Rally and All-Out Push: each once per match. Save one for a fight that swings.' },
   { id: 'm-oni', after: 'm-welcome', title: 'The Oni', target: '#objtimers', pause: true, when: (g) => !!(g.objectives.herald && g.objectives.herald.alive),
