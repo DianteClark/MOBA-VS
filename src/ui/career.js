@@ -1,6 +1,7 @@
 // Career stats: lifetime numbers per hero, build, map and comp, best calls, streaks and personal records.
 // Stored in profile.d.career (cloud-saved), so every list is bounded: 60 heroes, 11 builds, a handful of maps
 // and comps, the top 5 calls and one entry per record (about 4 KB when full).
+import { heroInfo } from './heroinfo.js';
 import { h, face, emptyState } from './dom.js';
 import { HERO_BY_ID } from '../data/heroes.js';
 import { BUILDS } from '../data/items.js';
@@ -73,7 +74,7 @@ export function careerTab(d, showAll, onToggle) {
   if (!c || !c.n) return emptyState('assets/img/items/Hourglass.png', 'No career yet', 'Finish a match as a coach and your lifetime stats, records and best calls start here.');
   const tileC = (k, v) => h('div', { class: 'atile' }, h('b', {}, v), h('small', {}, k));
   const heroes = Object.entries(c.heroes).sort((a, b) => b[1][0] - a[1][0] || b[1][1] - a[1][1]);
-  const heroRow = ([id, e]) => h('div', { class: 'crow3 hero' }, h('img', { src: face(id), alt: '' }), h('span', { class: 'cn' }, HERO_BY_ID[id] ? HERO_BY_ID[id].name : id), wrBar(e),
+  const heroRow = ([id, e]) => h('div', { class: 'crow3 hero hitap', ...(HERO_BY_ID[id] ? { role: 'button', tabindex: '0', title: 'Stats and abilities', onclick: () => heroInfo(id) } : {}) }, h('img', { src: face(id), alt: '' }), h('span', { class: 'cn' }, HERO_BY_ID[id] ? HERO_BY_ID[id].name : id), wrBar(e),
     h('span', { class: 'cv' }, `${pct(e)}%`), h('small', { class: 'muted ckda' }, `${e[0]}g · ${n1(e[2] / e[0])}/${n1(e[3] / e[0])}/${n1(e[4] / e[0])} · ${kGold(e[5] / e[0])} dmg`));
   const sec = (title, ...kids) => h('div', { class: 'panel csec' }, h('div', { class: 'rth' }, h('b', {}, title)), ...kids);
   const recRows = RECORDS.map(([k, l, , f]) => { const r = c.rec[k]; return r ? h('div', { class: 'crow3 rec' }, h('span', { class: 'cn' }, l), h('b', { class: 'cv' }, f(r[0])), h('small', { class: 'muted' }, `${r[2] && HERO_BY_ID[r[2]] ? HERO_BY_ID[r[2]].name + ' · ' : r[2] && MAP_BY_ID[r[2]] ? MAP_BY_ID[r[2]].name + ' · ' : ''}${date(r[1])}`)) : null; }).filter(Boolean);

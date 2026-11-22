@@ -3,7 +3,7 @@
 import { kamiCard } from './beastsui.js';
 import { h, mount, face, icon } from './dom.js';
 import { HEROES, HERO_BY_ID, ROLES, ROLE_LABEL, matchupScore, PERSONALITIES } from '../data/heroes.js';
-import { currentTurn, taken, legal, assignRoles, TURN_SECONDS } from '../sim/draft.js';
+import { currentTurn, taken, legal, TURN_SECONDS } from '../sim/draft.js';
 import { CLANS } from '../sim/constants.js';
 import { duosOf, compOf, COMPS } from '../data/synergy.js';
 import { MAPS, MAP_BY_ID } from '../maps/defs.js';
@@ -24,12 +24,13 @@ import { draftLegal, draftWho, rolesLine, coachOf, COOP_COL } from '../coop-room
 import { coopRoles, seatRoles } from '../sim/coop.js';
 import { ownershipOn, usable, access, openRoles, fitsRole, stepFor, ownedAutoPick } from '../unlocks.js';
 import { accessBadge } from './shop.js';
+import { heroInfo } from './heroinfo.js';
 
 const screen = () => document.getElementById('screen');
 export const AUTO_GRACE = 1.2; // seconds before a preset auto-pick locks in
 
 export class DraftView {
-  constructor(app) { this.app = app; this.sel = null; this.filter = 'all'; this.query = ''; this.scroll = 0; this.promptTurn = -1; }
+  constructor(app) { this.app = app; this.sel = null; this.filter = 'all'; this.query = ''; this.scroll = 0; this.promptTurn = -1; this.showAll = false; }
 
   // Can this coach lock this hero now? (Co-op: it must fit one of their own open roles.)
   legal(id) { const s = this.app.session; return s.mode === 'coop' ? draftLegal(s, id) : legal(s.draft, s.myTeam, id); }
@@ -76,21 +77,23 @@ export class DraftView {
     const teamBar = (team) => {
       const picks = d.picks[team], bans = d.bans[team];
       const split = coop && s.coop[team] && s.coop[team].seats === 2 ? s.coop[team] : null;
-      const roles = (split ? coopRoles(d, team, split.own) : team === me ? teamRoles(picks, s.preset, s.pickRoles) : assignRoles(picks)) || [];
+      const roles = (split ? coopRoles(d, team, split.own) : team === me ? teamRoles(picks, s.preset, s.pickRoles) : teamRoles(picks, null)) || [];
       const acting = t && t.team === team;
       const pickSlots = Array.from({ length: 5 }, (_, i) => {
         const id = picks[i], active = acting && t.act === 'pick' && i === picks.length;
         const auto = active && team === me && s.autoPick;
         // co-op: each pick framed in its coach's colour
         const seat = split ? (id ? d.seats[team][i] : acting && who && who.team === team ? who.seat : null) : null;
-        return h('div', { class: 'slot' + (active ? ' active' : '') + (id ? ' filled' : '') + (auto ? ' auto' : '') + (seat !== null && seat !== undefined ? ' cs' : ''), style: seat !== null && seat !== undefined ? { '--sc': COOP_COL[seat] } : null },
-          id ? h('img', { src: face(id) }) : auto ? h('img', { class: 'ghost', src: face(s.autoPick.id) }) : null,
+        const off = id && roles[i] && !HERO_BY_ID[id].roles.includes(roles[i]);
+        return h('div', { class: 'slot' + (active ? ' active' : '') + (id ? ' filled' : '') + (auto ? ' auto' : '') + (seat !== null && seat !== undefined ? ' cs' : ''), style: seat !== null && seat !== undefined ? { '--sc': COOP_COL[seat] } : null,
+          ...(id ? { role: 'button', tabindex: '0', title: `${HERO_BY_ID[id].name}: stats and abilities`, onclick: () => heroInfo(id, { note: roles[i] ? `Plays ${ROLE_LABEL[roles[i]]}${off ? ' (off-role)' : ''}` : null }) } : {}) },
+          id ? h('img', { src: face(id) }) : auto ? h('img', { class: 'ghost', src: face(s.autoPick.id) }) : null, off ? h('span', { class: 'offr', title: 'Off-role' }, 'OFF') : null,
           auto ? h('b', { class: 'acd', id: 'autocd' }, '') : null,
           id ? h('span', { class: 'role' }, ROLE_LABEL[roles[i]] || '') : null);
       });
       const banSlots = Array.from({ length: 3 }, (_, i) => {
         const id = bans[i], active = acting && t.act === 'ban' && i === bans.length;
-        return h('div', { class: 'slot ban' + (active ? ' active' : '') + (id ? ' filled' : '') }, id ? h('img', { src: face(id) }) : null);
+        return h('div', { class: 'slot ban' + (active ? ' active' : '') + (id ? ' filled' : ''), ...(id ? { role: 'button', tabindex: '0', title: `${HERO_BY_ID[id].name} (banned): stats and abilities`, onclick: () => heroInfo(id, { note: 'Banned this match' }) } : {}) }, id ? h('img', { src: face(id) }) : null);
       });
       return h('div', { class: 'dteam t' + team + (acting ? ' acting' : '') },
         h('div', { class: 'tname' }, h('span', { class: 'tdot' }), team !== me && s.rival && RIVAL_BY_ID[s.rival] ? rivalFaceImg(RIVAL_BY_ID[s.rival], 18) : null, h('span', { class: 'tn' }, s.names[team]), team === me ? h('small', {}, 'you') : null,
@@ -124,7 +127,12 @@ export class DraftView {
     const list = POOL.filter((x) => (this.filter === 'all' || x.roles.includes(this.filter)) && (!this.clan || x.clan === this.clan))
       .sort((a, b) => this.filter === 'all' ? ROLES.indexOf(a.role) - ROLES.indexOf(b.role) : (a.role === this.filter ? 0 : 1) - (b.role === this.filter ? 0 : 1)); // main role first
     list.sort((a, b) => (tk.has(a.id) ? 1 : 0) - (tk.has(b.id) ? 1 : 0) || (recs.includes(b.id) ? 1 : 0) - (recs.includes(a.id) ? 1 : 0));
-    const grid = h('div', { class: 'grid' }, ...list.map((x) => {
+    // A role step lists the heroes that fit it; "All champions" opens every other hero: usable ones can be locked
+    // off-role for this step, locked ones are there to read (stats, abilities) and unlock later.
+    const inList = new Set(list.map((x) => x.id));
+    const more = steps && this.showAll ? HEROES.filter((x) => !inList.has(x.id) && (!this.clan || x.clan === this.clan))
+      .sort((a, b) => (mayUse(a.id) ? 0 : 1) - (mayUse(b.id) ? 0 : 1) || (tk.has(a.id) ? 1 : 0) - (tk.has(b.id) ? 1 : 0) || ROLES.indexOf(a.role) - ROLES.indexOf(b.role) || (a.name < b.name ? -1 : 1)) : [];
+    const card = (x) => {
       const off = tk.has(x.id), bad = !off && myTurn && !ban && !this.legal(x.id);
       const ms = enemyPicks.length && !off ? matchupScore(x, enemyPicks).score : 0;
       const pers = PERSONALITIES[x.pers], rec = recs.includes(x.id), mine = presetRole(s.preset, x.id), acc = own ? access(profile, s, x.id) : 'own';
@@ -134,7 +142,12 @@ export class DraftView {
           mine ? h('span', { class: 'mine', title: 'In your lineup' }, '★') : null, me >= 0 ? masteryBadge(profile.mastery(x.id).lv) : null, own && acc !== 'own' ? accessBadge(acc) : null),
         rec ? h('span', { class: 'recb' + (ban ? ' banb' : '') }, ban ? 'BAN?' : 'REC') : null,
         h('div', { class: 'n' }, x.name));
-    }));
+    };
+    const nMore = steps ? HEROES.filter((x) => !inList.has(x.id) && mayUse(x.id) && !tk.has(x.id)).length : 0;
+    const grid = h('div', { class: 'grid' }, ...list.map(card),
+      steps ? h('button', { class: 'allc' + (this.showAll ? ' on' : ''), 'aria-expanded': String(this.showAll), onclick: () => { this.showAll = !this.showAll; audio.sfx('move', 0.4); this.render(); } },
+        this.showAll ? 'Hide other champions' : `All champions · ${nMore} more you can play as ${ROLE_LABEL[step]} (off-role)`) : null,
+      ...(more.length ? [h('div', { class: 'allh' }, `Off-role as ${ROLE_LABEL[step]}, then champions you don't own (tap to read them)`), ...more.map(card)] : []));
     mount(screen(), h('div', { class: 'draft' + (ban && !d.done ? ' banphase' : '') + (myTurn ? ' myturn' : '') },
       h('div', { class: 'dtop' }, teamBar(0), turnBox, teamBar(1)),
       h('div', { class: 'dmain' },
@@ -200,19 +213,22 @@ export class DraftView {
     const x = HERO_BY_ID[id], pers = PERSONALITIES[x.pers], clan = CLANS[x.clan];
     const ban = t && t.act === 'ban', mayUse = ban || !ownershipOn(s) || usable(profile, s, id), canAct = myTurn && this.legal(id) && mayUse, mu = matchupScore(x, enemyPicks);
     const inLineup = presetRole(s.preset, id);
+    const offStep = myTurn && !ban && this.stepMode() && this.step && !x.roles.includes(this.step) ? this.step : null; // locking it plays this role off-role
     return wrap('info' + (ban ? ' isban' : ''), [
       h('div', { class: 'ihead' }, h('div', { class: 'face' }, h('img', { src: face(id) })),
         h('div', { class: 'icol' }, h('h2', {}, x.name), h('div', { class: 't' }, `${x.roles.map((r) => ROLE_LABEL[r]).join(' / ')} · ${x.ranged ? 'Ranged' : 'Melee'}`),
           h('div', { class: 'chips' }, h('span', { class: 'chipx', style: { '--cc': clan.color } }, clan.name), h('span', { class: 'chipx', style: { '--cc': pers.color }, title: pers.desc }, pers.name)))),
       myTurn && ban && inLineup ? h('div', { class: 'warnline' }, `${x.name} is in your lineup (${ROLE_LABEL[inLineup]}).`) : null,
-      myTurn && !canAct ? h('div', { class: 'warnline' }, taken(d, me).has(id) ? 'Already banned or picked.' : !mayUse ? `You don't own ${x.name} yet: unlock it in the Shop, or Try it vs AI.` : s.mode === 'coop' ? 'Doesn\'t fit your open roles.' : 'Your team already covers this hero\'s roles.') : null,
+      myTurn && !canAct ? h('div', { class: 'warnline' }, taken(d, me).has(id) ? 'Already banned or picked.' : !mayUse ? `You don't own ${x.name} yet: unlock it in the Shop, or Try it vs AI.` : 'Your roles are all filled.') : null,
+      canAct && offStep ? h('div', { class: 'offline2' }, `Off-role: ${x.name} will play ${ROLE_LABEL[offStep]} (usually ${x.roles.map((r) => ROLE_LABEL[r]).join(' / ')}).`) : null,
       statBars(id, true),
       h('div', { class: 'chips dbuilds' }, ...x.builds.map((b) => h('span', { class: 'chipx', style: { '--cc': BUILDS[b].color }, title: buildLine(b), 'data-build': b, 'data-build-info': true }, BUILDS[b].name + (b === x.rec ? ' ★' : '')))),
       h('div', { class: 'abl' },
         h('div', { class: 'ab' }, h('img', { src: icon('LuckUpgrade') }), h('div', {}, h('b', {}, x.passive.name), h('div', { class: 'd' }, x.passive.desc))),
         ...x.abilities.map((a) => h('div', { class: 'ab' + (a.ult ? ' ult' : '') }, h('img', { src: icon(a.icon) }), h('div', {}, h('b', {}, (a.ult ? 'Ult: ' : '') + a.name), h('div', { class: 'd' }, describeAbility(a)))))),
       enemyPicks.length ? h('div', { class: 'notes' }, ...(mu.notes.length ? mu.notes.map((n) => h('div', { class: /struggles|countered|into heavy/i.test(n) ? 'neg' : 'pos' }, n)) : [h('div', { class: 'muted' }, 'Neutral into their picks')])) : null,
-      synergyNotes(id, me >= 0 ? d.picks[me] : [])],
+      synergyNotes(id, me >= 0 ? d.picks[me] : []),
+      h('button', { class: 'chip hinfobtn', title: 'Talents, builds and lore', onclick: () => heroInfo(id) }, 'Talents, builds and lore ›')],
     myTurn ? [h('button', { class: 'btn big lockbtn' + (ban ? ' banbtn' : ''), disabled: !canAct, onclick: () => app.draftAct(id) }, (ban ? 'Ban ' : 'Lock ') + x.name)] : null);
   }
 

@@ -116,11 +116,14 @@ function fitsRoles(ids, roles) {
 }
 export const seatRoles = (own, seat) => ROLES.filter((r) => own[r] === seat);
 function seatPicks(d, team, seat) { ensureSeats(d); return d.picks[team].filter((_, i) => d.seats[team][i] === seat); }
-export function coopLegal(d, team, seat, heroId, own) {
+// Any champion may go to any role (v25.1): a coach only needs one of their own roles still open. strict: the
+// hero must also fit one of them (the timeout / AI auto-pick stays on-role).
+export function coopLegal(d, team, seat, heroId, own, strict = false) {
   const t = currentTurn(d);
   if (!t || t.team !== team || !HERO_BY_ID[heroId] || taken(d, team).has(heroId)) return false;
   if (t.act === 'ban') return true;
-  return fitsRoles([...seatPicks(d, team, seat), heroId], seatRoles(own, seat));
+  const mine = seatPicks(d, team, seat), roles = seatRoles(own, seat);
+  return strict ? fitsRoles([...mine, heroId], roles) : mine.length < roles.length;
 }
 export function coopApply(d, team, seat, heroId, own) {
   ensureSeats(d);
@@ -135,8 +138,9 @@ export function coopAutoChoice(d, team, seat, own, rng) {
   const t = currentTurn(d); if (!t) return null;
   const enemy = d.picks[1 - team].map((id) => HERO_BY_ID[id]), tk = taken(d, team);
   let best = null, bs = -Infinity;
+  const strict = t.act === 'pick' && fitsRoles(seatPicks(d, team, seat), seatRoles(own, seat)) && HEROES.some((h) => !tk.has(h.id) && coopLegal(d, team, seat, h.id, own, true));
   for (const h of HEROES) {
-    if (tk.has(h.id) || !coopLegal(d, team, seat, h.id, own)) continue;
+    if (tk.has(h.id) || !coopLegal(d, team, seat, h.id, own, strict)) continue;
     const s = (t.act === 'ban' ? matchupScore(h, d.picks[team].map((id) => HERO_BY_ID[id])).score : matchupScore(h, enemy).score + synergyScore(d.picks[team], h.id)) * 2 + (rng ? rng.next() * 1.5 : 0);
     if (s > bs) { bs = s; best = h.id; }
   }
@@ -154,7 +158,12 @@ export function coopRoles(d, team, own) {
       for (const r of [h.role, ...h.roles]) if (roles.includes(r) && !used.has(r)) { used.add(r); out[idx[k]] = r; if (go(k + 1)) return true; used.delete(r); }
       return false;
     };
-    go(0);
+    if (!go(0)) { // an off-role pick: fitting heroes keep their roles where they can, the rest fill what is left
+      const left = roles.slice(), put = (k, r) => { out[idx[k]] = r; left.splice(left.indexOf(r), 1); };
+      idx.forEach((_, k) => { out[idx[k]] = null; });
+      idx.forEach((_, k) => { const h = HERO_BY_ID[d.picks[team][idx[k]]], r = [h.role, ...h.roles].find((q) => left.includes(q)); if (r) put(k, r); });
+      idx.forEach((_, k) => { if (!out[idx[k]] && left.length) put(k, left[0]); });
+    }
   }
   return out;
 }

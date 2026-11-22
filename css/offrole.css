@@ -1,0 +1,45 @@
+/* v25.1 off-role picks and the hero info sheet (src/ui/heroinfo.js): any champion in any lane, stats from anywhere */
+
+/* hero info sheet */
+.hinfo { z-index: 60; padding: max(8px, var(--safe-t, 0px)) max(10px, var(--safe-r, 0px)) max(8px, var(--safe-b, 0px)) max(10px, var(--safe-l, 0px)); }
+.hipanel { width: min(560px, 100%); margin: auto; display: flex; flex-direction: column; gap: 6px; }
+.hihead { display: flex; gap: 10px; align-items: center; }
+.hiface { width: 52px; height: 52px; flex: 0 0 auto; background: #1e1928; border: 2px solid var(--cc); }
+.hicol { gap: 3px; min-width: 0; }
+.hicol .chips { display: flex; gap: 4px; flex-wrap: wrap; }
+.hiown { color: var(--muted); } .hiown.own { color: var(--green, #6fdc8c); }
+.hinote { font-size: 11px; color: #ffb84a; border-left: 3px solid #ffb84a; padding: 2px 6px; background: #ffb84a14; }
+.hisec { display: flex; flex-direction: column; gap: 4px; border-top: 1px solid #ffffff12; padding-top: 5px; }
+.hisec .chips { display: flex; gap: 4px; flex-wrap: wrap; }
+.hisec .dab p { font-size: 10px; }
+.hital { display: flex; flex-direction: column; gap: 4px; }
+.hitier { display: flex; gap: 4px; align-items: stretch; }
+.hitopt { flex: 1 1 0; min-width: 0; display: flex; gap: 5px; align-items: center; padding: 3px 5px; background: #1d1728; border: 1px solid var(--line); }
+.hitopt img { width: 20px; height: 20px; flex: 0 0 20px; }
+.hitopt div { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.hitopt b { font-weight: normal; font-size: 10px; color: #ffe3a3; } .hitopt small { font-size: 9px; color: #cfc4da; line-height: 1.3; }
+.hilore { margin: 0; color: #d8cee4; line-height: 1.45; }
+.hifull { align-self: center; font-size: 11px; }
+.hifacebtn { padding: 0; border: 0; background: none; cursor: pointer; display: inline-flex; position: relative; color: inherit; font: inherit; }
+.hifacebtn img { display: block; }
+@media (max-height: 420px) { .hipanel { gap: 4px; } .hiface { width: 40px; height: 40px; } .hitier .tal-lv { flex-basis: 28px; font-size: 10px; } }
+
+/* draft: the "All champions" section after a role step's own heroes */
+.draft .grid .allc { grid-column: 1 / -1; font-family: inherit; font-size: 10px; color: var(--muted); background: #1a1424; border: 1px dashed var(--line); padding: 5px 6px; cursor: pointer; text-align: center; }
+.draft .grid .allc.on { color: var(--gold); border-style: solid; }
+.draft .grid .allh { grid-column: 1 / -1; font-size: 9px; color: var(--muted); padding: 2px 2px 0; }
+.draft .slot.filled, .draft .slot.ban.filled { cursor: pointer; }
+.offr { position: absolute; right: -3px; top: -3px; font-size: 7px; line-height: 1; padding: 1px 2px; background: #3a2f4a; color: #ffb84a; border: 1px solid #000; letter-spacing: 0.5px; pointer-events: none; z-index: 1; }
+.draft .slot .offr { right: 0; top: 0; }
+.dside .offline2 { font-size: 11px; color: #ffb84a; }
+.dside .hinfobtn, #hpop .hinfobtn { font-size: 10px; padding: 2px 8px; }
+
+/* Dojo lineups: off-role tag and the "All champions" part of the picker */
+.lhero .offr { right: 2px; top: 2px; font-size: 8px; }
+.pgall { grid-column: 1 / -1; font-size: 10px; color: var(--muted); padding: 4px 0 0; border-top: 1px solid #ffffff14; }
+.pgrid .dcard .offr { right: 2px; top: 2px; font-size: 8px; }
+
+/* in-match hero card: Info opens the sheet */
+#hpop .phead .hinfobtn { flex: 0 0 auto; align-self: flex-start; }
+.hitap { cursor: pointer; } .hitap:hover { filter: brightness(1.12); }
+.hisec > small.muted { font-size: 10px; line-height: 1.4; }

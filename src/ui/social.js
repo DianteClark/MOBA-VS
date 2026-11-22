@@ -6,6 +6,7 @@
 //    Ranked needs both: the host picks Ranked, the friend accepts a Ranked invite, and the two
 //    clients AND their ranked flags in the hello/start handshake (main.js) so they always report alike.
 //  * Rematch runs over the still-open match connection: both accept, the old host starts, sides swap.
+import { heroInfo } from './heroinfo.js';
 import { avatar } from './avatar.js';
 import { h, mount, toast, emptyState, face, MODE_LABEL } from './dom.js';
 import { HERO_BY_ID } from '../data/heroes.js';
@@ -265,7 +266,7 @@ export async function showPlayer(app, id, { name = 'Coach' } = {}) {
     h('div', { class: 'row pact' }, ...actions),
     profileExtras(app, r, close), // club, trophy cabinet, signature heroes, highlight reel (src/ui/coachprofile.js)
     !pub ? h('p', { class: 'muted center' }, 'This coach has not shared a profile yet.') : [
-      pub.top.length ? h('div', { class: 'ptop' }, h('small', { class: 'muted' }, 'Top heroes'), h('div', { class: 'ptopl' }, ...pub.top.map(([hid, pts]) => HERO_BY_ID[hid] ? h('div', { class: 'phero', title: `${HERO_BY_ID[hid].name} · mastery ${masteryLevel(pts)}` },
+      pub.top.length ? h('div', { class: 'ptop' }, h('small', { class: 'muted' }, 'Top heroes'), h('div', { class: 'ptopl' }, ...pub.top.map(([hid, pts]) => HERO_BY_ID[hid] ? h('div', { class: 'phero hitap', title: `${HERO_BY_ID[hid].name} · mastery ${masteryLevel(pts)}`, role: 'button', tabindex: '0', onclick: () => heroInfo(hid) },
         h('img', { src: face(hid), alt: '' }), masteryBadge(masteryLevel(pts), { always: true }), h('small', {}, HERO_BY_ID[hid].name)) : null))) : null,
       pub.recent.length ? h('div', { class: 'precent' }, h('small', { class: 'muted' }, 'Recent results'), ...pub.recent.map((m) => h('div', { class: 'prow2 ' + (m.won ? 'win' : 'loss') },
         h('b', {}, m.won ? 'W' : 'L'), h('span', { class: 'pmode' }, MODE_LABEL[m.mode] || m.mode || ''), h('span', { class: 'pfaces' }, ...m.picks.filter((x) => HERO_BY_ID[x]).map((x) => h('img', { src: face(x), alt: '', class: m.mvp === x ? 'mvp' : '' }))),

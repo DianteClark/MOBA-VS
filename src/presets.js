@@ -22,7 +22,7 @@ function freshPresets() {
   return { v: PRESET_VERSION, active: 0, slots: slots.map(sanitize) };
 }
 
-// Clean up anything stored (old data, removed heroes/cards): heroes must fit their role, no hero twice,
+// Clean up anything stored (old data, removed heroes/cards): any hero may sit in any role (off-role is allowed), no hero twice,
 // builds must be one of the hero's builds, exactly three distinct known cards.
 export function sanitize(p) {
   const out = newPreset(String(p && p.name || 'Lineup').slice(0, 16));
@@ -30,7 +30,7 @@ export function sanitize(p) {
   const used = new Set();
   for (const kind of ['main', 'backup']) for (const r of ROLES) {
     const id = p[kind] && p[kind][r];
-    if (id && HERO_BY_ID[id] && HERO_BY_ID[id].roles.includes(r) && !used.has(id)) { out[kind][r] = id; used.add(id); }
+    if (id && HERO_BY_ID[id] && !used.has(id)) { out[kind][r] = id; used.add(id); }
   }
   for (const id of used) { const b = p.builds && p.builds[id]; out.builds[id] = HERO_BY_ID[id].builds.includes(b) ? b : HERO_BY_ID[id].rec; }
   const plan = LEGACY_PLAN[p.plan] || p.plan;
@@ -60,18 +60,28 @@ const presetHeroes = (p) => (p ? ROLES.flatMap((r) => [p.main[r], p.backup[r]]).
 // Which role a hero was meant for in this preset (main or backup), or null.
 export function presetRole(p, id) { if (!p) return null; for (const r of ROLES) if (p.main[r] === id || p.backup[r] === id) return r; return null; }
 
-// Role assignment that keeps each hero in its preferred role when the team allows it
-// (same rules as draft.assignRoles, which only guarantees *some* valid assignment).
+// Role assignment that keeps each hero in its preferred role when the team allows it (same rules as
+// draft.assignRoles, which only guarantees *some* valid assignment). A preferred role the hero doesn't
+// normally play is an off-role choice by the coach (a Dojo lineup slot, a draft role step): it is honoured
+// as given (the first hero asking for a role gets it). The others fill the rest on-role; if they can't, the
+// leftover roles go in order, so a team that went off-role always gets five lanes.
 function assignPreferred(ids, prefer = []) {
   const heroes = ids.map((id) => HERO_BY_ID[id]);
-  const used = new Set(), cur = []; let best = null;
+  const fixed = new Array(heroes.length).fill(null), taken = new Set();
+  heroes.forEach((x, i) => { const w = prefer[i]; if (w && ROLES.includes(w) && !x.roles.includes(w) && !taken.has(w)) { fixed[i] = w; taken.add(w); } });
+  const used = new Set(taken), cur = []; let best = null;
   (function go(i) {
     if (best) return;
     if (i === heroes.length) { best = cur.slice(); return; }
+    if (fixed[i]) { cur.push(fixed[i]); go(i + 1); cur.pop(); return; }
     const want = prefer[i], order = want && heroes[i].roles.includes(want) ? [want, ...heroes[i].roles.filter((r) => r !== want)] : heroes[i].roles;
     for (const r of order) if (!used.has(r)) { used.add(r); cur.push(r); go(i + 1); cur.pop(); used.delete(r); if (best) return; }
   })(0);
-  return best;
+  if (best) return best;
+  const out = fixed.slice(); // someone is off-role and nothing fits on-role: keep the prefs, then fit who can, then fill
+  heroes.forEach((x, i) => { if (!out[i]) { const w = prefer[i], r = [w, ...x.roles].find((q) => q && x.roles.includes(q) && !taken.has(q)); if (r) { out[i] = r; taken.add(r); } } });
+  heroes.forEach((_, i) => { if (!out[i]) { const r = ROLES.find((q) => !taken.has(q)); out[i] = r; taken.add(r); } });
+  return out;
 }
 // pref: { heroId: role } chosen in the draft's role steps (src/ui/draftview.js); it wins over the preset.
 export const teamRoles = (ids, preset, pref = null) => assignPreferred(ids, ids.map((id) => (pref && pref[id]) || presetRole(preset, id)));
@@ -86,9 +96,10 @@ export function pickScore(d, team, x) {
 }
 // The 3 best open heroes for one role (shown when the preset hero and its backup are gone). avail: the
 // coach may use the hero (champion ownership, src/unlocks.js).
-function recommendForRole(d, team, role, n = 3, avail = () => true) {
+function recommendForRole(d, team, role, n = 3, avail = () => true, preset = null, pref = null) {
   const tk = taken(d, team), mine = d.picks[team];
-  return HEROES.filter((x) => x.roles.includes(role) && !tk.has(x.id) && avail(x.id) && legal(d, team, x.id) && assignPreferred([...mine, x.id], [...mine.map(() => null), role]))
+  const fits = (id) => { const r = teamRoles([...mine, id], preset, { ...(pref || {}), [id]: role }); return !!r && r[r.length - 1] === role; };
+  return HEROES.filter((x) => x.roles.includes(role) && !tk.has(x.id) && avail(x.id) && legal(d, team, x.id) && fits(x.id))
     .map((x) => [pickScore(d, team, x) + (x.role === role ? 2 : 0), x.id]).sort((a, b) => b[0] - a[0] || (a[1] < b[1] ? -1 : 1)).slice(0, n).map((q) => q[1]);
 }
 // Threats worth banning: strong into your lineup (preset + picks so far), never your own preset heroes.
@@ -116,7 +127,7 @@ export function presetChoice(d, team, preset, avail = () => true, pref = null) {
       const roles = teamRoles([...mine, id], preset, pref);
       if (roles && roles[roles.length - 1] === role) return { id, role, backup };
     }
-    return { prompt: role, recs: recommendForRole(d, team, role, 3, avail) };
+    return { prompt: role, recs: recommendForRole(d, team, role, 3, avail, preset, pref) };
   }
   return null;
 }

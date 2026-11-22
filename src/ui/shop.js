@@ -11,6 +11,8 @@ import { kb, owns, ownedCount, inRotation, freeRotation, rotationEnds, picksLeft
 import { kobanSignedIn } from '../net/koban.js';
 import { heroRatings } from '../data/herostats.js';
 import { audio } from '../audio.js';
+import { statBars } from './heroui.js';
+import { heroInfo } from './heroinfo.js';
 
 const tap = () => audio.sfx('move', 0.4);
 const fmt = (n) => Math.round(n).toLocaleString('en-US');
@@ -110,12 +112,14 @@ function heroSheet(app, id, rerender) {
         h('div', { class: 'col', style: { gap: '3px', minWidth: 0 } }, h('div', { class: 'gold' }, x.title), h('div', { class: 'muted small' }, `${x.roles.map((r) => ROLE_LABEL[r]).join(' / ')} · ${CLANS[x.clan].name} · Difficulty ${diff}`),
           h('div', { class: 'chips' }, tierChip(t), h('span', { class: 'chipx plain' }, status)))),
       h('small', { class: 'muted' }, TIERS[t].desc),
+      statBars(id, true),
+      h('button', { class: 'btn hinfobtn', onclick: () => heroInfo(id) }, 'Abilities, talents, builds and lore ›'),
       h('div', { class: 'col', style: { gap: '6px' } },
         own ? null : buy,
         freePick ? h('button', { class: 'btn big', onclick: async () => { const err = await useFreePick(P, id); if (err) { toast(err, 2600); return; } audio.sfx('powerup', 0.7); toast(`${x.name} unlocked with a free pick!`, 2200); close(); rerender(); } }, 'Use a free pick') : null,
         tryable ? h('button', { class: 'btn' + (armed ? ' on' : ''), title: 'One match against the AI with this champion', onclick: () => { close(); armTrial(P, id); toast(`Try it: ${x.name} is in your next match vs AI.`, 2400); app.startVsAI('classic'); } }, armed ? 'Try it armed: play vs AI' : 'Try it vs AI (one match)') : null,
         !own && !tryable ? h('small', { class: 'muted center' }, 'Already tried: unlock it to play again.') : null,
-        h('button', { class: 'linkbtn', onclick: async () => { close(); const { showDojo } = await import('./dojo.js'); showDojo(app, { tab: 'heroes', hero: id }); } }, 'Abilities and matchups'))));
+        h('button', { class: 'linkbtn', onclick: async () => { close(); const { showDojo } = await import('./dojo.js'); showDojo(app, { tab: 'heroes', hero: id }); } }, 'Full hero page: matchups and skins'))));
   document.body.append(m);
 }
 function confirmBuy(app, id, done) {

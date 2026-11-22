@@ -1,6 +1,7 @@
 // Rival coaches in the UI and the vs-AI session: who you face (picked on the Rivals screen or rolled from the
 // difficulty's tier), how they draft and plan, the Rivals screen with your record against each, nemesis
 // callouts, and their lines at the draft and on the results screen. Records live in profile.d.rivals.
+import { heroFaceBtn } from './heroinfo.js';
 import { rivalMascot } from './beastsui.js';
 import { h, mount, face } from './dom.js';
 import { RIVALS, RIVAL_BY_ID, TIER_NAME, rivalFace, rivalLine, MOMENT_HABIT, BAN_HABIT } from '../data/rivals.js';
@@ -100,7 +101,7 @@ export function showRivals(app, sel = null) {
   };
   const cols = [0, 1, 2].map((t) => h('div', { class: 'rvcol' + (t === app.aiLevel ? ' cur' : '') }, h('div', { class: 'rvtier' }, TIER_NAME[t]), ...RIVALS.filter((x) => x.tier === t).map(card)));
   const rec = profile.rivalRec(r.id), rk = rankOf(r.elo);
-  const favs = r.draft.fav.map((id) => h('img', { src: face(id), alt: HERO_BY_ID[id].name, title: HERO_BY_ID[id].name }));
+  const favs = r.draft.fav.map((id) => heroFaceBtn(id, { app })); // tap: the hero's stats and abilities
   const streak = rec.s >= 2 ? `${rec.s} wins in a row` : rec.s <= -2 ? `${-rec.s} losses in a row` : '';
   const detail = h('div', { class: 'panel rvdetail' + (nem === r.id ? ' nem' : '') },
     h('div', { class: 'rvhead' }, rivalFaceImg(r, 52, 'big'),

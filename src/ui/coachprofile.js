@@ -1,6 +1,7 @@
 // Coach profiles upgrade (the public profile modal, src/ui/social.js showPlayer): the coach's club, a trophy cabinet
 // (Season Cup trophies, Weekend Cups, Club Wars, best division league, prestige, achievements), signature heroes
 // (most played, with win rate) and the highlight reel (their replays published to the Replay Hub).
+import { heroInfo } from './heroinfo.js';
 import { h, face } from './dom.js';
 import { HERO_BY_ID } from '../data/heroes.js';
 import { LEAGUES } from '../data/divisions.js';
@@ -21,7 +22,7 @@ export function profileExtras(app, r, close) {
     pub.prestige ? shelf(h('i', { class: 'lgdot pst' }), pub.prestige, 'Prestige') : null,
     shelf(icon('assets/img/items/Scroll.png'), pub.ach || 0, 'Achievements'))) : null;
   const sig = pub && pub.sig && pub.sig.length ? h('div', { class: 'psig' }, h('small', { class: 'muted' }, 'Signature heroes'), h('div', { class: 'psigl' },
-    ...pub.sig.filter(([id]) => HERO_BY_ID[id]).map(([id, g, w]) => h('div', { class: 'psh', title: `${HERO_BY_ID[id].name}: ${g} games, ${w} wins` }, h('img', { src: face(id), alt: '' }),
+    ...pub.sig.filter(([id]) => HERO_BY_ID[id]).map(([id, g, w]) => h('div', { class: 'psh hitap', title: `${HERO_BY_ID[id].name}: ${g} games, ${w} wins`, role: 'button', tabindex: '0', onclick: () => heroInfo(id) }, h('img', { src: face(id), alt: '' }),
       h('div', { class: 'col' }, h('b', {}, HERO_BY_ID[id].name), h('small', { class: 'muted' }, `${g} games · ${Math.round(w / Math.max(1, g) * 100)}% wins`)))))) : null;
   const reel = r.reel && r.reel.length ? h('div', { class: 'preel' }, h('small', { class: 'muted' }, 'Highlight reel'), h('div', { class: 'preell' },
     ...r.reel.map((x) => h('button', { class: 'reelit', title: 'Watch this replay', onclick: () => { close(); watchHub(app, x.code, () => app.menu()); } },

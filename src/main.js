@@ -537,7 +537,7 @@ class App {
   draftAct(heroId) {
     const s = this.session, t = currentTurn(s.draft);
     // role steps: the role this pick was made for (prep keeps it)
-    const dv = this.draftView, stepRole = t && t.act === 'pick' && dv && ownershipOn(s) && dv.step && HERO_BY_ID[heroId] && HERO_BY_ID[heroId].roles.includes(dv.step) ? dv.step : null;
+    const dv = this.draftView, stepRole = t && t.act === 'pick' && dv && ownershipOn(s) && dv.step && HERO_BY_ID[heroId] ? dv.step : null; // off-role too: any champion may play the step's role
     if (stepRole && s.pickRoles) s.pickRoles[heroId] = stepRole;
     if (s.mode === 'coop') {
       const turn = s.draft.turn;

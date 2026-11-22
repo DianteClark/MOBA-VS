@@ -3,7 +3,8 @@
 //   #detail   (followed hero)               #cmdbar    (decision tray + tactic cards + calls)  #brcol    (controls + minimap)
 import { h, mount, face, icon, fmtTime, toast, bossFace, kamiNow, objLabel, setText, setCss, setOff } from './dom.js';
 import { BUILDS } from '../data/items.js';
-import { PERSONALITIES } from '../data/heroes.js';
+import { PERSONALITIES, ROLE_LABEL } from '../data/heroes.js';
+import { heroInfo, closeHeroInfo } from './heroinfo.js';
 import { TACTICS } from '../data/tactics.js';
 import { CMD, DRAGON_INFO, TEAM_NAME, TICK_RATE, OBJ_NAME, WEATHER, CLANS, xpNeeded } from '../sim/constants.js';
 import { MOMENTS } from '../sim/moments-coach.js';
@@ -325,7 +326,7 @@ export class Hud {
   buildFoeStrip() {
     const el = document.getElementById('foestrip'); if (!el) return;
     this.foeCells = this.g.teams[1 - this.view].heroes.map((x) => {
-      const t = h('b', {}); const c = h('div', { class: 'foe', title: x.def.name }, h('img', { src: face(x.heroId) }), t);
+      const t = h('b', {}); const c = h('div', { class: 'foe', title: `${x.def.name}: tap for details`, role: 'button', tabindex: '0', onclick: () => this.openPop(x, c) }, h('img', { src: face(x.heroId) }), t); // tap: the hero card (Info: stats, abilities)
       c._x = x; c._t = t; return c;
     });
     mount(el, this.foeCells);
@@ -485,6 +486,7 @@ export class Hud {
           h('div', { class: 'pchips' }, h('span', { class: 'pchip', style: { color: CLANS[x.def.clan].color, borderColor: CLANS[x.def.clan].color } }, CLANS[x.def.clan].name),
             h('span', { class: 'pchip', style: { color: pers.color, borderColor: pers.color } }, pers.name),
             h('span', { class: 'pchip', style: { color: BUILDS[x.build].color, borderColor: BUILDS[x.build].color } }, BUILDS[x.build].name))),
+        h('button', { class: 'chip hinfobtn', title: 'Ratings, abilities, talents and lore', onclick: () => heroInfo(x.heroId, { note: `Playing ${ROLE_LABEL[x.role] || x.role}${x.def.roles.includes(x.role) ? '' : ' (off-role)'}` }) }, 'Info'),
         h('button', { class: 'x', onclick: () => this.closePop() }, 'X')),
       h('div', { class: 'pdesc' }, pers.desc),
       h('div', { class: 'pbarrow' }, h('span', {}, 'HP'), h('div', { class: 'pbar hp' }, els.hp)),
@@ -526,7 +528,7 @@ export class Hud {
   // Online quick chat (non-sim messages; see quickchat.js).
   enableChat(send, opts) { if (!this.chat) this.chat = new QuickChat(this, send, opts); return this.chat; }
   disableChat() { if (this.chat) { this.chat.destroy(); this.chat = null; } }
-  destroy() { clearTimeout(this._goalT); if (Hud.current === this) Hud.current = null; this.closePop(); if (this.tips) this.tips.destroy(); this.alerts.destroy(); this.att.destroy(); this.disableChat(); clearTimeout(this._bt); document.getElementById('hud').classList.remove('bannering'); window.removeEventListener('pointerdown', this._popClose, true); }
+  destroy() { clearTimeout(this._goalT); if (Hud.current === this) Hud.current = null; this.closePop(); closeHeroInfo(); if (this.tips) this.tips.destroy(); this.alerts.destroy(); this.att.destroy(); this.disableChat(); clearTimeout(this._bt); document.getElementById('hud').classList.remove('bannering'); window.removeEventListener('pointerdown', this._popClose, true); }
   // The AI's own short reason for what it is doing (hero.why, e.g. "lane: hold behind wave"), for your own
   // heroes and spectators only: an enemy's reason would leak what the fog hides.
   whyText(x) {
