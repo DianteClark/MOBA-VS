@@ -145,7 +145,8 @@ export function campaignResults(app, s, r) {
     if (outro) { showStory(outro.outro, `Chapter ${outro.n}: ${outro.name}`, () => { markChapter(outro.n, 2); goMap(nextCh); }); return; }
     goMap(nextCh);
   };
-  const goMap = (n) => { audio.music('menu'); app.session = null; showCampaign(app, n); const nm = r.next; if (nm && r.out.won) showBriefing(app, nm); };
+  // the map of the next mission's chapter (its story first when new), then that mission's briefing
+  const goMap = (n) => { audio.music('menu'); app.session = null; const story = chapterOpen(n) && !chapterSeen(n, 1); showCampaign(app, n); const nm = r.next; if (nm && r.out.won && !story) showBriefing(app, nm); };
   const won = o.won;
   const panel = h('div', { class: 'panel cpres' + (won ? ' won' : '') },
     h('div', { class: 'cprhead' }, h('img', { src: rivalFace(s.rival), alt: '' }),
