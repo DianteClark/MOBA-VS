@@ -9,7 +9,7 @@
 //   PASSIVE = no coach at all (no calls, moments or tactics), defaultPrep (each hero's recommended build,
 //             the Balanced plan, the default deck), auto talents (the game's own pick when nobody touches
 //             the talent tray). This is a player who drafts and then only watches.
-// Matches use the live match settings (match depth on, Living World on).
+// Matches use the live match settings (match depth on, Living World and Bosses & Beasts on; --noliving: neither).
 // Heroes come from shuffled per-role decks (even coverage); in a share P of matchups (default 0.4) one random
 // cross-role duo is put on a random team so duo dependence can be measured.
 // Report: per hero sharp/passive win rate, both centred on their condition's mean, the gap (sharp - passive,
@@ -29,7 +29,7 @@ if (!isMainThread) {
     const prep = (t) => { const ids = job.teams[t], other = job.teams[1 - t]; return t === sharp ? aiPrep(ids, other) : defaultPrep(ids); };
     const teams = [prep(0), prep(1)];
     const coach = [sharp === 0, sharp === 1];
-    const g = new Game({ seed: job.seed, map: MAPS[job.seed % 4], ...(workerData.living ? { living: 1 } : {}), depth: true, coach, coachLevel: [2, 2], teams });
+    const g = new Game({ seed: job.seed, map: MAPS[job.seed % 4], ...(workerData.living ? { living: 1, beasts: 1 } : {}), depth: true, coach, coachLevel: [2, 2], teams });
     while (!g.over) { g.step([]); g.fx.length = 0; }
     const out = { seed: job.seed, sharp, winner: g.winner, min: +(g.time / 60).toFixed(2), plans: g.teams.map((t) => g.cfg.teams[t.id].plan || 'balanced'),
       teams: g.teams.map((t) => ({ comp: t.comp && t.comp.active ? t.comp.id : null, duos: (g.duoLinks && g.duoLinks[t.id] || []).map((l) => l.duo.id),
