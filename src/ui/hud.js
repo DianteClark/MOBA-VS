@@ -27,6 +27,7 @@ import { EVENT_BY_ID } from '../data/events.js';
 import { canCommand, HERO_CMDS } from '../sim/coop.js';
 import { COOP_COL, coachOf } from '../coop-room.js';
 import { Depth } from './depth.js';
+import { placeName, fightClusters, followFight, laneFront, towerName } from '../world/places.js';
 import { talentIcons, talentKey } from './talentui.js';
 
 const LANE_L = { top: 'Top', mid: 'Mid', bot: 'Bot' };
@@ -149,7 +150,7 @@ export class Hud {
     if (this.fogBtn) this.fogBtn.classList.toggle('on', this.r.fogOn);
   }
   toggleDirector() { this.director = !this.director; if (this.director) this.r.follow = null; this.refreshCtrl(); }
-  manualCam() { if (this.director) { this.director = false; this.refreshCtrl(); } }
+  manualCam() { if (this.fightCam) this.fightCam.track = false; if (this.director) { this.director = false; this.refreshCtrl(); } }
   selectHero(hero) {
     if (this.r.follow === hero.id) { this.r.follow = null; this.sel = null; }
     else { this.r.follow = hero.id; this.sel = hero; if (!hero.alive) { this.r.cam.x = hero.x; this.r.cam.y = hero.y; } }
@@ -215,7 +216,12 @@ export class Hud {
     if (c.obj) { const p = c.obj === 'dragon' ? W.pits.kami : W.pits.kraken; return [p.x, p.y]; }
     if (c.type === 'shrine' && c.shrine !== undefined) { const s = this.g.shrines[c.shrine]; return [s.x, s.y]; }
     if (c.type === 'focus' || (c.type === 'permit' && c.target)) { const u = this.g.byId(c.target); if (u) return [u.x, u.y]; }
-    if (c.lane) { const p = W.lanePoint(c.lane, 0.5); return [p.x, p.y]; }
+    if (c.lane && W.laneNames.includes(c.lane)) { // where the call plays out: the wave front (a gank: the enemy laner we can see there)
+      const team = c.team === 0 || c.team === 1 ? c.team : Math.max(0, this.my), vis = this.g.vision[team];
+      const foe = c.type === 'gank' && this.g.teams[1 - team].heroes.filter((e) => e.alive && vis && vis.has(e.id) && W.distToLane(c.lane, e) < 350)
+        .sort((a, b) => W.laneProgress(c.lane, a) * (team ? -1 : 1) - W.laneProgress(c.lane, b) * (team ? -1 : 1))[0]; // the deepest one
+      const p = foe || laneFront(this.g, team, c.lane); return [p.x, p.y];
+    }
     return [this.r.cam.x, this.r.cam.y];
   }
 
@@ -225,6 +231,7 @@ export class Hud {
     this.processEvents();
     if (!this.planShown) planReveal(this); // both game plans, revealed at kickoff
     if (this.director) this.directorCam(dt);
+    this.trackFight(dt);
     this.applySlow();
     this.alerts.place();
     this.r.avoid = this.alerts.panelRects(); // cached 250 ms: callouts and chat bubbles keep clear of the HUD
@@ -482,7 +489,7 @@ export class Hud {
     const w = String(x.why).replace(/\bhp\b/g, 'HP');
     return 'Why: ' + w[0].toUpperCase() + w.slice(1);
   }
-  taskLabelEnemy(x) { return this.g.tick - x.lastHitHero < TICK_RATE * 1.5 ? 'Fighting!' : `Seen ${LANE_L[this.g.world.closestLane(x)]}`; }
+  taskLabelEnemy(x) { return this.g.tick - x.lastHitHero < TICK_RATE * 1.5 ? 'Fighting!' : `Seen ${placeName(this.g.world, x, { my: this.my, g: this.g }).tag}`; }
   missingText(x) {
     const ls = this.g.lastSeen[this.view][x.id];
     if (!ls) return 'Unseen';
@@ -556,7 +563,7 @@ export class Hud {
         case 'shrine': this.ticker(`${TEAM_NAME[e.team]} captured a shrine`, e.team === 0 ? 'b' : 'r', 2); break;
         case 'weather': if (g.tick <= 5 && g.event && EVENT_BY_ID[g.event]) { const ev = EVENT_BY_ID[g.event]; this.ticker(`Weekly event · ${ev.name}: ${ev.short}`, 'n', 0); }
           if (g.tick > 5) { const W_ = WEATHER[e.weather]; this.ticker(`Weather: ${W_.name}${W_.desc ? ' — ' + W_.desc : ''}`, 'n', 0); } break;
-        case 'tower': this.ticker(`${TEAM_NAME[e.team]} destroyed a ${LANE_L[e.lane] || 'base'} tower`, e.team === 0 ? 'b' : 'r', 2); break;
+        case 'tower': this.ticker(`${TEAM_NAME[e.team]} destroyed the ${towerName(g.world, e)}`, e.team === 0 ? 'b' : 'r', 2); break;
         case 'inhib': this.ticker(`${TEAM_NAME[e.team]} broke the ${LANE_L[e.lane]} gate!`, e.team === 0 ? 'b' : 'r', 3); this.banner('GATE DESTROYED', TEAM_COL[e.team]); break;
         case 'inhibRespawn': this.ticker(`${TEAM_NAME[e.team]} ${LANE_L[e.lane]} gate restored`, 'n', 0); break;
         case 'spawn': this.ticker(`${e.obj === 'dragon' ? DRAGON_INFO[e.element].name : OBJ_L[e.obj]} has awakened`, 'act', 2); break;
@@ -675,11 +682,21 @@ export class Hud {
   }
   holding() { const R = this.runner, g = this.g; return !!(R.ht && !R.htDone) || (g.halftimeTick >= 0 && g.tick >= g.halftimeTick - TICK_RATE * 4 && g.tick <= g.halftimeTick + TICK_RATE * 2); }
   // ── fight cam: cut straight to a fight from its edge prompt ──
-  watchFight(x, y) {
+  // ids: the heroes in the fight. The camera keeps on their centroid while the fight moves (7s, or until the
+  // player pans, follows a hero or the fight ends).
+  watchFight(x, y, ids) {
     const r = this.r; r.follow = null; r.panTo = null; r.cam.x = x; r.cam.y = y; r.clampCam();
     this.director = false; this.refreshCtrl();
-    this.fightCam = { x, y, until: performance.now() + 7000, slowed: false };
+    this.fightCam = { x, y, ids: ids || [], track: !!(ids && ids.length), until: performance.now() + 7000, slowed: false };
     audio.sfx('move', 0.6);
+  }
+  trackFight(dt) {
+    const fc = this.fightCam, r = this.r;
+    if (!fc || !fc.track) return;
+    if (r.follow || r.panTo || performance.now() > fc.until) { fc.track = false; return; }
+    const c = followFight(r.cam, this.g, fc.ids, this.my >= 0 ? (u) => r.visible(u) : null, dt);
+    if (!c) { fc.track = false; return; }
+    fc.x = c.x; fc.y = c.y; fc.ids = c.ids; r.clampCam();
   }
   killfeed(killer, victim, assists) {
     if (!this.el.kf.offsetParent) { this.ticker(`${killer ? killer.def.name : 'Tower'} › ${victim.def.name}`, victim.team === 1 ? 'b' : 'r', 1); return; }
@@ -783,7 +800,10 @@ export class Hud {
         for (const k of ['dragon', 'baron', 'herald']) { const o = g.objectives[k]; if (o && o.alive && o.hp < o.maxHp && (a.x - o.x) ** 2 + (a.y - o.y) ** 2 < 500 * 500) s += 3; }
         if (s > bs) { bs = s; best = a; }
       }
-      if (best) this._dirTarget = { x: best.x, y: best.y };
+      // a live fight: frame the middle of everyone in it, not one hero at its edge
+      const f = best && fightClusters(g, (x) => this.r.visible(x)).find((q) => q.n >= 2 && (q.x - best.x) ** 2 + (q.y - best.y) ** 2 < 700 * 700);
+      if (f) this._dirTarget = { x: f.x, y: f.y };
+      else if (best) this._dirTarget = { x: best.x, y: best.y };
     }
     if (this._dirTarget) { const k = Math.min(1, dt * 2.5); this.r.cam.x += (this._dirTarget.x - this.r.cam.x) * k; this.r.cam.y += (this._dirTarget.y - this.r.cam.y) * k; }
   }
