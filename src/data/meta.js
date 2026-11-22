@@ -7,9 +7,9 @@
 // against the AI outside ranked online, cups and online casual (src/meta.js perksFor).
 
 // ── coach levels ──
-export const COACH_MAX = 40;
+const COACH_MAX = 40;
 // XP to go from level L to L+1: 150 + 25 L (level 10 ≈ 30 matches, level 24 (whole tree) ≈ 130).
-export const coachStep = (lv) => 150 + 25 * lv;
+const coachStep = (lv) => 150 + 25 * lv;
 export function coachLevelOf(xp = 0) {
   let lv = 1, need = coachStep(1), left = Math.max(0, xp);
   while (lv < COACH_MAX && left >= need) { left -= need; lv++; need = coachStep(lv); }

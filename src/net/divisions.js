@@ -24,4 +24,3 @@ export async function reportDivision(won, calls) {
   if (r) { cache = r; cacheAt = Date.now(); }
   return r;
 }
-export const divisionCache = () => cache;

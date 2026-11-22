@@ -23,7 +23,7 @@ export const GOALS = {
   win2: { text: 'Win 2 matches', n: 2, tier: 2, fam: 'win', inc: (m) => (m.won ? 1 : 0) },
   rushwin: { text: 'Win a Lane Rush match', n: 1, tier: 2, inc: (m) => (m.won && m.rush ? 1 : 0) },
 };
-export const GOAL_IDS = Object.keys(GOALS);
+const GOAL_IDS = Object.keys(GOALS);
 export const GOAL_REWARD = { xp: 100, allXp: 150 }; // season pass XP per goal, and for all three
 export const REROLLS = 1; // per day
 
@@ -72,7 +72,7 @@ export const STORY = [
 ];
 export const STORY_XP = 150; // season pass XP per story objective
 const day = (s) => Date.parse(s + 'T00:00:00Z');
-export const storyOpen = (e, now = Date.now()) => now >= day(e.start) && now < day(e.end) + 86400000;
+const storyOpen = (e, now = Date.now()) => now >= day(e.start) && now < day(e.end) + 86400000;
 export const storyAt = (now = Date.now()) => STORY.find((e) => storyOpen(e, now)) || null;
 export const storyNext = (now = Date.now()) => STORY.filter((e) => day(e.start) > now).sort((a, b) => day(a.start) - day(b.start))[0] || null;
 export const storyLeft = (e, now = Date.now()) => Math.max(0, Math.ceil((day(e.end) + 86400000 - now) / 86400000));

@@ -49,7 +49,7 @@ const ev = (g, ty) => g.events.filter((e) => e.type === ty);
   g.step([]); assert.ok(kaze.stats.asPct > 0 && kaze.stats.drPct > 0, 'Hold the Line: attack speed + damage reduction');
   while (g.teams[0].momentCd > g.tick) { g.step([]); g.fx.length = 0; }
   g.step([{ team: 0, type: 'moment', id: 'push' }]);
-  assert.deepEqual(Object.values(g.teams[0].siegeWaves), [2, 2, 2], 'Long March: two empowered waves per lane');
+  assert.deepEqual(g.teams[0].siegeWaves, { top: 2, bot: 2 }, 'Long March: two empowered waves in each side lane');
   assert.equal(g.teams[0].allOut, 0, 'Long March: no super minion');
 }
 // unknown variants are ignored; perks cannot be smuggled onto unknown ids

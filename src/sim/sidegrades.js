@@ -13,10 +13,9 @@ export const MOMENT_VARIANTS = {
     desc: 'Everyone heals 16% HP at once, shakes off slows and gains 25% tenacity for 6s. No cooldown reset.' },
   bulwark: { slot: 'rally', name: 'Hold the Line', icon: 'DefenseUpgrade', color: '#8fd3ff', short: '-15% dmg taken, +15% AS 6s',
     desc: 'The whole team takes 15% less damage and attacks 15% faster for 6s, and shakes off slows.' },
-  march: { slot: 'push', name: 'Long March', icon: 'Upgrade', color: '#ffb04a', short: 'Next 2 waves empowered',
-    desc: 'Your next two minion waves in every lane march empowered (+50% HP and damage), without a super minion.' },
+  march: { slot: 'push', name: 'Long March', icon: 'Upgrade', color: '#ffb04a', short: 'Side waves empowered x2',
+    desc: 'Your next two minion waves in both side lanes march empowered (+50% HP, damage and armor), without a super minion. Pressure the map instead of one push.' },
 };
-export const VARIANT_IDS = Object.keys(MOMENT_VARIANTS);
 // Sanitized variant map for a team config: only known variants in their own slot.
 export function momentVariants(mv) {
   if (!mv || typeof mv !== 'object') return null;
@@ -36,7 +35,8 @@ export function applyVariant(g, team, v, alive) {
     if (!alive.length) return false;
     for (const h of alive) { g.addBuff(h, { drPct: 0.15, asPct: 0.15 }, 6, 'bulwark'); h.slows = []; g.fx.push({ kind: 'shield', id: h.id }); }
   } else if (v === 'march') {
-    for (const ln of g.world.laneNames) team.siegeWaves[ln] = Math.max(team.siegeWaves[ln] || 0, 2);
+    const L = g.world.laneNames, side = L.length > 1 ? L.filter((ln) => ln !== 'mid') : L; // one-lane maps: that lane
+    for (const ln of side) team.siegeWaves[ln] = Math.max(team.siegeWaves[ln] || 0, 2);
     const nx = g.world.nexus[team.id];
     g.fx.push({ kind: 'fx', name: 'boost', x: nx.x, y: nx.y, s: 2.4 });
   } else return false;

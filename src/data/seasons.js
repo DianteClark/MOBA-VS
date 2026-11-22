@@ -32,8 +32,6 @@ export function seasonAt(now = Date.now()) {
   return s;
 }
 export const seasonById = (id) => SEASONS.find((x) => x.id === id) || null;
-export const nextSeason = (s) => SEASONS.find((x) => x.id === s.id + 1) || null;
-export function daysUntil(s, now = Date.now()) { return Math.max(0, Math.ceil((day(s.start) - now) / 86400000)); }
 export function daysLeft(s, now = Date.now()) { return Math.max(0, Math.ceil((day(s.end) + 86400000 - now) / 86400000)); }
 
 // Ranked tiers (Bronze → Kami) are derived from the season Elo rating: see ranks.js.
@@ -82,7 +80,7 @@ export const TITLES = {
   ...S2_TITLES, ...META_TITLES,
 };
 // Season 1 track: level → reward.
-export const TRACK = {
+const TRACK = {
   2: { kind: 'title', id: 'shotcaller' },
   3: { kind: 'skin', id: 'spirit' },
   4: { kind: 'skin', id: legKey('kaze') },
