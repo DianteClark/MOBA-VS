@@ -17,3 +17,8 @@
 @keyframes irblink { 50% { opacity: 0.2; } }
 @media (prefers-reduced-motion: reduce) { .irchip, .irpip { animation: none; } .irdot { animation: none; } }
 .reduce-motion .irchip, .reduce-motion .irpip, .reduce-motion .irdot { animation: none; }
+/* Living World objective timers: on compact screens (one row, three cells at most) the Yokai Parade lives on the minimap only,
+   and the Tengu shows from 30s before it lands */
+@media (max-width: 999px), (max-height: 599px) {
+  #objtimers .ot.lw-yokai, #objtimers .ot.lw-boss:not(.up):not(.soon) { display: none; }
+}

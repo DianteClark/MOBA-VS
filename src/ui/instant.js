@@ -29,7 +29,7 @@ export class InstantReplay {
     const ev = g.events;
     for (; this.evIdx < ev.length; this.evIdx++) {
       const e = ev[this.evIdx];
-      if (e.type === 'kill') { this.kills.push(e); this.big = Math.max(this.big || 0, 1); }
+      if (e.type === 'kill') this.kills.push(e);
       else if ((e.type === 'objective' && (e.obj === 'baron' || e.obj === 'boss' || (e.obj === 'dragon' && e.element === 'elder'))) || e.type === 'tamed') this.mark(e, 3);
     }
     const now = g.tick;
@@ -52,20 +52,36 @@ export class InstantReplay {
     this.showChip();
   }
 
-  // ───────── chip + panel (anchored by the minimap: below it on phones, above it on desktop) ─────────
-  anchor(w, hh) {
-    const mm = document.getElementById('mm').getBoundingClientRect(), top = mm.top < window.innerHeight / 2;
-    const brc = document.getElementById('brcol').getBoundingClientRect();
-    return { right: Math.max(4, window.innerWidth - mm.right), top: top ? mm.bottom + 6 : Math.max(4, brc.top - 6 - hh), w, h: hh };
+  // ───────── chip + panel, by the minimap (below it on phones; above or beside it on desktop), clear of the HUD ─────────
+  // Tries each spot at the wanted size, then smaller (down to `min` wide), and takes the first that overlaps no panel.
+  anchor(w, hh, min) {
+    const R = (id) => { const e = document.getElementById(id); const r = e && e.offsetParent !== null ? e.getBoundingClientRect() : null; return r && r.width > 1 ? r : null; };
+    const mm = R('mm'), brc = R('brcol'), W = window.innerWidth, H = window.innerHeight;
+    if (!mm || !brc) return { left: W - w - 8, top: 60, w, h: hh };
+    const busy = ['enemyteam', 'killfeed', 'cmdbar', 'topcenter', 'myteam', 'foestrip', 'brcol', 'banner'].map(R).filter(Boolean);
+    for (const kid of document.getElementById('cmdbar').children) { const r = kid.getBoundingClientRect(); if (r.width > 1) busy.push(r); }
+    const free = (x, y, ww, hhh) => x >= 2 && y >= 2 && x + ww <= W - 2 && y + hhh <= H - 2 && !busy.some((r) => x < r.right + 4 && x + ww > r.left - 4 && y < r.bottom + 4 && y + hhh > r.top - 4);
+    const k = hh / w;
+    for (let ww = w; ww >= (min || w); ww -= 16) {
+      const h2 = Math.round(ww * k);
+      const spots = [[mm.right - ww, mm.bottom + 6], [brc.right - ww, brc.top - 6 - h2], [brc.left - 8 - ww, mm.bottom - h2], [mm.left - 8 - ww, mm.top]];
+      for (const [x, y] of spots) if (free(x, y, ww, h2)) return { left: Math.round(x), top: Math.round(y), w: ww, h: h2 };
+    }
+    return { left: Math.round(mm.right - w), top: Math.round(mm.top < H / 2 ? mm.bottom + 6 : brc.top - 6 - hh), w, h: hh };
   }
-  place(el, w, hh) { const a = this.anchor(w, hh); Object.assign(el.style, { right: a.right + 'px', top: a.top + 'px' }); }
+  place(el, w, hh, min) {
+    const a = this.anchor(w, hh, min);
+    Object.assign(el.style, { left: a.left + 'px', top: a.top + 'px', right: 'auto' });
+    if (w) Object.assign(el.style, { width: a.w + 'px', height: a.h + 'px' });
+    return a;
+  }
   showChip() {
     if (!this.chip) {
       this.chip = h('button', { class: 'irchip hud', title: 'Instant replay: the last 15s in slow motion', 'aria-label': 'Instant replay', onclick: (ev) => { ev.stopPropagation(); this.start(); } },
         h('span', { class: 'irplay' }), 'Replay');
       document.getElementById('hud').append(this.chip);
     }
-    this.place(this.chip, 0, 30);
+    this.place(this.chip, this.chip.offsetWidth || 96, 30);
     this.chip.classList.remove('out'); this.chip.classList.add('in');
   }
   hideChip() { this.offer = null; if (this.chip) { this.chip.remove(); this.chip = null; } }
@@ -84,7 +100,7 @@ export class InstantReplay {
     this.panel = h('div', { class: 'irpip hud', role: 'dialog', 'aria-label': 'Instant replay', style: { width: w + 'px', height: hh + 'px' }, onclick: () => this.stop() },
       cv, h('div', { class: 'irbar' }, h('span', { class: 'irdot' }), label, h('button', { class: 'irx', 'aria-label': 'Close the replay', onclick: (ev) => { ev.stopPropagation(); this.stop(); } }, '✕')));
     document.getElementById('hud').append(this.panel);
-    this.place(this.panel, w, hh);
+    this.place(this.panel, w, hh, 160);
     const rr = new Renderer(cv);
     rr.resize(true); rr.attach(g, this.my, this.app.renderer.map); rr.skins = this.app.renderer.skins;
     rr.fogOn = this.my >= 0; rr.showNames = false;
@@ -103,8 +119,8 @@ export class InstantReplay {
     if (P.ff) {
       const t0 = performance.now();
       while (g.tick < o.start && performance.now() - t0 < 6) P.r.skipTo(g.tick + 4);
-      if (g.tick < o.start) return;
-      P.ff = false; P.label.textContent = `Instant replay · ${slow()}x`; P.rr.prev.clear(); P.rr.evIdx = g.events.length; g.fx.length = 0;
+      if (g.tick < o.start) { P.rr.draw(1, dt); return; } // (the picture rewinds while it catches up)
+      P.ff = false; P.label.textContent = `Replay · ${slow()}x`; P.rr.prev.clear(); P.rr.evIdx = g.events.length; g.fx.length = 0;
     }
     P.r.update(dt * slow(), () => P.rr.snapshot(), () => P.rr.consume());
     // keep the fight in frame: the middle of the heroes near the spot (the coach's view only)

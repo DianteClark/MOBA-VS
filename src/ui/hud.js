@@ -336,7 +336,7 @@ export class Hud {
     const g = this.g;
     this.objCells = ['dragon', 'herald', 'baron', ...(g.living ? ['yokai', 'boss'] : [])].map((k) => {
       const img = h('img', { src: bossFace(k, kamiNow(g)) }), lab = h('span', {}), val = h('b', {});
-      const el = h('div', { class: 'ot', title: OBJ_L[k], onclick: () => this.my >= 0 && this.dock.open('objective') }, img, lab, val);
+      const el = h('div', { class: 'ot' + (k === 'yokai' || k === 'boss' ? ' lw-' + k : ''), title: OBJ_L[k], onclick: () => this.my >= 0 && this.dock.open('objective') }, img, lab, val);
       return { k, el, img, lab, val };
     });
     this.shrCells = g.shrines.map((sh) => { const dot = h('span', { class: 'shr' }), val = h('b', {}); return { sh, dot, val, el: h('div', { class: 'ot', title: 'River shrine', onclick: () => this.my >= 0 && this.dock.press('shrine') }, dot, val) }; });
