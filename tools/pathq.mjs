@@ -22,7 +22,7 @@ for (const map of (process.env.MAPS || CLASSIC_IDS.join(',')).split(',')) {
   for (let sd = 0; sd < SEEDS; sd++) {
     const rng = new Rng(map.length * 77 + sd); const used = new Set();
     const draft = () => ROLES.map((r) => { const pool = HEROES.filter((h) => h.role === r && !used.has(h.id) && CORE.includes(h.id)); const h = pool[rng.int(pool.length)]; used.add(h.id); return { id: h.id, role: r }; });
-    const g = new Game({ seed: 99 + sd, map, coach: [true, true], teams: [{ heroes: draft() }, { heroes: draft() }] });
+    const g = new Game({ seed: 99 + sd, map, coach: [true, true], ...(process.env.LIVING !== '0' ? { living: 1 } : {}), teams: [{ heroes: draft() }, { heroes: draft() }] }); // Living World walls unless LIVING=0
     g.navStats = { scrapes: 0 };
     const st = new Map();
     while (g.time < MIN * 60 && !g.over) {

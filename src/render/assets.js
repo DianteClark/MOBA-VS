@@ -27,11 +27,12 @@ export const PROJ = {
 export const AMB = { parrot_b: [0, 16, 16, 2], parrot_r: [16, 16, 16, 2], frog: [32, 16, 16, 2], fish: [48, 16, 16, 2], leaf: [64, 12, 7, 6], leafpink: [71, 12, 7, 6],
   snow: [78, 8, 8, 7], flag_b: [86, 16, 16, 4], flag_r: [102, 16, 16, 4], flower: [118, 16, 16, 4] };
 const UNITS = ['minion_blue_melee', 'minion_blue_caster', 'minion_blue_siege', 'minion_red_melee', 'minion_red_caster', 'minion_red_siege',
-  'camp_bluebuff', 'camp_redbuff', 'camp_wolf', 'camp_raptor', 'camp_gromp', 'camp_krug'];
+  'camp_bluebuff', 'camp_redbuff', 'camp_wolf', 'camp_raptor', 'camp_gromp', 'camp_krug',
+  'camp_moon', 'camp_wisp', 'yokai_lantern', 'yokai_skull', 'yokai_kappa']; // Living World: Moon Spirits, Yokai Parade
 const BOSS = ['dragon_green_body1', 'dragon_green_body2', 'dragon_green_bodyend', 'dragon_green_head', 'dragon_green_wing',
   'dragon_blue_body1', 'dragon_blue_body2', 'dragon_blue_bodyend', 'dragon_blue_head', 'dragon_blue_wing',
   'herald_idle', 'herald_walk', 'herald_hit', 'herald_faceset', 'baron_idle', 'baron_attack', 'baron_hit', 'baron_faceset',
-  'kami_infernal', 'kami_ocean', 'kami_mountain', 'kami_cloud', 'kami_elder'];
+  'kami_infernal', 'kami_ocean', 'kami_mountain', 'kami_cloud', 'kami_elder', 'tengu_idle', 'tengu_attack', 'tengu_hit', 'tengu_faceset', 'yokai_faceset'];
 const TILES = ['TilesetTowers', 'TilesetNature', 'TilesetFloor', 'TilesetWater', 'TilesetFloorDetail'];
 
 function load(key, src) {

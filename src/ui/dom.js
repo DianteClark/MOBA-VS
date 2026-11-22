@@ -43,7 +43,7 @@ export const face = (id) => FACE_SKIN[id] || `assets/img/faces/${id}.png`;
 export function setFaceSkins(map) { for (const k of Object.keys(FACE_SKIN)) delete FACE_SKIN[k]; Object.assign(FACE_SKIN, map || {}); }
 // Boss portraits: every Kami element has its own face; the Oni and the Kraken have one each.
 const KAMI_FACE = { infernal: 'kami_infernal', ocean: 'kami_ocean', mountain: 'kami_mountain', cloud: 'kami_cloud', elder: 'kami_elder' };
-export const bossFace = (k, el) => `assets/img/boss/${k === 'dragon' ? KAMI_FACE[el] || 'kami_elder' : k === 'herald' ? 'herald_faceset' : 'baron_faceset'}.png`;
+export const bossFace = (k, el) => `assets/img/boss/${k === 'dragon' ? KAMI_FACE[el] || 'kami_elder' : k === 'herald' ? 'herald_faceset' : k === 'boss' ? 'tengu_faceset' : k === 'yokai' ? 'yokai_faceset' : 'baron_faceset'}.png`;
 // The Kami that is up, or the one that wakes next.
 export const kamiNow = (g) => (g.objectives.dragon ? g.objectives.dragon.element : g.teams.some((t) => t.soul) ? 'elder' : g.nextDragon);
 export const icon = (name) => `assets/img/icons/${name}.png`;

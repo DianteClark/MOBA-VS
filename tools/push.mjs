@@ -28,7 +28,7 @@ if (has('keys')) {
   process.exit(0);
 }
 
-const API = (process.env.MOBAVS_API || '').replace(/\/$/, ''), TOKEN = process.env.MOBAVS_ADMIN;
+const API = (process.env.MOBAVS_API || '').replace(/\/$/, ''), TOKEN = (process.env.MOBAVS_ADMIN || '').trim();
 const vapid = { publicKey: (process.env.VAPID_PUBLIC || '').trim(), privateKey: (process.env.VAPID_PRIVATE || '').trim(), subject: process.env.VAPID_SUBJECT || 'mailto:owner@example.invalid' };
 if (!API || !TOKEN) { console.error('set MOBAVS_API and MOBAVS_ADMIN'); process.exit(2); }
 if (!dry && (!vapid.publicKey || !vapid.privateKey)) { console.error('set VAPID_PUBLIC and VAPID_PRIVATE (node tools/push.mjs --keys)'); process.exit(2); }

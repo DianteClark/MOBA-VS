@@ -57,18 +57,14 @@ html.hc { --panel: #000; --line: #f3ead8; --ink: #fff; --muted: #e8e2f0; --gold:
    .oh-left: the mirror. Phones in landscape get a 3x2 call grid under the tactic row. */
 @media (max-width: 999px), (max-height: 599px) {
   .oh-right #cmdbar, .oh-left #cmdbar { width: var(--ohw); align-items: stretch; }
-  html.oh-right, html.oh-left { --ohw: min(350px, 47vw); }
-  .oh-right .hand, .oh-left .hand { grid-auto-columns: minmax(30px, 46px) !important; }
-  .oh-right .tcard, .oh-left .tcard { flex: 0 1 46px !important; min-width: 0; }
+  html.oh-right, html.oh-left { --ohw: min(350px, max(47vw, 322px)); }
   .oh-right .handrow .meter, .oh-left .handrow .meter { padding: 2px 3px !important; }
-  .oh-right .handrow, .oh-left .handrow { grid-template-columns: auto minmax(0, 1fr) !important; }
   .oh-right #cmdbar { left: auto !important; right: calc(4px + var(--safe-r)); }
   .oh-left #cmdbar { right: auto !important; left: calc(4px + var(--safe-l)); }
   .oh-right .dock, .oh-left .dock { flex-direction: column !important; width: 100% !important; gap: 3px !important; }
   .oh-right .callrow, .oh-left .callrow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .oh-right .callrow::before, .oh-left .callrow::before { display: none; }
   .oh-right .call, .oh-left .call { min-height: 38px !important; flex-direction: row; gap: 4px; }
-  .oh-right .handrow, .oh-left .handrow { justify-content: stretch; }
   .oh-right .sheet, .oh-right .tray, .oh-left .sheet, .oh-left .tray { width: 100% !important; }
   .oh-right .sheet, .oh-left .sheet { max-height: calc(100vh - 250px - var(--safe-t) - var(--safe-b)); overflow-y: auto; }
   .oh-left .handrow { direction: rtl; } .oh-left .handrow > * { direction: ltr; }
