@@ -1,6 +1,15 @@
 // Patch notes, newest first. tools/season.mjs prepends an entry at each season rollover.
 export const PATCHES = [
   {
+    version: '25.1', season: 1, date: '2026-11-22', title: 'Any Lane',
+    notes: [
+      'Play any champion in any lane: lineups accept off-role picks (marked OFF), and every draft step has an "All champions" list.',
+      'Champion info everywhere: tap any hero in the draft, the Shop, the match, rivals or profiles to see ratings, abilities, talents, builds and lore, owned or not.',
+      'If the game cannot start, the loading screen now explains why and offers a one-tap reset.',
+    ],
+    heroes: [],
+  },
+  {
     version: '25.0', season: 1, date: '2026-11-22', title: 'Launch',
     highlights: ['Fresh start for everyone', '80 heroes', '8 maps', 'Story campaign'],
     notes: [
