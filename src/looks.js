@@ -2,6 +2,7 @@
 // Bosses & Beasts choices: minion family (troop) and scout animal (pet).
 // Sent in the hello / start / rematch metadata (never through the sim or its command log) so the opponent
 // sees your skins in the match and your emote on the results. Everything received is re-validated here.
+import { myPfp, cleanPfpId } from './data/portraits.js';
 import { HERO_BY_ID } from './data/heroes.js';
 import { SKINS, BANNERS } from './data/seasons.js';
 import { EMOTES, BORDERS } from './data/cosmetics.js';
@@ -12,7 +13,7 @@ import { weekEvent } from './data/events.js';
 
 export function myLooks() {
   const p = profile;
-  return { skins: p.skinsFor(Object.keys(p.d.equip.skins)), emote: p.emote, banner: p.d.equip.banner, border: p.border, ...myBeasts() };
+  return { skins: p.skinsFor(Object.keys(p.d.equip.skins)), emote: p.emote, banner: p.d.equip.banner, border: p.border, pfp: myPfp(p), ...myBeasts() };
 }
 // The equipped scout animal and minion family (only ones the profile owns; no family = the map's own).
 export function myBeasts(event) {
@@ -29,7 +30,7 @@ export function cleanSkins(x) {
 export function cleanLooks(x) {
   if (!x || typeof x !== 'object') return null;
   const key = (v, table) => (typeof v === 'string' && Object.prototype.hasOwnProperty.call(table, v) ? v : null);
-  return { skins: cleanSkins(x.skins), emote: key(x.emote, EMOTES), banner: key(x.banner, BANNERS), border: key(x.border, BORDERS), ...cleanBeasts(x) };
+  return { skins: cleanSkins(x.skins), emote: key(x.emote, EMOTES), banner: key(x.banner, BANNERS), border: key(x.border, BORDERS), pfp: cleanPfpId(x.pfp), ...cleanBeasts(x) };
 }
 // The skins each team shows in a match: own team from the profile (via its prep); the other side from its prep,
 // else its hello looks. Restricted to the heroes actually in the match.

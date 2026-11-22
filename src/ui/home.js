@@ -1,4 +1,8 @@
 // Front end: home, season pass, profile (banners/titles/borders), Season Cup bracket, patch notes, and post-match progression.
+import { kobanChip, kobanRow, openShop } from './shop.js';
+import { myAvatar, pickPortrait, avatar } from './avatar.js';
+import { rankedReady, ownedCount, RANKED_OWNED } from '../unlocks.js';
+import { PORTRAITS } from '../data/portraits.js';
 import { KAMI } from '../sim/beasts.js';
 import { kamiFace } from '../data/beasts.js';
 import { h, mount, face, emptyState, fmtTime, MODE_LABEL, toast } from './dom.js';
@@ -97,6 +101,7 @@ export function showHome(app) {
     h('div', { class: 'h2top' },
       h('div', { class: 'h2brand' }, h('div', { class: 'title' }, 'MOBA-VS'), h('small', {}, `v${pt.version}`)),
       h('div', { class: 'h2coach' + (p.border ? ' cbd' + (BORDERS[p.border].shine ? ' shine' : '') : ''), style: { background: p.banner.bg, ...(borderStyle(p.border) || {}) }, title: 'Your coach card: tap for rank, mastery and banners', onclick: (e) => { if (e.target.tagName !== 'INPUT') { audio.sfx('move', 0.5); showProfile(app); } } },
+        h('button', { class: 'hpfp', title: 'Profile picture', 'aria-label': 'Change profile picture', onclick: (e) => { e.stopPropagation(); audio.sfx('move', 0.5); pickPortrait(() => showHome(app)); } }, myAvatar()),
         rankBadge(rk),
         h('div', { class: 'cc' },
           h('input', { class: 'cname', value: app.name, maxlength: 12, title: 'Tap to rename', 'aria-label': 'Coach name', oninput: (e) => app.setName(e.target.value) }),
@@ -106,6 +111,7 @@ export function showHome(app) {
         h('small', {}, h('span', { class: 'tdk' }, 'TODAY'), ` · ${td.done}/${td.total} goals · `, h('span', { style: { color: td.league.color } }, td.league.name.replace(' League', ''))),
         h('b', {}, s.name), h('div', { class: 'slv' }, h('span', {}, `Pass ${p.level}`), bar(p.levelProgress, s.color))),
       h('div', { class: 'h2icons' },
+        kobanChip(() => openShop(app)),
         fs ? h('button', { class: 'h2icon', title: 'Full screen', 'aria-label': 'Full screen', onclick: () => window.toggleFullscreen() }, h('i', { class: 'fsicon' })) : null,
         h('button', { class: 'h2icon', title: 'Settings', 'aria-label': 'Settings', onclick: () => { audio.sfx('move', 0.5); showSettings(app); } }, h('img', { src: 'assets/img/icons/Permutation.png', alt: '' })))),
     h('div', { class: 'h2main' },
@@ -125,7 +131,9 @@ export function showHome(app) {
           h('div', { class: 'seg2 h2size', role: 'radiogroup', 'aria-label': 'Team size' }, ...[['1v1', '1v1'], ['2v2', '2v2']].map(([k, l]) =>
             h('button', { class: 'chip' + (queueSize() === k ? ' on' : ''), role: 'radio', 'aria-checked': String(queueSize() === k), title: k === '2v2' ? 'Two coaches a side (casual)' : 'One coach a side', onclick: () => { audio.sfx('move', 0.4); setQueueSize(k); showHome(app); } }, l)))),
         h('div', { class: 'seg3', role: 'radiogroup', 'aria-label': 'Queue' }, ...[['ranked', 'Ranked'], ['casual', 'Casual'], ['rush', 'Rush']].map(([k, l]) =>
-          h('button', { class: 'chip' + ((duo ? k === 'casual' : qm === k) ? ' on' : ''), role: 'radio', 'aria-checked': String(duo ? k === 'casual' : qm === k), disabled: duo && k !== 'casual', title: duo ? (k === 'casual' ? '2v2 is casual' : '2v2 is casual only') : QDESC[k], onclick: () => { app.setQueueMode(k); showHome(app); } }, l))),
+          h('button', { class: 'chip' + ((duo ? k === 'casual' : qm === k) ? ' on' : '') + (k === 'ranked' && !rankedReady(p) ? ' rlock' : ''), role: 'radio', 'aria-checked': String(duo ? k === 'casual' : qm === k), disabled: duo && k !== 'casual',
+            title: duo ? (k === 'casual' ? '2v2 is casual' : '2v2 is casual only') : k === 'ranked' && !rankedReady(p) ? `Ranked unlocks at ${RANKED_OWNED} champions (you own ${ownedCount(p)})` : QDESC[k], onclick: () => { app.setQueueMode(k); showHome(app); } }, l,
+            k === 'ranked' && !rankedReady(p) && !duo ? h('small', { class: 'rprog' }, `${ownedCount(p)}/${RANKED_OWNED}`) : null))),
         h('button', { class: 'btn big h2go net', onclick: () => app.findMatch() }, duo ? 'Find 2v2' : 'Find Match'),
         h('small', { class: 'offtag' }, 'Offline: play vs AI or Lane Rush. Online returns with your connection.'),
         h('div', { class: 'h2row h2row4' },
@@ -206,7 +214,8 @@ export function showProfile(app, tab = 'rank', all = false) {
   else if (tab === 'friends') body = friendsTab(app);
   else if (tab === 'achievements') body = achievementsTab();
   else body = collectionTab(app, sec, (k) => { const y = screen().scrollTop; showProfile(app, 'collection', k); screen().scrollTop = y; });
-  mount(screen(), h('div', { class: 'subscreen' }, h('div', { class: 'shead' }, back(app), h('h2', {}, 'Profile'), h('div')), tabs, body));
+  const pic = h('button', { class: 'hpfp ppfphead', title: 'Profile picture', 'aria-label': 'Change profile picture', onclick: () => { audio.sfx('move', 0.5); pickPortrait(() => showProfile(app, tab, all)); } }, myAvatar());
+  mount(screen(), h('div', { class: 'subscreen' }, h('div', { class: 'shead' }, back(app), h('h2', {}, 'Profile'), pic), tabs, body));
 }
 
 // ───────────── Season Cup ─────────────
@@ -265,11 +274,13 @@ export function progressPanel(sum, cupOut) {
     rankRow(sum),
     masteryRow(sum),
     coachRow(sum.meta),
+    kobanRow(sum.koban),
     h('div', { class: 'prow' }, h('div', { class: 'lvb' }, `Lv ${sum.lvAfter}`),
       h('div', { class: 'col', style: { gap: '3px', flex: 1 } }, h('div', { class: 'xps' }, ...sum.xpParts.map(([l, v]) => h('span', {}, `${l} +${v}`))), bar(profile.levelProgress, profile.season.color))),
     sum.lvAfter > sum.lvBefore ? h('div', { class: 'gold center' }, `Season Pass level ${sum.lvAfter}!`) : null,
     [...sum.unlocks, ...((cupOut && cupOut.rewards) || [])].length ? h('div', { class: 'unlocks' }, ...[...sum.unlocks, ...((cupOut && cupOut.rewards) || [])].map((r) => h('div', { class: 'unlock' },
       r.kind === 'trophy' ? h('img', { src: item(r.id === 'gold' ? 'items/GoldCup' : 'items/SilverCup') }) : rewardIcon(r), h('span', {}, r.kind === 'trophy' ? (r.id === 'gold' ? 'Golden Cup!' : 'Silver Cup') : rewardName(r)), h('small', {}, 'Unlocked')))) : null,
+    sum.pfps && sum.pfps.length ? h('div', { class: 'unlocks' }, ...sum.pfps.map((id) => h('div', { class: 'unlock' }, avatar('m:' + id), h('span', {}, PORTRAITS[id].name), h('small', {}, 'Profile picture')))) : null,
     sum.ach && sum.ach.length ? h('div', { class: 'unlocks achunlocks' }, ...sum.ach.map((a) => h('div', { class: 'unlock' }, rewardIcon(a.reward), h('span', {}, `★ ${a.name}`), h('small', {}, rewardName(a.reward))))) : null,
     cupOut ? h('div', { class: 'center muted' }, cupOut.won ? (cupOut.round === 2 ? 'Season Cup champion!' : `You advance past the ${ROUND_NAMES[cupOut.round]}.`) : `Eliminated in the ${ROUND_NAMES[cupOut.round]}.`) : null);
 }

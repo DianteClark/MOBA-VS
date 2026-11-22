@@ -22,6 +22,8 @@ import { rivalDraftNote, rivalFaceImg } from './rivals.js';
 import { RIVAL_BY_ID } from '../data/rivals.js';
 import { draftLegal, draftWho, rolesLine, coachOf, COOP_COL } from '../coop-room.js';
 import { coopRoles, seatRoles } from '../sim/coop.js';
+import { ownershipOn, usable, access, openRoles, fitsRole, stepFor, ownedAutoPick } from '../unlocks.js';
+import { accessBadge } from './shop.js';
 
 const screen = () => document.getElementById('screen');
 export const AUTO_GRACE = 1.2; // seconds before a preset auto-pick locks in
@@ -31,12 +33,26 @@ export class DraftView {
 
   // Can this coach lock this hero now? (Co-op: it must fit one of their own open roles.)
   legal(id) { const s = this.app.session; return s.mode === 'coop' ? draftLegal(s, id) : legal(s.draft, s.myTeam, id); }
+  // ── role steps (champion ownership, src/unlocks.js) ──
+  openRoles() { return openRoles(this.app.session); }
+  fits(id, role) { return fitsRole(this.app.session, id, role, (x) => this.legal(x)); }
+  // Is this my pick turn with ownership on? Then the grid shows one role step at a time.
+  stepMode() { const s = this.app.session, t = currentTurn(s.draft); return !!t && t.act === 'pick' && !s.draft.done && s.mode !== 'watch' && this.app.myDraftTurn() && ownershipOn(s); }
+  // The current step's role (kept valid), with a loaner lent when nothing usable is left for it.
+  stepRole() { this.step = stepFor(profile, this.app.session, this.step, (x) => this.legal(x)); return this.step; }
+  // Ownership-aware timeout / auto choice for my pick (null for bans and sessions without ownership).
+  ownedAuto() {
+    if (!this.stepMode()) return null;
+    const c = ownedAutoPick(profile, this.app.session, this.step, (x) => this.legal(x));
+    if (c) this.step = c.role;
+    return c ? c.id : null;
+  }
   // REC / BAN? badges: best picks for the team, or the suggested bans.
   recommend(d, me, t) {
     if (!t || t.team !== me || d.done) return [];
     if (t.act === 'ban') return suggestedBans(d, me, this.app.session.preset);
-    const tk = taken(d, me);
-    return HEROES.filter((x) => !tk.has(x.id) && this.legal(x.id)).map((x) => [pickScore(d, me, x), x.id]).filter((q) => q[0] > 0)
+    const tk = taken(d, me), step = this.stepMode() ? this.stepRole() : null;
+    return HEROES.filter((x) => !tk.has(x.id) && (step ? usable(profile, this.app.session, x.id) && this.fits(x.id, step) : this.legal(x.id))).map((x) => [pickScore(d, me, x), x.id]).filter((q) => q[0] > 0)
       .sort((a, b) => b[0] - a[0] || (a[1] < b[1] ? -1 : 1)).slice(0, 3).map((q) => q[1]);
   }
   select(id) {
@@ -53,14 +69,14 @@ export class DraftView {
     const enemyPicks = d.picks[1 - Math.max(0, me)].map((id) => HERO_BY_ID[id]);
     const recs = myTurn ? this.recommend(d, me, t) : [];
     // a prompt for one role opens the grid on that role (once per turn)
-    if (s.pickPrompt && this.promptTurn !== d.turn) { this.promptTurn = d.turn; this.filter = s.pickPrompt.prompt; this.scroll = 0; this.sel = null; this.promptFilter = true; }
+    if (s.pickPrompt && this.promptTurn !== d.turn) { this.promptTurn = d.turn; this.filter = this.step = s.pickPrompt.prompt; this.scroll = 0; this.sel = null; this.promptFilter = true; }
     else if (!s.pickPrompt && this.promptFilter && this.promptTurn !== d.turn) { this.filter = 'all'; this.scroll = 0; this.promptFilter = false; }
     const prevGrid = document.querySelector('.draft .grid'); if (prevGrid) this.scroll = prevGrid.scrollTop;
 
     const teamBar = (team) => {
       const picks = d.picks[team], bans = d.bans[team];
       const split = coop && s.coop[team] && s.coop[team].seats === 2 ? s.coop[team] : null;
-      const roles = (split ? coopRoles(d, team, split.own) : team === me ? teamRoles(picks, s.preset) : assignRoles(picks)) || [];
+      const roles = (split ? coopRoles(d, team, split.own) : team === me ? teamRoles(picks, s.preset, s.pickRoles) : assignRoles(picks)) || [];
       const acting = t && t.team === team;
       const pickSlots = Array.from({ length: 5 }, (_, i) => {
         const id = picks[i], active = acting && t.act === 'pick' && i === picks.length;
@@ -91,12 +107,18 @@ export class DraftView {
       kamiCard(MAP_BY_ID[s.mapId], true), // Bosses & Beasts: what this map's Kami blesses
       ev ? h('div', { class: 'evname', style: { '--ec': ev.color }, title: ev.blurb }, ev.name) : null);
 
-    const POOL = HEROES;
-    const counts = { all: POOL.length }; for (const r of ROLES) counts[r] = POOL.filter((x) => x.roles.includes(r)).length;
+    // My pick with champion ownership: one role step at a time (Top → Support), only heroes I may use for it.
+    const steps = this.stepMode(), need = steps ? this.openRoles() : null, step = steps ? this.stepRole() : null;
+    if (steps) this.filter = step;
+    const own = ownershipOn(s) && me >= 0, mayUse = (id) => !own || usable(profile, s, id);
+    const POOL = steps ? HEROES.filter((x) => mayUse(x.id)) : HEROES;
+    const counts = { all: POOL.length }; for (const r of ROLES) counts[r] = POOL.filter((x) => x.roles.includes(r) && (!steps || !tk.has(x.id))).length;
     const hadFocus = this.searchEl && document.activeElement === this.searchEl.input;
     this.searchEl = searchBox(this.query, (q) => { this.query = q; this.filterGrid(); });
-    const tabs = h('div', { class: 'rtabs', role: 'tablist' }, ...['all', ...ROLES].map((r) => h('button', { class: 'rtab' + (this.filter === r ? ' on' : ''), role: 'tab',
-      onclick: () => { this.filter = r; this.scroll = 0; this.render(); } }, r === 'all' ? 'All' : ROLE_LABEL[r], h('small', {}, counts[r]))), clanChip(this.clan, (c) => { this.clan = c; this.scroll = 0; this.render(); }), this.searchEl);
+    const tabRoles = steps ? need : ['all', ...ROLES];
+    const tabs = h('div', { class: 'rtabs' + (steps ? ' steps' : ''), role: 'tablist' }, ...tabRoles.map((r, i) => h('button', { class: 'rtab' + (this.filter === r ? ' on' : ''), role: 'tab',
+      title: steps ? `Pick your ${ROLE_LABEL[r]}` : null, onclick: () => { this.filter = r; if (steps) this.step = r; this.scroll = 0; this.render(); } }, r === 'all' ? 'All' : (steps ? `${ROLES.indexOf(r) + 1} ` : '') + ROLE_LABEL[r], h('small', {}, counts[r]))),
+      clanChip(this.clan, (c) => { this.clan = c; this.scroll = 0; this.render(); }), this.searchEl);
     const banChips = myTurn && ban && recs.length ? h('div', { class: 'sugbans' }, h('span', { class: 'lab' }, 'Suggested bans'),
       ...recs.map((id) => h('button', { class: 'sugban' + (this.sel === id ? ' on' : ''), onclick: () => this.select(id) }, h('img', { src: face(id) }), HERO_BY_ID[id].name))) : null;
     const list = POOL.filter((x) => (this.filter === 'all' || x.roles.includes(this.filter)) && (!this.clan || x.clan === this.clan))
@@ -105,11 +127,11 @@ export class DraftView {
     const grid = h('div', { class: 'grid' }, ...list.map((x) => {
       const off = tk.has(x.id), bad = !off && myTurn && !ban && !this.legal(x.id);
       const ms = enemyPicks.length && !off ? matchupScore(x, enemyPicks).score : 0;
-      const pers = PERSONALITIES[x.pers], rec = recs.includes(x.id), mine = presetRole(s.preset, x.id);
-      return h('button', { class: 'hcard' + (off ? ' off' : '') + (bad ? ' bad' : '') + (this.sel === x.id ? ' sel' : '') + (rec ? ' rec' : ''), disabled: off, 'data-hero': x.id,
+      const pers = PERSONALITIES[x.pers], rec = recs.includes(x.id), mine = presetRole(s.preset, x.id), acc = own ? access(profile, s, x.id) : 'own';
+      return h('button', { class: 'hcard' + (off ? ' off' : '') + (bad ? ' bad' : '') + (this.sel === x.id ? ' sel' : '') + (rec ? ' rec' : '') + (!acc && !ban ? ' lockd' : ''), disabled: off, 'data-hero': x.id,
         style: { '--cc': CLANS[x.clan].color }, title: `${x.name} · ${CLANS[x.clan].name} · ${pers.name}`, onclick: () => { if (!off) this.select(x.id); } },
         h('div', { class: 'fwrap' }, h('img', { src: face(x.id) }), ms ? h('span', { class: 'score ' + (ms > 0 ? 'pos' : 'neg') }, (ms > 0 ? '+' : '') + ms) : null,
-          mine ? h('span', { class: 'mine', title: 'In your lineup' }, '★') : null, me >= 0 ? masteryBadge(profile.mastery(x.id).lv) : null),
+          mine ? h('span', { class: 'mine', title: 'In your lineup' }, '★') : null, me >= 0 ? masteryBadge(profile.mastery(x.id).lv) : null, own && acc !== 'own' ? accessBadge(acc) : null),
         rec ? h('span', { class: 'recb' + (ban ? ' banb' : '') }, ban ? 'BAN?' : 'REC') : null,
         h('div', { class: 'n' }, x.name));
     }));
@@ -162,7 +184,7 @@ export class DraftView {
     const id = this.sel;
     if (!id) {
       const split = s.mode === 'coop' && s.coop[me] && s.coop[me].seats === 2 ? s.coop[me] : null;
-      const have = split ? coopRoles(d, me, split.own).filter((_, i) => d.seats[me][i] === s.mySeat) : teamRoles(d.picks[Math.max(0, me)], s.preset) || [];
+      const have = split ? coopRoles(d, me, split.own).filter((_, i) => d.seats[me][i] === s.mySeat) : teamRoles(d.picks[Math.max(0, me)], s.preset, s.pickRoles) || [];
       const need = (split ? seatRoles(split.own, s.mySeat) : ROLES).filter((r) => !have.includes(r)).map((r) => ROLE_LABEL[r]);
       const who = s.mode === 'coop' && !d.done ? draftWho(s) : null, mateTurn = who && who.team === me && who.seat !== s.mySeat ? coachOf(s, me, who.seat) : null;
       return wrap('empty', [
@@ -172,17 +194,18 @@ export class DraftView {
         h('div', { class: 'muted small' }, myTurn && t.act === 'ban' ? (recs.length ? 'Suggested bans counter your lineup.' : 'Tap a hero to ban it.')
           : recs.length && myTurn ? 'Heroes marked REC suit your draft.' : 'Tap a hero to see abilities and matchups.'),
         !s.preset && me >= 0 && !d.done && s.mode !== 'coop' ? h('div', { class: 'muted small' }, 'Tip: set up a lineup in the Dojo and your picks lock in automatically.') : null,
+        myTurn && t.act === 'pick' && this.step && s.loaners && s.loaners[this.step] ? h('div', { class: 'loanline' }, accessBadge('loan'), ` ${HERO_BY_ID[s.loaners[this.step]].name} is on loan for your ${ROLE_LABEL[this.step]} this match.`) : null,
         rivalDraftNote(s)]);
     }
     const x = HERO_BY_ID[id], pers = PERSONALITIES[x.pers], clan = CLANS[x.clan];
-    const ban = t && t.act === 'ban', canAct = myTurn && this.legal(id), mu = matchupScore(x, enemyPicks);
+    const ban = t && t.act === 'ban', mayUse = ban || !ownershipOn(s) || usable(profile, s, id), canAct = myTurn && this.legal(id) && mayUse, mu = matchupScore(x, enemyPicks);
     const inLineup = presetRole(s.preset, id);
     return wrap('info' + (ban ? ' isban' : ''), [
       h('div', { class: 'ihead' }, h('div', { class: 'face' }, h('img', { src: face(id) })),
         h('div', { class: 'icol' }, h('h2', {}, x.name), h('div', { class: 't' }, `${x.roles.map((r) => ROLE_LABEL[r]).join(' / ')} · ${x.ranged ? 'Ranged' : 'Melee'}`),
           h('div', { class: 'chips' }, h('span', { class: 'chipx', style: { '--cc': clan.color } }, clan.name), h('span', { class: 'chipx', style: { '--cc': pers.color }, title: pers.desc }, pers.name)))),
       myTurn && ban && inLineup ? h('div', { class: 'warnline' }, `${x.name} is in your lineup (${ROLE_LABEL[inLineup]}).`) : null,
-      myTurn && !canAct ? h('div', { class: 'warnline' }, taken(d, me).has(id) ? 'Already banned or picked.' : s.mode === 'coop' ? 'Doesn\'t fit your open roles.' : 'Your team already covers this hero\'s roles.') : null,
+      myTurn && !canAct ? h('div', { class: 'warnline' }, taken(d, me).has(id) ? 'Already banned or picked.' : !mayUse ? `You don't own ${x.name} yet: unlock it in the Shop, or Try it vs AI.` : s.mode === 'coop' ? 'Doesn\'t fit your open roles.' : 'Your team already covers this hero\'s roles.') : null,
       statBars(id, true),
       h('div', { class: 'chips dbuilds' }, ...x.builds.map((b) => h('span', { class: 'chipx', style: { '--cc': BUILDS[b].color }, title: buildLine(b), 'data-build': b, 'data-build-info': true }, BUILDS[b].name + (b === x.rec ? ' ★' : '')))),
       h('div', { class: 'abl' },

@@ -13,6 +13,8 @@ import { FREE_EMOTES, EMOTES, BORDERS } from './data/cosmetics.js';
 import { ACH, matchContext } from './data/achievements.js';
 import { RIVAL_BY_ID } from './data/rivals.js';
 import { normalizeMeta, recordMeta, goalContext } from './meta.js';
+import { normalizeKoban, earnMatch, earnAch, syncKoban } from './unlocks.js';
+import { cleanPfp, trackPortraits } from './data/portraits.js';
 
 const KEY = 'mobavs_profile_v1';
 const fresh = () => ({
@@ -51,7 +53,12 @@ export class Profile {
     const a = d.ach && typeof d.ach === 'object' ? d.ach : {};
     d.ach = { got: Object.fromEntries(Object.entries(a.got || {}).filter(([k]) => ACH.some((x) => x.id === k))), roles: (Array.isArray(a.roles) ? a.roles : []).slice(0, 5) };
     normalizeMeta(d); // coach level, skill tree, perks, goals, story weeks, divisions (src/meta.js)
+    const kfresh = !d.koban; normalizeKoban(d); // Koban ledger: champions owned, balance (src/unlocks.js)
+    this.kobanQuiet = kfresh; // a ledger made now pays nothing for achievements earned before it
     this.checkState(); // retroactive: progress earned before achievements existed (no toasts)
+    this.kobanQuiet = false;
+    if (kfresh) d.koban.ach = Object.keys(d.ach.got).slice(0, 120);
+    cleanPfp(d); // profile picture: an owned champion or an earned monster portrait (src/data/portraits.js)
   }
   // Saves locally and (when signed in) queues a cloud save of the whole profile.
   save(opts = {}) {
@@ -118,7 +125,7 @@ export class Profile {
   //   franchise: a Franchise mode match (key 'fr': never rated, its heroes carry roster edges).
   //   coop: { kind: 'ai' | '2v2', heroes: the hero ids this coach ran, info } for co-op rooms (casual: no rating;
   //   hero stats and mastery count for this coach's own heroes).
-  record({ game, myTeam, mode, aiLevel, cup, ranked, oppElo, potgHero, analytics, coop = null, rival = null, franchise = false }) {
+  record({ game, myTeam, mode, aiLevel, cup, ranked, oppElo, potgHero, analytics, coop = null, rival = null, franchise = false, trialOk = false }) {
     if (myTeam < 0) return null;
     const s = this.ss(), season = this.season;
     const won = game.winner === myTeam;
@@ -171,6 +178,13 @@ export class Profile {
       if (mh && !this.d.ach.roles.includes(mh.role)) this.d.ach.roles.push(mh.role);
       ach = this.checkMatch(matchContext({ game, myTeam, key, aiLevel, analytics, potgHero }));
     } catch (e) { console.error(e); }
+    // Koban: match pay, first win of the day, goals, coach levels, the pass and achievements (src/unlocks.js)
+    let koban = null, pfps = [];
+    try {
+      koban = earnMatch(this, { won, goals: meta ? meta.goals.filter((g) => g.done).map((g) => g.tier) : [], lvAfter: meta ? meta.lvAfter : 0,
+        season: season.id, passAfter: lvAfter, heroes: coop ? coop.heroes : team.heroes.map((x) => x.heroId), trialOk, achKoban: ach.reduce((a, x) => a + (x.koban || 0), 0) });
+      pfps = trackPortraits(this, game, myTeam, won); // monster portraits: Kami / Elder / Oni / Kraken tallies, rare and night wins
+    } catch (e) { console.error(e); }
     this.d.history.unshift({
       t: Date.now(), season: season.id, mode: key, map: game.world.def.id, ...(game.event ? { ev: game.event } : {}), won, len: Math.round(game.time),
       picks: [0, 1].map((t) => game.teams[t].heroes.map((x) => x.heroId)), winner: game.winner, side: myTeam,
@@ -187,10 +201,11 @@ export class Profile {
     const rv = rival ? this.recordRival(rival, won) : null;
     this.d.history.length = Math.min(this.d.history.length, 50);
     this.save();
+    syncKoban(this); // signed in: the server confirms the earnings (async)
     const rankAfter = rankOf(elo);
     return { won, rated, rg: s.rg, key, eloBefore: before, elo, delta: elo - before, rankBefore, rankAfter,
       promoted: rankAfter.step > rankBefore.step, demoted: rankAfter.step < rankBefore.step,
-      xp, xpParts, lvBefore, lvAfter, unlocks, mastery, ach, rival: rv, meta, capped: rated && key.startsWith('ai') && won && elo >= AI_CAP[aiLevel] };
+      xp, xpParts, lvBefore, lvAfter, unlocks, mastery, ach, rival: rv, meta, koban, pfps, capped: rated && key.startsWith('ai') && won && elo >= AI_CAP[aiLevel] };
   }
 
   // Rival coaches: { [id]: { w, l, s (streak: +wins / -losses), t } } for the 12 known rivals only (bounded).
@@ -231,7 +246,11 @@ export class Profile {
 
   // ── achievements (definitions: src/data/achievements.js) ──
   hasAch(id) { return !!this.d.ach.got[id]; }
-  grantAch(a, out) { this.d.ach.got[a.id] = Date.now(); const got = []; this.unlock(a.reward, got); out.push({ id: a.id, name: a.name, reward: a.reward }); }
+  grantAch(a, out) {
+    this.d.ach.got[a.id] = Date.now(); const got = []; this.unlock(a.reward, got);
+    const koban = this.kobanQuiet || !this.d.koban ? 0 : earnAch(this, a.id); // + Koban (src/unlocks.js)
+    out.push({ id: a.id, name: a.name, reward: a.reward, ...(koban ? { koban } : {}) });
+  }
   // After a match: the match checks plus the profile checks. Returns the newly earned ones.
   checkMatch(m) {
     const out = [];

@@ -17,6 +17,8 @@
 // Live-ops (worker/ops.js): activity, match / queue / hero counters, crash reports, feedback, A/B flags and
 // the owner dashboard API (/admin.html). Web Push (worker/push.js): opt-in notifications, queued in D1 and
 // sent within the request budget. A cron (wrangler.jsonc triggers) drains the push queue and rolls up stats.
+// Koban (worker/koban.js): the champion-unlock ledger (earnings, purchases, free picks), the Ranked entry check
+// (25 owned champions) and the token-protected launch wipe (POST /api/admin/wipe).
 import { CUP_SCHEMA, CUP_TABLES, cupApi, cupMatchFor, trophiesStmt, trophyRow } from './cups.js';
 import { REPLAY_SCHEMA, REPLAY_TABLES, REPLAY_MIGRATIONS, replayStmt, pruneStmts, adminApi, tokenOk } from './anticheat.js';
 import { OPS_SCHEMA, OPS_TABLES, OPS_MIGRATIONS, opsApi, bumpStmts, matchCounters, dayOf } from './ops.js';
@@ -26,6 +28,7 @@ import { DIV_SCHEMA, DIV_TABLES, divApi } from './divisions.js';
 import { DUO_SCHEMA, DUO_TABLES, duoApi } from './duo.js';
 import { CLUB_SCHEMA, CLUB_TABLES, clubApi, clubPointStmts, clubCron, clubOfStmt } from './clubs.js';
 import { HUB_SCHEMA, HUB_TABLES, hubApi, reelStmt, reelRow } from './hub.js';
+import { KOBAN_SCHEMA, KOBAN_TABLES, kobanApi, wipeApi, rankedOwned, rankedBlock, picksOwned, dataVersion } from './koban.js';
 
 const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS players (id TEXT PRIMARY KEY, name TEXT NOT NULL, secret_hash TEXT NOT NULL, created INTEGER, updated INTEGER, profile TEXT, profile_at INTEGER DEFAULT 0)`,
@@ -44,9 +47,9 @@ const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS invites (id TEXT PRIMARY KEY, sender TEXT, target TEXT, room TEXT, mode TEXT, status TEXT, created INTEGER)`,
   `CREATE INDEX IF NOT EXISTS invites_to ON invites (target, status, created)`,
   `CREATE INDEX IF NOT EXISTS invites_from ON invites (sender, created)`,
-  ...CUP_SCHEMA, ...REPLAY_SCHEMA, ...OPS_SCHEMA, ...PUSH_SCHEMA, ...PRO_SCHEMA, ...DIV_SCHEMA, ...CLUB_SCHEMA, ...HUB_SCHEMA, ...DUO_SCHEMA,
+  ...CUP_SCHEMA, ...REPLAY_SCHEMA, ...OPS_SCHEMA, ...PUSH_SCHEMA, ...PRO_SCHEMA, ...DIV_SCHEMA, ...CLUB_SCHEMA, ...HUB_SCHEMA, ...DUO_SCHEMA, ...KOBAN_SCHEMA,
 ];
-const TABLES = ['players', 'ladder', 'reports', 'matches', 'hero_results', 'queue', 'shares', 'friends', 'invites', ...CUP_TABLES, ...REPLAY_TABLES, ...OPS_TABLES, ...PUSH_TABLES, ...PRO_TABLES, ...DIV_TABLES, ...CLUB_TABLES, ...HUB_TABLES, ...DUO_TABLES];
+const TABLES = ['players', 'ladder', 'reports', 'matches', 'hero_results', 'queue', 'shares', 'friends', 'invites', ...CUP_TABLES, ...REPLAY_TABLES, ...OPS_TABLES, ...PUSH_TABLES, ...PRO_TABLES, ...DIV_TABLES, ...CLUB_TABLES, ...HUB_TABLES, ...DUO_TABLES, ...KOBAN_TABLES];
 // Columns added after launch: tables created by older deploys get them here. ALTER fails harmlessly
 // ("duplicate column") once the column exists, so each one is tried on its own.
 const MIGRATIONS = [
@@ -61,6 +64,8 @@ const MIGRATIONS = [
   `CREATE INDEX IF NOT EXISTS ladder_page ON ladder (season, rating DESC, player)`,
   // spectate friends live: the PeerJS id a coach in a match relays their command stream from (src/net/spectate.js)
   `ALTER TABLE players ADD COLUMN watch TEXT`,
+  // profile picture id (from the public summary) for the leaderboard and friends lists
+  `ALTER TABLE players ADD COLUMN pfp TEXT`,
   ...REPLAY_MIGRATIONS, ...OPS_MIGRATIONS,
 ];
 async function migrate(db) { for (const q of MIGRATIONS) { try { await db.prepare(q).run(); } catch { /* already migrated */ } } }
@@ -123,12 +128,14 @@ const DIVS = divApi({ json, bad, body, auth, limited, slow, onPoints: clubPointS
 const CLUBS = clubApi({ json, bad, body, auth, limited, slow, ip }); // Clubs, club ladder, weekend Club Wars (worker/clubs.js)
 const HUB = hubApi({ json, bad, body, auth, limited, slow, rand, ip }); // Public Replay Hub (worker/hub.js)
 const DUO = duoApi({ json, bad, body, auth, rand, limited, slow, bumpStmts, dayOf }); // 2v2 matchmaking (worker/duo.js)
+const KOBAN = kobanApi({ json, bad, body, auth, limited, slow }); // champion unlocks (worker/koban.js)
+const WIPE = wipeApi({ json, bad, body }); // launch wipe (token-protected below)
 
 // ── public profile ──
 // The read-only summary other coaches can see, cut from the uploaded cloud save: rank, title, banner, newest
 // border, trophies, top 5 heroes by mastery and the last 8 results (own picks and score only; no names,
 // no lineups/presets, no account data). Every field is re-validated here.
-const HID = /^[a-z0-9_]{1,20}$/, KEYID = /^[A-Za-z0-9_:.-]{1,40}$/;
+const HID = /^[a-z0-9_]{1,20}$/, KEYID = /^[A-Za-z0-9_:.-]{1,40}$/, PFP_RE = /^[hm]:[a-z0-9_]{1,24}$/;
 function pubOf(d) {
   if (!d || typeof d !== 'object') return null;
   const num = (v) => Math.max(0, Math.min(1e13, Math.round(Number(v) || 0)));
@@ -142,7 +149,7 @@ function pubOf(d) {
       k: [num(k[side]), num(k[1 - side])], mvp: m.mvp && m.mvp.team === side && HID.test(String(m.mvp.id)) ? m.mvp.id : null };
   });
   const b = Array.isArray(d.borders) && d.borders.length ? d.borders[d.borders.length - 1] : null, eq = d.equip || {};
-  return { season: sid, elo: num(ss.elo ?? 1000), peak: num(ss.peakElo ?? ss.elo ?? 1000), w: num(ss.w), l: num(ss.l), title: key(eq.title), banner: key(eq.banner),
+  return { season: sid, pfp: typeof eq.pfp === 'string' && PFP_RE.test(eq.pfp) ? eq.pfp : null, // profile picture (src/data/portraits.js) elo: num(ss.elo ?? 1000), peak: num(ss.peakElo ?? ss.elo ?? 1000), w: num(ss.w), l: num(ss.l), title: key(eq.title), banner: key(eq.banner),
     border: b && key(b.tier) ? { tier: b.tier, season: num(b.season) } : null,
     trophies: { gold: num(d.trophies && d.trophies.gold), silver: num(d.trophies && d.trophies.silver) }, top, recent,
     // coach profile upgrade: signature heroes (most played, with wins) and the trophy cabinet's extra shelves
@@ -175,7 +182,7 @@ async function social(req, db, url, p, M, now) {
     const watch = status === 'match' && /^[A-Za-z0-9-]{6,64}$/.test(String(b.watch || '')) ? String(b.watch) : null; // spectate: the relay's peer id (friends only)
     const [, fr, inc, inv] = await db.batch([
       db.prepare('UPDATE players SET seen = ?, status = ?, watch = ? WHERE id = ?').bind(now, status, watch, me.id),
-      db.prepare(`SELECT f.b AS id, f.state, p.name, p.seen, p.status, p.elo, p.watch FROM friends f JOIN players p ON p.id = f.b WHERE f.a = ? LIMIT ${MAX_FRIENDS * 2}`).bind(me.id),
+      db.prepare(`SELECT f.b AS id, f.state, p.name, p.seen, p.status, p.elo, p.watch, p.pfp FROM friends f JOIN players p ON p.id = f.b WHERE f.a = ? LIMIT ${MAX_FRIENDS * 2}`).bind(me.id),
       db.prepare(`SELECT f.a AS id, p.name, p.elo FROM friends f JOIN players p ON p.id = f.a WHERE f.b = ? AND f.state = 'req'
         AND NOT EXISTS (SELECT 1 FROM friends x WHERE x.a = f.b AND x.b = f.a) ORDER BY f.created DESC LIMIT 50`).bind(me.id),
       db.prepare(`SELECT i.id, i.sender, p.name, i.mode, i.room, i.created FROM invites i JOIN players p ON p.id = i.sender
@@ -183,7 +190,7 @@ async function social(req, db, url, p, M, now) {
     ]);
     const rows = fr.results || [], pick = (st) => rows.filter((r) => r.state === st);
     const order = { match: 0, online: 0, offline: 1 };
-    const friends = pick('ok').map((r) => { const pr = presenceOf(r, now); return { id: r.id, name: r.name, elo: r.elo, presence: pr, seen: r.seen || 0, ...(pr === 'match' && r.watch ? { watch: r.watch } : {}) }; })
+    const friends = pick('ok').map((r) => { const pr = presenceOf(r, now); return { id: r.id, name: r.name, elo: r.elo, pfp: r.pfp || null, presence: pr, seen: r.seen || 0, ...(pr === 'match' && r.watch ? { watch: r.watch } : {}) }; })
       .sort((a, b) => order[a.presence] - order[b.presence] || b.seen - a.seen);
     return json({ friends, sent: pick('req').map((r) => ({ id: r.id, name: r.name })), blocked: pick('block').map((r) => ({ id: r.id, name: r.name })),
       requests: (inc.results || []).map((r) => ({ id: r.id, name: r.name, elo: r.elo })),
@@ -339,8 +346,8 @@ async function route(req, env, url) {
     const at = Number(b.at) || now;
     if (at < (me.profile_at || 0)) return json({ ok: false, stale: true, profileAt: me.profile_at });
     const pub = pubOf(b.profile);
-    await db.prepare('UPDATE players SET name = ?, profile = ?, profile_at = ?, updated = ?, pub = ?, elo = ? WHERE id = ?')
-      .bind(cleanName(b.name || me.name), JSON.stringify(b.profile || null), at, now, pub ? JSON.stringify(pub) : null, pub ? pub.elo : null, me.id).run();
+    await db.prepare('UPDATE players SET name = ?, profile = ?, profile_at = ?, updated = ?, pub = ?, elo = ?, pfp = ? WHERE id = ?')
+      .bind(cleanName(b.name || me.name), JSON.stringify(b.profile || null), at, now, pub ? JSON.stringify(pub) : null, pub ? pub.elo : null, pub ? pub.pfp : null, me.id).run();
     return json({ ok: true, profileAt: at });
   }
 
@@ -350,6 +357,8 @@ async function route(req, env, url) {
     const b = await body(req);
     const match = String(b.match || '').slice(0, 40), season = Number(b.season) | 0, side = b.side === 1 ? 1 : 0, winner = b.winner === 1 ? 1 : 0, mode = b.mode === 'cup' ? 'cup' : queueOf(b.mode);
     if (!/^[A-Za-z0-9-]{8,40}$/.test(match) || !b.opponent) return bad('bad report');
+    // Ranked: the reporter's own picks must be champions they own (or this week's free rotation)
+    if (mode === 'ranked' && b.summary && Array.isArray(b.summary.picks) && !(await picksOwned(db, me.id, b.summary.picks[side], now))) return bad('A pick is not an owned champion', 403);
     if (mode === 'cup') { // only the two coaches of that cup match, each on the side the bracket gave them
       const cm = await cupMatchFor(db, match, me.id);
       if (!cm || String(b.opponent) !== (cm.a === me.id ? cm.b : cm.a) || side !== (cm.a === me.id ? 0 : 1)) return bad('not your cup match', 403);
@@ -420,7 +429,7 @@ async function route(req, env, url) {
     if (limited('lb:' + (who ? who.id : ip(req)), 40)) return slow();
     const cur = /^(\d{1,6})\.([A-Z0-9]{10})$/.exec(url.searchParams.get('after') || '');
     const from = Math.max(0, Number(url.searchParams.get('from')) | 0);
-    const cols = 'SELECT l.player, p.name, l.rating, l.wins, l.losses, l.peak FROM ladder l JOIN players p ON p.id = l.player';
+    const cols = 'SELECT l.player, p.name, p.pfp, l.rating, l.wins, l.losses, l.peak FROM ladder l JOIN players p ON p.id = l.player';
     let q;
     if (friendsOnly) {
       if (!who) return bad('unauthorized', 401);
@@ -434,7 +443,7 @@ async function route(req, env, url) {
     const more = !friendsOnly && rows.length > PAGE; if (more) rows = rows.slice(0, PAGE);
     const me = ladderRow(res[1] && res[1].results && res[1].results[0]);
     const last = rows[rows.length - 1];
-    return json({ season, friends: friendsOnly, top: rows.map((r, i) => ({ rank: (friendsOnly ? 0 : from) + i + 1, id: r.player, name: r.name, rating: r.rating, wins: r.wins, losses: r.losses, peak: r.peak })),
+    return json({ season, friends: friendsOnly, top: rows.map((r, i) => ({ rank: (friendsOnly ? 0 : from) + i + 1, id: r.player, name: r.name, pfp: r.pfp || null, rating: r.rating, wins: r.wins, losses: r.losses, peak: r.peak })),
       me, next: more && last ? `${last.rating}.${last.player}` : null });
   }
   if (p === '/api/balance' && M === 'GET') {
@@ -464,6 +473,7 @@ async function route(req, env, url) {
       if (older) { await db.batch([db.prepare('DELETE FROM queue WHERE id = ?').bind(ticket), ...queueStats(db, queueOf(mine.mode), now, older.created)]); return json({ status: 'matched', role: 'join', code: older.code }); }
       return json({ status: 'waiting', ticket, code: mine.code });
     }
+    if (mode === 'ranked') { const why = rankedBlock(await rankedOwned(db, me.id)); if (why) return bad(why, 403); } // Ranked entry: 25 owned champions
     const got = await db.prepare(`UPDATE queue SET status = 'claimed', claimed_by = ? WHERE id = (SELECT id FROM queue WHERE status = 'waiting' AND version = ? AND COALESCE(mode, 'ranked') = ? AND player != ? AND seen >= ? ORDER BY created LIMIT 1) RETURNING code, created`)
       .bind(me.id, version, mode, me.id, stale).first();
     if (got) { await db.batch(queueStats(db, mode, now, got.created, true)); return json({ status: 'matched', role: 'join', code: got.code }); }
@@ -490,6 +500,8 @@ async function route(req, env, url) {
   const ops = await OPS.route(req, env, db, url, p, M, now); if (ops) return ops;
   const psh = await PUSH(req, env, db, url, p, M, now); if (psh) return psh;
   const pro = await PRO.route(req, env, db, url, p, M, now); if (pro) return pro;
+  const kob = await KOBAN(req, env, db, url, p, M, now); if (kob) return kob;
+  if (p === '/api/admin/wipe') { if (!(await tokenOk(req, env, sha))) return bad('not found', 404); return WIPE(req, env, db, url, p, M, now); }
   const adm = await admin(req, env, db, url, p, M, now); if (adm) return adm;
   const div = await DIVS(req, env, db, url, p, M, now); if (div) return div;
   const club = await CLUBS(req, env, db, url, p, M, now); if (club) return club;
@@ -539,7 +551,8 @@ export default {
           missing = TABLES.filter((t) => !have.has(t)); tables = !missing.length;
         } catch { tables = false; }
       }
-      return json({ ok: true, db: !!env.DB, tables, missing, time: Date.now() });
+      let dv = 1; if (tables) { try { dv = await dataVersion(env.DB); } catch { dv = 1; } }
+      return json({ ok: true, db: !!env.DB, tables, missing, time: Date.now(), dv }); // dv: data version of the last launch wipe
     }
     // short share links open the game with the shared item
     const s = url.pathname.match(/^\/s\/([A-Z0-9]{7})$/);

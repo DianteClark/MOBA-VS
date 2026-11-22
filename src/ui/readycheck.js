@@ -2,6 +2,7 @@
 // lineup (heroes per role + backups, builds, plan, cards) and flags problems, with "Looks good" and "Edit in
 // Dojo" (the Dojo then offers a button straight back into the match). "Don't ask again" turns it off;
 // Settings > Match turns it back on.
+import { owns, inRotation } from '../unlocks.js';
 import { h, face, icon } from './dom.js';
 import { HERO_BY_ID, ROLES, ROLE_LABEL } from '../data/heroes.js';
 import { BUILDS } from '../data/items.js';
@@ -20,6 +21,9 @@ function lineupProblems(p) {
   for (const r of ROLES) for (const k of ['main', 'backup']) if (p[k][r] && !HERO_BY_ID[p[k][r]]) { out.bad.push(`${ROLE_LABEL[r]}: a hero that no longer exists`); out.roles[r] = 'bad'; }
   for (const t of presetIssues(p)) out.bad.push(t);
   for (const r of ROLES) if (!p.main[r]) out.roles[r] = 'bad';
+  // champion ownership: a lineup hero you don't own (or whose free week ended) is skipped in the draft
+  const locked = ROLES.flatMap((r) => ['main', 'backup'].map((k) => p[k][r]).filter((id) => id && HERO_BY_ID[id] && !owns(profile, id) && !inRotation(id)));
+  if (locked.length) out.warn.push(`Not owned: ${locked.map((id) => HERO_BY_ID[id].name).join(', ')}. The draft skips ${locked.length > 1 ? 'them' : 'it'} (backup, then a pick of yours).`);
   const noBackup = ROLES.filter((r) => p.main[r] && !p.backup[r]);
   if (noBackup.length) {
     out.warn.push(`No backup for ${noBackup.map((r) => ROLE_LABEL[r]).join(', ')}: if that hero is banned or taken, you pick yourself.`);

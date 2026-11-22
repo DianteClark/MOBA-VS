@@ -169,7 +169,7 @@ export function recordMeta(P, ctx, { now = Date.now(), peakElo = 0 } = {}) {
     if (!inc) return;
     G.prog[i] = Math.min(g.n, was + inc);
     const done = G.prog[i] >= g.n;
-    goals.push({ text: g.text, prog: G.prog[i], n: g.n, done });
+    goals.push({ text: g.text, prog: G.prog[i], n: g.n, done, tier: g.tier });
     if (done) { passXp += GOAL_REWARD.xp; cxp += COACH_XP.goal; parts.push(['Daily goal', COACH_XP.goal]); }
   });
   let streak = null;
