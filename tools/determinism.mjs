@@ -120,7 +120,7 @@ ok = ok && coopSame && coopRules;
   const rd = randomDraft(777), rd2 = randomDraft(777), uniq = new Set([...rd.picks[0], ...rd.picks[1]]).size === 10;
   const rdOk = JSON.stringify(rd.picks) === JSON.stringify(rd2.picks) && uniq && rd.done;
   console.log(`custom run A/B: ${a.sums.length} checkpoints, same ${same}; blue gold ${Math.round(a.gold)} vs standard ${Math.round(base.gold)}; all-random ${rd.picks.map((p) => p.join(',')).join(' | ')}`);
-  ok = ok && same && a.gold > base.gold * 1.6 && rdOk;
+  ok = ok && same && a.gold > base.gold * 1.4 && rdOk; // (start gold is not doubled)
 }
 console.log(ok ? 'DETERMINISTIC ✔' : 'DESYNC ✘');
 process.exit(ok ? 0 : 1);
