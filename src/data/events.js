@@ -49,7 +49,7 @@ export function weekEvent(ms) {
 }
 // Mirror Match lineups: curated, balanced comps (one hero per role, in ROLES order: top, jungle, mid, bot,
 // support) with a tactic deck that suits them. Both teams field the same one, chosen by the match seed.
-export const MIRROR_LINEUPS = [
+const MIRROR_LINEUPS = [
   { name: 'Classic', heroes: ['bastion', 'kaze', 'ember', 'fletch', 'oak'], deck: ['rally', 'smoke', 'wind'] },
   { name: 'Brawlers', heroes: ['kenshi', 'leonin', 'raiden', 'sling', 'ruga'], deck: ['ambush', 'rally', 'smoke'] },
   { name: 'Late Game', heroes: ['monolith', 'umbra', 'totem', 'tomoe', 'wu'], deck: ['fortify', 'wind', 'pact'] },

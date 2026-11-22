@@ -5,7 +5,7 @@
 // lost still comes from the normal combat brain (ai.js). Pure + deterministic: no rng, no clocks.
 import { dist2, segDist2 } from './geom.js';
 
-export const SIEGE_R = 950;      // a hero this close to an open enemy Crystal commits to it
+const SIEGE_R = 950;      // a hero this close to an open enemy Crystal commits to it
 const FOUNTAIN_R = 230;          // the enemy fountain's killing platform (190px) plus a margin: never chase in there
 
 function nexusOf(g, team) {

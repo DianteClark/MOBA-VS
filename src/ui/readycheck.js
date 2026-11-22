@@ -14,7 +14,7 @@ import { audio } from '../audio.js';
 import { showDojo } from './dojo.js';
 
 // What is wrong with a lineup: { bad: [text], warn: [text], roles: { role: 'bad' | 'warn' } }.
-export function lineupProblems(p) {
+function lineupProblems(p) {
   const out = { bad: [], warn: [], roles: {} };
   if (!p) { out.warn.push('No active lineup: you will draft every pick yourself.'); return out; }
   for (const r of ROLES) for (const k of ['main', 'backup']) if (p[k][r] && !HERO_BY_ID[p[k][r]]) { out.bad.push(`${ROLE_LABEL[r]}: a hero that no longer exists`); out.roles[r] = 'bad'; }
