@@ -139,7 +139,9 @@ export class Broadcast {
       callouts: r.callouts, hitStop: r.hitStop, punch: r.punch, tint: r.tint, placed: r.placed, heroPos: r.heroPos, avoid: r.avoid };
     Object.assign(r, { canvas: c, ctx: this.pctx, W: w, H: hh, cssW: cw, cssH: ch, cam: { x: p.cx, y: p.cy, zoom: 0.9 }, trauma: 0, focus: null, follow: null, panTo: null, fogOn: false, fog: this.fogDummy,
       callouts: [], hitStop: 0, punch: 0, tint: null, heroPos: new Map(), avoid: [], pip: true });
-    try { r.draw(alpha, 0); } catch (e) { console.warn('fight cam', e); this.closePip(); } finally { Object.assign(r, keep); r.pip = false; }
+    const lw = r.lw, lwKeep = lw ? { nc: lw.nc, nx: lw.nx } : null; // Living World's night buffer: the PiP keeps its own (no resize thrash)
+    if (lw) { if (!this.lwNc) { this.lwNc = document.createElement('canvas'); this.lwNx = this.lwNc.getContext('2d'); } lw.nc = this.lwNc; lw.nx = this.lwNx; }
+    try { r.draw(alpha, 0); } catch (e) { console.warn('fight cam', e); this.closePip(); } finally { Object.assign(r, keep); r.pip = false; if (lw) Object.assign(lw, lwKeep); }
   }
   // ───────── stats overlay ─────────
   stats(now) {
