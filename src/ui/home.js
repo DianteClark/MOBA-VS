@@ -192,7 +192,7 @@ function rewardIcon(r) {
 
 // ───────────── profile (cosmetics: Collection; hero skins also in the Dojo) ─────────────
 // Old tab keys ('banners', 'titles', 'borders') open that section of the Collection.
-const COLLECTION_OF = { banners: 'banners', titles: 'titles', borders: 'borders', skins: 'skins', emotes: 'emotes' };
+const COLLECTION_OF = { banners: 'banners', titles: 'titles', borders: 'borders', skins: 'skins', emotes: 'emotes', pets: 'pets', troops: 'troops' };
 export function showProfile(app, tab = 'rank', all = false) {
   const p = profile;
   const sec = COLLECTION_OF[tab] || (tab === 'collection' ? all || 'skins' : null);

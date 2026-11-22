@@ -62,6 +62,8 @@ SCREENS = [
     ('profile-collection', "H.showProfile(app, 'collection')"),
     ('profile-emotes', "H.showProfile(app, 'emotes')"),
     ('profile-borders', "H.showProfile(app, 'borders')"),
+    ('profile-pets', "H.showProfile(app, 'pets')"),
+    ('profile-troops', "H.showProfile(app, 'troops')"),
     ('home-casual-rush', "app.queueMode = 'casual'; app.mapPref = 'frost'; app.menu()"),
     # parties (src/party.js): the leader's panel with a partner (2v2 toggle on), its chat lines, the invite dialog,
     # the partner's panel, then the party is left and Home is back to normal
