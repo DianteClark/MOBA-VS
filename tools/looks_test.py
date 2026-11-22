@@ -29,8 +29,8 @@ async def main():
             pg.on('pageerror', lambda e: print('  JS error:', e))
             await pg.goto(URL); await pg.wait_for_timeout(2500)
         await A.evaluate(EQUIP) # B loaded first: its in-memory profile keeps the defaults
-        await A.evaluate("() => { app.hostGame({ code: 'LOOKS' }); }"); await A.wait_for_timeout(300)
-        await B.evaluate("() => { app.joinScreen('LOOKS'); }")
+        await A.evaluate("() => { app.hostGame({ code: 'LOOKS', checked: true }); }"); await A.wait_for_timeout(300)
+        await B.evaluate("() => { app.joinScreen('LOOKS', { checked: true }); }")
         for _ in range(240):
             sa = await A.evaluate(DRAFT); sb = await B.evaluate(DRAFT)
             if sa == 'done' and sb == 'done': break

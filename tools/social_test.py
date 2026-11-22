@@ -129,7 +129,7 @@ async def main():
         await A.evaluate("import('./src/ui/home.js').then((m) => m.showHistory(app, 0))"); await A.wait_for_timeout(500)
         if not QUICK: ok(await A.locator('.hd .btn', has_text='Opponent').count() == 1, 'history: opponent profile button')
         # ── link invite: /i/CODE ──
-        await A.evaluate("() => { app.hostGame(); }"); await A.wait_for_timeout(800)
+        await A.evaluate("() => { app.hostGame({ checked: true }); }"); await A.wait_for_timeout(800)
         inv = await A.evaluate("""(async () => { const o = await import('./src/net/online.js'); const code = document.querySelector('.lobby .code').textContent; const r = await o.createInvite(code, 'casual', null); app.inviteRoom = code; return r; })()""")
         resp = await B.goto(BASE + '/i/' + inv['id']); await B.wait_for_timeout(500)
         ok(resp.url.endswith('/?i=' + inv['id']) and resp.request.redirected_from is not None, f'/i/CODE redirects into the game ({resp.url})')

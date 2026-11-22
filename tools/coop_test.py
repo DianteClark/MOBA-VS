@@ -50,7 +50,7 @@ async def main():
         A = await tab(ctx, 'Ana'); B = await tab(ctx, 'Mia')
         await B.evaluate(EQUIP)
         await A.evaluate("app.hostCoop({ code: 'COOPA' })"); await A.wait_for_timeout(400)
-        await B.evaluate("app.joinScreen('COOPA')")
+        await B.evaluate("app.joinScreen('COOPA', { checked: true })")
         ok(await until(A, "app.session.room.players.length === 2"), 'partner joined the room by code')
         ok(await until(B, "!!document.querySelector('.coop .cseat.me')"), 'the guest sees the co-op lobby with their seat')
         ok(await until(A, "!!document.querySelector('.cseat .cemo[src*=smug]')"), "the host's lobby shows the partner's signature emote (looks)")
@@ -140,7 +140,7 @@ async def main():
         T = [await tab(ctx, n) for n in ('Ana', 'Ben', 'Cy', 'Dee')]
         await T[0].evaluate("app.hostCoop({ code: 'COOPB', kind: '2v2' })"); await T[0].wait_for_timeout(400)
         for k in (1, 2, 3):
-            await T[k].evaluate("app.joinScreen('COOPB')")
+            await T[k].evaluate("app.joinScreen('COOPB', { checked: true })")
             ok(await until(T[0], f"app.session.room.players.length === {k + 1}"), f'coach {k + 1} joined')
         teams = await T[0].evaluate("JSON.stringify(app.session.room.players.map((p) => [p.team, p.seat]))")
         ok(teams == '[[0,0],[0,1],[1,0],[1,1]]', f'seats filled blue A/B, red A/B ({teams})')

@@ -15,7 +15,7 @@ URL = sys.argv[1] if len(sys.argv) > 1 else 'http://127.0.0.1:8822/'
 N = int(sys.argv[2]) if len(sys.argv) > 2 else 3
 A = "import('./src/audio.js').then((m) => m.audio)"
 START = """async (mode) => {
-  app.startVsAI(mode);
+  app.startVsAI(mode, true);
   const m = await import('./src/sim/draft.js'); const s = app.session;
   while (!s.draft.done) { const t = m.currentTurn(s.draft); m.apply(s.draft, t.team, m.autoChoice(s.draft, t.team, s.rng, 1)); }
   app.afterDraftAct();

@@ -10,6 +10,7 @@ import { DT, sec, BLUE, MOMENTUM } from './constants.js';
 import { dist2, dist, norm, segDist2 } from './geom.js';
 import { isCCd } from './effects.js';
 import { planRisk, planLane, planSplits, planCarry, diveMul, gankWeights, wardWeights, contestReach, peelMul } from './plans.js';
+import { crystalSiege, crystalThreat, crystalRace } from './endgame.js';
 
 const LANES = ['top', 'mid', 'bot'];
 const CARRY = (h) => h.def.cls === 'marksman' || h.def.cls === 'mage';
@@ -388,7 +389,10 @@ export function heroThink(g, h) {
     if (task.kind === 'heal') { h.why = 'heal at base'; const f = g.world.fountain[h.team]; if (dist2(h, f) > 150 * 150) g.moveToward(h, f); else h.vx = h.vy = 0; return; }
     h.why = 'walk home: enemies near'; g.moveToward(h, g.world.fountain[h.team]); return;
   }
-  if (combat(g, h, C, false)) return;
+  // endgame: near an open enemy Crystal, fight only real threats, then finish it (src/sim/endgame.js)
+  const crystal = task.kind === 'defend' ? null : crystalSiege(g, h);
+  if (combat(g, h, C, false, crystal)) return;
+  if (crystal && hitCrystal(g, h, crystal)) return;
 
   switch (task.kind) {
     case 'lane': return doLane(g, h, task.lane, false);
@@ -469,11 +473,15 @@ function rollOnce(g, h, p, chance) {
 }
 
 // The combat brain. Returns true if it controlled the hero this tick.
-function combat(g, h, C, recalling) {
+function combat(g, h, C, recalling, crystal = null) {
   const now = g.tick, hpPct = h.hp / h.maxHp, m = mods(h);
   const near = C.enemies.filter((e) => dist2(e, h) < 680 * 680);
   if (!near.length) { h.fightTarget = 0; return false; }
   const allies = C.allies.filter((a) => dist2(a, h) < 720 * 720);
+  // Endgame: only heroes that threaten us are targets; when the Crystal dies first, ignore them and hit it.
+  // (Flee / dive checks below still judge every enemy nearby, so a clearly lost fight is still a retreat.)
+  const cands = crystal ? near.filter((e) => crystalThreat(g, h, e, crystal, C.allies)) : near;
+  if (crystal && hpPct > 0.3 && crystalRace(g, h, crystal, C.allies, cands)) { h.fightTarget = 0; return false; }
   const A = strength(g, allies), E = strength(g, near);
   const fog = fogThreat(g, h, C); E.e += fog.e; E.d += fog.d;
   const ot = ownTowerAt(g, h.team, h);
@@ -484,7 +492,7 @@ function combat(g, h, C, recalling) {
   // ── target choice (sticky) ──
   let best = null, bestScore = -Infinity;
   const allyBurst = allies.filter((a) => a !== h).reduce((s, a) => s + a.burst * 0.45, 0);
-  for (const e of near) {
+  for (const e of cands) {
     const d = dist(h, e);
     if (d > h.stats.range + 480) continue;
     const ehp = g.ehp(e);
@@ -1055,6 +1063,17 @@ function wantsSplit(g, h) {
   return h.build === 'siege' && h.lane !== 'mid' && g.world.laneNames.length > 1 && h.role !== 'support' && g.gameMinute >= 8 && h.hp / h.maxHp > 0.5;
 }
 // Abilities tagged 'siege' (e.g. Fortress Mode) fire when hitting a structure with no enemy hero near.
+// Endgame: hit the open enemy Crystal (siege spells first, even with defenders around: combat() already
+// handled the ones that threaten us).
+function hitCrystal(g, h, n) {
+  h.why = 'finish the Crystal'; h.fightTarget = 0;
+  if (dist2(h, n) < (h.stats.range + 120 + n.radius) ** 2) for (let i = 0; i < 2; i++) {
+    const ab = h.def.abilities[i];
+    if (ab.use.includes('siege') && g.abilityReady(h, i)) { g.cast(h, i, null); return true; }
+  }
+  if (!g.tryAttack(h, n)) walk(g, h, n, true, h.stats.range * 0.8 + n.radius);
+  return true;
+}
 function castOnStructure(g, h, s) {
   if (dist2(h, s) > (h.stats.range + 120 + s.radius) ** 2) return false;
   if (ctx(g, h.team).enemies.some((e) => dist2(e, h) < 600 * 600)) return false;

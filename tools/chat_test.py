@@ -25,8 +25,8 @@ async def main():
             pg.on('pageerror', lambda e: print('  JS error:', e))
             await pg.goto(URL); await pg.wait_for_timeout(2500)
             await pg.evaluate("() => { localStorage.setItem('mobavs_settings', JSON.stringify({ chatMute: false })); }")
-        await A.evaluate("() => { app.hostGame({ code: 'QCHAT' }); }"); await A.wait_for_timeout(300)
-        await B.evaluate("() => { app.joinScreen('QCHAT'); }")
+        await A.evaluate("() => { app.hostGame({ code: 'QCHAT', checked: true }); }"); await A.wait_for_timeout(300)
+        await B.evaluate("() => { app.joinScreen('QCHAT', { checked: true }); }")
         for _ in range(240):
             sa = await A.evaluate(DRAFT); sb = await B.evaluate(DRAFT)
             if sa == 'done' and sb == 'done': break
