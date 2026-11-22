@@ -1,6 +1,17 @@
 // Patch notes, newest first. tools/season.mjs prepends an entry at each season rollover.
 export const PATCHES = [
   {
+    version: '24.3', season: 1, date: '2026-11-22', title: 'Campaign',
+    highlights: ['Story campaign', 'Coach Academy'],
+    notes: [
+      'Story campaign: 30 missions in 6 chapters, each ending with a boss rival coach, with comic story panels between chapters.',
+      'Every mission has a twist (a fragile carry, a rich enemy, a 12:00 clock, your nemesis) and three goals for up to three stars.',
+      'Coach Academy: Granny Ume walks new coaches through the draft, prep and a full match. Skip it any time, or replay it from Campaign, Help or Settings.',
+      'Campaign missions are vs AI, work offline and never touch your rating.',
+    ],
+    heroes: [],
+  },
+  {
     version: '24.2', season: 1, date: '2026-11-22', title: 'Hotfix',
     notes: [
       'Fixed: the game could get stuck on the loading screen after an update. Game code now always loads from one build, and a stuck launch repairs itself and reloads.',

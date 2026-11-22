@@ -24,6 +24,7 @@ import * as D from './talents.js'; // v23 match depth (cfg.depth): talents, item
 import { Living } from './living.js';
 import { Beasts, BEASTS } from './beasts.js';
 import { Terrain } from './terrain.js'; // v25 maps: the tide, wind bridges, jump pads
+import { setupMission, missionTick } from './mission.js'; // story campaign / tutorial rules (cfg.mission)
 
 // Champion-vs-champion damage scale: keeps fights readable and lanes from snowballing at level 1.
 const STEER_K = +(globalThis.process?.env?.SK || 0.45);
@@ -133,6 +134,7 @@ export class Game {
     HE.setupHearth(this);
     for (let t = 0; t < 2; t++) for (const h of this.teams[t].heroes) { this.recalc(h); h.hp = h.maxHp; }
     for (let t = 0; t < 2; t++) if (cfg.coach && cfg.coach[t]) this.coaches[t] = new Coach(this, t, cfg.coachLevel?.[t] ?? 1, cfg.coachStyle?.[t] || null);
+    if (cfg.mission) setupMission(this);
   }
 
   get time() { return this.tick * DT; }
@@ -357,6 +359,7 @@ export class Game {
     if (this.clanStats) add(this.clanStats[h.team]);
     const tn = TUNE[h.heroId] || 1; if (tn !== 1) { s.dmgPct += tn - 1; s.hpPct += (tn - 1) * 0.6; }
     if (h.fmod) { s.dmgPct += h.fmod; s.hpPct += h.fmod * 0.6; }
+    if (h.mmod) { s.hpPct += h.mmod[0]; s.dmgPct += h.mmod[1]; } // campaign mission twist (src/sim/mission.js)
     if (h.perk) addPerk(s, h.perk);
     if (this.shrines) for (const sh of this.shrines) if (sh.owner === h.team) s.dmgPct += this.rules.shrine ? this.rules.shrine.dmg : 0.05;
     s.dmgPct += planEdge(this, h.team); // game plans: countering the enemy's plan
@@ -670,6 +673,7 @@ export class Game {
     // wave struck first in every clash of a lane.)
     const rev = tickCoin(now);
     for (let k = 0; k < 2; k++) { const t = rev ? 1 - k : k; if (this.coaches[t]) this.coaches[t].update(); }
+    if (this.mission) missionTick(this);
 
     for (const tm of this.teams) {
       if (tm.swapUntil && now >= tm.swapUntil) { tm.swapUntil = 0; for (const h of tm.heroes) { h.lane = h.homeLane; if (h.task.kind === 'lane') h.task = { kind: 'idle' }; } }

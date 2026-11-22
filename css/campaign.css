@@ -1,0 +1,159 @@
+/* Story campaign (src/ui/campaign.js) and the Coach Academy guide (src/ui/tutorial.js). */
+
+/* ── home: Campaign + Lane Rush share one row of the side column ── */
+.h2pair { display: flex; gap: 8px; min-width: 0; flex: 1; }
+.h2pair > .h2card { flex: 1 1 0; min-width: 0; }
+.h2camp { justify-content: space-between; border-color: #d9a83a; background: linear-gradient(160deg, rgba(74, 52, 12, 0.94), var(--panel) 75%); }
+.h2camp .h2h b { color: #ffe08a; }
+.h2camp .h2h small, .h2pair .h2rush .h2h small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+.h2camp .cpstar { align-self: flex-end; font-size: 12px; color: #2a1c06; background: #ffd84a; padding: 1px 8px; box-shadow: 0 2px 0 #6a4a12; white-space: nowrap; }
+.h2camp.fresh { border-color: var(--gold); animation: startPulse 1.4s ease-in-out infinite alternate; }
+.reduce-motion .h2camp.fresh { animation: none; }
+@media (max-height: 500px) { .h2pair { gap: 6px; } .h2camp .cpstar { font-size: 10px; padding: 0 6px; } }
+/* narrow phones: two one-line cards, stacked */
+@media (max-width: 760px) {
+  .h2pair { flex-direction: column; flex: 0 0 auto; gap: 6px; }
+  .h2pair > .h2card { flex: 0 0 auto; flex-direction: row; align-items: center; gap: 6px; padding: 5px 8px; }
+  .h2pair .h2card .h2h small { display: none; }
+  .h2pair .h2h { min-width: 0; }
+}
+
+/* ── chapter map ── */
+.campaign { width: min(980px, 100%); display: flex; flex-direction: column; gap: 8px; }
+.campaign .shead .cptotal { justify-self: end; color: var(--gold); font-size: 14px; white-space: nowrap; }
+.cptabs { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+.cptab { --cc: var(--gold); display: flex; align-items: baseline; justify-content: center; gap: 6px; min-height: 32px; padding: 3px 4px; border-color: color-mix(in srgb, var(--cc) 55%, var(--line)); }
+.cptab b { font-size: 14px; color: var(--cc); } .cptab small { font-size: 10px; color: var(--muted); }
+.cptab.on { border-color: var(--cc); background: color-mix(in srgb, var(--cc) 22%, #1a1424); }
+.cptab.on small { color: var(--ink); }
+.cptab.locked { opacity: 0.5; }
+.cptab.done b::after { content: ' ✓'; font-size: 10px; color: var(--green); }
+.cpchap { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px; border-image-source: url(../assets/img/ui/nine_path_bg.png); }
+.cpch { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cpch small { font-size: 9px; letter-spacing: 2px; color: var(--cc); }
+.cpch b { font-size: 18px; color: var(--cc); }
+.cpch p { margin: 0; font-size: 10px; line-height: 1.35; }
+.cpbossbox { display: grid; grid-template-columns: auto auto; grid-template-rows: auto auto; column-gap: 6px; align-items: center; }
+.cpbossbox img { grid-row: 1 / 3; width: 40px; height: 40px; border: 2px solid #ff6b5a; background: #2a1420; }
+.cpbossbox small { font-size: 9px; color: #ff8a7a; letter-spacing: 1px; } .cpbossbox b { font-size: 12px; }
+.cpchbtns { display: flex; flex-direction: column; gap: 4px; }
+.cpchbtns .chip { min-height: 28px; padding: 2px 10px; font-size: 11px; }
+.cppath { position: relative; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; align-items: stretch; padding: 4px 0; }
+.cppath::before { content: ''; position: absolute; left: 4%; right: 4%; top: 50%; height: 4px; background: repeating-linear-gradient(90deg, var(--cc) 0 8px, transparent 8px 14px); opacity: 0.45; z-index: 0; }
+.cppath.locked { filter: grayscale(0.8); opacity: 0.6; }
+.cpnode { position: relative; z-index: 1; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 0; padding: 8px 4px 6px;
+  background: #1d1728; border: 2px solid var(--line); box-shadow: 0 3px 0 #000a; color: var(--ink); transition: transform 0.08s, border-color 0.12s, filter 0.12s; }
+.cpnode:hover:not(:disabled) { filter: brightness(1.15); } .cpnode:active:not(:disabled) { transform: scale(0.97); }
+.cpnode .cpface, .cpnode .cpicon { width: 40px; height: 40px; border: 2px solid #0008; background: #2a2236; }
+.cpnode .cpn { font-size: 13px; color: var(--cc); }
+.cpnode .cpt { font-size: 9px; line-height: 1.2; text-align: center; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cpnode.open { border-color: var(--gold); animation: cpOpen 1.3s ease-in-out infinite alternate; }
+@keyframes cpOpen { to { box-shadow: 0 3px 0 #000a, 0 0 0 3px #ffd84a55; } }
+.reduce-motion .cpnode.open { animation: none; box-shadow: 0 3px 0 #000a, 0 0 0 3px #ffd84a55; }
+.cpnode.done { border-color: color-mix(in srgb, var(--cc) 70%, var(--line)); }
+.cpnode.locked { opacity: 0.5; cursor: default; }
+.cpnode.locked .cpface { filter: grayscale(1) brightness(0.6); }
+.cpnode.boss { border-width: 3px; background: linear-gradient(180deg, #3a1622, #1d1728 60%); }
+.cpnode .cpboss { position: absolute; top: -8px; left: 50%; transform: translateX(-50%); font-style: normal; font-size: 8px; color: #fff; background: #d8443a; padding: 0 5px; letter-spacing: 1px; }
+.cpnode .cplock { font-size: 9px; color: var(--muted); }
+.cpacad { --cc: #7ad0ff; border-color: #7ad0ff; background: linear-gradient(180deg, #10283a, #1d1728 70%); }
+.cpacad small { font-size: 9px; color: #9fe0ff; }
+.cpstars { display: inline-flex; gap: 1px; font-size: 12px; line-height: 1; }
+.cpstars i { font-style: normal; color: #6a5f7a; } .cpstars i.on { color: var(--gold); text-shadow: 0 1px 0 #6a4a12; }
+.cpstars.big { font-size: 22px; gap: 3px; }
+.cpstars.big i.on { animation: cpStar 0.45s cubic-bezier(.2, 1.6, .4, 1) both; }
+.cpstars.big i.on:nth-child(2) { animation-delay: 0.25s; } .cpstars.big i.on:nth-child(3) { animation-delay: 0.5s; }
+@keyframes cpStar { from { transform: scale(2.4) rotate(-30deg); opacity: 0; } }
+.reduce-motion .cpstars.big i.on { animation: none; }
+@media (max-height: 500px) {
+  .campaign { gap: 5px; }
+  .cptab { min-height: 28px; } .cptab b { font-size: 12px; }
+  .cpchap { padding: 4px 6px; gap: 8px; }
+  .cpch b { font-size: 14px; } .cpch p { font-size: 9px; }
+  .cpbossbox img { width: 32px; height: 32px; }
+  .cpnode { padding: 7px 3px 4px; gap: 2px; } .cpnode .cpface, .cpnode .cpicon { width: 32px; height: 32px; }
+}
+@media (max-width: 720px) { .cpchap { grid-template-columns: minmax(0, 1fr) auto; } .cpbossbox { display: none; } .cptab small { display: none; } }
+
+.cpnext { display: flex; align-items: center; gap: 10px; }
+.cpnext .cpmentor { flex: 1; min-width: 0; }
+.cpnext .btn { flex: 0 0 auto; }
+.cpnode .cprv { font-size: 8px; color: var(--muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-height: 500px) { .cpnext .btn.big { min-height: 40px; font-size: 15px; padding: 2px 14px; } }
+
+/* ── modals: briefing, story, first-launch offer ── */
+.cpmodal { align-items: center; justify-content: center; }
+.cpmodal .mpanel { width: min(600px, 100%); display: flex; flex-direction: column; gap: 7px; margin: auto; }
+.cpbhead { display: flex; align-items: center; gap: 10px; }
+.cpbface { width: 48px; height: 48px; border: 2px solid #0008; background: #2a2236; flex: 0 0 auto; }
+.cpbt { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
+.cpbt small { font-size: 9px; color: var(--muted); } .cpbt > b { font-size: 18px; color: var(--gold); }
+.cpbchips { display: flex; flex-wrap: wrap; gap: 4px; } .cpbchips .chipx.ev { --cc: #ff8a5a; }
+.cpbmap canvas { width: 72px !important; height: 72px !important; border: 2px solid #0008; }
+.cpmentor { display: flex; gap: 8px; align-items: flex-start; background: #fff4d6; color: #1a1410; border: 3px solid #0b0910; padding: 5px 7px; }
+.cpmentor img { width: 28px; height: 28px; flex: 0 0 auto; }
+.cpmentor p { margin: 0; font-size: 11px; line-height: 1.4; } .cpmentor b { color: #7a3a12; }
+.cplearn { display: flex; flex-direction: column; gap: 2px; border-left: 3px solid #7ad0ff; padding: 2px 8px; background: #10283a88; }
+.cplearn b { font-size: 11px; color: #9fe0ff; } .cplearn span { font-size: 10px; line-height: 1.35; }
+.cpsquad { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.cpsquad > small { font-size: 10px; }
+.cpsq { display: flex; flex-direction: column; align-items: center; } .cpsq img { width: 28px; height: 28px; } .cpsq small { font-size: 8px; color: var(--muted); }
+.cpgoals { display: flex; flex-direction: column; gap: 3px; }
+.cpgoal { display: flex; align-items: center; gap: 8px; font-size: 11px; padding: 3px 6px; background: #ffffff08; }
+.cpgoal > span { flex: 1; min-width: 0; }
+.cpgoal .cpgs { font-style: normal; font-size: 15px; color: #6a5f7a; }
+.cpgoal.got .cpgs { color: var(--gold); }
+.cpgoal.new { background: #ffd84a1f; } .cpgoal.new .cpgs { animation: cpStar 0.5s cubic-bezier(.2, 1.6, .4, 1) both; }
+.cpkoban { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; color: #ffe08a; white-space: nowrap; }
+.cpkoban img { width: 14px; height: 14px; }
+.cplist { margin: 0; padding-left: 18px; font-size: 10px; line-height: 1.5; color: var(--ink); }
+.cpbbtns { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.cpbbtns .cpgo { min-width: 160px; }
+.cpstory .mpanel { width: min(820px, 100%); }
+.cpsthead b { font-size: 16px; color: var(--gold); }
+.cpcomic.two { grid-template-columns: repeat(2, minmax(0, 1fr)); width: min(560px, 100%); margin: 0 auto; }
+.cpcomic .lcap { font-size: 10px; }
+@media (max-height: 500px) {
+  .cpmodal { padding: 6px; }
+  .cpmodal .mpanel { gap: 5px; }
+  .cpbface { width: 36px; height: 36px; } .cpbt > b { font-size: 15px; }
+  .cpbmap { display: none; }
+  .cpmentor p { font-size: 10px; } .cplearn span { font-size: 9px; }
+  .cpgoal { font-size: 10px; padding: 2px 6px; }
+  .cpbbtns .btn.big { min-height: 40px; font-size: 16px; padding: 2px 16px; }
+  .cpstory .mpanel { width: min(600px, 100%); }
+  .cpcomic .lcap { font-size: 8px; }
+}
+
+/* ── results ── */
+.cpres { display: flex; flex-direction: column; gap: 6px; }
+.cpres.won { box-shadow: 0 0 0 2px #ffd84a55; }
+.cprhead { display: flex; align-items: center; gap: 10px; }
+.cprhead img { width: 40px; height: 40px; border: 2px solid #0008; }
+.cprhead > div { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.cprhead small { font-size: 9px; letter-spacing: 1px; color: var(--muted); } .cprhead b { font-size: 16px; color: var(--gold); }
+.cprk { display: flex; align-items: center; gap: 8px; } .cprk .cpkoban { font-size: 16px; } .cprk .cpkoban img { width: 20px; height: 20px; }
+.cprboss { font-size: 12px; }
+.cprbtns { display: flex; justify-content: flex-end; }
+
+/* ── Coach Academy bubble ── */
+.guide { position: fixed; z-index: 44; display: flex; gap: 8px; align-items: flex-start; padding: 7px 8px; background: linear-gradient(90deg, rgba(16, 40, 60, 0.98), rgba(18, 14, 26, 0.98) 75%);
+  border: 2px solid #7ad0ff; box-shadow: 0 4px 0 #000b, 0 0 0 3px #7ad0ff33; animation: popIn 0.2s cubic-bezier(.2, 1.4, .4, 1); pointer-events: auto; }
+.guide .gdface { width: 32px; height: 32px; flex: 0 0 auto; border: 2px solid #0008; background: #2a2236; }
+.guide .gdbody { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+.guide .gdn { font-size: 8px; color: #0c2030; background: #7ad0ff; align-self: flex-start; padding: 0 4px; letter-spacing: 1px; }
+.guide .gdtx { margin: 0; font-size: 11px; line-height: 1.4; color: var(--ink); } .guide .gdtx b { color: #9fe0ff; }
+.guide .gdbtns { display: flex; justify-content: flex-end; align-items: center; gap: 10px; }
+.guide .gdskip { font-size: 9px; color: var(--muted); padding: 2px 4px; min-height: 0; }
+.guide .gdok { min-height: 28px; font-size: 12px; padding: 0 12px; }
+.reduce-motion .guide { animation: none; }
+.guide.tight { padding: 4px 6px; }
+.guide.tight .gdface, .guide.tight .gdn { display: none; }
+.guide.tight .gdbody { flex-direction: row; align-items: center; gap: 6px; }
+.guide.tight .gdtx { font-size: 9px; line-height: 1.3; flex: 1; min-width: 0; }
+.guide.tight .gdbtns { flex-direction: column-reverse; gap: 2px; }
+.guide.tight .gdok { min-height: 24px; font-size: 11px; }
+@media (max-height: 500px) { .guide { padding: 5px 6px; gap: 6px; } .guide .gdface { width: 24px; height: 24px; } .guide .gdtx { font-size: 10px; } .guide .gdok { min-height: 26px; } }
+/* How to Play: the academy link */
+.howacad { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 6px 0; padding: 4px 8px; border: 2px solid #7ad0ff; background: #10283a88; }
+.howacad span { font-size: 11px; color: #9fe0ff; }

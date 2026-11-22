@@ -69,6 +69,25 @@ function panel(i, cast, caption, bubble) {
     h('figcaption', { class: 'lcap' }, caption));
 }
 
+// Story campaign panels (src/ui/campaign.js): one scene with a hero alone ('solo'), two facing off ('clash') or side
+// by side ('duo'), with a caption under the art and an optional speech bubble. spec: { sc, a, b, p, t, say }.
+export function comicPanel(spec, i = 0) {
+  const c = { sc: SCENES[spec.sc] ? spec.sc : HERO_BY_ID[spec.a].clan, a: spec.a, b: spec.b };
+  const paint = (ctx) => {
+    scene(ctx, c.sc);
+    if (spec.p === 'clash' && c.b) { body(ctx, c.a, 3, 4, W * 0.3, H * 0.92, 3); body(ctx, c.b, 2, 0, W * 0.72, H * 0.92, 3); burst(ctx, W * 0.51, H * 0.6, CLANS[HERO_BY_ID[c.a].clan].color); }
+    else if (spec.p === 'duo' && c.b) { body(ctx, c.a, 0, 0, W * 0.38, H * 0.92, 2.6); body(ctx, c.b, 0, 0, W * 0.64, H * 0.92, 2.6); }
+    else { prop(ctx, (SCENES[c.sc] || SCENES.wild).props[2], W * 0.74, H * 0.9, 0.9); body(ctx, c.a, 0, 0, W / 2, H * 0.92, 3); }
+  };
+  const cv = h('canvas', { class: 'lpcv', width: W, height: H, 'aria-hidden': 'true' });
+  const draw = () => { const ctx = cv.getContext('2d'); ctx.imageSmoothingEnabled = false; ctx.clearRect(0, 0, W, H); paint(ctx); };
+  draw();
+  setTimeout(() => { if (cv.isConnected) draw(); }, 700);
+  return h('figure', { class: 'lpanel p' + (spec.p === 'clash' ? 1 : i % 3 === 1 ? 2 : 0) },
+    h('div', { class: 'lpart' }, cv, spec.say ? h('div', { class: 'lbub' + (spec.p === 'clash' ? ' l' : '') }, spec.say) : null),
+    h('figcaption', { class: 'lcap' }, spec.t));
+}
+
 // ── relationship graph: hero in the middle, duo partners (green), rivals (red) and clan-mates around ──
 function graph(id, c, onHero) {
   const x = HERO_BY_ID[id];

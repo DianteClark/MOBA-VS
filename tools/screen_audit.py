@@ -125,6 +125,12 @@ SCREENS = [
     ('public-profile', "app.menu(); await new Promise((r) => setTimeout(r, 300)); await SO.showPlayer(app, (N.getAccount() || { id: 'AAAAAAAAAA' }).id, { name: app.name })"),
     # co-op results: a vs-AI match recorded as a co-op one (two coaches on blue; the credit panel under the progress)
     ('results-coop', "for (const e of document.querySelectorAll('.modal')) e.remove(); app.startVsAI('classic', true); const m = await import('./src/sim/draft.js'); const s = app.session; while (!s.draft.done) { const t = m.currentTurn(s.draft); m.apply(s.draft, t.team, m.autoChoice(s.draft, t.team, s.rng, 1)); } app.afterDraftAct(); await new Promise((r) => setTimeout(r, 1500)); app.prepReady(); await new Promise((r) => setTimeout(r, 1200)); app.match.runner.speed = 40; await new Promise((r) => setTimeout(r, 2500)); s.mode = 'coop'; s.kind = 'ai'; s.mySeat = 0; s.slot = 0; s.players = [{ slot: 0, name: app.name, team: 0, seat: 0 }, { slot: 1, name: 'Benedikt', team: 0, seat: 1, pid: 'BBBBBBBBBB' }]; s.coop = [{ seats: 2, own: { top: 0, jungle: 0, mid: 0, bot: 1, support: 1 }, lead: 0, coaches: s.players }, null]; s.draft.seats = [[0, 1, 0, 1, 0], []]; s.names = [app.name + ' & Benedikt', 'Normal AI']; const g = app.match.game; g.over = true; g.winner = 0; app.endMatch(true); await new Promise((r) => setTimeout(r, 1800)); document.querySelector('.coopres').scrollIntoView({ block: 'center' })"),
+    # story campaign (src/ui/campaign.js): the chapter map, the chapter story, a mission briefing, the first-launch offer
+    ('campaign', "for (const e of document.querySelectorAll('.modal')) e.remove(); (await import('./src/ui/campaign.js')).showCampaign(app, 1, { noStory: true })"),
+    ('campaign-locked', "(await import('./src/ui/campaign.js')).showCampaign(app, 6, { noStory: true })"),
+    ('campaign-story', "(await import('./src/ui/campaign.js')).showStory((await import('./src/data/campaign.js')).CHAPTERS[0].intro, 'Chapter 1: Embers of the Hearth', () => {})"),
+    ('campaign-brief', "for (const e of document.querySelectorAll('.modal')) e.remove(); const C = await import('./src/ui/campaign.js'); C.showBriefing(app, (await import('./src/data/campaign.js')).MISSIONS[6])"),
+    ('campaign-offer', "for (const e of document.querySelectorAll('.modal')) e.remove(); app.menu(); await new Promise((r) => setTimeout(r, 300)); (await import('./src/ui/campaign.js')).tutorialOffer(app)"),
 ]
 CHECK = """([sl, sr]) => {
   const W = innerWidth, sc = document.getElementById('screen');
@@ -133,7 +139,7 @@ CHECK = """([sl, sr]) => {
   if (sc.scrollWidth > sc.clientWidth + 1) out.push(`horizontal overflow ${sc.scrollWidth - sc.clientWidth}px`);
   // the Analysis sheet covers the screen when it is open: audit it instead
   const sheet = document.querySelector('#anasheet .asbody'); if (sheet && sheet.scrollWidth > sheet.clientWidth + 1) out.push(`analysis overflow ${sheet.scrollWidth - sheet.clientWidth}px`);
-  const els = [...document.querySelectorAll(sheet ? '#anasheet button' : '#screen button, #screen input, #screen a, #screen select, .smodal button, .svmodal button, .rcmodal button, .rcmodal input')].filter(vis);
+  const els = [...document.querySelectorAll(sheet ? '#anasheet button' : '#screen button, #screen input, #screen a, #screen select, .smodal button, .svmodal button, .rcmodal button, .rcmodal input, .cpmodal button')].filter(vis);
   for (const e of els) {
     const r = e.getBoundingClientRect(), name = (e.textContent || e.value || e.className || e.tagName).trim().slice(0, 24);
     if (r.left < sl - 1 || r.right > W - sr + 1) out.push(`outside safe area: ${name} (${Math.round(r.left)}-${Math.round(r.right)})`);
