@@ -157,6 +157,7 @@ class App {
     // a tapped notification while the game is open: follow its link from the menu, never mid-match
     onPushOpen((u) => { if (this.match || this.session) return; const i = u.searchParams.get('i'); if (i) showInviteLink(this, i); else if (u.searchParams.get('go') === 'cup') showWeekendCup(this); });
     this.connectOnline();
+    try { if (sessionStorage.getItem('mobavs_reset')) { sessionStorage.removeItem('mobavs_reset'); setTimeout(() => toast('Welcome to the full launch! Every coach starts fresh with 15 champions. Earn Koban to unlock more.', 5200), 1200); } } catch { /* ignore */ } // src/datareset.js
     setTimeout(warmNet, 3000); // PeerJS off the first-paint path, ready before anyone taps Host / Join
   }
   // Online services: create/restore the account, then sync the profile (newest copy wins).

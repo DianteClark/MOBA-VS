@@ -1,5 +1,6 @@
 // Dojo: browse the roster (hero pages with ratings, abilities, matchups, skins) and edit lineup presets.
-import { shopTab, accessBadge, openShop } from './shop.js';
+import { shopTab, accessBadge, openShop, kobanAmount } from './shop.js';
+import { TIERS, tierOf, priceOf, isStarter } from '../data/unlocks.js';
 import { owns, inRotation } from '../unlocks.js';
 import { h, mount, face, icon, emptyState } from './dom.js';
 import { HEROES, HERO_BY_ID, ROLES, ROLE_LABEL, PERSONALITIES } from '../data/heroes.js';
@@ -73,6 +74,13 @@ function heroList(app) {
   return out;
 }
 
+// Champion ownership on the hero page: owned, free this week, or its tier and price with a way to the Shop.
+function ownLine(app, id) {
+  const t = TIERS[tierOf(id)];
+  if (owns(profile, id)) return h('div', { class: 'downl' }, h('span', { class: 'tierc', style: { '--tc': t.color } }, t.name), h('small', { class: 'muted' }, isStarter(id) ? 'Starter' : 'Owned'));
+  return h('button', { class: 'chip downl', title: 'Champions shop', onclick: () => { tap(); openShop(app); } }, h('span', { class: 'tierc', style: { '--tc': t.color } }, t.name),
+    inRotation(id) ? h('small', {}, 'Free this week · ') : null, kobanAmount(priceOf(id)), h('small', {}, ' Unlock ›'));
+}
 // ───────────── hero page ─────────────
 function heroPage(app, id) {
   const x = HERO_BY_ID[id], pers = PERSONALITIES[x.pers], clan = CLANS[x.clan];
@@ -105,6 +113,7 @@ function heroPage(app, id) {
       animBtns,
       h('button', { class: 'chip dskinbtn', title: 'Preview and equip this hero\'s skins', onclick: () => viewer(equipped) }, `Skins ${heroSkinKeys(id).filter((k) => profile.hasSkin(id, k)).length}/${heroSkinKeys(id).length} ›`),
       h('div', { class: 'dh-name' }, h('h2', {}, x.name), h('div', { class: 'muted' }, x.title)),
+      ownLine(app, id),
       x.lore ? h('p', { class: 'muted small' }, x.lore) : null,
       h('div', { class: 'chips' }, h('span', { class: 'chipx', style: { '--cc': clan.color }, title: clan.tiers.map((q) => `${q.n}+: ${q.text}`).join(' · ') }, clan.name),
         h('span', { class: 'chipx', style: { '--cc': pers.color } }, pers.name)),

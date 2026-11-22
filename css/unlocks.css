@@ -27,6 +27,9 @@
 .dcard .accb, .lhero .accb { left: 2px; bottom: auto; top: 2px; }
 .lhero { position: relative; }
 
+/* Dojo hero page: owned / price line */
+.downl { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; font-size: 11px; }
+
 /* the shop */
 .shop { gap: 8px; }
 .shophead { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; background: #1e1928; border: 2px solid var(--line); padding: 6px 10px; }

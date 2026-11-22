@@ -21,6 +21,7 @@ export const PORTRAITS = {
   mascot: { name: 'Club Mascot', src: monFace('Beast'), unlock: { club: true }, how: 'Club goals or a Club War win' },
   dragon: { name: 'Mastery Dragon', src: monFace('Dragon'), unlock: { mastery: 3 }, how: '3 heroes at Mastery 5' },
   owl: { name: 'Pass Owl', src: monFace('Owl'), unlock: { pass: 20 }, how: 'Season Pass level 20' },
+  racoon: { name: 'Golden Racoon', src: monFace('GoldRacoon'), unlock: { achN: 15 }, how: 'Earn 15 achievements' },
 };
 export const PORTRAIT_IDS = Object.keys(PORTRAITS);
 export const DEFAULT_PFP = 'h:upa';
@@ -41,6 +42,7 @@ export function portraitProgress(P, id) {
   if (!u) return { have: 0, n: 1 };
   if (u.tally) return { have: Math.min(u.n, d.c[u.tally] || 0), n: u.n };
   if (u.win) return { have: d.w[u.win] ? 1 : 0, n: 1 };
+  if (u.achN) return { have: Math.min(u.achN, Object.keys((P.d.ach && P.d.ach.got) || {}).length), n: u.achN };
   return { have: unlocked(P, u) ? 1 : 0, n: 1 };
 }
 export const hasPortrait = (P, id) => { const g = portraitProgress(P, id); return g.have >= g.n; };
