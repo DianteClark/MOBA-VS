@@ -1,5 +1,6 @@
 // Draft screen (landscape-first): both teams' slots across the top, the hero grid with role tabs,
 // and a side panel with the selected hero, the preset auto-pick, or the "pick for this role" prompt.
+import { kamiCard } from './beastsui.js';
 import { h, mount, face, icon } from './dom.js';
 import { HEROES, HERO_BY_ID, ROLES, ROLE_LABEL, matchupScore, PERSONALITIES } from '../data/heroes.js';
 import { currentTurn, taken, legal, assignRoles, TURN_SECONDS } from '../sim/draft.js';
@@ -87,6 +88,7 @@ export class DraftView {
       d.done ? null : h('div', { class: 'timer', id: 'dtimer' }, String(left)),
       d.done ? null : h('div', { class: 'tbar' }, h('i', { id: 'dtbar', style: { width: Math.max(0, left / TURN_SECONDS * 100) + '%' } })),
       h('div', { class: 'mapname' }, (MAP_BY_ID[s.mapId] || MAPS[0]).name),
+      kamiCard(MAP_BY_ID[s.mapId], true), // Bosses & Beasts: what this map's Kami blesses
       ev ? h('div', { class: 'evname', style: { '--ec': ev.color }, title: ev.blurb }, ev.name) : null);
 
     const POOL = HEROES;

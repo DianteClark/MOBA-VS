@@ -138,7 +138,7 @@ export const matchAudio = {
         break;
       }
       case 'spawn': { const o = this.objPos(e.obj); this.at('roar', o.x, o.y, 0.6, { throttle: 0, rate: 1.08 }); audio.play('alert', { vol: 0.5 }); break; }
-      // Living World: a wall coming down, a parade tamed, the Tengu's warning
+      // Living World: a wall coming down, a parade tamed, the Elder Kami's warning
       case 'wall': this.at('boom', e.x, e.y, e.kind === 'thicket' ? 0.35 : 0.6, { throttle: 0 }); break;
       case 'tamed': this.at('roar', e.x, e.y, 0.7, { throttle: 0, rate: 1.35 }); break;
       case 'bossSoon': audio.play('alert', { vol: 0.6 }); break;

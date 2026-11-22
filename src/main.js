@@ -24,7 +24,7 @@ import { DraftView, AUTO_GRACE } from './ui/draftview.js';
 import { Hud } from './ui/hud.js';
 import { TEAM_COL } from './render/palette.js';
 import { toast, h, setFaceSkins } from './ui/dom.js';
-import { myLooks, cleanLooks, cleanSkins, matchSkins, faceMap } from './looks.js';
+import { myLooks, cleanLooks, cleanSkins, matchSkins, faceMap, matchBeasts, cleanBeasts } from './looks.js';
 import { achToasts, resultEmotes } from './ui/collection.js';
 import { audio } from './audio.js';
 import { matchAudio, victoryTheme } from './audio-match.js';
@@ -76,7 +76,7 @@ import { startRelay, stopRelay, stopWatching, liveTag } from './ui/spectate.js';
 import { Broadcast } from './ui/broadcast.js';
 import { publishChip } from './ui/hub.js';
 
-const VERSION = 34; // bump whenever the sim or balance changes (peers must match)
+const VERSION = 35; // bump whenever the sim or balance changes (peers must match)
 const PREP_SECONDS = 60;
 installCrashReporter(VERSION); // window errors, unhandled rejections and lockstep desyncs → the owner dashboard (src/net/ops.js)
 
@@ -640,7 +640,7 @@ class App {
     // (Mirror Match: both sides field the identical shared lineup, lanes and deck)
     if (!s.replay && s.draft && s.preps) for (let t = 0; t < 2; t++) s.preps[t] = s.draft.mirror ? fitMirror(s.preps[t], s.draft.mirror) : fitPrep(s.preps[t], s.draft.picks[t]);
     const cfg = s.replay ? JSON.parse(JSON.stringify(s.replay.cfg)) : {
-      seed: s.seed, map: s.mapId, ...(s.gameMode === 'rush' ? { mode: 'rush' } : { living: 1 }), ...(s.event ? { event: s.event } : {}), // living: Living World (classic maps)
+      seed: s.seed, map: s.mapId, ...(s.gameMode === 'rush' ? { mode: 'rush', beasts: 1 } : { living: 1, beasts: 1 }), ...(s.event ? { event: s.event } : {}), // living: Living World; beasts: Bosses & Beasts (classic maps)
       ...(s.gameMode !== 'rush' ? { depth: true } : {}), // v23 match depth: talents, item override, ult upgrades, revenge, duo ults
       teams: [0, 1].map((t) => ({ heroes: s.preps[t].heroes, plan: s.preps[t].plan, deck: s.preps[t].deck, name: s.names[t], ...(s.preps[t].mv ? { mv: s.preps[t].mv } : {}) })),
       coach: s.mode === 'coop' ? s.ai.slice() : s.mode === 'ai' ? [s.myTeam !== 0, s.myTeam !== 1] : s.mode === 'watch' ? [true, true] : [false, false],
@@ -671,6 +671,7 @@ class App {
     this.renderer.resize(true);
     this.renderer.attach(game, s.myTeam, this.mapCanvas(game.world, game.event));
     this.renderer.skins = s.replay ? (s.replay.skins || [{}, {}]).map(cleanSkins) : matchSkins(s);
+    this.renderer.bf.setLooks(s.replay ? (s.replay.bl || [{}, {}]).map(cleanBeasts) : matchBeasts(s)); // Bosses & Beasts: minion families, scout animals
     setFaceSkins(faceMap(this.renderer.skins)); // HUD, results and share card portraits
     this.minimap.resize();
     refit();
@@ -936,7 +937,7 @@ class App {
   // with their analytics (src/ui/replays.js); `id` links one to its match-history entry.
   saveReplay(m, s, A, id) {
     storeMatch({ id, v: VERSION, t: Date.now(), cfg: m.cfg, log: m.runner.log, names: s.names, mapId: s.mapId,
-      myTeam: s.myTeam, winner: m.game.winner, skins: this.renderer.skins, len: Math.round(m.game.time), A });
+      myTeam: s.myTeam, winner: m.game.winner, skins: this.renderer.skins, bl: this.renderer.bf.looks, len: Math.round(m.game.time), A });
   }
   lastReplay() { const r = loadLib()[0]; return this.canPlay(r) ? r : null; }
   canPlay(r) { return !!(r && r.cfg && r.v === VERSION); }

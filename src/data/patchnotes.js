@@ -1,6 +1,20 @@
 // Patch notes, newest first. tools/season.mjs prepends an entry at each season rollover.
 export const PATCHES = [
   {
+    version: '24.1', season: 1, date: '2026-11-22', title: 'Bosses & Beasts',
+    highlights: ['A Kami per map', 'Elder Kami', 'Scout pets', 'Minion families'],
+    notes: [
+      'Every map has its own Kami and blessing: Frog (regen, faster recall), Tengu (speed), Samurai (attack speed, armor pen), Slime (slowing attacks), Racoon (gold and bounty), Bamboo (tougher towers).',
+      'The Kami wakes at 3:00 and 7:30. At 12:00 its Elder form lands in the centre: a stronger blessing plus a 2-minute push for the team that slays it.',
+      'Oni and Kraken can spawn as rare recolors, worth bonus gold and a bigger buff.',
+      'Scout pet: from 3:00, send your scout to watch an area for 30 seconds. One per team, and it dies to 3 hits. Pick your animal from 27 in your Collection.',
+      'Every map has its own jungle monsters, and camps that respawn at night return in a richer night form.',
+      'Minion families: 8 looks for your minions, chosen in your Collection, plus a featured family each weekly event.',
+      'Rival coaches and Franchise clubs have monster mascots.',
+    ],
+    heroes: [],
+  },
+  {
     version: '24.0', season: 1, date: '2026-11-22', title: 'The Hearth',
     highlights: ['80 heroes', 'The Hearth clan', 'Hero lore', 'Map music'],
     notes: [

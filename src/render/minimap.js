@@ -3,6 +3,7 @@ import { S as MAP_SIZE } from '../sim/world.js';
 import { IMG } from './assets.js';
 import { TEAM_COL } from './renderer.js';
 import { DRAGON_INFO } from '../sim/constants.js';
+import { BEASTS } from '../sim/beasts.js';
 
 export class Minimap {
   constructor(canvas, renderer) {
@@ -41,19 +42,19 @@ export class Minimap {
       ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 1;
       if (o && o.alive) {
         // live boss: its portrait (each Kami element has its own) in a ring of its colour
-        const r = S * 0.04, img = IMG[key === 'dragon' ? 'kami_' + o.element : key + '_faceset'];
-        ctx.fillStyle = key === 'dragon' ? DRAGON_INFO[o.element].color : key === 'baron' ? '#b56cff' : '#9fd0ff';
+        const sp = key === 'dragon' && DRAGON_INFO[o.element].species, r = S * 0.04, img = IMG[sp ? 'kface_' + o.element : key === 'dragon' ? 'kami_' + o.element : o.rare ? (key === 'herald' ? 'oni' : 'kraken') + '_rare_faceset' : key + '_faceset'];
+        ctx.fillStyle = o.rare ? '#7dffb2' : key === 'dragon' ? DRAGON_INFO[o.element].color : key === 'baron' ? '#b56cff' : '#9fd0ff';
         ctx.beginPath(); ctx.arc(pit.x * k, pit.y * k, r + 1.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
         if (img) { ctx.save(); ctx.beginPath(); ctx.arc(pit.x * k, pit.y * k, r, 0, Math.PI * 2); ctx.clip(); ctx.drawImage(img, 3, 3, 32, 32, pit.x * k - r, pit.y * k - r, r * 2, r * 2); ctx.restore(); }
       }
     }
-    // Living World: the Tengu and the wandering Yokai Parade (portraits, always shown), Moon Spirits that are up,
+    // Living World: the Elder Kami (Bosses & Beasts) and the wandering Yokai Parade (portraits, always shown), Moon Spirits that are up,
     // and closed walls (short brown bars)
     if (g.living) {
       for (const key of ['boss', 'yokai']) {
         const o = g.objectives[key]; if (!o || !o.alive) continue;
-        const r = S * (key === 'boss' ? 0.045 : 0.035), img = IMG[key === 'boss' ? 'tengu_faceset' : 'yokai_faceset'];
-        ctx.fillStyle = key === 'boss' ? '#ff4a5a' : '#ffb347'; ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 1;
+        const r = S * (key === 'boss' ? 0.045 : 0.035), img = IMG[key === 'boss' ? 'kface_' + o.element + '_elder' : 'yokai_faceset'];
+        ctx.fillStyle = key === 'boss' ? (DRAGON_INFO[o.element] || { color: '#ff4a5a' }).color : '#ffb347'; ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 1;
         ctx.beginPath(); ctx.arc(o.x * k, o.y * k, r + 1.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
         if (img) { ctx.save(); ctx.beginPath(); ctx.arc(o.x * k, o.y * k, r, 0, Math.PI * 2); ctx.clip(); ctx.drawImage(img, 3, 3, 32, 32, o.x * k - r, o.y * k - r, r * 2, r * 2); ctx.restore(); }
       }
@@ -85,6 +86,12 @@ export class Minimap {
       if (!vis(u)) continue;
       if (u.type === 'mob') { ctx.fillStyle = '#e8c45a'; ctx.fillRect(u.x * k - 1.5, u.y * k - 1.5, 3, 3); continue; }
       if (u.type === 'objective') continue;
+      if (u.type === 'pet') { // a scout pet: a team dot with a sight ring while it watches
+        const x = u.x * k, y = u.y * k; ctx.fillStyle = TEAM_COL[u.team]; ctx.strokeStyle = '#000'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.arc(x, y, S * 0.014, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        if (u.arrived) { ctx.globalAlpha = 0.5; ctx.strokeStyle = TEAM_COL[u.team]; ctx.beginPath(); ctx.arc(x, y, BEASTS.scoutSight * k, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1; }
+        continue;
+      }
       ctx.fillStyle = TEAM_COL[u.team];
       const s = u.type === 'summon' ? 6 : 2.5;
       ctx.fillRect(u.x * k - s / 2, u.y * k - s / 2, s, s);

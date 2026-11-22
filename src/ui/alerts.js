@@ -52,7 +52,7 @@ export class Alerts {
       if (!o || !o.alive || o.hp >= o.maxHp || !recent(o.lastHurt, 2.5)) continue;
       if (my >= 0 && !g.vision[view].has(o.id)) continue;
       if (this.hud.att && this.hud.att.coversObj(k)) continue; // its decision card says it
-      out.push({ key: 'obj' + k, kind: 'obj', x: o.x, y: o.y, img: bossFace(k, o.element), label: Math.round(o.hp / o.maxHp * 100) + '%' });
+      out.push({ key: 'obj' + k, kind: 'obj', x: o.x, y: o.y, img: bossFace(k, o.element, o.rare), label: Math.round(o.hp / o.maxHp * 100) + '%' });
     }
     // a lane left open: an enemy wave is hitting our structure and nobody is there (sim: team.laneOpen).
     // Tap: send the hero the lane brain suggests (a split call to that lane), and look there.

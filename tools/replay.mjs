@@ -35,11 +35,11 @@ function run(name, cfg, seconds, calls, more) {
 // (Red is a rival-style coach: Coach Moments early, a backup plan for halftime.)
 const okC = run('classic', { seed: 4242, map: 'frost', coach: [false, true], coachStyle: [null, { moment: 'early', backup: 'protect' }], teams }, 600,
   [{ type: 'gank', lane: 'mid' }, { type: 'group', lane: 'bot' }, { type: 'objective', obj: 'dragon' }, { type: 'moment', id: 'rally' }, { type: 'ult', mode: 'go' }, { type: 'safe' }, { type: 'plan', plan: 'aggro' }, { type: 'moment', id: 'timeout' }]);
-// Living World (night, Yokai Parade, walls, Tengu): the calls that only exist there replay too
-const okL = run('living', { seed: 4245, map: 'ember', living: 1, coach: [false, true], teams }, 760,
-  [{ type: 'objective', obj: 'yokai' }, { type: 'gank', lane: 'top' }, { type: 'invade', camp: '1:moon' }, { type: 'objective', obj: 'boss' }, { type: 'group', lane: 'mid' }, { type: 'objective', obj: 'boss' }]);
-const okR = run('rush', { seed: 4243, map: 'rush_sakura', mode: 'rush', coach: [false, true], teams }, 480,
-  [{ type: 'moment', id: 'rally' }, { type: 'group', lane: 'mid' }, { type: 'objective', obj: 'dragon' }, { type: 'moment', id: 'push' }, { type: 'ult', mode: 'go' }, { type: 'objective', obj: 'baron' }, { type: 'moment', id: 'timeout' }]);
+// Living World + Bosses & Beasts (night, Yokai Parade, walls, scout pets, the Elder Kami): the calls that only exist there replay too
+const okL = run('living', { seed: 4245, map: 'ember', living: 1, beasts: 1, coach: [false, true], teams }, 760,
+  [{ type: 'objective', obj: 'yokai' }, { type: 'scout', x: 1250, y: 900 }, { type: 'gank', lane: 'top' }, { type: 'invade', camp: '1:moon' }, { type: 'objective', obj: 'boss' }, { type: 'scout', x: 1200, y: 1200 }, { type: 'group', lane: 'mid' }, { type: 'objective', obj: 'boss' }]);
+const okR = run('rush', { seed: 4243, map: 'rush_sakura', mode: 'rush', beasts: 1, coach: [false, true], teams }, 480, // (Bosses & Beasts in Lane Rush: rare Kraken, scout pets)
+  [{ type: 'moment', id: 'rally' }, { type: 'scout', x: 1300, y: 1100 }, { type: 'group', lane: 'mid' }, { type: 'objective', obj: 'dragon' }, { type: 'moment', id: 'push' }, { type: 'ult', mode: 'go' }, { type: 'objective', obj: 'baron' }, { type: 'moment', id: 'timeout' }]);
 // Co-op vs AI: two coaches' seat-stamped commands in one log (some rejected by the ownership rules),
 // a lead pass and the partner leaving (a system command), then the whole match replayed from the log.
 function runCoop() {

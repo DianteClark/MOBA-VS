@@ -9,6 +9,8 @@ import { toast, fmtTime, MODE_LABEL } from './dom.js';
 import { createShare, shareUrl } from '../net/online.js';
 import { skinFace, loadSkinBodies, loadFace } from '../render/skins.js';
 import { EMOTES, BORDERS, emoteSrc } from '../data/cosmetics.js';
+import { KAMI } from '../sim/beasts.js';
+import { kamiFace } from '../data/beasts.js';
 
 const BLUE = '#4aa3ff', RED = '#ff5a5a', GOLD = '#ffd84a', INK = '#f3ead8', MUTED = '#a99fb3';
 
@@ -39,6 +41,12 @@ export async function drawShareCard(m, coach) {
   T('MOBA-VS', 40, 70, 34, '#ffe3a3');
   T(`${MODE_LABEL[m.mode] || 'Match'}${m.cup ? ' · ' + m.cup : ''} · ${(MAP_BY_ID[m.map] || {}).name || ''}`, W - 40, 62, 20, MUTED, 'right');
   T(new Date(m.t).toLocaleDateString() + (EVENT_BY_ID[m.ev] ? ` · ${EVENT_BY_ID[m.ev].name}` : ''), W - 40, 92, 18, MUTED, 'right');
+  // Bosses & Beasts: the map's Kami, and what this coach's team took of it
+  const kd = MAP_BY_ID[m.map], kk = kd && KAMI[kd.kami];
+  if (kk) {
+    const kf = await loadImg(kamiFace(kd.kami, m.kb && m.kb[1] > 0)); if (kf) x.drawImage(kf, W - 40 - 48, 266, 48, 48);
+    T(m.kb ? `${m.kb[0]} ${kk.short} blessing${m.kb[0] === 1 ? '' : 's'}${m.kb[1] ? ` · ${kk.elder} slain` : ''}` : kk.name, W - 40 - 58, 298, 20, kk.color, 'right');
+  }
   T(won ? 'VICTORY' : 'DEFEAT', 40, 190, 104, won ? GOLD : RED);
   const how = m.crystal ? `${won ? 'Crystal destroyed' : 'Crystal lost'} at ${fmtTime(m.len)}` : `Decided on towers at ${fmtTime(m.len)} (${m.towers[me]}-${m.towers[them]})`;
   T(how, 44, 236, 24, INK);

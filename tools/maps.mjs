@@ -50,7 +50,7 @@ for (const def of [...MAPS, ...RUSH_MAPS]) {
   }
 }
 // Living World (src/sim/living.js): every breakable wall is a real shortcut (shorter path once open) that never
-// cuts anything off while closed; Moon Spirits, the Yokai Parade's loop and the Tengu's spot are open ground
+// cuts anything off while closed; Moon Spirits, the Yokai Parade's loop and the Elder Kami's arena are open ground
 // out of tower reach; the A* clearance kept up incrementally as walls open equals a full rebuild.
 function livingCheck(def, towers) {
   let miss = 0; const say = (m) => { console.log(`  ✘ ${def.id}: ${m}`); miss++; };

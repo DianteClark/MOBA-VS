@@ -1,6 +1,7 @@
 // Rival coaches in the UI and the vs-AI session: who you face (picked on the Rivals screen or rolled from the
 // difficulty's tier), how they draft and plan, the Rivals screen with your record against each, nemesis
 // callouts, and their lines at the draft and on the results screen. Records live in profile.d.rivals.
+import { rivalMascot } from './beastsui.js';
 import { h, mount, face } from './dom.js';
 import { RIVALS, RIVAL_BY_ID, TIER_NAME, rivalFace, rivalLine, MOMENT_HABIT, BAN_HABIT } from '../data/rivals.js';
 import { PLAN_INFO } from '../data/plans.js';
@@ -80,7 +81,7 @@ export function rivalPanel(sum, s, won) {
     : rv.s >= 3 ? `${rv.s} wins in a row vs ${r.name}.` : rv.s <= -3 ? `${-rv.s} losses in a row vs ${r.name}.` : null;
   return h('div', { class: 'panel rvres' + (rv && (rv.nemesis || rv.revenge) ? ' nem' : '') },
     rivalFaceImg(r, 44, 'big'),
-    h('div', { class: 'rvtxt' }, h('b', {}, `${r.name} `, h('small', {}, r.title)), h('span', { class: 'rvline' }, `“${rivalLine(r, won ? 'lose' : 'win', s.seed)}”`),
+    h('div', { class: 'rvtxt' }, h('b', {}, `${r.name} `, h('small', {}, r.title), ' ', rivalMascot(r.id)), h('span', { class: 'rvline' }, `“${rivalLine(r, won ? 'lose' : 'win', s.seed)}”`),
       h('small', { class: 'muted' }, `You vs ${r.name}: ${rec.w}-${rec.l}`, news ? h('b', { class: 'rvnews' }, ' · ' + news) : null)));
 }
 
@@ -103,7 +104,7 @@ export function showRivals(app, sel = null) {
   const streak = rec.s >= 2 ? `${rec.s} wins in a row` : rec.s <= -2 ? `${-rec.s} losses in a row` : '';
   const detail = h('div', { class: 'panel rvdetail' + (nem === r.id ? ' nem' : '') },
     h('div', { class: 'rvhead' }, rivalFaceImg(r, 52, 'big'),
-      h('div', { class: 'rvid' }, h('b', {}, r.name), h('small', {}, r.title), h('span', { class: 'rvrank' }, tierBadge(rk, 18), `${rk.label} · ${TIER_NAME[r.tier]}`)),
+      h('div', { class: 'rvid' }, h('b', {}, r.name), h('small', {}, r.title, ' ', rivalMascot(r.id)), h('span', { class: 'rvrank' }, tierBadge(rk, 18), `${rk.label} · ${TIER_NAME[r.tier]}`)),
       h('div', { class: 'rvrec' }, h('b', {}, recText(rec) === 'new' ? '—' : `${rec.w}-${rec.l}`), h('small', {}, nem === r.id ? 'NEMESIS' : streak || 'your record'))),
     h('div', { class: 'rvpers' }, r.pers),
     h('div', { class: 'rvplans' }, ...r.plans.map((p, i) => h('span', { class: 'rvpl', style: { '--pc': PLAN_INFO[p].color }, title: PLAN_INFO[p].desc }, h('img', { src: planIcon(p), alt: '' }), h('small', {}, i ? 'Halftime' : 'Signature'), PLAN_INFO[p].short))),

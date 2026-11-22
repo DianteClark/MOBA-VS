@@ -22,6 +22,7 @@ import * as HE from './hearth.js'; // v24 Hearth clan: Hearthfire embers
 import { customRules } from './custom.js'; // custom games (cfg.custom): double gold, fast respawns, no backdoor guard
 import * as D from './talents.js'; // v23 match depth (cfg.depth): talents, item override, ult upgrades, revenge, duo ults
 import { Living } from './living.js';
+import { Beasts, BEASTS } from './beasts.js';
 
 // Champion-vs-champion damage scale: keeps fights readable and lanes from snowballing at level 1.
 const STEER_K = +(globalThis.process?.env?.SK || 0.45);
@@ -105,7 +106,8 @@ export class Game {
     this.coaches = [null, null];
     this.setupStructures();
     this.setupCamps();
-    this.living = living ? new Living(this) : null; // Living World: night, Yokai Parade, breakable walls, Tengu (src/sim/living.js)
+    this.living = living ? new Living(this) : null; // Living World: night, Yokai Parade, breakable walls (src/sim/living.js)
+    this.beasts = cfg.beasts && (living || this.mode === 'rush') ? new Beasts(this) : null; // Bosses & Beasts: map Kami + Elder, rare Oni / Kraken, scout pets, night camps (src/sim/beasts.js)
     this.shrines = this.world.shrines.map((p, i) => ({ id: i, x: p.x, y: p.y, owner: -1, progress: 0, capTeam: -1 }));
     const wl = this.world.def.weather || ['clear'];
     const off = (cfg.seed >>> 3) % wl.length;
@@ -366,6 +368,7 @@ export class Game {
     if (p.kind === 'spellVamp') s.omnivamp += p.pct;
     if (p.kind === 'msOutOfCombat' && now - h.lastCombat > sec(4)) s.msPct += p.pct;
     FX.passiveStats(this, h, s);
+    if (this.beasts) this.beasts.stats(h, s); // Kami blessings, rare Kraken
     const pw = s.power * (1 + s.powerMult);
     if (h.def.dmgType === 'phys') s.ad = (s.ad + pw) * (1 + s.powerMult * 0.5); else s.ap = (s.ap + pw) * (1 + s.powerMult);
     s.maxHp = (s.maxHp + s.hp) * (1 + s.hpPct);
@@ -449,7 +452,7 @@ export class Game {
         break;
       }
       case 'objective': {
-        const o = c.obj; if (!['dragon', 'herald', 'baron'].includes(o) && !(this.living && (o === 'boss' || o === 'yokai'))) { ok = false; break; }
+        const o = c.obj; if (!['dragon', 'herald', 'baron'].includes(o) && !(this.living && o === 'yokai') && !(this.beasts && o === 'boss')) { ok = false; break; }
         if (!this.objAvailable(o)) { ok = false; break; }
         const pit = this.objPit(o);
         const pref = o === 'dragon' ? ['jungle', 'bot', 'support', 'mid', 'top'] : o === 'herald' || o === 'yokai' ? ['jungle', 'top', 'mid', 'support', 'bot'] : ['jungle', 'mid', 'top', 'support', 'bot'];
@@ -560,6 +563,7 @@ export class Game {
         this.emit({ type: 'surge', team: c.team });
         break;
       }
+      case 'scout': if (!this.beasts || !this.beasts.scout(c)) ok = false; break; // Bosses & Beasts: the scout pet (free)
       case 'cancel':
         for (const h of alive) { if (h.task.call) h.task = { kind: 'idle' }; h.pendingCall = null; }
         team.call = null; team.focus = null;
@@ -639,7 +643,7 @@ export class Game {
     if (before < MOMENTUM.max && t.momentum >= MOMENTUM.max) this.emit({ type: 'momentumFull', team });
   }
   laneOf(u) { return this.world.closestLane(u); }
-  // Where an objective is fought (Living World: the Tengu's landing spot, the Yokai Parade's current spot).
+  // Where an objective is fought (the Elder Kami's arena, the Yokai Parade's current spot).
   objPit(o) { return o === 'dragon' ? this.world.pits.kami : o === 'herald' || o === 'baron' ? this.world.pits.kraken : this.living.objPit(o); }
   // An objective can be called if it is up or wakes within 25s.
   objAvailable(o) {
@@ -681,6 +685,7 @@ export class Game {
     this.updateCamps();
     this.updateObjectivesSpawn();
     if (this.living) this.living.update();
+    if (this.beasts) this.beasts.update();
 
     // rebuild grid
     this.grid.clear();
@@ -731,9 +736,9 @@ export class Game {
       if (this.time >= this.rules.pace.wrathFrom) kinds.unshift('super');
       const enemyInhibDown = this.units.some((u) => u.type === 'inhib' && u.team !== t && u.lane === ln && !u.alive);
       if (enemyInhibDown) kinds.unshift('super', 'super');
-      let baron = this.teams[t].heroes.some((h) => h.alive && h.baronUntil > this.tick) || this.teams[t].tenguUntil > this.tick; // Tengu's Gale empowers waves too
+      let baron = this.teams[t].heroes.some((h) => h.alive && h.baronUntil > this.tick) || this.teams[t].elderPush > this.tick; // the Elder's Push empowers waves too
       if (this.teams[t].siegeWaves[ln] > 0) { this.teams[t].siegeWaves[ln]--; baron = true; }
-      const allOut = this.teams[t].allOut > 0 || this.teams[t].tenguUntil > this.tick; // Coach Moment: All-Out Push (and Tengu's Gale)
+      const allOut = this.teams[t].allOut > 0 || this.teams[t].elderPush > this.tick; // Coach Moment: All-Out Push (and the Elder's Push)
       if (allOut) kinds.unshift('super');
       kinds.forEach((k, i) => this.spawnMinion(t, ln, k, i, minute, baron, allOut));
     }
@@ -767,7 +772,8 @@ export class Game {
     let wp = 0, bd = Infinity;
     for (let i = 0; i < pts.length; i++) { const dd = dist2(pts[i], tot); if (dd < bd) { bd = dd; wp = i; } }
     wp = team === BLUE ? Math.min(pts.length - 1, wp + 1) : Math.max(0, wp - 1);
-    const u = this.addUnit({ type: 'summon', kind: 'herald', team, lane, x: tot.x, y: tot.y, wp, maxHp: 3500, hp: 3500, radius: 22, charge: true,
+    const hm = this.beasts ? this.beasts.oniMult(team) : 1; // a rare Oni's charge is tougher
+    const u = this.addUnit({ type: 'summon', kind: 'herald', team, lane, x: tot.x, y: tot.y, wp, maxHp: 3500 * hm, hp: 3500 * hm, radius: 22, charge: true,
       stats: { ad: 120, ap: 0, armor: 40, mr: 40, as: 0.6, range: 70, ms: 85, pen: 0 } });
     this.emit({ type: 'heraldDrop', team, lane, id: u.id });
   }
@@ -782,12 +788,12 @@ export class Game {
       if (c.mobs.length) { c.mobs = c.mobs.filter((m) => m.alive); if (!c.mobs.length) c.respawnAt = this.tick + sec(c.def.buff ? T.buffRespawn : T.campRespawn); continue; }
       if (this.tick >= c.respawnAt && c.respawnAt > 0) {
         c.respawnAt = 0;
-        const g = 1 + minute * 0.07;
+        const g = 1 + minute * 0.07, nf = this.beasts && this.living.nightK > 0 ? BEASTS.nightCamp : 0; // Bosses & Beasts: a night form
         for (const [k, m] of c.def.mobs.entries()) {
           const dx = (m.dx || 0) * (c.side ? -1 : 1), dy = (m.dy || 0) * (c.side ? -1 : 1);
           const mob = this.addUnit({ type: 'mob', kind: m.k, camp: c.key, team: NEUTRAL, ph: c.ph * 8 + k, x: c.x + dx, y: c.y + dy, home: { x: c.x + dx, y: c.y + dy },
             maxHp: m.hp * g, hp: m.hp * g, radius: m.big ? 16 : 10, big: !!m.big, buff: m.big ? c.def.buff : null,
-            gold: m.big ? (c.def.buff ? 110 : 70) : 22, xpv: m.big ? (c.def.buff ? 170 : 110) : 30,
+            gold: (m.big ? (c.def.buff ? 110 : 70) : 22) * (nf || 1), xpv: (m.big ? (c.def.buff ? 170 : 110) : 30) * (nf || 1), ...(nf ? { nf: 1 } : {}),
             stats: { ad: m.ad * g * 0.6, ap: 0, armor: 12, mr: 12, as: 0.8, range: 50, ms: 90, pen: 0 } });
           c.mobs.push(mob);
         }
@@ -800,7 +806,8 @@ export class Game {
     const ob = this.objectives;
     if (!ob.dragon && this.objTimers.dragon && now >= this.objTimers.dragon) {
       const elder = this.teams.some((t) => t.soul);
-      const el = elder ? 'elder' : this.nextDragon;
+      const el0 = elder ? 'elder' : this.nextDragon, el = this.beasts ? this.beasts.kamiElement(el0) : el0; // Bosses & Beasts: the map's Kami species
+      if (this.beasts) this.beasts.kamiSpawned();
       const hp = ((elder ? 6500 : 3200) + minute * 120) * this.rules.kamiPower;
       ob.dragon = this.addUnit({ type: 'objective', kind: 'dragon', element: el, team: NEUTRAL, x: this.world.pits.kami.x, y: this.world.pits.kami.y, home: { ...this.world.pits.kami },
         maxHp: hp, hp, radius: 30, big: true, boss: true, stats: { ad: ((elder ? 150 : 55) + minute * 5) * this.rules.kamiPower, ap: 0, armor: 40, mr: 40, as: 0.7, range: 220, ms: 80, pen: 0 } });
@@ -812,7 +819,7 @@ export class Game {
         const hp = 5000 + minute * 100;
         ob.herald = this.addUnit({ type: 'objective', kind: 'herald', team: NEUTRAL, x: this.world.pits.kraken.x, y: this.world.pits.kraken.y, home: { ...this.world.pits.kraken },
           maxHp: hp, hp, radius: 26, big: true, boss: true, stats: { ad: 80, ap: 0, armor: 50, mr: 50, as: 0.6, range: 90, ms: 80, pen: 0 } });
-        this.emit({ type: 'spawn', obj: 'herald' });
+        this.emit({ type: 'spawn', obj: 'herald', ...(this.beasts ? this.beasts.rare(ob.herald) : {}) });
       }
       this.objTimers.herald = 0;
     }
@@ -822,7 +829,7 @@ export class Game {
       ob.baron = this.addUnit({ type: 'objective', kind: 'baron', team: NEUTRAL, x: this.world.pits.kraken.x, y: this.world.pits.kraken.y, home: { ...this.world.pits.kraken },
         maxHp: hp, hp, radius: 34, big: true, boss: true, slam: 0, stats: { ad: 170 + minute * 6, ap: 0, armor: 70, mr: 70, as: 0.75, range: 230, ms: 0, pen: 0 } });
       this.objTimers.baron = 0;
-      this.emit({ type: 'spawn', obj: 'baron' });
+      this.emit({ type: 'spawn', obj: 'baron', ...(this.beasts ? this.beasts.rare(ob.baron) : {}) });
     }
   }
 
@@ -837,6 +844,7 @@ export class Game {
         if (r) src.push({ x: u.x, y: u.y, r: u.structure ? r : r * this.wx.vision * (1 + ((u.stats && u.stats.sight) || 0)) * this.rules.vision * nv });
       }
       for (const w of this.wards) if (w.team === t && w.until > this.tick) src.push({ x: w.x, y: w.y, r: VISION.ward * this.rules.vision });
+      if (this.beasts) this.beasts.sight(t, src);
       for (const sh of this.shrines) if (sh.owner === t) src.push({ x: sh.x, y: sh.y, r: VISION.shrine });
       src.push({ x: W.fountain[t].x, y: W.fountain[t].y, r: VISION.fountain });
       const grid = W.computeVision(src, this.visGrid[t]);
@@ -870,6 +878,7 @@ export class Game {
 
   dealDamage(src, tgt, raw, type, flags = {}) {
     if (!tgt.alive || raw <= 0) return 0;
+    if (tgt.type === 'pet') return this.beasts.hitPet(tgt, src, flags); // a scout pet: every hit is one
     if (tgt.type === 'nexus' || tgt.type === 'inhib' || tgt.type === 'tower') { if (!this.isTargetable(tgt)) return 0; }
     if (FX.tryParry(this, src, tgt, flags)) return 0;
     let amt = raw;
@@ -898,6 +907,7 @@ export class Game {
     }
     if (tgt.structure) amt *= this.siegeRamp * (src && src.type === 'minion' ? this.rules.minionSiege : 1);
     if (tgt.structure && tgt.team < 2 && this.teams[tgt.team].fortifyUntil > this.tick) amt *= 0.6;
+    if (tgt.structure && this.beasts) amt *= this.beasts.structMult(tgt); // Bamboo Grove
     if (type !== 'true') {
       const res = type === 'phys' ? (tgt.stats.armor || 0) : (tgt.stats.mr || 0);
       const eff = res * (1 - FX.shredOf(this, tgt)) * (1 - ((ss && ss.pen) || 0));
@@ -1004,6 +1014,7 @@ export class Game {
       }
       if (att.elderUntil > this.tick && tgt.type === 'hero' && tgt.hp / tgt.maxHp < 0.2) { this.dealDamage(att, tgt, 99999, 'true', {}); return; }
       dmg = FX.basicBonus(this, att, tgt, dmg);
+      if (this.beasts && tgt.type === 'hero') this.beasts.onBasic(att, tgt); // Sticky Ooze
     }
     if (tgt.structure && att.type === 'minion') dmg *= att.kind === 'siege' ? 3 : 2;
     if (att.type === 'tower') {
@@ -1191,7 +1202,7 @@ export class Game {
       // hero attacking an allied hero nearby
       tgt = this.findTarget(m, aggro, (e) => e.type === 'hero' && e.lastHitHero > now - sec(1.5) && this.canSee(m.team, e) && inZone(e)
         && this.grid.query(e.x, e.y, 400).some((a) => a.type === 'hero' && a.team === m.team && a.lastHurtByHero > now - sec(1.5)));
-      if (!tgt) tgt = this.findTarget(m, aggro, (e) => (e.type === 'minion' || e.type === 'summon') && inZone(e));
+      if (!tgt) tgt = this.findTarget(m, aggro, (e) => (e.type === 'minion' || e.type === 'summon' || e.type === 'pet') && inZone(e));
       if (!tgt && m.type === 'summon') tgt = this.findTarget(m, 350, (e) => e.structure && this.isTargetable(e));
       // endgame: an open enemy Crystal in reach beats chasing heroes (src/sim/endgame.js)
       if (!tgt) { const n = openCrystal(this, m.team); if (n && dist2(m, n) < (aggro + 60) ** 2) tgt = n; }
@@ -1236,7 +1247,7 @@ export class Game {
       && this.grid.query(t.x, t.y, R + 100).some((a) => a.type === 'hero' && a.team === t.team && a.lastHurtByHero > now - sec(1)));
     if (prio && prio !== tgt) { tgt = prio; t.streak = 0; }
     if (!tgt) {
-      tgt = this.findTarget(t, R, (e) => e.type === 'summon') || this.findTarget(t, R, (e) => e.type === 'minion') || this.findTarget(t, R, (e) => e.type === 'hero');
+      tgt = this.findTarget(t, R, (e) => e.type === 'summon') || this.findTarget(t, R, (e) => e.type === 'minion') || this.findTarget(t, R, (e) => e.type === 'hero') || this.findTarget(t, R, (e) => e.type === 'pet');
       t.streak = 0;
     }
     t.target = tgt;
@@ -1659,6 +1670,7 @@ export class Game {
         } else if (killerTeam !== NEUTRAL && killerTeam !== u.team) this.teams[killerTeam].kills++;
         for (const a of assists) { a.assists++; this.giveGold(a, GOLD.assist / Math.max(1, assists.length) * 1.5 * this.rules.killGold); }
         FX.onTakedown(this, u, killer, assists);
+        if (this.beasts) this.beasts.onTakedown(u, killer, assists); // Racoon's Purse
         if (this.depth) D.depthTakedown(this, u, killer, assists);
         const xp = XP.killBase + XP.killPerLevel * u.level;
         const near = this.grid.query(u.x, u.y, 900).filter((h) => h.type === 'hero' && h.alive && h.team !== u.team);
@@ -1667,6 +1679,7 @@ export class Game {
         this.emit(ev); this.resolveCalls(ev);
         break;
       }
+      case 'pet': this.beasts.onPetDie(u, src); break;
       case 'minion': case 'summon': {
         if (u.type === 'summon') break;
         const g = GOLD[u.kind] * this.rules.minionGold, x = XP[u.kind];
@@ -1719,8 +1732,9 @@ export class Game {
           for (const h of tm.heroes) if (h.alive) { h.baronUntil = now + sec(this.T.baronBuff); this.recalc(h); }
           tm.baronUntil = now + sec(this.T.baronBuff);
           this.objTimers.baron = now + sec(this.T.baronRespawn);
-        } else if (this.living) this.living.onObjective(u, team); // Yokai Parade tamed / Tengu's Gale
-        const ev = { type: 'objective', obj: u.kind, element: u.element, team, killer: killer ? killer.id : 0, steal: smite };
+        } else if (this.living) this.living.onObjective(u, team); // Yokai Parade tamed
+        if (this.beasts) this.beasts.onObjective(u, team); // next Kami, the Elder's blessing, rare rewards
+        const ev = { type: 'objective', obj: u.kind, element: u.element, team, killer: killer ? killer.id : 0, steal: smite, ...(u.rare ? { rare: true } : {}) };
         this.emit(ev); this.resolveCalls(ev);
         if (this.depth) D.depthObjective(this, team, u);
         if (this.hearth) HE.hearthObjective(this, team, u);
@@ -1772,7 +1786,8 @@ export class Game {
     for (const u of this.units) if (u.alive) h = hashInts(h, u.id, r2(u.x), r2(u.y), r2(u.hp));
     for (const t of this.teams) { h = hashInts(h, r2(t.momentum), t.surgeUntil, t.momentCd, t.allOut); for (const x of t.heroes) h = hashInts(h, r2(x.gold), x.level, x.items.length); }
     if (this.hearth) for (const H of this.hearth) if (H) h = hashInts(h, H.embers, H.peak); // v24 Hearthfire
-    if (this.living) h = hashInts(h, this.living.mask, this.teams[0].moonUntil, this.teams[1].tenguUntil);
+    if (this.living) h = hashInts(h, this.living.mask, this.teams[0].moonUntil, 0);
+    if (this.beasts) for (const t of this.teams) h = hashInts(h, t.kamiElder, t.elderPush, t.scoutCd, t.rareBaron);
     return h >>> 0;
   }
 

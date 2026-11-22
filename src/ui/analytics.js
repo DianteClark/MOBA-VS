@@ -10,7 +10,8 @@ import { TEAM_NAME, OBJ_NAME, DRAGON_INFO } from '../sim/constants.js';
 import { MOMENTS } from '../sim/moments-coach.js';
 import { HERO_BY_ID, ROLE_LABEL } from '../data/heroes.js';
 import { BUILDS } from '../data/items.js';
-import { h } from './dom.js';
+import { h, bossFace } from './dom.js';
+import { elderName } from '../sim/beasts.js';
 import { normPlan } from '../sim/plans.js';
 import { planLines } from './plans.js';
 import { placeAt, placeFromKey, placeText } from '../world/places.js';
@@ -29,7 +30,7 @@ export const kGold = (v) => (Math.abs(v) >= 1000 ? (Math.round(v / 100) / 10) + 
 const heroName = (id) => (HERO_BY_ID[id] ? HERO_BY_ID[id].name : id || '?');
 // Living World objectives read as what happened to them
 const took = (obj, steal) => (steal ? 'stole' : obj === 'yokai' ? 'tamed' : obj === 'boss' ? 'slew' : 'took');
-const objName = (obj, el) => (obj === 'dragon' && DRAGON_INFO[el] ? DRAGON_INFO[el].name : OBJ_NAME[obj] || obj);
+const objName = (obj, el, rare) => (obj === 'dragon' && DRAGON_INFO[el] ? DRAGON_INFO[el].name : obj === 'boss' ? elderName(el) : (rare ? 'rare ' : '') + (OBJ_NAME[obj] || obj));
 
 // ───────────────────────── recording ─────────────────────────
 export class MatchRecorder {
@@ -58,7 +59,9 @@ export class MatchRecorder {
       }
       case 'tower': this.ev.push([t, 'tw', e.team, e.lane || '', e.tier || 0]); win(e.team); break;
       case 'inhib': this.ev.push([t, 'in', e.team, e.lane || '']); win(e.team); break;
-      case 'objective': if (e.team === 0 || e.team === 1) { this.ev.push([t, 'ob', e.team, e.obj, e.element || '', e.steal ? 1 : 0]); win(e.team); } break;
+      case 'objective': if (e.team === 0 || e.team === 1) { this.ev.push([t, 'ob', e.team, e.obj, e.element || '', e.steal ? 1 : 0, e.rare ? 1 : 0]); win(e.team); } break;
+      case 'scout': this.ev.push([t, 'sc', e.team]); break; // Bosses & Beasts: scout pets sent / caught
+      case 'scoutDown': this.ev.push([t, 'sd', e.team]); break;
       case 'soul': this.ev.push([t, 'sl', e.team, e.element]); break;
       case 'heraldDrop': this.ev.push([t, 'on', e.team, e.lane || '']); break;
       case 'moment': this.ev.push([t, 'mo', e.team, e.id]); break;
@@ -158,7 +161,7 @@ export function analyze(A) {
     const [t, ty, tm] = e, W = teamWord(A, tm);
     if (ty === 'tw') add(t, tm, 'tw', `${W} took a ${LANE[e[3]] || 'base'} tower`);
     else if (ty === 'in') add(t, tm, 'in', `${W} broke the ${LANE[e[3]] || ''} gate`.replace('  ', ' '));
-    else if (ty === 'ob') add(t, tm, 'ob', `${W} ${took(e[3], e[5])} the ${objName(e[3], e[4])}${e[3] === 'boss' ? ": Tengu's Gale" : ''}`, { obj: e[3], el: e[4] });
+    else if (ty === 'ob') add(t, tm, 'ob', `${W} ${took(e[3], e[5])} the ${objName(e[3], e[4], e[6])}${e[3] === 'boss' ? ": the Elder's Push" : ''}`, { obj: e[3], el: e[4] });
     else if (ty === 'sl') add(t, tm, 'sl', `${W} earned the ${DRAGON_INFO[e[3]] ? DRAGON_INFO[e[3]].short : ''} Kami Blessing`);
     else if (ty === 'on') add(t, tm, 'on', `${W} unleashed the Oni ${LANE[e[3]] || ''}`.trim());
     else if (ty === 'mo') add(t, tm, 'mo', `${A.my >= 0 ? (tm === A.my ? 'Your' : 'Their') : TEAM_NAME[tm]} Coach Moment: ${(MOMENTS[e[3]] || {}).name || e[3]}`);
@@ -219,7 +222,7 @@ function turningPoint(A, fights, calls) {
   for (const f of fights) if (inW(f.t0)) { const pk = coarse(f.place), q = byPlace[pk] || (byPlace[pk] = { n: [0, 0], k: 0, ace: false }); q.n[0] += f.n[0]; q.n[1] += f.n[1]; q.k++; q.ace = q.ace || f.ace === w; }
   for (const [pl, q] of Object.entries(byPlace)) if (q.n[w] > q.n[1 - w]) parts.push(`won ${q.k > 1 ? 'fights' : 'a fight'} ${where(A, pl)} ${q.n[w]}-${q.n[1 - w]}${q.ace ? ' and aced ' + them : ''}`);
   for (const e of A.ev) if (inW(e[0]) && e[2] === w) {
-    if (e[1] === 'ob') parts.push(`${took(e[3], e[5])} the ${objName(e[3], e[4])}`);
+    if (e[1] === 'ob') parts.push(`${took(e[3], e[5])} the ${objName(e[3], e[4], e[6])}`);
     if (e[1] === 'in') parts.push(`broke the ${LANE[e[3]] || ''} gate`);
   }
   const tw = A.ev.filter((e) => e[1] === 'tw' && e[2] === w && inW(e[0])).length;
@@ -240,8 +243,7 @@ const bossImg = {};
 function boss(obj, el, redraw) {
   const k = obj + (el || '');
   if (!bossImg[k]) {
-    const KF = { infernal: 'kami_infernal', ocean: 'kami_ocean', mountain: 'kami_mountain', cloud: 'kami_cloud', elder: 'kami_elder' };
-    const i = new Image(); i.src = `assets/img/boss/${obj === 'dragon' ? KF[el] || 'kami_elder' : obj === 'herald' ? 'herald_faceset' : obj === 'boss' ? 'tengu_faceset' : obj === 'yokai' ? 'yokai_faceset' : 'baron_faceset'}.png`;
+    const i = new Image(); i.src = bossFace(obj, el);
     bossImg[k] = i; i.redraws = [];
     i.onload = () => { for (const f of i.redraws.splice(0)) f(); };
   }
@@ -253,7 +255,7 @@ function boss(obj, el, redraw) {
 export function markerList(A, d) {
   const out = [];
   for (const e of A.ev) {
-    if (e[1] === 'ob') out.push({ t: e[0], team: e[2], kind: 'ob', obj: e[3], el: e[4], label: `${fmt(e[0])} ${teamWord(A, e[2])} ${took(e[3], e[5])} the ${objName(e[3], e[4])}` });
+    if (e[1] === 'ob') out.push({ t: e[0], team: e[2], kind: 'ob', obj: e[3], el: e[4], label: `${fmt(e[0])} ${teamWord(A, e[2])} ${took(e[3], e[5])} the ${objName(e[3], e[4], e[6])}` });
     else if (e[1] === 'tw' || e[1] === 'in') out.push({ t: e[0], team: e[2], kind: e[1], label: `${fmt(e[0])} ${teamWord(A, e[2])} ${e[1] === 'in' ? 'broke the ' + (LANE[e[3]] || '') + ' gate' : 'took a ' + (LANE[e[3]] || 'base') + ' tower'}` });
     else if (e[1] === 'mo') out.push({ t: e[0], team: e[2], kind: 'mo', label: `${fmt(e[0])} ${TEAM_NAME[e[2]]} Coach Moment: ${(MOMENTS[e[3]] || {}).name || e[3]}` });
   }
@@ -407,7 +409,8 @@ function storyTab(A, d) {
       d.turn ? h('div', { class: 'aturn big' }, h('b', {}, `Turning point · ${d.turn.at}`), h('span', {}, d.turn.text)) : h('div', { class: 'aturn big' }, h('b', {}, 'No clear turning point'), h('span', {}, 'Nobody pulled away on gold.')),
       planLines(A),
       h('div', { class: 'atiles' }, tile('Biggest lead', `${d.lead.max >= -d.lead.min ? 'Blue' : 'Red'} +${kGold(Math.max(d.lead.max, -d.lead.min))}`), tile('Fights', String(d.fights.length)), tile('Aces', String(d.fights.filter((f) => f.ace >= 0).length)),
-        tile('Objectives', `${A.ev.filter((e) => e[1] === 'ob' && e[2] === 0).length} - ${A.ev.filter((e) => e[1] === 'ob' && e[2] === 1).length}`))),
+        tile('Objectives', `${A.ev.filter((e) => e[1] === 'ob' && e[2] === 0).length} - ${A.ev.filter((e) => e[1] === 'ob' && e[2] === 1).length}`),
+        A.ev.some((e) => e[1] === 'sc') ? tile('Scouts sent', `${A.ev.filter((e) => e[1] === 'sc' && e[2] === 0).length} - ${A.ev.filter((e) => e[1] === 'sc' && e[2] === 1).length}`) : null)),
     h('div', { class: 'tl' }, h('div', { class: 'tlh' }, 'Key moments'), rows.length ? rows : h('div', { class: 'muted' }, 'A quiet game.')));
 }
 const tile = (k, v, cls = '') => h('div', { class: 'atile ' + cls }, h('b', {}, v), h('small', {}, k));

@@ -20,8 +20,8 @@ for (let i = 0; i < N; i++) {
   const rng = new Rng(555 + i), used = new Set();
   const draft = () => ROLES.map((r) => { const pool = HEROES.filter((h) => h.role === r && !used.has(h.id)); const h = pool[rng.int(pool.length)]; used.add(h.id); return h.id; });
   const a = draft(), b = draft();
-  // classic maps play the Living World (moving Yokai Parade homes, Moon Spirits, the Tengu) unless LIVING=0
-  const g = new Game({ seed: 900 + i, mode, map, coach: [true, true], ...(mode === 'classic' && process.env.LIVING !== '0' ? { living: 1 } : {}), teams: [aiPrep(a, b), aiPrep(b, a)] });
+  // classic maps play the Living World (moving Yokai Parade homes, Moon Spirits, the Elder Kami) unless LIVING=0
+  const g = new Game({ seed: 900 + i, mode, map, coach: [true, true], ...(mode === 'classic' && process.env.LIVING !== '0' ? { living: 1, beasts: 1 } : {}), teams: [aiPrep(a, b), aiPrep(b, a)] });
   const out = new Map();
   while (!g.over && g.time < g.rules.seconds) {
     g.step([]); g.fx.length = 0;

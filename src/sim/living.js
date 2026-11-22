@@ -8,10 +8,8 @@
 //               Killing the leader tames the parade: it marches down the enemy's weakest lane for 60s.
 //   Walls       breakable walls and thickets (map defs `walls`) close shortcuts through the forest. Junglers
 //               break the ones in their way (a few hits); thickets wilt at nightfall (into tall grass) and
-//               every wall still standing crumbles when the Tengu lands.
-//   Tengu       the World Boss lands in the map centre at 12:00. Its slayers get Tengu's Gale for 90s
-//               (All-Out waves: a super minion per lane and stronger, faster minions; +60% structure damage and
-//               +6% speed for the heroes): a stalemate breaker.
+//               every wall still standing crumbles when the Elder Kami lands in the centre arena (bossSpot).
+//   The Elder Kami (the world boss, objective 'boss') lives in src/sim/beasts.js (cfg.beasts).
 // Deterministic: only + - * / sqrt, the game's rng, and tick-based timers. Without cfg.living none of this
 // exists and the classic match is bit-identical.
 import { DT, sec, NEUTRAL, BLUE } from './constants.js';
@@ -23,7 +21,6 @@ export const LIVING = {
   moonsight: 90, moonGold: [160, 30], moonXp: [200, 40], bloodMoonGold: 1.5,
   yokaiFirst: 240, yokaiRespawn: 150, tameSec: 60, paradeMs: 60,
   breachFrom: 150, wallHits: { wall: 6, thicket: 3 },
-  bossAt: 720, bossWarn: 30, bossBuff: 90, bossSiege: 0.6, bossMs: 0.06,
 };
 const NIGHT = { name: 'Moon Spirits', night: true, mobs: [{ k: 'camp_moon', hp: 1900, ad: 50, big: true }, { k: 'camp_wisp', hp: 520, ad: 18, dx: 34, dy: -14 }, { k: 'camp_wisp', hp: 520, ad: 18, dx: -30, dy: 22 }] };
 const FOLLOW = [{ k: 'yokai_skull', dx: -34, dy: 26 }, { k: 'yokai_kappa', dx: 34, dy: 26 }];
@@ -33,7 +30,7 @@ export class Living {
   constructor(g) {
     this.g = g;
     const W = g.world, d = W.def;
-    this.mask = 0; this.nightK = 0; this.quake = false;
+    this.mask = 0; this.nightK = 0; this.quake_ = false;
     // walls: ends = the open ground at both sides (where a hero stands to break it)
     this.walls = W.walls.map((w) => ({ id: w.id, kind: w.kind, x: w.x, y: w.y, hp: LIVING.wallHits[w.kind] || 8, max: LIVING.wallHits[w.kind] || 8,
       ends: [W.nearestOpen(w.a), W.nearestOpen(w.b)], open: false }));
@@ -48,10 +45,10 @@ export class Living {
     this.route = [r1, W.nearestOpen(y), W.nearestOpen(P(r1)), W.nearestOpen(P(y))];
     this.leg = (g.cfg.seed & 1) * 2; // starting waypoint: top or bottom river
     this.parade = []; this.tamed = [];
-    this.bossSpot = W.nearestOpen({ x: 1200, y: 1200 });
-    g.objectives.yokai = null; g.objectives.boss = null;
-    g.objTimers.yokai = sec(LIVING.yokaiFirst); g.objTimers.boss = sec(LIVING.bossAt);
-    for (const t of g.teams) { t.moonUntil = 0; t.tenguUntil = 0; }
+    this.bossSpot = W.nearestOpen({ x: 1200, y: 1200 }); // the centre arena (the Elder Kami lands here)
+    g.objectives.yokai = null;
+    g.objTimers.yokai = sec(LIVING.yokaiFirst);
+    for (const t of g.teams) t.moonUntil = 0;
   }
 
   // Walls live on the shared World: put them back to this game's state before it steps (the Replay Theater and
@@ -85,8 +82,6 @@ export class Living {
     this.nightK = t >= L.dusk && t < L.dawn + L.fade ? Math.min(kin, kout) : 0;
     if (now === sec(L.dusk)) this.dusk();
     if (now === sec(L.dawn)) this.dawn();
-    if (now === sec(L.bossAt - L.bossWarn)) g.emit({ type: 'bossSoon', x: this.bossSpot.x, y: this.bossSpot.y });
-    if (!g.objectives.boss && g.objTimers.boss && now >= g.objTimers.boss) this.spawnBoss();
     if (!g.objectives.yokai && g.objTimers.yokai && now >= g.objTimers.yokai) this.spawnParade();
     this.updateParade();
     if (this.tamed.length) {
@@ -186,31 +181,15 @@ export class Living {
     return best;
   }
 
-  // ───────── Tengu (World Boss) ─────────
-  spawnBoss() {
-    const g = this.g, gm = g.gameMinute, p = this.bossSpot;
-    const first = !this.quake;
-    // tough but quick for a grouped team (about a Kraken's worth): it must fall in a late-game window
-    const hp = 9500 + Math.max(0, gm - 12) * 500;
-    g.objectives.boss = g.addUnit({ type: 'objective', kind: 'boss', team: NEUTRAL, x: p.x, y: p.y, home: { ...p },
-      maxHp: hp, hp, radius: 34, big: true, boss: true, slam: 0, stats: { ad: 150 + gm * 5, ap: 0, armor: 50, mr: 50, as: 0.75, range: 220, ms: 0, pen: 0 } });
-    g.objTimers.boss = 0;
-    g.emit({ type: 'spawn', obj: 'boss', x: p.x, y: p.y, first });
-    if (first) {
-      // the landing shakes the forest: every wall still standing crumbles
-      this.quake = true;
-      for (const w of this.walls) if (!w.open) this.openWall(w, -1);
-    }
+  // ───────── the Elder Kami's landing (src/sim/beasts.js) ─────────
+  // The first landing shakes the forest: every wall still standing crumbles.
+  quake() {
+    if (this.quake_) return;
+    this.quake_ = true;
+    for (const w of this.walls) if (!w.open) this.openWall(w, -1);
   }
-  // game.kill, objective case (yokai / boss), after the shared objective rewards.
-  onObjective(u, team) {
-    const g = this.g, tm = g.teams[team];
-    if (u.kind === 'yokai') { this.tame(u, team); return; }
-    if (u.kind === 'boss') {
-      tm.tenguUntil = g.tick + sec(LIVING.bossBuff);
-      for (const h of tm.heroes) if (h.alive) g.addBuff(h, { siegePct: LIVING.bossSiege, msPct: LIVING.bossMs }, LIVING.bossBuff, 'tengu');
-    }
-  }
+  // game.kill, objective case (yokai), after the shared objective rewards.
+  onObjective(u, team) { if (u.kind === 'yokai') this.tame(u, team); }
   objPit(o) {
     if (o === 'boss') return this.bossSpot;
     const y = this.g.objectives.yokai;
