@@ -17,6 +17,7 @@ import { audio } from '../audio.js';
 import { makeCode } from '../net/peer.js';
 import { online, ping, getAccount, ensureAccount, presence, friendAction, playerProfile, createInvite, getInvite, respondInvite,
   cancelInvites, friendCode, inviteUrl } from '../net/online.js';
+import { pushRematch } from './notify.js';
 
 const POLL = 30000;
 const MODE_NAME = { casual: 'Casual 5v5', ranked: 'Ranked 5v5', rush: 'Lane Rush', coop: 'Co-op' };
@@ -277,6 +278,7 @@ function askRematch(app) {
   const rm = app.rematch; if (!rm || rm.me || rm.gone || !app.net) return;
   rm.me = true; audio.sfx('accept', 0.6);
   app.net.t.send({ t: 'rm', match: rm.match, elo: profile.elo });
+  const s = app.resultsSession(); if (s && s.oppId) pushRematch(s.oppId, rm.match); // a push if they left the app
   rm.render && rm.render();
   maybeStartRematch(app);
 }

@@ -236,6 +236,7 @@ export function showResults(app, g, myTeam, onAgain, onMenu, extra = {}) {
     extra.social || null,
     table(0), table(1),
     extra.analytics ? analysisCard(extra.analytics, extra.onAnalysis) : null,
+    extra.foot || null,
     h('div', { class: 'rbtns' }, extra.share ? h('button', { class: 'btn big sharebtn', onclick: extra.share }, 'Share') : null, onAgain ? h('button', { class: 'btn big', onclick: onAgain }, extra.againLabel || 'Play again') : null, extra.onReplay && app.lastReplay() && !app.session.replay ? h('button', { class: 'btn big', title: 'Replay Theater: timeline, speeds, jumps to fights', onclick: extra.onReplay }, 'Watch replay') : null, h('button', { class: 'btn big', onclick: onMenu }, 'Main menu')),
   ));
   growBars(screen().querySelector('.results .prog'), 300);

@@ -1,0 +1,56 @@
+# Weekly auto-balance from real players: every Monday, pull last week's hero results from verified online
+# matches, propose small capped power nudges (tools/autobalance.mjs) plus patch notes, check determinism,
+# and open a pull request. Nothing ships until the owner merges it (one tap in the GitHub app).
+# Needs: the repository secret MOBAVS_ADMIN (same value as the Worker secret), and Settings → Actions →
+# General → Workflow permissions → "Allow GitHub Actions to create and approve pull requests".
+name: Weekly balance PR
+on:
+  schedule:
+    - cron: '23 5 * * 1'
+  workflow_dispatch:
+    inputs:
+      min:
+        description: 'Minimum games per hero'
+        default: '60'
+permissions:
+  contents: write
+  pull-requests: write
+concurrency: autobalance
+jobs:
+  propose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Propose
+        id: ab
+        env:
+          MOBAVS_API: https://moba-vs.chesscomplex.workers.dev
+          MOBAVS_ADMIN: ${{ secrets.MOBAVS_ADMIN }}
+        run: |
+          if [ -z "$MOBAVS_ADMIN" ]; then echo "::notice::MOBAVS_ADMIN is not set: weekly balance is off."; echo "changed=false" >> "$GITHUB_OUTPUT"; exit 0; fi
+          node tools/autobalance.mjs --days 7 --min "${{ github.event.inputs.min || '60' }}" --body "$RUNNER_TEMP/pr.md"
+      - name: Sanity checks
+        if: steps.ab.outputs.changed == 'true'
+        run: |
+          node tools/determinism.mjs
+          node tools/lockstep.mjs
+          node tools/replay.mjs
+      - name: Open pull request
+        if: steps.ab.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          BR="autobalance/$(date -u +%Y-%m-%d)"
+          git config user.name "balance-bot[bot]"
+          git config user.email "balance-bot@users.noreply.github.com"
+          git checkout -b "$BR"
+          git add src/data/tuning.js src/data/patchnotes.js src/main.js
+          git commit -m "Weekly balance v${{ steps.ab.outputs.version }} (proposed from real-player results)"
+          git push --force -u origin "$BR"
+          # an older open proposal is superseded by this one
+          for n in $(gh pr list --state open --json number,headRefName -q '.[] | select(.headRefName | startswith("autobalance/")) | select(.headRefName != "'"$BR"'") | .number'); do gh pr close "$n" --comment "Superseded by this week's proposal." --delete-branch || true; done
+          gh pr create --base "${{ github.event.repository.default_branch }}" --head "$BR" --title "Weekly balance v${{ steps.ab.outputs.version }}" --body-file "$RUNNER_TEMP/pr.md" || gh pr edit "$BR" --body-file "$RUNNER_TEMP/pr.md"

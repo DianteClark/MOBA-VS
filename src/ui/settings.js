@@ -7,6 +7,8 @@ import { audio } from '../audio.js';
 import { TEAM_COL, TEAM_DARK } from '../render/palette.js';
 import { hapticsSupported } from './haptics.js';
 import { resetTips, tipsLeft } from './coachtips.js';
+import { pushSettingsGroup } from './notify.js';
+import { openFeedback } from './feedback.js';
 
 const KEY = 'mobavs_settings';
 const PALETTES = {
@@ -73,6 +75,13 @@ function toggle(label, key, desc, rerender, extra) {
   return h('div', { class: 'srow' }, h('div', { class: 'slab' }, label, desc ? h('small', {}, desc) : null),
     h('div', { class: 'sctl' }, extra || null, h('button', { class: 'tog' + (settings[key] ? ' on' : ''), role: 'switch', 'aria-checked': settings[key] ? 'true' : 'false', onclick: () => { setSetting(key, !settings[key]); audio.sfx('move', 0.5); rerender(); } }, h('i'))));
 }
+// Notifications (per device, menu only) and "Send feedback". close: closes the in-match overlay before the feedback form opens.
+function opsGroups(rerender, close) {
+  return [close ? null : pushSettingsGroup(rerender), // in a match only Help: notifications are set from the menu
+    h('div', { class: 'sgroup' }, h('div', { class: 'sgt' }, 'Help'),
+      h('div', { class: 'srow' }, h('div', { class: 'slab' }, 'Send feedback', h('small', {}, 'A bug, an idea, anything. Version and device are attached.')),
+        h('div', { class: 'sctl' }, h('button', { class: 'chip', onclick: () => { audio.sfx('move', 0.5); const runner = close ? close() : null; openFeedback(window.app, { from: close ? 'match' : 'settings', runner }); } }, 'Write'))))];
+}
 function body(rerender) {
   const sw = h('span', { class: 'swatches' }, h('i', { style: { background: TEAM_COL[0] } }), h('i', { style: { background: TEAM_COL[1] } }));
   return [
@@ -106,7 +115,7 @@ function body(rerender) {
 export function showSettings(app) {
   const render = () => mount(document.getElementById('screen'), h('div', { class: 'subscreen settings' },
     h('div', { class: 'shead' }, h('button', { class: 'btn backbtn', onclick: () => { audio.sfx('move', 0.5); app.menu(); } }, '< Back'), h('h2', {}, 'Settings'), h('div')),
-    h('div', { class: 'panel spanel' }, ...body(render),
+    h('div', { class: 'panel spanel' }, ...body(render), ...opsGroups(render),
       h('div', { class: 'srow sfoot' }, h('button', { class: 'chip', onclick: () => { Object.assign(settings, DEFAULTS, { reducedMotion: systemReduced() }); saveSettings(); applySettings(); audio.setMuted(false); render(); } }, 'Reset to defaults')))));
   render();
 }
@@ -119,7 +128,8 @@ export function openSettingsModal(runner) {
   const close = () => { wrap.remove(); if (wasPaused === false) runner.paused = false; document.removeEventListener('keydown', esc, true); };
   const esc = (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
   const inner = h('div', { class: 'panel spanel mpanel' });
-  const render = () => mount(inner, h('div', { class: 'mhead' }, h('b', {}, 'Settings'), wasPaused === false ? h('small', { class: 'muted' }, 'Game paused') : null, h('button', { class: 'x', title: 'Close', onclick: close }, 'X')), ...body(render),
+  const toFeedback = () => { close(); return runner; }; // the feedback form pauses the game again itself
+  const render = () => mount(inner, h('div', { class: 'mhead' }, h('b', {}, 'Settings'), wasPaused === false ? h('small', { class: 'muted' }, 'Game paused') : null, h('button', { class: 'x', title: 'Close', onclick: close }, 'X')), ...body(render), ...opsGroups(render, toFeedback),
     h('div', { class: 'srow sfoot' }, h('button', { class: 'btn', onclick: close }, 'Resume')));
   const wrap = h('div', { class: 'modal', onpointerdown: (e) => { if (e.target === wrap) close(); } }, inner);
   render();
