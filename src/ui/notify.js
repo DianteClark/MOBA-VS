@@ -125,11 +125,20 @@ export async function pushPromptCard() {
   if (games < 3 || !getAccount()) return null;
   const memo = promptMemo();
   if ((memo.n || 0) >= 3 || Date.now() - (memo.at || 0) < 7 * 86400000) return null;
-  if (!capable() || (isIOS() && !standalone()) || Notification.permission !== 'default') return null;
   const after = flag('push_prompt', 'm3') === 'm6' ? 6 : 3;
   if (games < after) return null;
-  if ((await pushState()) !== 'off') return null;
   const remember = () => { const m = promptMemo(); m.n = (m.n || 0) + 1; m.at = Date.now(); try { localStorage.setItem(LS_PROMPT, JSON.stringify(m)); } catch { /* ignore */ } };
+  // iPhone / iPad in Safari: Web Push needs the Home Screen app, so the card explains how instead
+  if (isIOS() && !standalone()) {
+    if (!(await getKey())) return null;
+    remember();
+    const hint = h('div', { class: 'panel pushcard' },
+      h('div', { class: 'col' }, h('b', {}, 'Want a ping for invites and cup check-ins?'), h('small', { class: 'muted' }, 'On iPhone, add MOBA-VS to your Home Screen (Share, then "Add to Home Screen"), open it from there and turn notifications on in Settings.')),
+      h('button', { class: 'chip', onclick: () => hint.remove() }, 'Got it'));
+    return hint;
+  }
+  if (!capable() || Notification.permission !== 'default') return null;
+  if ((await pushState()) !== 'off') return null;
   remember(); track('push_prompt');
   const card = h('div', { class: 'panel pushcard' },
     h('div', { class: 'col' }, h('b', {}, 'Get a ping when it matters?'), h('small', { class: 'muted' }, 'Friend invites, rematches and cup check-ins. Pick the types in Settings.')),

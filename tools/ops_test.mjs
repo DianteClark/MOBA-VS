@@ -29,8 +29,10 @@ console.log('Static guards');
 const simFiles = walk('src/sim').filter((f) => f.endsWith('.js'));
 ok(simFiles.length > 10 && simFiles.every((f) => !/net\/ops\.js|ui\/notify\.js|ui\/feedback\.js|\bflag\(/.test(read(f))), `src/sim (${simFiles.length} files) never imports live-ops or reads a flag`);
 const sw = read('sw.js');
-ok(/const PRIVATE = \/.*admin\\\.html/.test(sw) && /!PRIVATE\.test\(url\.pathname\)/.test(sw), 'sw.js never caches admin.html / admin.js / admin.css');
-ok(!/'\.\/index\.html'/.test(sw.split('const SHELL')[1].split(']')[0]) || /REV/.test(sw), 'sw.js shell list unchanged by live-ops');
+ok(/const PRIVATE = \/.*admin/.test(sw) && /!PRIVATE\.test\(url\.pathname\)/.test(sw), 'sw.js never caches admin.html / admin.js / admin.css');
+ok(!/index\.html/.test(sw.split('const SHELL')[1].split(']')[0]) && /const REV = 'r2'/.test(sw) && /async function clean\(res\)/.test(sw) && /hit\.redirected/.test(sw) && /skipWaiting/.test(sw), 'sw.js keeps the r2 redirect fixes (no ./index.html precache, clean(), skip-waiting)');
+const PRIV = new RegExp(/const PRIVATE = \/(.*)\/;/.exec(sw)[1]);
+ok(['/admin.html', '/admin', '/moba-vs/admin.html', '/src/ui/admin.js', '/css/admin.css'].every((x) => PRIV.test(x)) && !['/', '/index.html', '/src/ui/adminreplay.js', '/src/main.js'].some((x) => PRIV.test(x)), 'admin paths (incl. the /admin pretty URL) bypass the service worker');
 ok(/notificationclick/.test(sw) && /push-open/.test(sw), 'sw.js handles push + notification taps');
 ok(!/serviceWorker/.test(read('admin.html')) && !/serviceWorker\.register/.test(read('src/ui/admin.js')), 'the dashboard registers no service worker');
 ok(/\.\.\/net\/ops\.js/.test(read('src/ui/notify.js')) && /installCrashReporter\(VERSION\)/.test(read('src/main.js')), 'crash reporter installed at startup');
@@ -153,7 +155,7 @@ else {
   const ua = await subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
   const uaPub = new Uint8Array(await subtle.exportKey('raw', ua.publicKey)), authS = crypto.getRandomValues(new Uint8Array(16));
   const got = [];
-  const srv = http.createServer((req, res) => { const ch = []; req.on('data', (c) => ch.push(c)); req.on('end', () => { got.push({ url: req.url, headers: req.headers, body: new Uint8Array(Buffer.concat(ch)) }); res.writeHead(req.url.includes('gone') ? 410 : 201); res.end(); }); });
+  const srv = http.createServer((req, res) => { const ch = []; req.on('data', (c) => ch.push(c)); req.on('end', () => { const mine = req.url === '/push/' + B.id; if (mine) got.push({ url: req.url, headers: req.headers, body: new Uint8Array(Buffer.concat(ch)) }); res.writeHead(mine ? 201 : 410); res.end(); }); }); // other runs' devices: gone
   await new Promise((r) => srv.listen(8899, '127.0.0.1', r));
   const hk = async (salt, ikm, info, n) => new Uint8Array(await subtle.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt, info }, await subtle.importKey('raw', ikm, 'HKDF', false, ['deriveBits']), n * 8));
   const cat = (...p) => { const o = new Uint8Array(p.reduce((x, y) => x + y.length, 0)); let i = 0; for (const x of p) { o.set(x, i); i += x.length; } return o; };
@@ -202,6 +204,16 @@ else {
   ok(t.devices === 1 && t.results[0].ok && got.length === 1, 'owner test push');
   const S2 = await admin('/api/admin/ops/summary?days=7&season=1');
   ok(S2.push.n >= 1 && S2.push.invite >= 1 && S2.push.rematch >= 1, 'push numbers in the summary');
+  // weekly broadcast (tools/push.mjs, the GitHub Action) to the same device, now opted into everything
+  if (process.env.VAPID_PRIVATE && process.env.VAPID_PUBLIC) {
+    await call('/api/push/subscribe', { method: 'POST', who: B, body: { sub, types: 31 } });
+    got.length = 0;
+    const { execFile } = await import('node:child_process'); // async: this process also serves the push endpoint
+    const log = await new Promise((res, rej) => execFile(process.execPath, [new URL('push.mjs', import.meta.url).pathname, '--event', '--division'], { env: { ...process.env, MOBAVS_API: BASE, MOBAVS_ADMIN: TOKEN }, encoding: 'utf8', timeout: 60000 }, (e, out) => (e ? rej(e) : res(out))));
+    const evMsg = got.length ? await decrypt(got[0].body) : null;
+    ok(/event: sent [1-9]/.test(log) && evMsg && evMsg.t === 'event' && /^This week: /.test(evMsg.title), `weekly event broadcast: "${evMsg && evMsg.title}"`);
+    ok(/division: sent 0, skipped [1-9]/.test(log), 'division result skipped for a coach with no Ranked games');
+  } else console.log('  skip broadcast: export VAPID_PUBLIC / VAPID_PRIVATE (the same pair as the Worker) to test tools/push.mjs');
   ok((await call('/api/push/unsubscribe', { method: 'POST', who: B, body: { endpoint: sub.endpoint } })).ok, 'unsubscribe');
   ok((await admin('/api/admin/push/subs?type=invite&season=1')).subs.every((x) => x.player !== B.id), 'unsubscribed device gone');
   srv.close();

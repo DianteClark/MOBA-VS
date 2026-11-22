@@ -43,7 +43,7 @@ self.addEventListener('activate', (e) => {
     .then(() => self.clients.claim()));
 });
 
-const PRIVATE = /\/(admin\.html|src\/ui\/admin\.js|css\/admin\.css)$/;
+const PRIVATE = /\/(admin(\.html)?|src\/ui\/admin\.js|css\/admin\.css)$/; // '/admin': Cloudflare's pretty URL for admin.html
 const cacheable = (req, url) => req.method === 'GET' && !req.headers.has('range') &&
   ((url.origin === self.location.origin && !url.pathname.includes('/assets/audio/') && !PRIVATE.test(url.pathname)) || url.href.startsWith(PEERJS));
 
