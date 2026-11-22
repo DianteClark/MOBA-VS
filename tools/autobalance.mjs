@@ -32,7 +32,7 @@ const { seasonAt } = await import(P('src/data/seasons.js'));
 async function results() {
   const file = arg('file', null);
   if (file) return JSON.parse(readFileSync(file, 'utf8'));
-  const api = (process.env.MOBAVS_API || '').replace(/\/$/, ''), tok = process.env.MOBAVS_ADMIN;
+  const api = (process.env.MOBAVS_API || '').replace(/\/$/, ''), tok = (process.env.MOBAVS_ADMIN || '').trim();
   if (!api || !tok) throw new Error('set MOBAVS_API and MOBAVS_ADMIN (or pass --file)');
   const r = await fetch(`${api}/api/admin/ops/heroes?days=${days}`, { headers: { authorization: 'Bearer ' + tok } });
   if (!r.ok) throw new Error(`hero results: HTTP ${r.status}`);
