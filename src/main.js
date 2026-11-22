@@ -58,7 +58,7 @@ import { RIVAL_BY_ID } from './data/rivals.js';
 import { hostCoop, onCoopNet, enterAsGuest, myDraftTurn, applyDraft, draftAuto, aiDraftTurn, coopPrep, myHeroIds, sendPrep, seatReady, flushPendingPreps,
   coopCfg, runnerOpts, startedRunner, soloFallback, historyCoop } from './coop-room.js';
 import { coopResults } from './ui/coop.js';
-import { installCrashReporter, reportDesync, opsHello, track, modeKey } from './net/ops.js';
+import { installCrashReporter, reportDesync, reportError, opsHello, track, modeKey } from './net/ops.js';
 import { openFeedback } from './ui/feedback.js';
 import { pushPromptCard, onPushOpen } from './ui/notify.js';
 import { openAdminReplay } from './ui/adminreplay.js';
@@ -134,34 +134,54 @@ class App {
   setName(n) { this.name = n.slice(0, 12) || 'Coach'; try { localStorage.setItem('mobavs_name', this.name); } catch { /* ignore */ } }
 
   async boot() {
-    audio.init();
-    installPressSounds();
+    // Only the art and the first screen are needed to play: every other feature starts inside safe(), so one that
+    // throws (an old profile shape, a missing API in an old browser) is reported and skipped instead of leaving the
+    // coach on the loading screen.
+    const safe = (where, fn) => { try { const r = fn(); if (r && r.catch) r.catch((e) => reportError('boot:' + where, e)); return r; } catch (e) { reportError('boot:' + where, e); return undefined; } };
+    safe('audio', () => audio.init());
+    safe('press', () => installPressSounds());
     // Menu transitions: a new screen slides in; re-rendering the same screen (a toggle, a tab, a draft pick) does not.
     const scr = document.getElementById('screen'); let lastView = '';
-    new MutationObserver(() => {
+    safe('transitions', () => new MutationObserver(() => {
       const c = scr.firstElementChild; if (!c) return;
       const t = c.querySelector('h2'), view = c.dataset.view || (c.className.split(' ')[0] + '|' + (t ? t.textContent : ''));
       if (view === lastView) c.classList.add('same');
       lastView = view;
-    }).observe(scr, { childList: true });
-    installBuildTips();
-    await initI18n(); // the device's language pack (lazy: English loads nothing)
-    installA11y(); installKeys(); installGamepad(); // screen readers, keyboard menus + [?] help, controllers
-    installOffline(this, VERSION); // offline indicator, sync on reconnect, offline pack in the service worker
+    }).observe(scr, { childList: true }));
+    safe('buildtips', () => installBuildTips());
+    try { await initI18n(); } catch (e) { reportError('boot:i18n', e); } // the device's language pack (lazy: English loads nothing); English if it fails
+    safe('a11y', () => installA11y()); safe('keys', () => installKeys()); safe('gamepad', () => installGamepad()); // screen readers, keyboard menus + [?] help, controllers
+    safe('offline', () => installOffline(this, VERSION)); // offline indicator, sync on reconnect, offline pack in the service worker
     const bar = document.querySelector('#loading .barw i');
-    await loadAssets((p) => { bar.style.width = Math.round(p * 100) + '%'; }, true);
+    await loadAssets((p) => { if (bar) bar.style.width = Math.round(p * 100) + '%'; }, true);
     try { await document.fonts.load('12px PixelFont'); } catch { /* ignore */ }
-    this.map = this.mapCanvas(new World(MAPS[0], { walls: true })); // (painted as a Living World match will use it)
+    safe('bgmap', () => { this.map = this.mapCanvas(new World(MAPS[0], { walls: true })); }); // (painted as a Living World match will use it)
     document.getElementById('loading').remove(); window.__mobavsBooted = true;
-    this.startBg();
+    if (this.map) safe('bg', () => this.startBg());
     const q = new URLSearchParams(location.search), code = q.get('join'), shared = q.get('s'), invite = q.get('i');
-    if (code) this.joinScreen(code); else if (shared) showShared(this, shared); else if (invite) showInviteLink(this, invite); else if (q.get('ar')) openAdminReplay(this, q.get('ar'), VERSION);
-    else if (q.get('go') === 'cup') { try { history.replaceState(null, '', location.pathname); } catch { /* ignore */ } this.menu(); showWeekendCup(this); } else this.menu();
+    try {
+      if (code) this.joinScreen(code); else if (shared) showShared(this, shared); else if (invite) showInviteLink(this, invite); else if (q.get('ar')) openAdminReplay(this, q.get('ar'), VERSION);
+      else if (q.get('go') === 'cup') { try { history.replaceState(null, '', location.pathname); } catch { /* ignore */ } this.menu(); showWeekendCup(this); } else this.menu();
+    } catch (e) { reportError('boot:menu', e); this.bootFallback(e); }
     // a tapped notification while the game is open: follow its link from the menu, never mid-match
-    onPushOpen((u) => { if (this.match || this.session) return; const i = u.searchParams.get('i'); if (i) showInviteLink(this, i); else if (u.searchParams.get('go') === 'cup') showWeekendCup(this); });
-    this.connectOnline();
+    safe('pushopen', () => onPushOpen((u) => { if (this.match || this.session) return; const i = u.searchParams.get('i'); if (i) showInviteLink(this, i); else if (u.searchParams.get('go') === 'cup') showWeekendCup(this); }));
+    safe('online', () => this.connectOnline());
     try { if (sessionStorage.getItem('mobavs_reset')) { sessionStorage.removeItem('mobavs_reset'); setTimeout(() => toast('Welcome to the full launch! Every coach starts fresh with 15 champions. Earn Koban to unlock more.', 5200), 1200); } } catch { /* ignore */ } // src/datareset.js
-    setTimeout(warmNet, 3000); // PeerJS off the first-paint path, ready before anyone taps Host / Join
+    setTimeout(() => safe('warmnet', () => warmNet()), 3000); // PeerJS off the first-paint path, ready before anyone taps Host / Join
+  }
+  // The home screen itself failed (a profile shape no migration expected): say so, and offer a retry or a reset of
+  // the game data (settings, language and the coach name are kept, like the launch reset).
+  bootFallback(e) {
+    const reset = () => {
+      try { for (const k of Object.keys(localStorage)) if (k.startsWith('mobavs_') && !['mobavs_settings', 'mobavs_lang', 'mobavs_name', 'mobavs_muted', 'mobavs_dv'].includes(k)) localStorage.removeItem(k); } catch { /* ignore */ }
+      location.reload();
+    };
+    const el = document.getElementById('screen');
+    this.showScreen(true);
+    el.replaceChildren(h('div', { class: 'subscreen bootfallback', style: { justifyContent: 'center', alignItems: 'center', gap: '12px', textAlign: 'center' } },
+      h('h2', {}, 'Something went wrong'), h('p', { class: 'muted' }, `The menu could not open: ${(e && e.message) || e}. It has been reported.`),
+      h('div', { class: 'row', style: { gap: '8px', justifyContent: 'center' } }, h('button', { class: 'btn big', onclick: () => location.reload() }, 'Try again'),
+        h('button', { class: 'btn', onclick: () => { if (confirm('Reset your game data on this device? Settings, language and your name are kept.')) reset(); } }, 'Reset game data'))));
   }
   // Online services: create/restore the account, then sync the profile (newest copy wins).
   async connectOnline() {
@@ -212,7 +232,7 @@ class App {
     setFaceSkins(null);
     this.showScreen(true);
     audio.music('menu');
-    showHome(this);
+    try { showHome(this); } catch (e) { reportError('home', e); this.bootFallback(e); return; } // never a blank menu
     startParade();
     if (this.update) setTimeout(() => this.safeUpdate(), 600);
   }

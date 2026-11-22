@@ -35,14 +35,27 @@ const profile_cupRound = (c) => (c ? ['Quarterfinal', 'Semifinal', 'Grand Final'
 export class Profile {
   constructor() {
     this.d = fresh();
-    try { const raw = localStorage.getItem(KEY); if (raw) this.d = Object.assign(fresh(), JSON.parse(raw)); } catch { /* private mode: in-memory */ }
-    this.d.presets = loadPresets(this.d.presets);
-    this.normalize();
-    this.rollover();
+    let raw = null;
+    try { raw = localStorage.getItem(KEY); if (raw) this.d = Object.assign(fresh(), JSON.parse(raw)); } catch { /* private mode: in-memory */ }
+    try { this.d.presets = loadPresets(this.d.presets); this.normalize(); this.rollover(); } catch (e) {
+      // a save no migration understands must never stop the game from opening: keep a copy, start fresh (the cloud
+      // copy, when there is one, is adopted after sign-in)
+      console.error('profile: unreadable save, starting fresh', e);
+      try { if (raw) localStorage.setItem(KEY + '_bad', raw); } catch { /* ignore */ }
+      this.d = fresh(); this.d.presets = loadPresets(null); this.normalize(); this.rollover();
+    }
   }
   // Saves from before emotes, achievement borders and achievements get their new fields (bounded, known keys only).
   normalize() {
-    const d = this.d, u = d.unlocked || (d.unlocked = {}), e = d.equip || (d.equip = {});
+    const d = this.d, obj = (x) => !!x && typeof x === 'object' && !Array.isArray(x);
+    // containers keyed by season / hero / rival: objects of objects (an old or damaged save can hold nulls)
+    for (const k of ['seasons', 'mastery', 'heroStats', 'rivals']) { if (!obj(d[k])) d[k] = {}; for (const [id, v] of Object.entries(d[k])) if (!obj(v)) delete d[k][id]; }
+    d.history = (Array.isArray(d.history) ? d.history : []).filter((m) => obj(m) && Array.isArray(m.picks) && m.picks.length === 2 && m.picks.every(Array.isArray) && Array.isArray(m.kills) && (m.side === 0 || m.side === 1));
+    if (!obj(d.trophies)) d.trophies = { gold: 0, silver: 0 };
+    if (!Array.isArray(d.borders)) d.borders = [];
+    if (d.cup !== null && !obj(d.cup)) d.cup = null;
+    if (!obj(d.unlocked)) d.unlocked = {}; if (!obj(d.equip)) d.equip = {};
+    const u = d.unlocked, e = d.equip;
     for (const k of ['skins', 'banners', 'titles', 'emotes', 'borders']) if (!Array.isArray(u[k])) u[k] = [];
     for (const k of FREE_EMOTES) if (!u.emotes.includes(k)) u.emotes.push(k);
     u.emotes = u.emotes.filter((k) => EMOTES[k]); u.borders = u.borders.filter((k) => BORDERS[k]);
@@ -67,7 +80,11 @@ export class Profile {
     if (!opts.local) { let name = 'Coach'; try { name = localStorage.getItem('mobavs_name') || 'Coach'; } catch { /* ignore */ } queueCloudSave(name, this.d, this.d.savedAt); }
   }
   // Replace the local profile with a cloud copy (sign-in on a new device, or a newer save elsewhere).
-  adopt(d) { this.d = Object.assign(fresh(), d); this.d.presets = loadPresets(this.d.presets); this.normalize(); this.rollover(); this.save({ keepTime: true, local: true }); }
+  adopt(d) {
+    const keep = this.d;
+    try { this.d = Object.assign(fresh(), d); this.d.presets = loadPresets(this.d.presets); this.normalize(); this.rollover(); } catch (e) { console.error('profile: cloud copy unreadable, keeping this device\'s', e); this.d = keep; return; }
+    this.save({ keepTime: true, local: true });
+  }
   get season() { return seasonAt(); }
   // Season record. elo/peakElo/rg (rated games) replaced the old RP fields; old saves convert once.
   ss(id = this.season.id) {
