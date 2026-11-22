@@ -71,7 +71,7 @@ export const perkUnlocked = (P, hero, perk) => !!PERKS[perk] && P.mastery(hero).
 export function setPerk(P, hero, perk) { const M = P.d.meta; if (perk && !perkUnlocked(P, hero, perk)) return; if (perk) M.perks[hero] = perk; else delete M.perks[hero]; P.save(); }
 // Where perks apply: matches against the AI that are not online, not a cup, not a replay. Returns the cfg.perks
 // entry for my team ({ heroId: perkId } for my heroes) or null.
-export const PERK_MODES = 'Play vs AI and Lane Rush vs AI';
+export const PERK_MODES = 'Play vs AI, Lane Rush vs AI and Franchise';
 export function perksFor(P, heroIds, { online = false, cup = false, replay = false, watch = false } = {}) {
   if (online || cup || replay || watch) return null;
   const o = {}; for (const id of heroIds) { const p = P.d.meta.perks[id]; if (p && perkUnlocked(P, id, p)) o[id] = p; }

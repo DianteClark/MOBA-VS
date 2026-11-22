@@ -36,7 +36,7 @@ export const dayOf = (ms) => Math.floor(ms / DAY);
 const KEY = /^[a-z0-9_:.-]{1,48}$/;
 const ID = /^[a-z0-9_]{1,24}$/;
 const DEV = /^[a-z0-9-]{1,40}$/;
-const MODES = ['ai', 'rush_ai', 'cup_ai', 'coop', 'ranked', 'casual', 'rush', 'private', 'cup', 'watch'];
+const MODES = ['ai', 'rush_ai', 'cup_ai', 'franchise', 'coop', 'ranked', 'casual', 'rush', 'private', 'cup', 'watch'];
 const EVENTS = ['match_start', 'match_done', 'push_optin', 'push_prompt', 'feedback'];
 
 // One multi-row UPSERT per ≤ 30 keys (D1 allows 100 bound parameters per statement).
