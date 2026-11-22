@@ -16,6 +16,7 @@ import { rulesFor } from './modes.js';
 import { applyMoment } from './moments-coach.js';
 import { normPlan, planChangeOk, planEdge } from './plans.js';
 import { setupCoop, coopGate } from './coop.js';
+import { openCrystal } from './endgame.js';
 
 // Champion-vs-champion damage scale: keeps fights readable and lanes from snowballing at level 1.
 const STEER_K = +(globalThis.process?.env?.SK || 0.45);
@@ -1159,6 +1160,8 @@ export class Game {
         && this.grid.query(e.x, e.y, 400).some((a) => a.type === 'hero' && a.team === m.team && a.lastHurtByHero > now - sec(1.5)));
       if (!tgt) tgt = this.findTarget(m, aggro, (e) => (e.type === 'minion' || e.type === 'summon') && inZone(e));
       if (!tgt && m.type === 'summon') tgt = this.findTarget(m, 350, (e) => e.structure && this.isTargetable(e));
+      // endgame: an open enemy Crystal in reach beats chasing heroes (src/sim/endgame.js)
+      if (!tgt) { const n = openCrystal(this, m.team); if (n && dist2(m, n) < (aggro + 60) ** 2) tgt = n; }
       if (!tgt) tgt = this.findTarget(m, aggro, (e) => e.type === 'hero' && this.canSee(m.team, e) && inZone(e));
       if (!tgt) tgt = this.findTarget(m, aggro + 60, (e) => e.structure && this.isTargetable(e));
       if (tgt !== m.target && m.target && m.target.alive && m.target.type !== 'hero' && dist2(m, m.target) < (m.stats.range + 40) ** 2 && tgt && tgt.type !== 'hero') tgt = m.target;

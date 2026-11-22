@@ -123,7 +123,7 @@ def check(res, w, h):
 # MAP=rush audits a Lane Rush match instead of the classic 5v5 map
 MAPPREF = 'rush' if os.environ.get('MAP') == 'rush' else 'classic'
 SETUP = """async () => {
-  app.startVsAI('%s');
+  app.startVsAI('%s', true);
   const m = await import('./src/sim/draft.js'); const s = app.session;
   while (!s.draft.done) { const t = m.currentTurn(s.draft); m.apply(s.draft, t.team, m.autoChoice(s.draft, t.team, s.rng, 1)); }
   app.afterDraftAct();

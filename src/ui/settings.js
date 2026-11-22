@@ -14,7 +14,7 @@ const PALETTES = {
   // blue / orange: safe for deuteranopia, protanopia and tritanopia
   cb: { col: ['#3d9bff', '#ffa22e'], dark: ['#174a8a', '#8a4d0c'] },
 };
-const DEFAULTS = { master: 100, music: 70, sfx: 80, ui: 70, colorblind: false, textSize: 'normal', reducedMotion: false, speed: 1, chatter: true, alerts: true, quality: 'auto', haptics: true, chatMute: false };
+const DEFAULTS = { master: 100, music: 70, sfx: 80, ui: 70, colorblind: false, textSize: 'normal', reducedMotion: false, speed: 1, chatter: true, alerts: true, quality: 'auto', haptics: true, chatMute: false, readyCheck: true };
 // Phones/tablets: touch-first devices. Used for default render resolution and HUD cadence.
 export const isTouch = (() => { try { return matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window; } catch { return false; } })();
 // Render resolution multiplier (canvas pixels per CSS pixel) for the chosen quality.
@@ -96,6 +96,7 @@ function body(rerender) {
       toggle('Off-screen alerts', 'alerts', 'Edge arrows for fights, towers and objectives', rerender),
       toggle('Haptics', 'haptics', hapticsSupported ? 'Vibrate on kills, objectives and your call results' : 'Not supported by this browser (iPhone Safari has no vibration)', rerender),
       toggle('Mute quick chat', 'chatMute', "Hide your online opponent's quick chat and emotes", rerender),
+      toggle('Ready check', 'readyCheck', 'Review your Dojo lineup before Find Match, vs AI and online rooms', rerender),
       h('div', { class: 'srow' }, h('div', { class: 'slab' }, 'Coach tips', h('small', {}, tipsLeft() ? 'Short tips in your next match explain calls, the map, Ults and Moments' : 'Seen. Replay them in your next match')),
         h('div', { class: 'sctl' }, h('button', { class: 'chip', disabled: tipsLeft(), onclick: () => { resetTips(); audio.sfx('accept', 0.5); rerender(); } }, tipsLeft() ? 'On' : 'Replay')))),
   ];

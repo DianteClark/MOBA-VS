@@ -14,6 +14,7 @@ import { MAPS, RUSH_MAPS } from './maps/defs.js';
 import { EVENT_BY_ID, weekEvent, mirrorLineup } from './data/events.js';
 import { newDraft, mirrorDraft, apply as draftApply, currentTurn, autoChoice, aiPrep, fitPrep, fitMirror, TURN_SECONDS } from './sim/draft.js';
 import { presetChoice, prepFromPreset } from './presets.js';
+import { readyCheck } from './ui/readycheck.js';
 import { HERO_BY_ID } from './data/heroes.js';
 import { LocalRunner, LockstepRunner } from './net/runner.js';
 import { host, join, makeCode, warmNet } from './net/peer.js';
@@ -160,7 +161,7 @@ class App {
 
   menu() {
     keepAwake(false);
-    this.lobbyId = (this.lobbyId || 0) + 1;
+    this.lobbyId = (this.lobbyId || 0) + 1; this.dojoReturn = null; // (the ready check's way back from the Dojo ends here)
     this.dropReel();
     clearInterval(this.prepTimer); clearInterval(this.draftTimer);
     if (this.pendingPeer) { try { this.pendingPeer.destroy(); } catch { /* ignore */ } this.pendingPeer = null; }
@@ -211,7 +212,9 @@ class App {
     } catch { /* not supported */ }
   }
   // mode: 'classic' (5v5 on the chosen map) or 'rush' (Lane Rush on one of its maps).
-  startVsAI(mode = 'classic') {
+  // checked: the ready check (src/ui/readycheck.js) was shown or is skipped (play again).
+  startVsAI(mode = 'classic', checked = false) {
+    if (!checked && readyCheck(this, { label: 'Play', go: () => this.startVsAI(mode, true), queue: 'ai', gameMode: mode === 'rush' ? 'rush' : 'classic' })) return;
     this.immersive();
     try { localStorage.setItem('mobavs_ai', String(this.aiLevel)); } catch { /* ignore */ }
     const seed = (Math.random() * 2 ** 31) >>> 0, gameMode = mode === 'rush' ? 'rush' : 'classic';
@@ -243,6 +246,7 @@ class App {
   }
   // Host a room. opts.code/lobbyId/quiet are used by matchmaking (Find Match), which shows its own screen.
   async hostGame(opts = {}) {
+    if (!opts.quiet && !opts.checked && readyCheck(this, { label: 'Host room', go: () => this.hostGame({ ...opts, checked: true }), queue: opts.queue || 'private', gameMode: opts.gameMode })) return;
     this.immersive();
     const code = opts.code || makeCode();
     const cancel = () => this.menu();
@@ -268,6 +272,7 @@ class App {
   // Co-op room: two coaches share a team, vs the AI or 2v2 (src/coop-room.js).
   hostCoop(opts = {}) { stopParade(); hostCoop(this, opts); }
   joinScreen(prefill, opts = {}) {
+    if (!opts.quiet && !opts.checked && readyCheck(this, { label: 'Join room', go: () => this.joinScreen(prefill, { ...opts, checked: true }), queue: 'private' })) return;
     const cancel = () => this.menu();
     const go = async (code) => {
       if (!/^[A-Z]{5}$/.test(code)) { toast('Room codes are 5 letters'); return; }
@@ -293,7 +298,9 @@ class App {
     if (prefill) go(prefill.toUpperCase());
   }
   // Matchmaking (Ranked / Casual / Lane Rush queues): pair with a real player in the same queue or give up after 60s (no bots fill in).
-  async findMatch() {
+  async findMatch(checked = false) {
+    const q0 = this.queueMode || 'ranked';
+    if (!checked && readyCheck(this, { label: 'Find match', go: () => this.findMatch(true), queue: q0, gameMode: q0 === 'rush' ? 'rush' : 'classic' })) return;
     this.immersive(); stopParade();
     const id = this.lobbyId = (this.lobbyId || 0) + 1;
     const queue = this.queueMode || 'ranked', ranked = queue === 'ranked', gameMode = queue === 'rush' ? 'rush' : 'classic';
@@ -723,7 +730,7 @@ class App {
       this.potgReel = potg && src ? this.prerollPOTG(src, potg) : null;
       const report = s.myTeam >= 0 ? reportCard(m.game, s.myTeam, m.hud.stats) : null;
       const args = [this, m.game, s.myTeam,
-        s.wcup ? () => showWeekendCup(this) : s.cup ? () => showCup(this) : s.mode === 'ai' ? () => { if (s.rival) this.rivalRoll = { tier: s.aiLevel, id: s.rival }; this.startVsAI(s.gameMode === 'rush' ? 'rush' : 'classic'); } : s.mode === 'watch' ? () => this.watch() : null,
+        s.wcup ? () => showWeekendCup(this) : s.cup ? () => showCup(this) : s.mode === 'ai' ? () => { if (s.rival) this.rivalRoll = { tier: s.aiLevel, id: s.rival }; this.startVsAI(s.gameMode === 'rush' ? 'rush' : 'classic', true); } : s.mode === 'watch' ? () => this.watch() : null,
         () => this.menu(), { progress: progressPanel(sum, cupOut), rival: s.myTeam >= 0 && !s.wasOnline ? rivalPanel(sum, s, won) : null, ladder, social: s.wcup ? null : s.mode === 'coop' ? coopResults(this, s, m.game) : socialPanel(this, s), againLabel: s.cup || s.wcup ? 'Back to bracket' : s.rival && RIVAL_BY_ID[s.rival] && !s.wasOnline ? `Rematch ${RIVAL_BY_ID[s.rival].name}` : null, potg: this.potgReel ? potg : null, report,
           onPOTG: () => this.playPOTG(), onClip: potg && src && clipSupport() ? () => saveClip(src, potg, s.names, this.mapCanvas(m.game.world, m.game.event)) : null,
           analytics, onAnalysis: analytics ? () => showAnalysis(analytics, { title: 'Match analysis', onTheater: this.lastReplay() ? () => this.watchReplay(null, { back: () => this.backToResults() }) : null }) : null,
