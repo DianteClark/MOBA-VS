@@ -1,13 +1,13 @@
 // The v25 maps in the match HUD (src/sim/terrain.js): banners and ticker lines for the tide, a one-time line for the
 // wind bridges. Called by livingEvent (src/ui/livinghud.js) for the events it has no case for.
-import { TERRAIN } from '../sim/terrain.js';
+import { TERRAIN, tideSlow } from '../sim/terrain.js';
 
 export function terrainEvent(hud, e) {
   switch (e.type) {
     case 'tideSoon':
       if (e.high) {
         hud.banner('THE TIDE IS RISING', '#5ec8e8', 1800);
-        hud.ticker(`High tide in ${TERRAIN.tide.warn}s: the sandbars go under, the rafts float in, and the shallows slow everyone ${Math.round(TERRAIN.tide.slow * 100)}%`, 'act', 2);
+        hud.ticker(`High tide in ${TERRAIN.tide.warn}s: the sandbars go under, the rafts float in, and the shallows slow everyone ${Math.round(tideSlow(hud.g.event) * 100)}%`, 'act', 2);
       } else hud.ticker(`The tide turns in ${TERRAIN.tide.warn}s: the sandbars come back and the rafts drift ashore`, 'act', 1);
       break;
     case 'tide':
