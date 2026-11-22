@@ -9,6 +9,11 @@
   "d1_databases": [
     { "binding": "DB", "database_name": "mobavs", "database_id": "3d5ba5ca-a188-4f3b-9a39-656c2c201d59" }
   ],
+  // Free plan cron triggers (worker/index.js scheduled): every 5 minutes drain queued push notifications,
+  // and at 03:07 UTC roll up the live-ops stats (DAU / WAU / retention) and prune old rows.
+  "triggers": { "crons": ["*/5 * * * *", "7 3 * * *"] },
+  // Web Push keys are Worker secrets, not vars, so a deploy never overwrites them:
+  // VAPID_PUBLIC, VAPID_PRIVATE, VAPID_SUBJECT (tools/push.mjs --keys makes a pair). Unset = notifications off.
   "assets": {
     "directory": "./",
     "binding": "ASSETS",

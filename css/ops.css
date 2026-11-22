@@ -1,0 +1,23 @@
+/* Live-ops UI: feedback form, notifications settings, results footer (src/ui/feedback.js, src/ui/notify.js). */
+.fbpanel { display: flex; flex-direction: column; gap: 6px; width: min(520px, 100%); margin: auto; }
+.fbtext { font-family: inherit; word-spacing: 0.32em; font-size: 14px; line-height: 1.35; padding: 8px 10px; background: #120f18; color: var(--ink); border: 2px solid var(--line); resize: vertical; min-height: 84px; max-height: 40vh; width: 100%; box-sizing: border-box; }
+.fbtext:focus { outline: none; border-color: var(--gold); }
+.fbrow { display: flex; justify-content: flex-end; margin-top: -2px; }
+.fbshot { display: flex; align-items: center; gap: 8px; font-size: 12px; cursor: pointer; min-height: 44px; }
+.fbshot input { width: 20px; height: 20px; accent-color: var(--gold); flex: none; }
+.fbshot span { flex: 1; }
+.fbshot img { height: 54px; max-width: 120px; object-fit: cover; border: 2px solid var(--line); image-rendering: auto; transition: opacity 0.15s; }
+.fbshot img.off { opacity: 0.25; }
+.fbinfo { font-size: 10px; line-height: 1.4; overflow-wrap: anywhere; }
+.fbpanel .sfoot { justify-content: flex-end; gap: 10px; }
+.pushgroup .srow.dim .slab, .pushgroup .srow.dim .sctl { opacity: 0.5; }
+.pushgroup .srow .slab small { max-width: 52ch; }
+.rfoot { display: flex; flex-direction: column; align-items: center; gap: 8px; margin: 4px 0 2px; }
+.linkbtn { background: none; border: none; color: var(--muted); font: inherit; font-size: 12px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; padding: 10px 14px; min-height: 40px; }
+.linkbtn:hover, .linkbtn:focus-visible { color: var(--ink); }
+.pushcard { display: flex; align-items: center; gap: 10px; width: min(560px, 100%); box-sizing: border-box; animation: popIn 0.25s cubic-bezier(.2,1.4,.4,1); }
+.pushcard .col { flex: 1; min-width: 0; gap: 2px; }
+.pushcard b { font-weight: normal; color: var(--gold); font-size: 13px; }
+.pushcard small { font-size: 10px; }
+@media (max-width: 480px) { .pushcard { flex-wrap: wrap; } .pushcard .col { flex-basis: 100%; } }
+.reduce-motion .pushcard { animation: none; }
