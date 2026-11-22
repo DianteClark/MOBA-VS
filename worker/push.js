@@ -116,7 +116,7 @@ export function cleanSub(s, allowAny = false) {
   if (!s || typeof s !== 'object') return null;
   const endpoint = String(s.endpoint || ''), k = s.keys || {};
   let u; try { u = new URL(endpoint); } catch { return null; }
-  if (u.protocol !== 'https:' || endpoint.length > 600 || (!allowAny && !PUSH_HOSTS.test(u.hostname))) return null;
+  if ((u.protocol !== 'https:' && !(allowAny && u.protocol === 'http:')) || endpoint.length > 600 || (!allowAny && !PUSH_HOSTS.test(u.hostname))) return null; // allowAny: local tests only (PUSH_ANY_HOST=1)
   const p256dh = String(k.p256dh || ''), auth = String(k.auth || '');
   if (!/^[A-Za-z0-9_-]{80,100}$/.test(p256dh) || !/^[A-Za-z0-9_-]{16,32}$/.test(auth)) return null;
   return { endpoint, p256dh, auth };
