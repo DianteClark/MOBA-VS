@@ -12,6 +12,7 @@ import { MOMENTS, MOMENT_IDS, MOMENT, momentReady } from '../sim/moments-coach.j
 import { TEAM_COL } from '../render/renderer.js';
 import { audio } from '../audio.js';
 import { COOP_COL } from '../coop-room.js';
+import { canIssue, readyIn, bestGanker, busy } from './feasible.js';
 
 const LANE_L = { top: 'Top', mid: 'Mid', bot: 'Bot' };
 export const CORE = [
@@ -221,7 +222,8 @@ export class Dock {
     const lanes = (fn, sub, state) => h('div', { class: 'tiles' }, ...LANES.map((l) => this.tile({ title: LANE_L[l], sub: () => sub(l), state: () => state ? state(l) : {}, onclick: () => fn(l) })));
     if (id === 'gank') {
       const jg = mine.find((x) => x.role === 'jungle' && this.hud.ownHero(x));
-      if (!this.ganker || !this.ganker.alive || !this.hud.ownHero(this.ganker)) this.ganker = jg && jg.alive ? jg : this.ownAlive()[0];
+      const free = (x) => x && !busy(g, x) && this.hud.ownHero(x); // not dead, recalling or on another call
+      if (!free(this.ganker)) this.ganker = free(jg) ? jg : this.ownAlive().find(free) || (jg && jg.alive ? jg : this.ownAlive()[0]);
       if (!this.ganker) { toast('None of your heroes can gank right now'); return null; }
       const who = h('button', { class: 'whobtn', title: 'Tap to change who ganks', onclick: () => { const a = this.ownAlive(); this.ganker = a[(a.indexOf(this.ganker) + 1) % a.length]; whoImg.src = face(this.ganker.heroId); whoName.textContent = this.ganker.def.name; } });
       const whoImg = h('img', { src: face(this.ganker.heroId) }), whoName = h('span', {}, this.ganker.def.name);
@@ -293,31 +295,41 @@ export class Dock {
 
   // ───────────── decision tray items ─────────────
   costPips(n) { return h('span', { class: 'cost' }, ...Array.from({ length: n }, () => h('i'))); }
-  // A choice button: label (+ small sub line) and the call's cost pips; disabled when unaffordable.
+  // A choice button: label (+ small sub line) and the call's cost pips. Options with a live state (Coach's
+  // Calls) refresh in place: 'go' tappable, 'soon' greyed with a "ready in Ns" countdown, 'no' hidden.
   choice(o, item, after) {
-    const n = o.cmd ? this.cost(o.cmd.type) : 0;
-    const b = h('button', { class: 'tch' + (o.cmd ? '' : ' no'), onclick: () => { if (o.cmd && !this.send(o.cmd)) return; after && after(o); this.tray.end(item, 'chosen'); } },
-      h('span', { class: 'tl' }, o.label), o.sub ? h('small', {}, o.sub) : null, n ? this.costPips(n) : null);
-    if (o.cmd && !this.afford(o.cmd.type)) b.disabled = true;
+    const n = o.cmd ? this.cost(o.cmd.type) : 0, sub = o.sub ? h('small', {}, o.sub) : o.state ? h('small', {}, '') : null;
+    const b = h('button', { class: 'tch' + (o.cmd ? '' : ' no'), onclick: () => { if (b.disabled || (o.cmd && !this.send(o.cmd))) return; after && after(o); this.tray.end(item, 'chosen'); } },
+      h('span', { class: 'tl' }, o.label), sub, n ? this.costPips(n) : null);
+    b._upd = () => {
+      const st = o.state ? o.state() : o.cmd && !canIssue(this.g, this.my, o.cmd) ? 'no' : 'go';
+      setOff(b, st !== 'go'); b.classList.toggle('hidden', st === 'no' && !!o.state);
+      if (sub && o.state) { const t = st === 'soon' ? `ready in ${Math.ceil(readyIn(this.g, this.my, o.cmd))}s` : o.sub || ''; if (sub.textContent !== t) sub.textContent = t; }
+    };
+    b._upd();
     return b;
   }
-  // One-tap analyst suggestion (lowest priority).
+  // One-tap analyst suggestion (lowest priority). Only when the tap would work (affordable, accepted, and
+  // the caller's own physical check); it leaves the tray the moment that stops being true.
   suggest(key, text, label, cmd, opts = {}) {
     if (this.my < 0 || this.tray.has(key) || !this.hud.mayCommand(cmd)) return; // co-op: only what this coach can call
-    this.tray.push({ key, prio: opts.cls === 'bad' ? PRIO.danger : PRIO.sug, ttl: 12000, cls: 'sug ' + (opts.cls === 'bad' ? 'danger' : 'act'), valid: opts.valid,
+    const valid = () => canIssue(this.g, this.my, cmd) && (!opts.valid || opts.valid());
+    if (!valid()) return;
+    this.tray.push({ key, prio: opts.cls === 'bad' ? PRIO.danger : PRIO.sug, ttl: 12000, cls: 'sug ' + (opts.cls === 'bad' ? 'danger' : 'act'), valid,
       build: (it) => [h('span', { class: 'tx' }, text), this.choice({ label, cmd }, it), h('button', { class: 'tx-x', title: 'Dismiss', onclick: () => this.tray.end(it, 'dismissed') }, 'x')],
       onShow: () => audio.sfx('alert', 0.35) });
   }
-  // Coach's Call: a decision card with 2-3 concrete options.
+  // Coach's Call: a decision card with 2-3 concrete options, each kept honest live (see moments.js finish).
   coachCall(m, hooks = {}) {
-    return this.tray.push({ key: m.key, prio: PRIO.call, ttl: hooks.ttl || 8000, cls: 'ccall ' + (m.danger ? 'danger' : 'act'),
-      build: (it) => { const tt = h('span', {}, m.title); if (m.liveTitle) it.upd = () => { const v = m.liveTitle(); if (tt.textContent !== v) tt.textContent = v; };
-        return [h('div', { class: 'tc-head' }, h('b', {}, "COACH'S CALL"), tt), h('div', { class: 'tc-text' }, m.text), h('div', { class: 'tc-opts' }, ...m.opts.map((o) => this.choice(o, it, hooks.onPick)))]; },
+    return this.tray.push({ key: m.key, prio: PRIO.call, ttl: hooks.ttl || 8000, cls: 'ccall ' + (m.danger ? 'danger' : 'act'), valid: m.valid,
+      build: (it) => { const tt = h('span', {}, m.title), btns = m.opts.map((o) => this.choice(o, it, hooks.onPick));
+        it.upd = () => { if (m.liveTitle) { const v = m.liveTitle(); if (tt.textContent !== v) tt.textContent = v; } for (const b of btns) b._upd(); };
+        return [h('div', { class: 'tc-head' }, h('b', {}, "COACH'S CALL"), tt), h('div', { class: 'tc-text' }, m.text), h('div', { class: 'tc-opts' }, ...btns)]; },
       onShow: hooks.onShow, onEnd: hooks.onEnd });
   }
   // A hero asks for the green light: Yes sends the request's command, No costs nothing.
   request(r, hooks = {}) {
-    return this.tray.push({ key: r.key, prio: PRIO.request, ttl: 9000, cls: 'req mine', valid: () => r.hero.alive && (!r.target || r.target.alive),
+    return this.tray.push({ key: r.key, prio: PRIO.request, ttl: 9000, cls: 'req mine', valid: r.valid,
       build: (it) => [h('img', { class: 'tface', src: face(r.hero.heroId) }), h('span', { class: 'tx' }, h('b', {}, r.hero.def.name + ': '), r.text),
         this.choice({ label: 'Yes', cmd: r.cmd }, it, hooks.onYes), this.choice({ label: 'No', cmd: null }, it, hooks.onNo)],
       onShow: () => audio.sfx('alert2', 0.45), onEnd: hooks.onEnd });
@@ -363,8 +375,9 @@ export class Dock {
         const lane = W.closestLane(w);
         if (W.distToLane(lane, w) < 320) {
           title = `${LANE_L[lane]} lane`;
-          const jg = this.team.heroes.find((x) => x.role === 'jungle' && x.alive && this.hud.ownHero(x)) || this.ownAlive()[0];
-          if (jg) opts.push({ ico: 'Cut', label: 'Gank', type: 'gank', cmd: { type: 'gank', lane, hero: jg.id } });
+          // the ganker who gets there first (jungler preferred), never one dead, recalling or on another call
+          const gk = bestGanker(g, me, W.laneSnap(lane, w), lane, Infinity, (x) => this.hud.ownHero(x));
+          if (gk) opts.push({ ico: 'Cut', label: 'Gank', type: 'gank', cmd: { type: 'gank', lane, hero: gk.hero.id }, sub: `${gk.hero.def.name} ${Math.max(1, Math.round(gk.t))}s` });
           opts.push({ ico: 'Upgrade', label: 'Push', type: 'group', cmd: { type: 'group', lane } });
           const sp = this.splitter(); if (sp && lane !== 'mid' && W.laneNames.length > 1) opts.push({ ico: 'BookWind', label: 'Split', type: 'split', cmd: { type: 'split', hero: sp.id, lane } });
           if (this.team.heraldEye > g.tick) opts.push({ ico: 'Counter', label: 'Oni', type: 'herald', cmd: { type: 'herald', lane } });
