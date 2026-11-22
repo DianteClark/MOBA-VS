@@ -96,6 +96,9 @@ DOCK_JS = """async (wide) => {
 }"""
 
 JS = """([panels, overlays]) => {
+  // measure the settled layout: finish entry animations (rise / popIn move panels by ~10px for 0.15s, and a busy
+  // machine can still be mid-animation when we measure); endless ones (blinks, pulses) are left alone
+  for (const a of document.getAnimations()) { try { const t = a.effect && a.effect.getComputedTiming(); if (t && Number.isFinite(t.endTime)) a.finish(); } catch (e) { /* not finishable */ } }
   const vis = (e) => { if (!e) return false; const s = getComputedStyle(e); if (s.display === 'none' || s.visibility === 'hidden' || +s.opacity === 0) return false; const r = e.getBoundingClientRect(); return r.width > 1 && r.height > 1 && (e.offsetParent || s.position === 'fixed'); };
   const box = (sel) => { const union = sel.endsWith('*'); const e = document.querySelector(union ? sel.slice(0, -1) : sel); if (!vis(e)) return null;
     // drop-downs (absolutely positioned children, e.g. the open Menu) are overlays, not part of the panel
