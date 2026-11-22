@@ -211,7 +211,7 @@ export const MAPS = [
     kraken: [649, 678], shrine: [1520, 1680],
     brush: [[430, 1240, 60], [850, 1700, 56], [1180, 1440, 54], [1500, 1880, 50], [340, 620, 58], [1640, 2150, 52], [760, 420, 50], [1020, 1980, 46], [520, 1640, 44]],
     rocks: [[900, 1400, 30], [1180, 1880, 34], [740, 1060, 28], [1380, 1640, 28]],
-    clear: [[1200, 1200, 150]],
+    clear: [[1200, 1200, 150], [752, 1196, 30]], // (blunts the forest wedge where the bb and river paths meet)
     // the tide (src/sim/terrain.js): deep water [x1, y1, x2, y2, half-width], tidal flats [x, y, r] (sand that floods),
     // crossings [x1, y1, x2, y2, 'bar' (open at low tide) | 'raft' (open at high tide)]
     tide: true,
@@ -240,7 +240,8 @@ export const MAPS = [
     kraken: [656, 688], shrine: [1400, 1560],
     brush: [[400, 1300, 50], [1180, 1420, 50], [380, 600, 54], [1700, 2140, 48], [780, 380, 48], [1000, 2020, 46], [640, 1060, 36], [1210, 1880, 40]],
     rocks: [[600, 1010, 22], [1190, 1790, 24]],
-    clear: [[1200, 1200, 160], [600, 1030, 125], [610, 1345, 80], [1190, 1800, 130], [1560, 1860, 90]],
+    clear: [[1200, 1200, 160], [600, 1030, 125], [610, 1345, 80], [1190, 1800, 130], [1560, 1860, 90],
+      [485, 1000, 36], [550, 1390, 34], [630, 1420, 34], [1075, 1755, 40], [1150, 1925, 36], [1565, 1945, 34], [1620, 1805, 34]], // + fillets where land bridges meet the islands (no corners to snag on)
     // the sky (src/sim/terrain.js): wind bridges [x1, y1, x2, y2, 'windA' | 'windB'] take turns; jump pads [x1, y1, x2, y2] (two-way)
     wind: true,
     gates: [[605, 1150, 610, 1270, 'windA'], [1315, 1825, 1475, 1850, 'windB']],
