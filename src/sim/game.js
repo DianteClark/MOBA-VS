@@ -23,6 +23,7 @@ import { customRules } from './custom.js'; // custom games (cfg.custom): double 
 import * as D from './talents.js'; // v23 match depth (cfg.depth): talents, item override, ult upgrades, revenge, duo ults
 import { Living } from './living.js';
 import { Beasts, BEASTS } from './beasts.js';
+import { Terrain } from './terrain.js'; // v25 maps: the tide, wind bridges, jump pads
 
 // Champion-vs-champion damage scale: keeps fights readable and lanes from snowballing at level 1.
 const STEER_K = +(globalThis.process?.env?.SK || 0.45);
@@ -95,6 +96,7 @@ export class Game {
     }));
     const mapDef = MAP_BY_ID[cfg.map] || MAP_BY_ID.sakura, living = !!cfg.living && this.mode === 'classic' && !mapDef.single;
     this.world = new World(mapDef, { walls: living });
+    this.terrain = (mapDef.tide || mapDef.wind || mapDef.pads) && !mapDef.single ? new Terrain(this) : null; // (only the maps that have them)
     this.visGrid = [new Uint8Array(GRID_N * GRID_N), new Uint8Array(GRID_N * GRID_N)];
     this.camps = [];
     this.objectives = { dragon: null, herald: null, baron: null };
@@ -658,6 +660,7 @@ export class Game {
     if (this.over) return;
     const now = this.tick;
     if (this.living) this.living.sync();
+    if (this.terrain) this.terrain.sync();
     // Commands are applied in a canonical order so both peers agree.
     const cmds = commands.slice().sort((a, b) => a.team - b.team || (a.seat || 0) - (b.seat || 0) || (a.seq || 0) - (b.seq || 0)); // seat: co-op coaches
     for (const c of cmds) this.applyCommand(c);
@@ -686,6 +689,7 @@ export class Game {
     this.updateObjectivesSpawn();
     if (this.living) this.living.update();
     if (this.beasts) this.beasts.update();
+    if (this.terrain) this.terrain.update(); // the tide / the wind open and close crossings
 
     // rebuild grid
     this.grid.clear();
@@ -1063,6 +1067,7 @@ export class Game {
     let ms = u.stats.ms * this.wx.ms;
     if (u.type === 'hero') ms *= this.rules.heroMs;
     let slow = 0; for (const s of u.slows) if (s.until > this.tick && s.pct > slow) slow = s.pct;
+    if (this.terrain) ms *= this.terrain.msMult(u); // floodwater at high tide
     return ms * (1 - slow);
   }
   canMove(u) { return u.alive && this.tick >= u.stunUntil && this.tick >= u.rootUntil && !(u.castLock > this.tick); }
@@ -1089,18 +1094,19 @@ export class Game {
         if (W.losWide(last.x, last.y, p.x, p.y)) { pc.pts[pc.pts.length - 1] = { x: p.x, y: p.y }; pc.goal = { x: p.x, y: p.y }; } else pc = null;
       }
       if (!pc || now >= pc.until || pc.i >= pc.pts.length) {
-        pc = u.path = { goal: { x: p.x, y: p.y }, pts: W.findPath(u.x, u.y, p.x, p.y), i: 0, until: now + 60 + (u.ph % 13) };
+        pc = u.path = { goal: { x: p.x, y: p.y }, pts: W.findPath(u.x, u.y, p.x, p.y, u.type === 'hero' && !!W.links), i: 0, until: now + 60 + (u.ph % 13) };
       }
       const pts = pc.pts;
       while (pc.i < pts.length - 1 && dist2(u, pts[pc.i]) < 18 * 18) pc.i++;
       // skip ahead when the next waypoint is already in clear view
       if (pc.i < pts.length - 1 && (now + u.ph) % 3 === 0 && W.losWide(u.x, u.y, pts[pc.i + 1].x, pts[pc.i + 1].y)) pc.i++;
       step = pts[pc.i];
+      if (step.land !== undefined && this.terrain && this.terrain.launch(u, step)) { pc.i++; return; } // a jump pad: take off
       // pushed off the route (bodies, knockbacks) so the next waypoint is out of sight: plan again from here
       // (walking straight at it would grind on a wall corner, the slide flipping ±3px every tick)
       if (!W.los(u.x, u.y, step.x, step.y) && !(u.rpT > now - 10)) {
         u.rpT = now;
-        pc = u.path = { goal: { x: p.x, y: p.y }, pts: W.findPath(u.x, u.y, p.x, p.y), i: 0, until: now + 60 + (u.ph % 13) };
+        pc = u.path = { goal: { x: p.x, y: p.y }, pts: W.findPath(u.x, u.y, p.x, p.y, u.type === 'hero' && !!W.links), i: 0, until: now + 60 + (u.ph % 13) };
         while (pc.i < pc.pts.length - 1 && dist2(u, pc.pts[pc.i]) < 18 * 18) pc.i++;
         step = pc.pts[pc.i];
       }
@@ -1360,6 +1366,7 @@ export class Game {
   // What a dash does when it lands. Kept as data on h.dash (a closure would still point at the original game
   // and units inside a snapshot copy: the Theater and the Instant Replay restore copies mid-dash).
   dashArrive(h, r) {
+    if (r.k === 'pad') { this.terrain.land(h); return; } // a jump pad landing
     const ab = h.def.abilities[r.i], type = ab.type || h.def.dmgType;
     if (r.k === 'ally') { const a = this.byId(r.ally); if (a && a.alive) this.applyAllyEffects(h, a, ab); this.applyAllyEffects(h, h, ab); return; }
     if (ab.radius) {
@@ -1788,6 +1795,7 @@ export class Game {
     if (this.hearth) for (const H of this.hearth) if (H) h = hashInts(h, H.embers, H.peak); // v24 Hearthfire
     if (this.living) h = hashInts(h, this.living.mask, this.teams[0].moonUntil, 0);
     if (this.beasts) for (const t of this.teams) h = hashInts(h, t.kamiElder, t.elderPush, t.scoutCd, t.rareBaron);
+    if (this.terrain) h = hashInts(h, this.terrain.mask, this.terrain.avoid, 0);
     return h >>> 0;
   }
 
