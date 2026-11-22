@@ -1,6 +1,16 @@
 // Patch notes, newest first. tools/season.mjs prepends an entry at each season rollover.
 export const PATCHES = [
   {
+    version: '23.8', season: 1, date: '2026-11-22', title: 'Balance',
+    notes: [
+      'Hero balance with talents: the strongest heroes (Bastion, Karasu, Wren, Fang) were toned down; Gama, Brawlo, Sora, Hachi, Umbra and Tetsu were buffed.',
+      'Talents: Aftershock, Overdrive and Rampage nerfed; Bloodthirst, Fury and Fleet Foot buffed.',
+      'Halftime fits short phone screens, the Instant Replay panel never covers your calls, and the hero popup stays on screen.',
+      'Fixed: seeking in Lane Rush replays could show the wrong moment.',
+    ],
+    heroes: [],
+  },
+  {
     version: '23.7', season: 1, date: '2026-11-22', title: 'Solid Ground',
     notes: [
       'Fight alerts name the right place: lanes by tower, river halves, jungle quadrants and camps. Pits only count when the fight is really in the pit.',
