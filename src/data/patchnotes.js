@@ -9,6 +9,7 @@ export const PATCHES = [
       'Ready check: before a match, review your Dojo lineup (heroes, backups, builds, plan) and fix any gaps. You can turn it off.',
       'Every champion can be picked only once per match, across both teams.',
       'Mirror Match (weekly event): both teams get the same five heroes and the same tactic cards. No draft; pure coaching.',
+      'Smarter prompts: suggestions only show when you can afford them and the heroes can actually get there in time. Gank prompts name the right ganker.',
       'New: Franchise mode and the Pro League.',
       'New: in-game feedback (Settings and results) and notifications for invites and rematches.',
     ],
