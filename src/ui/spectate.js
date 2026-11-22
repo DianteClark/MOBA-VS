@@ -32,7 +32,9 @@ export async function startRelay(app, m, s) {
     { allow: (pid) => (friends().has(pid) ? null : 'friends'), now: () => performance.now(), onCount: (n) => { me.count = n; if (n > (me.peak || 0)) { me.peak = n; toast(n === 1 ? 'A friend is watching your match' : `${n} friends are watching`, 1800); } } });
   me.listen = listenSpectators(peer, (t) => me.relay && me.relay.accept(t));
   me.timer = setInterval(() => { if (!me.relay || me.relay.closed) { if (R === me) stopRelay(); return; } me.relay.pump(); }, 250);
-  if (me.listen.id) matchPresence(me.listen.id); // friends now see Watch next to your name
+  // friends now see Watch next to your name (retried: the presence call is rate limited and may be refused)
+  const tell = (n) => { if (R !== me || !me.listen.id || m.game.over) return; matchPresence(me.listen.id).then((ok) => { if (!ok && n < 4) setTimeout(() => tell(n + 1), 15000); }); };
+  tell(0);
 }
 export const watchers = () => (R ? R.count : 0);
 // Leaving: a finished match runs its feed out (the last 10 s) unless the connection goes; a match left early ends now.

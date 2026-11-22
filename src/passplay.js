@@ -29,8 +29,8 @@ export const clearCover = () => document.querySelector('.pnpcover')?.remove();
 // Draft: hand the device over when the next turn belongs to the other side.
 export function pnpTurn(app) {
   const s = app.session, t = currentTurn(s.draft);
-  if (!t || t.team === s.myTeam) return;
-  s.myTeam = t.team; s.autoPick = null; s.pickPrompt = null;
+  if (!t || (t.team === s.myTeam && s.pnpSeen)) return; // (the very first turn gets a cover too: who starts)
+  s.pnpSeen = true; s.myTeam = t.team; s.autoPick = null; s.pickPrompt = null;
   if (app.draftView) { app.draftView.sel = null; app.draftView.render(); }
   passCover(app, t.team, `Your ${t.act === 'ban' ? 'ban' : 'pick'}.`, () => { s.turnStart = performance.now(); if (app.draftView) app.draftView.render(); });
 }

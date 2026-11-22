@@ -61,7 +61,7 @@ export function startSocial(app) {
 export const refreshSocial = () => beat(true);
 // "In a match" for friends: one ping when a match of your own starts (the heartbeat stays off in matches).
 // watch: the spectate relay's id once it is up (src/ui/spectate.js), so friends see Watch.
-export function matchPresence(watch = null) { if (getAccount() && online.ok) presence('match', watch).catch(() => {}); st.last = 0; }
+export function matchPresence(watch = null) { st.last = 0; return getAccount() && online.ok ? presence('match', watch).then(() => true, () => false) : Promise.resolve(false); }
 // Profile nav tile dot: pending friend requests.
 export const socialBadge = () => !!(st.data && st.data.requests && st.data.requests.length);
 function badge() { const d = document.querySelector('.h2nav .navprofile'); if (!d) return; const on = socialBadge(); let dot = d.querySelector('.dot'); if (on && !dot) d.append(h('i', { class: 'dot' })); else if (!on && dot) dot.remove(); }
