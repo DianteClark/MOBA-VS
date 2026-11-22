@@ -1622,6 +1622,8 @@
 "Iron Will",
 "Jade Leaguer",
 "Kami Leaguer",
+"Any Lane",
+"If the game cannot start, the loading screen now explains why and offers a one-tap reset.",
 "Launch",
 "Fresh start for everyone",
 "Story campaign",
@@ -5056,6 +5058,10 @@
 "sidegrades of the classic ones.",
 "Coach Moment variants",
 "same once-per-match swing, a different shape.",
+"Play any champion in any lane",
+"lineups accept off-role picks (marked OFF), and every draft step has an \"All champions\" list.",
+"Champion info everywhere",
+"tap any hero in the draft, the Shop, the match, rivals or profiles to see ratings, abilities, talents, builds and lore, owned or not.",
 "Two new maps",
 "Tidebreak Harbor, where the tide floods the shallows mid-match, and Skyreach Isles, floating islands linked by jump pads and shifting wind bridges.",
 "Each new map has its own Kami",
@@ -5668,4 +5674,5 @@
 "Blue +{0}k",
 "Red +{0}k",
 "{0} to {1}",
-"3 wards for 90s"]
+"3 wards for 90s",
+"(off-role)"]
