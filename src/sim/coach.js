@@ -182,7 +182,9 @@ export class Coach {
     // (Split Push groups mid, Protect the Carry groups where the carry is; both start earlier.)
     // (an open enemy Crystal counts as late: group up and finish it, src/sim/endgame.js)
     const late = g.time > W.lateAt * k || (LANE_NAMES.length === 1 && deadEnemies >= 2) || !!openCrystal(g, this.team); // one lane: every won fight is a push
-    if (ready('group') && late && charges >= 1 && alive.length >= 3 && (deadEnemies >= 1 || alive.length >= enemyAlive.length || g.time > 780 * k)) {
+    // (Bosses & Beasts: with the Elder Kami up or about to land, keep two charges for it rather than another push call)
+    const elder = g.beasts && g.beasts.full && me.elderPush <= now && ((g.objectives.boss && g.objectives.boss.alive) || (g.objTimers.boss && g.objTimers.boss - now < sec(25)));
+    if (ready('group') && late && charges >= (elder ? 3 : 1) && alive.length >= 3 && (deadEnemies >= 1 || alive.length >= enemyAlive.length || g.time > 780 * k)) {
       const lane = W.groupLane && LANE_NAMES.includes(W.groupLane) && g.time < 780 * k ? W.groupLane : this.weakestLane();
       if (this.issue({ type: 'group', lane })) { cd('group', g.time > 780 * k ? 25 : W.groupCd); return; }
     }

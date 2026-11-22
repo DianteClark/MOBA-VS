@@ -19,8 +19,8 @@ import { dist2 } from './geom.js';
 
 export const BEASTS = {
   kamiAt: [180, 450], kamiGap: 90, kamiLast: 640,
-  elderAt: 720, elderWarn: 30, elderRespawn: 180, elderBuff: 150, elderPower: 3,
-  push: 90, pushSiege: 0.6, pushMs: 0.06,
+  elderAt: 720, elderWarn: 30, elderRespawn: 180, elderBuff: 150, elderPower: 3, elderHp: 7000,
+  push: 120, pushSiege: 0.8, pushMs: 0.06,
   rare: 0.15, rareGold: 90, rareBaronPower: 20, rareBaronSec: 20, rareOni: 1.3,
   nightCamp: 1.25,
   scoutFrom: 180, scoutCd: 75, scoutLife: 30, scoutRun: 14, scoutSight: 520, scoutRunSight: 260, scoutMs: 270, scoutHits: 3, scoutGold: 40,
@@ -93,7 +93,7 @@ export class Beasts {
   }
   spawnElder() {
     const g = this.g, gm = g.gameMinute, p = this.arena;
-    const hp = 9000 + Math.max(0, gm - 12) * 500;
+    const hp = BEASTS.elderHp + Math.max(0, gm - 12) * 500;
     g.objectives.boss = g.addUnit({ type: 'objective', kind: 'boss', element: this.species, elder: true, team: NEUTRAL, x: p.x, y: p.y, home: { ...p },
       maxHp: hp, hp, radius: 34, big: true, boss: true, slam: 0, stats: { ad: 150 + gm * 5, ap: 0, armor: 50, mr: 50, as: 0.75, range: 220, ms: 0, pen: 0 } });
     g.objTimers.boss = 0;

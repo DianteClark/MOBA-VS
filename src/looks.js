@@ -8,6 +8,7 @@ import { EMOTES, BORDERS } from './data/cosmetics.js';
 import { profile } from './profile.js';
 import { skinFor, skinFaceUrl } from './render/skins.js';
 import { FAMILIES, PETS, hasPet, hasFamily, aiPet, RIVAL_PET } from './data/beasts.js';
+import { weekEvent } from './data/events.js';
 
 export function myLooks() {
   const p = profile;
@@ -15,7 +16,7 @@ export function myLooks() {
 }
 // The equipped scout animal and minion family (only ones the profile owns; no family = the map's own).
 export function myBeasts(event) {
-  const e = profile.d.equip;
+  const e = profile.d.equip; if (event === undefined) { try { event = weekEvent(Date.now()).ev.id; } catch { event = null; } } // (the week's featured family is free to wear)
   return { pet: hasPet(profile, e.pet) ? e.pet : 'dog', troop: e.troop && hasFamily(profile, e.troop, event) ? e.troop : null };
 }
 // Hero → skin map with only known heroes and skins that fit them.
