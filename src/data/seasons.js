@@ -14,7 +14,7 @@ export const SEASONS = [
   { id: 2, name: 'Yokai Moon', start: '2027-02-01', end: '2027-04-15', map: 'marsh', clan: 'spirit', color: '#b9a2ff', pass: 2,
     art: { bg: 'radial-gradient(circle at 84% 22%, #fff6dc 0 7%, #c9b8ff 9%, #3a2470 30%, #140c2a 75%)', motif: 'lanterns' },
     blurb: 'A pale moon rises over the marsh and the night parade begins. Spirit heroes earn bonus season XP, Moonlit Marsh comes up most in Random, and three story weeks bring the yokai out.',
-    highlights: ['Yokai Moon season pass: 30 tiers', 'Three story weeks', 'Four new Legendary skins'] },
+    highlights: ['A 30-tier Yokai Moon pass', 'Three story weeks with their own rewards', 'Four new Legendary skins'] },
   { id: 3, name: 'Wildfire', start: '2027-04-16', end: '2027-06-30', map: 'ember', clan: 'wild', color: '#ff9a4a',
     art: { bg: 'linear-gradient(135deg, #6a2a10, #2a1208 60%, #4a1a08)', motif: 'embers' },
     blurb: 'The canyon burns. Wild heroes earn bonus season XP, and Ember Canyon comes up most in Random.' },

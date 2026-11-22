@@ -39,6 +39,10 @@ export function validate(doc, heroIds) {
   if (!Array.isArray(c.teams) || c.teams.length !== 2) return 'bad teams';
   // weekly map event (src/data/events.js): an id or absent; Mirror Draft lets both teams field the same hero
   if (c.event !== undefined && (typeof c.event !== 'string' || !/^[a-z]{1,16}$/.test(c.event))) return 'bad event';
+  // hero mastery perks are vs-AI only (src/meta.js perksFor): never in a ranked or cup match
+  if (c.perks !== undefined && c.perks !== null) return 'mastery perks in a ranked or cup match';
+  // coach skill tree Moment variants: a small { slot: variant } map (the sim ignores unknown ones)
+  for (const t of c.teams) if (t && t.mv !== undefined && (!t.mv || typeof t.mv !== 'object' || Array.isArray(t.mv) || JSON.stringify(t.mv).length > 120)) return 'bad moment variants';
   const mirror = c.event === 'mirror';
   let seen = new Set();
   for (const t of c.teams) {
