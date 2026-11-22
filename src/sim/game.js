@@ -20,6 +20,7 @@ import { setupCoop, coopGate } from './coop.js';
 import { openCrystal } from './endgame.js';
 import { customRules } from './custom.js'; // custom games (cfg.custom): double gold, fast respawns, no backdoor guard
 import * as D from './talents.js'; // v23 match depth (cfg.depth): talents, item override, ult upgrades, revenge, duo ults
+import { Living } from './living.js';
 
 // Champion-vs-champion damage scale: keeps fights readable and lanes from snowballing at level 1.
 const STEER_K = +(globalThis.process?.env?.SK || 0.45);
@@ -90,7 +91,8 @@ export class Game {
       deck: (cfg.teams[t].deck || DEFAULT_DECK).slice(0, 3).map((id) => ({ id, used: false })), siegeWaves: {}, siegeUntil: 0, fortifyUntil: 0, pactUntil: 0, swapUntil: 0,
       momentum: 0, surgeUntil: 0, permitCd: 0, moments: {}, momentCd: 0, allOut: 0, mv: momentVariants(cfg.teams[t].mv),
     }));
-    this.world = new World(MAP_BY_ID[cfg.map] || MAP_BY_ID.sakura);
+    const mapDef = MAP_BY_ID[cfg.map] || MAP_BY_ID.sakura, living = !!cfg.living && this.mode === 'classic' && !mapDef.single;
+    this.world = new World(mapDef, { walls: living });
     this.visGrid = [new Uint8Array(GRID_N * GRID_N), new Uint8Array(GRID_N * GRID_N)];
     this.camps = [];
     this.objectives = { dragon: null, herald: null, baron: null };
@@ -102,6 +104,7 @@ export class Game {
     this.coaches = [null, null];
     this.setupStructures();
     this.setupCamps();
+    this.living = living ? new Living(this) : null; // Living World: night, Yokai Parade, breakable walls, Tengu (src/sim/living.js)
     this.shrines = this.world.shrines.map((p, i) => ({ id: i, x: p.x, y: p.y, owner: -1, progress: 0, capTeam: -1 }));
     const wl = this.world.def.weather || ['clear'];
     const off = (cfg.seed >>> 3) % wl.length;
@@ -444,11 +447,11 @@ export class Game {
         break;
       }
       case 'objective': {
-        const o = c.obj; if (!['dragon', 'herald', 'baron'].includes(o)) { ok = false; break; }
+        const o = c.obj; if (!['dragon', 'herald', 'baron'].includes(o) && !(this.living && (o === 'boss' || o === 'yokai'))) { ok = false; break; }
         if (!this.objAvailable(o)) { ok = false; break; }
-        const pit = o === 'dragon' ? this.world.pits.kami : this.world.pits.kraken;
-        const pref = o === 'dragon' ? ['jungle', 'bot', 'support', 'mid', 'top'] : o === 'herald' ? ['jungle', 'top', 'mid', 'support', 'bot'] : ['jungle', 'mid', 'top', 'support', 'bot'];
-        const n = o === 'baron' ? 5 : 4;
+        const pit = this.objPit(o);
+        const pref = o === 'dragon' ? ['jungle', 'bot', 'support', 'mid', 'top'] : o === 'herald' || o === 'yokai' ? ['jungle', 'top', 'mid', 'support', 'bot'] : ['jungle', 'mid', 'top', 'support', 'bot'];
+        const n = o === 'baron' || o === 'boss' ? 5 : o === 'yokai' ? 3 : 4;
         const pick = alive.slice().sort((a, b) => (pref.indexOf(a.role) - pref.indexOf(b.role)) || (dist2(a, pit) - dist2(b, pit))).slice(0, n);
         for (const h of pick) if (!(h.task.kind === 'split' && h.task.call)) this.setCallTask(h, { kind: 'objective', obj: o, until: until(T.objectiveTimeout), call: true });
         team.call = { type: 'objective', obj: o, until: until(T.objectiveTimeout) };
@@ -489,7 +492,7 @@ export class Game {
       case 'invade': {
         const enemyCamps = this.camps.filter((cp) => cp.side !== c.team && cp.mobs.length > 0);
         if (!jungler || !jungler.alive || !enemyCamps.length) { ok = false; break; }
-        const camp = enemyCamps.sort((a, b) => dist2(a, jungler) - dist2(b, jungler))[0];
+        const camp = (c.camp && enemyCamps.find((cp) => cp.key === c.camp)) || enemyCamps.sort((a, b) => dist2(a, jungler) - dist2(b, jungler))[0]; // c.camp: a named camp (Moon Spirits)
         const buddy = alive.filter((h) => h.role === 'support' || h.role === 'mid').sort((a, b) => dist2(a, camp) - dist2(b, camp))[0];
         for (const h of [jungler, buddy]) if (h) this.setCallTask(h, { kind: 'invade', camp: camp.key, until: until(30), call: true });
         break;
@@ -634,6 +637,8 @@ export class Game {
     if (before < MOMENTUM.max && t.momentum >= MOMENTUM.max) this.emit({ type: 'momentumFull', team });
   }
   laneOf(u) { return this.world.closestLane(u); }
+  // Where an objective is fought (Living World: the Tengu's landing spot, the Yokai Parade's current spot).
+  objPit(o) { return o === 'dragon' ? this.world.pits.kami : o === 'herald' || o === 'baron' ? this.world.pits.kraken : this.living.objPit(o); }
   // An objective can be called if it is up or wakes within 25s.
   objAvailable(o) {
     const u = this.objectives[o]; if (u && u.alive) return true;
@@ -646,6 +651,7 @@ export class Game {
   step(commands = []) {
     if (this.over) return;
     const now = this.tick;
+    if (this.living) this.living.sync();
     // Commands are applied in a canonical order so both peers agree.
     const cmds = commands.slice().sort((a, b) => a.team - b.team || (a.seat || 0) - (b.seat || 0) || (a.seq || 0) - (b.seq || 0)); // seat: co-op coaches
     for (const c of cmds) this.applyCommand(c);
@@ -672,6 +678,7 @@ export class Game {
     this.spawnWaves();
     this.updateCamps();
     this.updateObjectivesSpawn();
+    if (this.living) this.living.update();
 
     // rebuild grid
     this.grid.clear();
@@ -722,9 +729,9 @@ export class Game {
       if (this.time >= this.rules.pace.wrathFrom) kinds.unshift('super');
       const enemyInhibDown = this.units.some((u) => u.type === 'inhib' && u.team !== t && u.lane === ln && !u.alive);
       if (enemyInhibDown) kinds.unshift('super', 'super');
-      let baron = this.teams[t].heroes.some((h) => h.alive && h.baronUntil > this.tick);
+      let baron = this.teams[t].heroes.some((h) => h.alive && h.baronUntil > this.tick) || this.teams[t].tenguUntil > this.tick; // Tengu's Gale empowers waves too
       if (this.teams[t].siegeWaves[ln] > 0) { this.teams[t].siegeWaves[ln]--; baron = true; }
-      const allOut = this.teams[t].allOut > 0; // Coach Moment: All-Out Push
+      const allOut = this.teams[t].allOut > 0 || this.teams[t].tenguUntil > this.tick; // Coach Moment: All-Out Push (and Tengu's Gale)
       if (allOut) kinds.unshift('super');
       kinds.forEach((k, i) => this.spawnMinion(t, ln, k, i, minute, baron, allOut));
     }
@@ -769,6 +776,7 @@ export class Game {
   updateCamps() {
     const minute = this.gameMinute;
     for (const c of this.camps) {
+      if (c.night) continue; // Moon Spirits: Living World wakes them at dusk
       if (c.mobs.length) { c.mobs = c.mobs.filter((m) => m.alive); if (!c.mobs.length) c.respawnAt = this.tick + sec(c.def.buff ? T.buffRespawn : T.campRespawn); continue; }
       if (this.tick >= c.respawnAt && c.respawnAt > 0) {
         c.respawnAt = 0;
@@ -820,11 +828,11 @@ export class Game {
   updateVision() {
     const W = this.world;
     for (let t = 0; t < 2; t++) {
-      const src = [];
+      const src = [], nv = this.living ? this.living.visMult(t) : 1; // night shortens unit sight
       for (const u of this.units) {
         if (!u.alive || u.team !== t) continue;
         const r = u.type === 'hero' ? VISION.hero : u.type === 'minion' ? VISION.minion : u.type === 'summon' ? VISION.summon : u.structure ? VISION.tower : 0;
-        if (r) src.push({ x: u.x, y: u.y, r: u.structure ? r : r * this.wx.vision * (1 + ((u.stats && u.stats.sight) || 0)) * this.rules.vision });
+        if (r) src.push({ x: u.x, y: u.y, r: u.structure ? r : r * this.wx.vision * (1 + ((u.stats && u.stats.sight) || 0)) * this.rules.vision * nv });
       }
       for (const w of this.wards) if (w.team === t && w.until > this.tick) src.push({ x: w.x, y: w.y, r: VISION.ward * this.rules.vision });
       for (const sh of this.shrines) if (sh.owner === t) src.push({ x: sh.x, y: sh.y, r: VISION.shrine });
@@ -1260,13 +1268,13 @@ export class Game {
       if (dist2(m, m.target) > rr * rr) { if (!m.stats.ms || !this.mobChase(m, leash)) return; this.moveToward(m, this.leashed(m, m.target, leash), false, m.stats.range * 0.8); return; }
       if (now < m.attackCd) return;
       m.attackCd = now + Math.round(1 / m.stats.as / DT); m.animAttack = now;
-      const splash = m.kind === 'baron' ? ((m.slam = (m.slam || 0) + 1) % 4 === 0 ? 320 : 110) : m.kind === 'dragon' ? 110 : 0;
+      const splash = m.kind === 'baron' || m.kind === 'boss' ? ((m.slam = (m.slam || 0) + 1) % 4 === 0 ? 320 : 110) : m.kind === 'dragon' ? 110 : 0;
       if (splash) {
         for (const e of this.grid.query(m.target.x, m.target.y, splash)) if (e.alive && e.team !== NEUTRAL && (e.type === 'hero' || e.type === 'minion')) {
           this.dealDamage(m, e, m.stats.ad * (e === m.target ? 1 : 0.5), 'magic', { basic: true });
           if (splash > 200) this.applyCC(e, { knock: 0.75 });
         }
-        this.fx.push({ kind: 'fx', name: m.kind === 'dragon' ? 'flame' : splash > 200 ? 'rockspike' : 'water', x: m.target.x, y: m.target.y, s: splash > 200 ? 3 : 1.5 });
+        this.fx.push({ kind: 'fx', name: m.kind === 'dragon' ? 'flame' : m.kind === 'boss' ? (splash > 200 ? 'thunder' : 'spark') : splash > 200 ? 'rockspike' : 'water', x: m.target.x, y: m.target.y, s: splash > 200 ? 3 : 1.5 });
       } else this.dealDamage(m, m.target, m.stats.ad, 'phys', { basic: true });
       return;
     }
@@ -1327,13 +1335,26 @@ export class Game {
     heroThink(this, h);
   }
 
+  // What a dash does when it lands. Kept as data on h.dash (a closure would still point at the original game
+  // and units inside a snapshot copy: the Theater and the Instant Replay restore copies mid-dash).
+  dashArrive(h, r) {
+    const ab = h.def.abilities[r.i], type = ab.type || h.def.dmgType;
+    if (r.k === 'ally') { const a = this.byId(r.ally); if (a && a.alive) this.applyAllyEffects(h, a, ab); this.applyAllyEffects(h, h, ab); return; }
+    if (ab.radius) {
+      for (const e of this.grid.query(h.x, h.y, ab.radius + 20)) if (this.isEnemyHittable(h, e) && dist2(h, e) <= (ab.radius + e.radius) ** 2) this.abilityHit(h, e, ab, type, true);
+      this.fx.push({ kind: 'fx', name: ab.fx || 'smoke_ring', x: h.x, y: h.y, s: ab.radius / 50 });
+    } else if (ab.dmg || ab.cc) {
+      const t2 = this.units.find((u) => u.id === r.tid);
+      if (t2 && t2.alive && dist2(h, t2) < (90 + t2.radius) ** 2) { this.abilityHit(h, t2, ab, type); this.fx.push({ kind: 'fx', name: ab.fx || 'impact', x: t2.x, y: t2.y, s: 1.4 }); }
+    }
+  }
   updateDash(h) {
     const d = h.dash;
     const dx = d.x - h.x, dy = d.y - h.y, l = Math.sqrt(dx * dx + dy * dy);
     const sp = d.speed * DT;
     if (l <= sp || this.tick >= d.until) {
       h.x = d.x; h.y = d.y; h.dash = null;
-      if (d.onArrive) d.onArrive();
+      if (d.arrive) this.dashArrive(h, d.arrive);
       return;
     }
     h.x += dx / l * sp; h.y += dy / l * sp; h.vx = dx / l * sp; h.vy = dy / l * sp;
@@ -1419,15 +1440,7 @@ export class Game {
         }
         dest = this.rayEnd(h, dest);
         const tid = tgt ? tgt.id : 0;
-        h.dash = { x: dest.x, y: dest.y, speed: 1000, until: this.tick + sec(0.8), onArrive: () => {
-          if (ab.radius) {
-            for (const e of this.grid.query(h.x, h.y, ab.radius + 20)) if (this.isEnemyHittable(h, e) && dist2(h, e) <= (ab.radius + e.radius) ** 2) this.abilityHit(h, e, ab, type, true);
-            this.fx.push({ kind: 'fx', name: ab.fx || 'smoke_ring', x: h.x, y: h.y, s: ab.radius / 50 });
-          } else if (ab.dmg || ab.cc) {
-            const t2 = this.units.find((u) => u.id === tid);
-            if (t2 && t2.alive && dist2(h, t2) < (90 + t2.radius) ** 2) { this.abilityHit(h, t2, ab, type); this.fx.push({ kind: 'fx', name: ab.fx || 'impact', x: t2.x, y: t2.y, s: 1.4 }); }
-          }
-        } };
+        h.dash = { x: dest.x, y: dest.y, speed: 1000, until: this.tick + sec(0.8), arrive: { k: 'hit', i, tid } }; // (plain data, not a closure: game copies step on alike)
         selfBuff();
         break;
       }
@@ -1438,7 +1451,7 @@ export class Game {
           // Intercept: dash to the ally, then protect both
           const d = norm(a.x - h.x, a.y - h.y), go = Math.min(ab.range, Math.max(0, dist(h, a) - 30));
           const dest = this.rayEnd(h, { x: h.x + d.x * go, y: h.y + d.y * go });
-          h.dash = { x: dest.x, y: dest.y, speed: 1100, until: this.tick + sec(0.6), onArrive: () => { if (a.alive) this.applyAllyEffects(h, a, ab); this.applyAllyEffects(h, h, ab); } };
+          h.dash = { x: dest.x, y: dest.y, speed: 1100, until: this.tick + sec(0.6), arrive: { k: 'ally', i, ally: a.id } };
         } else this.applyAllyEffects(h, a, ab);
         break;
       }
@@ -1659,6 +1672,7 @@ export class Game {
           if (h.role === 'jungle') this.heal(h, h.maxHp * (u.big ? 0.12 : 0.04), null, true);
           if (u.buff === 'blue') { h.blueBuffUntil = now + sec(90); this.recalc(h); this.emit({ type: 'buff', hero: h.id, team: h.team, buff: 'blue', camp: u.camp }); }
           if (u.buff === 'red') { h.redBuffUntil = now + sec(90); this.emit({ type: 'buff', hero: h.id, team: h.team, buff: 'red', camp: u.camp }); }
+          if (u.moon) this.living.onMob(u, h);
           const near = this.grid.query(u.x, u.y, 600).filter((o) => o.type === 'hero' && o.alive && o.team === h.team && o !== h);
           for (const o of near) this.giveXp(o, u.xpv * 0.3);
           // Jungle-camp kills on the enemy side are notable (invades)
@@ -1694,7 +1708,7 @@ export class Game {
           for (const h of tm.heroes) if (h.alive) { h.baronUntil = now + sec(this.T.baronBuff); this.recalc(h); }
           tm.baronUntil = now + sec(this.T.baronBuff);
           this.objTimers.baron = now + sec(this.T.baronRespawn);
-        }
+        } else if (this.living) this.living.onObjective(u, team); // Yokai Parade tamed / Tengu's Gale
         const ev = { type: 'objective', obj: u.kind, element: u.element, team, killer: killer ? killer.id : 0, steal: smite };
         this.emit(ev); this.resolveCalls(ev);
         if (this.depth) D.depthObjective(this, team, u);
@@ -1745,6 +1759,7 @@ export class Game {
     h = hashInts(h, this.tick, this.units.length, this.projectiles.length, this.rng.state());
     for (const u of this.units) if (u.alive) h = hashInts(h, u.id, r2(u.x), r2(u.y), r2(u.hp));
     for (const t of this.teams) { h = hashInts(h, r2(t.momentum), t.surgeUntil, t.momentCd, t.allOut); for (const x of t.heroes) h = hashInts(h, r2(x.gold), x.level, x.items.length); }
+    if (this.living) h = hashInts(h, this.living.mask, this.teams[0].moonUntil, this.teams[1].tenguUntil);
     return h >>> 0;
   }
 

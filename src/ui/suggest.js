@@ -7,7 +7,7 @@ import { canIssue, seen, busy, eta, bestGanker, teamEta, objTimeLeft, WINDOW } f
 
 const LANE_L = { top: 'Top', mid: 'Mid', bot: 'Bot' };
 const OBJ_L = OBJ_NAME;
-const pitOf = (g, k) => (k === 'dragon' ? g.world.pits.kami : g.world.pits.kraken);
+const pitOf = (g, k) => g.objPit(k); // (Living World: the Tengu's spot, the parade's current spot)
 
 // st: { cool: {} (per-key cooldowns, kept by the caller), carding: bool (a call/request is up), own?(hero) (co-op) }
 // Returns [{ key, text, label, cmd, cls?, valid }].
@@ -22,7 +22,7 @@ export function analystSuggestions(g, me, st) {
   const enemy = g.teams[1 - me].heroes, carding = st.carding;
   const deadEnemies = enemy.filter((x) => !x.alive && x.respawnAt - now > 15 * TICK_RATE);
   if (deadEnemies.length >= 2) {
-    const best = ['baron', 'dragon', 'herald'].find((k) => g.objectives[k] && g.objectives[k].alive);
+    const best = ['boss', 'baron', 'dragon', 'herald'].find((k) => g.objectives[k] && g.objectives[k].alive); // (boss: Living World's Tengu)
     // the numbers edge lasts until the second enemy is back: 3 of ours must get there before that
     const edge = () => deadEnemies.map((x) => (x.respawnAt - g.tick) / TICK_RATE).sort((a, b) => a - b)[1] || 0;
     if (best) offer({ key: 'numbers', text: `${deadEnemies.length} enemies down`, label: `Take ${OBJ_L[best]}`, cmd: { type: 'objective', obj: best }, cls: 'good' },
@@ -52,7 +52,7 @@ export function analystSuggestions(g, me, st) {
         () => seen(g, me, e) && !busy(g, x) && eta(g, x, e) <= WINDOW.gank, 30);
     }
   }
-  for (const k of ['dragon', 'baron', 'herald']) {
+  for (const k of ['dragon', 'baron', 'herald', 'boss', 'yokai']) { // (boss / yokai: Living World)
     const o = g.objectives[k];
     if (!o || !o.alive || o.hp > o.maxHp * 0.95 || !vis.has(o.id) || carding) continue;
     const on = () => enemy.filter((e) => seen(g, me, e) && (e.x - o.x) ** 2 + (e.y - o.y) ** 2 < 500 * 500).length;

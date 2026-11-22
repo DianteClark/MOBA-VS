@@ -12,8 +12,9 @@ const P = (p) => ({ x: S - p.x, y: S - p.y });
 const pt = (a) => ({ x: a[0], y: a[1] });
 
 export class World {
-  constructor(def) {
-    this.def = def;
+  // opts.walls: carve the map's breakable walls (Living World, src/sim/living.js); without it the map is unchanged.
+  constructor(def, opts = {}) {
+    this.def = def; this.opts = opts;
     this.walk = new Uint8Array(N * N);   // 1 = walkable
     this.type = new Uint8Array(N * N);   // terrain type for painting
     this.brush = new Uint8Array(N * N);  // 1 = tall grass
@@ -128,6 +129,22 @@ export class World {
     // carve around structures so they're reachable, then block their footprint
     for (const s of this.structures) circ(s, s.kind === 'nexus' ? 120 : 70, Ty[this.idx(s.x, s.y)] === T_LANE ? T_LANE : T_BASE, (t) => t === T_FOREST || t === T_GRASS || t === T_PATH);
     for (const s of this.structures) cells(s.x, s.y, s.kind === 'nexus' ? 40 : 22, (i) => { W[i] = 0; });
+    // ── breakable walls (Living World): a corridor through the forest, carved as ground but blocked until it opens ──
+    this.walls = []; this.wallAt = null; this.wallMask = 0;
+    if (this.opts.walls && d.walls) {
+      this.wallAt = new Int8Array(N * N).fill(-1);
+      for (const w of d.walls) for (const [a, b] of [[pt(w), pt(w.slice(2))], [P(pt(w)), P(pt(w.slice(2)))]]) {
+        const id = this.walls.length, list = [];
+        const minx = Math.min(a.x, b.x) - WALL_R, maxx = Math.max(a.x, b.x) + WALL_R, miny = Math.min(a.y, b.y) - WALL_R, maxy = Math.max(a.y, b.y) + WALL_R;
+        for (let cy = Math.max(2, Math.floor(miny / C)); cy <= Math.min(N - 3, Math.floor(maxy / C)); cy++)
+          for (let cx = Math.max(2, Math.floor(minx / C)); cx <= Math.min(N - 3, Math.floor(maxx / C)); cx++) {
+            const i = cy * N + cx;
+            if (W[i] || segDist2({ x: cx * C + C / 2, y: cy * C + C / 2 }, a, b) > WALL_R * WALL_R) continue;
+            Ty[i] = T_PATH; this.wallAt[i] = id; list.push(i);
+          }
+        this.walls.push({ id, kind: w[4] || 'wall', x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, a, b, cells: Int32Array.from(list) });
+      }
+    }
     // ward spots (Blue view; mirrored for Red)
     // Clearance: steps (8-neighbour) from each open cell to the nearest wall, capped at 4.
     // A* pays extra for low clearance so routes run down the middle of corridors.
@@ -153,6 +170,46 @@ export class World {
     if (d.single) for (const k of ['top', 'bot']) this.laneD[k] = this.laneD.mid;
     const ws = [this.pits.kami, this.pits.kraken, this.shrines[0], this.shrines[1], ...d.brush.slice(0, 5).map(pt)].filter(Boolean);
     this.wardSpots = [ws.map((p) => this.nearestOpen(p)), ws.map((p) => this.nearestOpen(P(p)))];
+  }
+
+  // ───────────── breakable walls (Living World) ─────────────
+  // Open / close walls to match `mask` (bit i = wall i open). Incremental: only the changed walls' cells flip,
+  // clearance (A* wall cost) is recomputed in their neighbourhood, and only the vision-cache entries whose
+  // rays could reach them are dropped. Returns true when anything changed (callers drop unit path caches).
+  setWalls(mask) {
+    if (mask === this.wallMask) return false;
+    const diff = mask ^ this.wallMask; this.wallMask = mask;
+    for (const w of this.walls) {
+      if (!(diff & (1 << w.id))) continue;
+      const open = (mask >> w.id) & 1, thicket = w.kind === 'thicket';
+      for (const i of w.cells) { this.walk[i] = open; if (thicket) this.brush[i] = open; }
+      let x0 = N, y0 = N, x1 = 0, y1 = 0;
+      for (const i of w.cells) { const x = i % N, y = (i / N) | 0; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+      this.updateClearance(x0, y0, x1, y1);
+      this.dropVision(x0, y0, x1, y1);
+    }
+    return true;
+  }
+  // Clearance (Chebyshev steps to the nearest blocked cell, capped: 1-4, else 5) for the cells within 5 of a box.
+  updateClearance(x0, y0, x1, y1) {
+    const W = this.walk, clr = this.clearance;
+    for (let y = Math.max(0, y0 - 5); y <= Math.min(N - 1, y1 + 5); y++) for (let x = Math.max(0, x0 - 5); x <= Math.min(N - 1, x1 + 5); x++) {
+      const i = y * N + x;
+      let d = 5;
+      if (!W[i]) d = 0;
+      else for (let r = 1; r <= 4 && d === 5; r++) for (let yy = y - r; yy <= y + r && d === 5; yy++) for (let xx = x - r; xx <= x + r; xx++) {
+        if (Math.max(Math.abs(xx - x), Math.abs(yy - y)) !== r) continue;
+        if (xx < 0 || yy < 0 || xx >= N || yy >= N || !W[yy * N + xx]) { d = r; break; }
+      }
+      clr[i] = d; this.wallNear[i] = W[i] && d === 1 ? 1 : 0;
+    }
+  }
+  dropVision(x0, y0, x1, y1) {
+    const cache = this._vis; if (!cache) return;
+    for (const key of [...cache.keys()]) {
+      const rc = key % 32, c = (key - rc) / 32, cx = c % N, cy = (c / N) | 0;
+      if (cx + rc >= x0 && cx - rc <= x1 && cy + rc >= y0 && cy - rc <= y1) cache.delete(key);
+    }
   }
 
   idx(x, y) { const cx = Math.max(0, Math.min(N - 1, Math.floor(x / C))), cy = Math.max(0, Math.min(N - 1, Math.floor(y / C))); return cy * N + cx; }
@@ -340,6 +397,7 @@ export class World {
 
 }
 const DX = [1, -1, 0, 0, 1, 1, -1, -1], DY = [0, 0, 1, -1, 1, -1, 1, -1];
+const WALL_R = 34; // half-width of a breakable wall's corridor (px)
 const CLR_COST = [0, 9, 4, 1, 0, 0];
 // Ray endpoints for each radius (cells), evenly around the circle, computed with sqrt only.
 const RAY = [];
