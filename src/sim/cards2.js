@@ -195,7 +195,7 @@ export function tick(g) {
 export function aiCard2(co, has, play, x) {
   const g = co.g, t = co.team, me = g.teams[t], k = g.rules.k, now = g.tick, ok = (id) => has(id) && !cardBlock(g, t, id);
   const { fighting, vis, avgHp, obj, alive, dead } = x;
-  if (ok('fallback') && fighting >= 3 && avgHp < 0.35 && alive.length < vis.length) return play({ card: 'fallback' });
+  if (ok('fallback') && fighting >= 2 && avgHp < 0.45 && alive.length <= vis.length && (alive.length < vis.length || alive.length < me.heroes.length)) return play({ card: 'fallback' });
   if (ok('underdog') && fighting >= 3 && vis.length >= 2) return play({ card: 'underdog' });
   if (ok('charge') && fighting >= 2 && vis.length >= 3 && alive.length >= vis.length && avgHp > 0.6) return play({ card: 'charge' });
   if (ok('escort') && fighting >= 2) {
@@ -212,16 +212,16 @@ export function aiCard2(co, has, play, x) {
   if (ok('blackout') && ((obj && x.call && x.call.type === 'objective') || (g.living && g.living.night && fighting >= 2))) return play({ card: 'blackout' });
   if (ok('owl') && (g.events.some((e) => e.type === 'tactic' && e.team !== t && (e.card === 'smoke' || e.card === 'ambush' || e.card === 'blackout') && now - e.t < sec(3)) || (obj && x.call && x.call.type === 'objective' && !has('blackout')))) return play({ card: 'owl' });
   if (ok('bounty') && g.time > 300 * k) return play({ card: 'bounty' });
-  if (ok('lone')) { const s = alive.find((h) => h.task.kind === 'split'); if (s) return play({ card: 'lone', hero: s.id }); }
+  if (ok('lone') && g.time > 420 * k) { const s = alive.find((h) => h.task.kind === 'split' || (h.role === 'top' && h.lane !== 'mid' && h.hp > h.maxHp * 0.6 && !alive.some((a) => a !== h && dist2(a, h) < 1200 * 1200))); if (s) return play({ card: 'lone', hero: s.id }); }
   if (ok('raid') && g.time > 180 * k && g.time < 900 * k) {
     const ej = g.teams[1 - t].heroes.find((h) => h.role === 'jungle');
     if (ej && (!ej.alive || (co.g.vision[t].has(ej.id) && dead === 0 && g.rng.chance(0.3)))) return play({ card: 'raid' });
   }
   if (g.world.laneNames.length && g.time > 300 * k && !fighting) {
     const lane = co.weakestLane();
-    if (ok('crash') && g.rng.chance(0.03)) return play({ card: 'crash', lane });
-    if (ok('slowpush') && g.time < 780 * k && g.rng.chance(0.02)) return play({ card: 'slowpush', lane });
-    if (ok('wardline') && g.time > 420 * k && g.rng.chance(0.015)) return play({ card: 'wardline', lane: g.world.laneNames.length > 1 ? (lane === 'mid' ? 'top' : lane) : lane });
+    if (ok('crash') && g.rng.chance(0.05)) return play({ card: 'crash', lane });
+    if (ok('slowpush') && g.time < 780 * k && g.rng.chance(0.05)) return play({ card: 'slowpush', lane });
+    if (ok('wardline') && g.time > 420 * k && g.rng.chance(0.05)) return play({ card: 'wardline', lane: g.world.laneNames.length > 1 ? (lane === 'mid' ? 'top' : lane) : lane });
   }
   return false;
 }
