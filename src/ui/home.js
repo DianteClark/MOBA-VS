@@ -27,6 +27,9 @@ import { friendsTab, socialBadge, showPlayer } from './social.js';
 import { rivalChip, showRivals, nextRival } from './rivals.js';
 import { RIVAL_BY_ID } from '../data/rivals.js';
 import { eventCard } from './events.js';
+import { showFranchise, crest } from './franchise.js';
+import { getFr } from '../franchise/play.js';
+import { nextFixture } from '../franchise/league.js';
 
 const screen = () => document.getElementById('screen');
 const item = (n) => `assets/img/${n}.png`;
@@ -101,6 +104,7 @@ export function showHome(app) {
       navTile('Dojo', heroSprite(p.activePreset && p.activePreset.main.mid || 'kaze', p.d.equip.skins[p.activePreset && p.activePreset.main.mid || 'kaze'], 28, 'walk'), () => { audio.sfx('move', 0.5); showDojo(app, { tab: 'heroes', hero: null }); }, { title: 'Dojo: heroes, builds and lineups' }),
       navTile('Profile', rankBadge(rk), () => { audio.sfx('move', 0.5); showProfile(app, socialBadge() ? 'friends' : 'rank'); }, { title: 'Rank, mastery, friends, banners and titles', cls: 'navprofile', dot: socialBadge() }),
       navTile('Cup', item('items/GoldCup'), () => showCup(app), { title: mm ? `Season Cup: ${ROUND_NAMES[mm.round]} vs ${mm.opp.name}` : 'Season Cup: 8-team knockout', dot: !!mm }),
+      franchiseTile(app),
       navTile('Pass', item('items/BigTreasureChest'), () => showSeason(app), { title: 'Season Pass' }),
       navTile('Ladder', item('items/BarGold'), () => showLeaderboard(app), { title: 'Online leaderboard' }),
       navTile('History', item('items/Hourglass'), () => showHistory(app), { title: 'Match history and replays' }),
@@ -110,6 +114,13 @@ export function showHome(app) {
     h('div', { class: 'credits' }, 'Art & audio: ', h('a', { href: 'https://pixel-boy.itch.io/ninja-adventure-asset-pack', target: '_blank' }, 'Ninja Adventure'), ' by Pixel-boy & AAA (CC0)'),
   ));
   p.newSeasonNote = null;
+}
+
+// Franchise tile: your club's crest (a dot when a match is waiting), or a plain shield before founding.
+function franchiseTile(app) {
+  const fr = getFr(), fx = fr && nextFixture(fr);
+  const icon = crest(fr ? fr.teams[0] : { name: 'Franchise', c1: '#3b82d6', c2: '#f2c12e', p: 1, e: 0 }, 22, 'navcrest');
+  return navTile('Franchise', icon, () => { audio.sfx('move', 0.5); showFranchise(app); }, { title: fr ? `${fr.teams[0].name}: ${fx ? 'next match ready' : fr.phase === 'offseason' ? 'offseason' : 'season'}` : 'Franchise: found a team, run it for seasons · Pro League', dot: !!(fr && fr.phase === 'offseason' && fr.off.step !== 'fa') });
 }
 
 // ───────────── season pass ─────────────
