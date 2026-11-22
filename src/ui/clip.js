@@ -2,6 +2,7 @@
 // on an offscreen canvas and records it with MediaRecorder (MP4 where the browser can, else WebM).
 // Without MediaRecorder it falls back to a filmstrip image (12 frames on one PNG); without either
 // the button explains why. The result goes to the system share sheet or downloads.
+import { tr } from '../i18n/i18n.js';
 import { h, mount, toast } from './dom.js';
 import { Game } from '../sim/game.js';
 import { LocalRunner } from '../net/runner.js';
@@ -30,8 +31,9 @@ function overlay(ctx, potg, k, names) {
   ctx.fillStyle = 'rgba(0,0,0,0.62)'; ctx.fillRect(0, 0, W, 30);
   ctx.fillStyle = col; ctx.fillRect(0, 30, W * k, 3);
   ctx.font = '12px PixelFont, monospace'; ctx.textBaseline = 'middle'; ctx.textAlign = 'left'; // the renderer leaves it centred
-  ctx.fillStyle = '#ffd84a'; ctx.fillText('PLAY OF THE GAME', 10, 15);
-  ctx.fillStyle = '#f3ead8'; ctx.fillText(potg.title.toUpperCase(), 22 + ctx.measureText('PLAY OF THE GAME').width, 15);
+  const potgL = tr('PLAY OF THE GAME');
+  ctx.fillStyle = '#ffd84a'; ctx.fillText(potgL, 10, 15);
+  ctx.fillStyle = '#f3ead8'; ctx.fillText(tr(potg.title).toUpperCase(), 22 + ctx.measureText(potgL).width, 15);
   ctx.textAlign = 'right'; ctx.fillStyle = '#a99fb3'; ctx.fillText(`${names[0]} vs ${names[1]} · ${potg.at}`, W - 10, 15); ctx.textAlign = 'left';
   ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(W - 82, H - 22, 76, 16);
   ctx.fillStyle = '#ffd84a'; ctx.fillText('MOBA-VS', W - 76, H - 14);
@@ -127,7 +129,7 @@ async function filmstrip(frames, potg, names) {
   const cols = 4, rows = Math.ceil(Math.max(1, frames.length) / cols), fw = 320, fh = 180, pad = 4, head = 28;
   const c = document.createElement('canvas'); c.width = cols * (fw + pad) + pad; c.height = rows * (fh + pad) + pad + head;
   const x = c.getContext('2d'); x.fillStyle = '#14121c'; x.fillRect(0, 0, c.width, c.height);
-  x.font = '14px PixelFont, monospace'; x.textBaseline = 'middle'; x.fillStyle = '#ffd84a'; x.fillText(`MOBA-VS · PLAY OF THE GAME · ${potg.title} · ${names[0]} vs ${names[1]}`, 8, head / 2);
+  x.font = '14px PixelFont, monospace'; x.textBaseline = 'middle'; x.fillStyle = '#ffd84a'; x.fillText(`MOBA-VS · ${tr('PLAY OF THE GAME')} · ${tr(potg.title)} · ${names[0]} vs ${names[1]}`, 8, head / 2);
   const imgs = await Promise.all(frames.map((s) => new Promise((res) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => res(null); i.src = s; })));
   imgs.forEach((im, k) => { if (im) x.drawImage(im, pad + (k % cols) * (fw + pad), head + pad + Math.floor(k / cols) * (fh + pad)); });
   return new Promise((res) => c.toBlob(res, 'image/png'));

@@ -1,4 +1,5 @@
 // Canvas renderer: interpolated sprites, FX, fog of war, floating combat text.
+import { tr } from '../i18n/i18n.js';
 import { IMG, VAR, FX, flashOf } from './assets.js';
 import { skinSheet } from './skins.js';
 import { paintMap, THEMES } from './mapgen.js';
@@ -500,7 +501,7 @@ export class Renderer {
       const sp = this.w2s(p.x, p.y - 86);
       const f1 = Math.round(14 * ts * d), f2 = Math.round(8 * ts * d), face = 30 * d;
       ctx.font = `${f1}px PixelFont, monospace`;
-      const ult = sp_(c.ult.toUpperCase() + '!'), nm = sp_(c.name.toUpperCase());
+      const ult = sp_(tr(c.ult).toUpperCase() + '!'), nm = sp_(c.name.toUpperCase());
       const w1 = ctx.measureText(ult).width; ctx.font = `${f2}px PixelFont, monospace`; const w2 = ctx.measureText(nm).width;
       const w = face + Math.max(w1, w2) + 22 * d, hh = face + 8 * d;
       const x = Math.max(w / 2 + 6 * d, Math.min(this.W - w / 2 - 6 * d, sp.x)), y = this.dodge(x, Math.min(this.H * 0.7, Math.max(hh + 8 * d, sp.y - i * (hh + 6 * d))), w, hh);
@@ -960,7 +961,7 @@ export class Renderer {
       if (t.style === 'exec') y -= Math.min(1, tt * 6) * 10;
       ctx.globalAlpha = k > 0.7 ? (1 - k) / 0.3 : 1;
       ctx.font = `${Math.max(4, Math.round(t.size * sc))}px PixelFont, monospace`;
-      const str = sp_(t.s);
+      const str = sp_(tr(t.s));
       if (t.style === 'exec' || t.style === 'crit') { ctx.fillStyle = '#000'; for (const [ox, oy] of [[-1, 0], [1, 0], [0, -1], [0, 1.5]]) ctx.fillText(str, t.x + ox, y + oy); }
       else { ctx.fillStyle = '#000'; ctx.fillText(str, t.x + 1, y + 1); }
       ctx.fillStyle = t.style === 'exec' ? (Math.floor(tt * 14) % 2 ? '#ff4040' : '#ffffff') : t.color; ctx.fillText(str, t.x, y);

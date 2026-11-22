@@ -99,7 +99,7 @@ export class Hud {
           h('div', { class: 'its' })),
         h('div', { class: 'hpmini' }, h('i', { class: 'tr' }), h('i', { class: 'hp', style: { background: tc } })),
         mine ? null : h('div', { class: 'mia hidden' }, 'MIA'));
-      row._hero = hero;
+      row._hero = hero; row.setAttribute('role', 'button'); row.tabIndex = 0; row.setAttribute('aria-label', hero.def.name);
       row._q = { lv: row.querySelector('.lv'), dead: row.querySelector('.dead'), deadT: row.querySelector('.dead b'), kda: row.querySelector('.kda'), bar: row.querySelector('.bar .hp'), barT: row.querySelector('.bar .tr'),
         mini: row.querySelector('.hpmini .hp'), miniT: row.querySelector('.hpmini .tr'),
         trust: row.querySelector('.trust i'), st: row.querySelector('.st'), own: row.querySelector('.own'), its: row.querySelector('.its'), mia: row.querySelector('.mia'), ult: row.querySelector('.ultdot'), stb: row.querySelector('.stb'), last: 1 };
@@ -729,6 +729,9 @@ export class Hud {
     // phones: the banner takes the ticker's slot right under the objective timers (CSS reads --banner-top)
     const ob = this.el.obj.getBoundingClientRect();
     if (ob.height) hud.style.setProperty('--banner-top', Math.round(ob.bottom + 3) + 'px');
+    // and keeps a side gap that clears the minimap (long translated banners are wider)
+    const mm = document.getElementById('mm').getBoundingClientRect();
+    if (mm.width) hud.style.setProperty('--banner-side', Math.round(window.innerWidth - mm.left + 6) + 'px');
     hud.classList.add('bannering');
     const b = n.node ? h('div', { class: 'big mfxb', style: { '--mc': n.color } }, n.node)
       : h('div', { class: 'big' + (n.sub ? ' hassub' : ''), style: { color: n.color } }, n.img ? h('img', { src: n.img }) : null, n.sub ? h('div', { class: 'bcol' }, h('span', {}, n.text), h('small', { class: 'bsub' }, n.sub)) : h('span', {}, n.text));
