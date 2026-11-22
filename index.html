@@ -56,6 +56,21 @@
     <div id="foestrip" class="hud"></div>
   </div>
 </div>
+<script>
+// Boot watchdog: if the game has not started 20s after the page loaded (for example a broken offline cache
+// left by an older build), clear this site's service worker and caches and reload once, fresh.
+window.addEventListener('load', function () {
+  setTimeout(function () {
+    if (window.__mobavsBooted || !navigator.onLine) return;
+    try { if (sessionStorage.getItem('mobavs_rescue')) return; sessionStorage.setItem('mobavs_rescue', '1'); } catch (e) { return; }
+    var tip = document.getElementById('ldtip'); if (tip) tip.textContent = 'Refreshing the game files…';
+    var jobs = [];
+    if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) jobs.push(navigator.serviceWorker.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); }));
+    if (window.caches && caches.keys) jobs.push(caches.keys().then(function (ks) { return Promise.all(ks.filter(function (k) { return k.indexOf('mobavs-') === 0; }).map(function (k) { return caches.delete(k); })); }));
+    Promise.all(jobs).catch(function () {}).then(function () { location.reload(); });
+  }, 20000);
+});
+</script>
 <script type="module" src="src/main.js"></script>
 </body>
 </html>

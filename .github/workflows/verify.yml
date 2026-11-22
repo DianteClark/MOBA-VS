@@ -28,4 +28,11 @@ jobs:
           MOBAVS_ADMIN: ${{ secrets.MOBAVS_ADMIN }}
         run: |
           if [ -z "$MOBAVS_ADMIN" ]; then echo "::notice::MOBAVS_ADMIN is not set: replay verification is off."; exit 0; fi
-          node tools/verify.mjs --workers 4 --budget 40
+          set +e
+          node tools/verify.mjs --workers 4 --budget 40 2>&1 | tee verify.log
+          code=${PIPESTATUS[0]}
+          if grep -q "replays?limit=.*HTTP 404" verify.log; then
+            echo "::warning::The server rejected MOBAVS_ADMIN (HTTP 404). Make sure the Cloudflare Worker secret MOBAVS_ADMIN (Worker → Settings → Variables and Secrets, type Secret) exactly matches this repository's Actions secret. Verification skipped."
+            exit 0
+          fi
+          exit $code

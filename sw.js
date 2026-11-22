@@ -3,10 +3,9 @@
 // * Cache name is keyed off the game VERSION (main.js registers `sw.js?v=<VERSION>`): a version bump
 //   installs a new worker that precaches the shell into a fresh cache; it waits until the page says it
 //   is safe (on the menu, never mid-match), then takes over and the page reloads once.
-// * Every same-origin GET is stale-while-revalidate: served from the cache at once, re-checked in the
-//   background. If any file changed (a deploy that did not bump VERSION), the whole cached set is
-//   re-downloaded into a staging cache and swapped in together, then the page is told an update is
-//   ready (it reloads on the menu). So the cache always holds one consistent build.
+// * Code (html/js/css/json) is network-first with a 4s timeout, cache as the offline fallback, so a launch
+//   always runs one consistent build. Art and sound are cache-first, refreshed per file in the background.
+//   When src/main.js changes the page is told an update is ready (it reloads on the menu).
 // * Music (range requests), the online API and the owner dashboard (admin.html, src/ui/admin.js) are left to
 //   the network: the dashboard is never cached. Sound effects (plain fetches) are cached like any file.
 // * Offline: after the first full load the page asks for everything a vs-AI match needs (precache.json, written
@@ -16,8 +15,11 @@
 const V = new URL(self.location.href).searchParams.get('v') || '0';
 // REV: bump when the cache layout itself changes. r2: never store or serve redirected responses
 // (Cloudflare answers /index.html with a redirect to /, and Safari refuses a redirected page from a worker).
-const REV = 'r2';
-const CACHE = `mobavs-v${V}-${REV}`, STAGE = CACHE + '-next';
+// r3: code (html/js/css/json) is NETWORK-FIRST so a launch never mixes two builds' modules (a stale module
+// from the cache plus a new one from the network broke the module graph and hung the loading screen).
+// Art/sound stay cache-first with a background refresh per file. A missing file never aborts a refresh.
+const REV = 'r3';
+const CACHE = `mobavs-v${V}-${REV}`;
 const SHELL = ['./', './css/style.css', './src/main.js', './manifest.webmanifest', './favicon.ico', './apple-touch-icon.png',
   './assets/img/app/icon-192.png', './assets/font/NormalFont.ttf'];
 const PEERJS = 'https://unpkg.com/peerjs@';
@@ -34,10 +36,10 @@ self.addEventListener('install', (e) => {
   e.waitUntil((async () => {
     const c = await caches.open(CACHE);
     for (const u of SHELL) { const r = await clean(await fetch(new Request(u, { cache: 'reload' }))); if (r && r.ok) await c.put(u, r); }
-    // A cache from before r2 may hold a redirected page that breaks launching: take over at once.
-    // Otherwise the page decides when switching builds is safe (on the menu, never mid-match).
+    // A cache from an older layout (r2 and before) can hold a mix of builds that hangs launching: take over at
+    // once and reload the open pages (activate). Otherwise the page decides when switching builds is safe.
     const old = (await caches.keys()).filter((k) => k.startsWith('mobavs-') && !k.endsWith('-' + REV) && !k.includes('-' + REV + '-'));
-    if (old.length) await self.skipWaiting();
+    if (old.length) { rescue = true; await self.skipWaiting(); }
   })());
 });
 self.addEventListener('message', (e) => {
@@ -71,69 +73,60 @@ function precacheAll(extra, client) {
   })();
   return precaching;
 }
+let rescue = false;
 self.addEventListener('activate', (e) => {
-  e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k.startsWith('mobavs-') && k !== CACHE).map((k) => caches.delete(k))))
-    .then(() => self.clients.claim()));
+  e.waitUntil((async () => {
+    const ks = await caches.keys();
+    const stale = ks.filter((k) => k.startsWith('mobavs-') && k !== CACHE);
+    const layoutChange = stale.some((k) => !k.includes('-' + REV));
+    await Promise.all(stale.map((k) => caches.delete(k)));
+    await self.clients.claim();
+    // Pages opened under an old layout may be stuck on the loading screen: reload them once, fresh.
+    if (rescue || layoutChange) for (const c of await self.clients.matchAll({ type: 'window' })) { try { await c.navigate(c.url); } catch { /* not ours */ } }
+  })());
 });
 
 const PRIVATE = /\/(admin(\.html)?|src\/ui\/admin\.js|css\/admin\.css)$/; // '/admin': Cloudflare's pretty URL for admin.html
 const cacheable = (req, url) => req.method === 'GET' && !req.headers.has('range') &&
   ((url.origin === self.location.origin && !url.pathname.includes('/assets/audio/music/') && !PRIVATE.test(url.pathname)) || url.href.startsWith(PEERJS));
 
+const CODE = /\.(m?js|css|json|html|webmanifest)$/;
+const isCode = (req, url) => req.mode === 'navigate' || url.pathname.endsWith('/') || CODE.test(url.pathname);
+
 self.addEventListener('fetch', (e) => {
   const req = e.request, url = new URL(req.url);
   if (!cacheable(req, url)) return;
   const nav = req.mode === 'navigate';
+  const key = nav ? './' : req;
   e.respondWith((async () => {
     const cache = await caches.open(CACHE);
-    // launches with ?join=CODE or ?s=... still open the cached page
-    let hit = await cache.match(req, { ignoreSearch: nav }) || (nav ? await cache.match('./') : null);
-    if (hit && hit.redirected) { hit = null; } // never serve a redirected response
-    const net = fetch(nav ? req.url : req, { cache: 'no-cache' }).then(clean).then(async (res) => {
-      if (!res || (!res.ok && res.type !== 'opaque')) return res;
-      if (!hit) await cache.put(nav ? './' : req, res.clone());
-      else if (await changed(hit, res.clone())) await scheduleRefresh();
+    const cached = async () => { const h = await cache.match(req, { ignoreSearch: nav }) || (nav ? await cache.match('./') : null); return h && !h.redirected ? h : null; };
+    if (url.origin === self.location.origin && isCode(req, url)) {
+      // network first (short timeout), cache as the offline fallback: every launch runs one consistent build
+      try {
+        const res = await clean(await Promise.race([fetch(nav ? req.url : req, { cache: 'no-cache' }), new Promise((_, rej) => setTimeout(() => rej(new Error('slow')), 4000))]));
+        if (res && res.ok) {
+          const prev = url.pathname.endsWith('/src/main.js') ? await cache.match(req) : null;
+          e.waitUntil((async () => {
+            await cache.put(key, res.clone());
+            if (prev && prev.headers.get('etag') && prev.headers.get('etag') !== res.headers.get('etag')) for (const c of await self.clients.matchAll({ type: 'window' })) c.postMessage({ t: 'sw-updated' });
+          })());
+          return res;
+        }
+        return (await cached()) || res;
+      } catch { return (await cached()) || (nav ? new Response('Offline', { status: 503 }) : Response.error()); }
+    }
+    // art, sound, fonts, the PeerJS library: cache first, refreshed per file in the background
+    const hit = await cached();
+    const net = fetch(req, { cache: 'no-cache' }).then(clean).then(async (res) => {
+      if (res && (res.ok || res.type === 'opaque')) await cache.put(key, res.clone());
+      else if (res && res.status === 404) await cache.delete(key); // removed in a newer build
       return res;
     }).catch(() => null);
-    if (hit) { e.waitUntil(net); return hit.clone(); } // keep `hit` unread for the comparison
-    return (await net) || (nav ? new Response('Offline', { status: 503 }) : Response.error());
+    if (hit) { e.waitUntil(net); return hit; }
+    return (await net) || Response.error();
   })());
 });
-
-async function changed(a, b) {
-  if (a.type === 'opaque' || b.type === 'opaque') return false; // pinned CDN versions never change
-  const ea = a.headers.get('etag'), eb = b.headers.get('etag');
-  if (ea && eb) return ea !== eb;
-  const [x, y] = await Promise.all([a.clone().arrayBuffer(), b.arrayBuffer()]);
-  if (x.byteLength !== y.byteLength) return true;
-  const p = new Uint8Array(x), q = new Uint8Array(y);
-  for (let i = 0; i < p.length; i++) if (p[i] !== q[i]) return true;
-  return false;
-}
-
-// A deploy landed: re-download every cached file into a staging cache, then swap it in as one set.
-let refreshing = null;
-function scheduleRefresh() {
-  if (refreshing) return refreshing;
-  refreshing = (async () => {
-    try {
-      const live = await caches.open(CACHE), keys = await live.keys();
-      await caches.delete(STAGE);
-      const stage = await caches.open(STAGE);
-      for (const k of keys) {
-        if (!k.url.startsWith(self.location.origin)) continue; // pinned CDN files never change
-        const res = await clean(await fetch(k.url, { cache: 'no-cache' }));
-        if (!res || (!res.ok && res.type !== 'opaque')) throw new Error('refresh failed ' + k.url);
-        await stage.put(k, res);
-      }
-      for (const k of await stage.keys()) await live.put(k, await stage.match(k));
-      await caches.delete(STAGE);
-      for (const c of await self.clients.matchAll({ type: 'window' })) c.postMessage({ t: 'sw-updated' });
-    } catch { await caches.delete(STAGE); /* weak signal: try again next launch */ }
-    refreshing = null;
-  })();
-  return refreshing;
-}
 
 // ── push notifications ──
 self.addEventListener('push', (e) => {

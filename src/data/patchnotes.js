@@ -1,6 +1,13 @@
 // Patch notes, newest first. tools/season.mjs prepends an entry at each season rollover.
 export const PATCHES = [
   {
+    version: '24.2', season: 1, date: '2026-11-22', title: 'Hotfix',
+    notes: [
+      'Fixed: the game could get stuck on the loading screen after an update. Game code now always loads from one build, and a stuck launch repairs itself and reloads.',
+    ],
+    heroes: [],
+  },
+  {
     version: '24.1', season: 1, date: '2026-11-22', title: 'Bosses & Beasts',
     highlights: ['A Kami per map', 'Elder Kami', 'Scout pets', 'Minion families'],
     notes: [
