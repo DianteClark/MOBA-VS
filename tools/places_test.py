@@ -63,7 +63,8 @@ async def main():
                 res = await pg.evaluate(PICK)
                 if not res: continue
                 got += 1
-                if res['label'] != res['want']: issues.append(f"{res['t']}s prompt says '{res['label']}' but the fight at {res['fc']} is '{res['want']}'")
+                # a prompt kept up a moment after its fight broke off (steady arrows) has no live fight to compare
+                if res['want'] and res['label'] != res['want']: issues.append(f"{res['t']}s prompt says '{res['label']}' but the fight at {res['fc']} is '{res['want']}'")
                 f = res['fc']
                 if f and ((res['cam0'][0] - f[0]) ** 2 + (res['cam0'][1] - f[1]) ** 2) ** 0.5 > f[2]:
                     # the camera may be clamped at the map edge: then the fight must still be on screen
