@@ -16,6 +16,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import zlib from 'node:zlib';
+import { lineupError } from '../src/sim/draft.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SELF = fileURLToPath(import.meta.url);
@@ -37,19 +38,15 @@ export function validate(doc, heroIds) {
   const c = doc.cfg;
   if (!int(c.seed) || typeof c.map !== 'string') return 'bad seed or map';
   if (!Array.isArray(c.teams) || c.teams.length !== 2) return 'bad teams';
-  // weekly map event (src/data/events.js): an id or absent; Mirror Draft lets both teams field the same hero
+  // weekly map event (src/data/events.js): an id or absent
   if (c.event !== undefined && (typeof c.event !== 'string' || !/^[a-z]{1,16}$/.test(c.event))) return 'bad event';
-  const mirror = c.event === 'mirror';
-  let seen = new Set();
   for (const t of c.teams) {
     if (!t || !Array.isArray(t.heroes) || t.heroes.length !== 5) return 'a team does not have 5 heroes';
-    if (mirror) seen = new Set();
-    for (const x of t.heroes) {
-      if (!x || !heroIds.has(x.id)) return `unknown hero ${x && x.id}`;
-      if (seen.has(x.id)) return `hero ${x.id} picked twice`;
-      seen.add(x.id);
-    }
+    for (const x of t.heroes) if (!x || !heroIds.has(x.id)) return `unknown hero ${x && x.id}`;
   }
+  // every hero at most once per match across both teams; the one exception is the Mirror Match event, and
+  // only when both lineups are identical (src/sim/draft.js lineupError)
+  const dup = lineupError(c); if (dup) return dup;
   if (doc.log.length > 30000) return 'log too long';
   let last = -1, total = 0;
   for (const e of doc.log) {

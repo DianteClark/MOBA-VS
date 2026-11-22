@@ -48,7 +48,7 @@ export class DraftView {
     const app = this.app, s = app.session, d = s.draft, me = s.myTeam;
     const t = currentTurn(d), myTurn = !!t && s.mode !== 'watch' && app.myDraftTurn();
     const coop = s.mode === 'coop', who = coop ? draftWho(s) : null, mate = who && who.team === me && !myTurn ? coachOf(s, who.team, who.seat) : null;
-    const ban = !!t && t.act === 'ban', tk = taken(d, me), pool = d.pool ? new Set(d.pool) : null, ev = s.event && EVENT_BY_ID[s.event];
+    const ban = !!t && t.act === 'ban', tk = taken(d, me), ev = s.event && EVENT_BY_ID[s.event];
     const enemyPicks = d.picks[1 - Math.max(0, me)].map((id) => HERO_BY_ID[id]);
     const recs = myTurn ? this.recommend(d, me, t) : [];
     // a prompt for one role opens the grid on that role (once per turn)
@@ -83,13 +83,13 @@ export class DraftView {
     };
     const left = Math.ceil(s.turnLeft ?? TURN_SECONDS);
     const turnBox = h('div', { class: 'dturn' + (t ? ' t' + t.team : '') + (myTurn ? ' mine' : '') + (ban ? ' isban' : '') },
-      h('div', { class: 'what' }, d.done ? 'Draft complete!' : myTurn ? `YOUR ${ban ? 'BAN' : 'PICK'}` : `${mate ? mate.name : s.names[t.team]} ${ban ? 'bans' : 'picks'}`),
+      h('div', { class: 'what' }, d.mirror ? `Mirror Match · ${d.mirror.name}` : d.done ? 'Draft complete!' : myTurn ? `YOUR ${ban ? 'BAN' : 'PICK'}` : `${mate ? mate.name : s.names[t.team]} ${ban ? 'bans' : 'picks'}`),
       d.done ? null : h('div', { class: 'timer', id: 'dtimer' }, String(left)),
       d.done ? null : h('div', { class: 'tbar' }, h('i', { id: 'dtbar', style: { width: Math.max(0, left / TURN_SECONDS * 100) + '%' } })),
       h('div', { class: 'mapname' }, (MAP_BY_ID[s.mapId] || MAPS[0]).name),
       ev ? h('div', { class: 'evname', style: { '--ec': ev.color }, title: ev.blurb }, ev.name) : null);
 
-    const POOL = pool ? HEROES.filter((x) => pool.has(x.id)) : HEROES; // Mirror Draft: only the shared pool is shown
+    const POOL = HEROES;
     const counts = { all: POOL.length }; for (const r of ROLES) counts[r] = POOL.filter((x) => x.roles.includes(r)).length;
     const hadFocus = this.searchEl && document.activeElement === this.searchEl.input;
     this.searchEl = searchBox(this.query, (q) => { this.query = q; this.filterGrid(); });

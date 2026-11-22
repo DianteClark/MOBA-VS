@@ -11,10 +11,10 @@ import { World } from './sim/world.js';
 import { Coach } from './sim/coach.js';
 import { Rng } from './sim/rng.js';
 import { MAPS, RUSH_MAPS } from './maps/defs.js';
-import { EVENT_BY_ID, weekEvent, mirrorPool } from './data/events.js';
-import { newDraft, apply as draftApply, currentTurn, autoChoice, aiPrep, TURN_SECONDS } from './sim/draft.js';
+import { EVENT_BY_ID, weekEvent, mirrorLineup } from './data/events.js';
+import { newDraft, mirrorDraft, apply as draftApply, currentTurn, autoChoice, aiPrep, fitPrep, fitMirror, TURN_SECONDS } from './sim/draft.js';
 import { presetChoice, prepFromPreset } from './presets.js';
-import { HERO_BY_ID, HEROES, ROLES } from './data/heroes.js';
+import { HERO_BY_ID } from './data/heroes.js';
 import { LocalRunner, LockstepRunner } from './net/runner.js';
 import { host, join, makeCode, warmNet } from './net/peer.js';
 import { showLobby, showPrep, showResults, startParade, stopParade } from './ui/screens.js';
@@ -427,16 +427,22 @@ class App {
     this.showScreen(true);
     audio.music('draft');
     this.draftView = new DraftView(this);
+    if (s.draft.mirror) { // Mirror Match: reveal the shared lineup, then straight to prep
+      s.turnLeft = 0; this.draftView.render(); clearInterval(this.draftTimer);
+      toast(`Mirror Match: both teams play ${s.draft.mirror.name}. Same heroes, same cards.`, 2600);
+      setTimeout(() => { if (this.session === s) this.startPrep(); }, 2800);
+      return;
+    }
     this.armAutoPick();
     this.draftView.render();
     clearInterval(this.draftTimer);
     this.draftTimer = setInterval(() => this.draftTick(), 100);
     this.maybeAiDraft();
   }
-  // Mirror Draft: a shared pool from the match seed (the same on both peers).
+  // Mirror Match: no draft, both teams get the seed's curated lineup (the same on both peers).
   newDraft() {
     const s = this.session, ev = s.event && EVENT_BY_ID[s.event];
-    return ev && ev.draft && ev.draft.mirror ? newDraft({ mirror: true, pool: mirrorPool(HEROES, ROLES, s.seed, ev.draft.pool) }) : newDraft();
+    return ev && ev.mirror ? mirrorDraft(mirrorLineup(s.seed)) : newDraft();
   }
   draftTick() {
     const s = this.session; if (!s || !s.draft) return;
@@ -519,6 +525,7 @@ class App {
     s.preps = [null, null]; s.ready = [false, false];
     const coop = s.mode === 'coop';
     const pp = coop ? { prep: coopPrep(s), fromPreset: [] } : prepFromPreset(d.picks[me], d.picks[1 - me], s.preset, s.gameMode);
+    if (d.mirror) { pp.prep = fitMirror(pp.prep, d.mirror); pp.fromPreset = []; } // Mirror Match: lanes + deck are fixed
     s.myPrep = pp.prep; s.prepFromPreset = pp.fromPreset; s.prepAdjust = false;
     s.myPrep.skins = profile.skinsFor(coop ? myHeroIds(s) : d.picks[me]);
     if (s.mode === 'ai') { const rv = s.rival && RIVAL_BY_ID[s.rival]; s.preps[1 - me] = rv ? rivalPrep(rv, d.picks[1 - me], d.picks[me], s.rng, s.gameMode) : aiPrep(d.picks[1 - me], d.picks[me], s.gameMode); s.ready[1 - me] = true; }
@@ -560,6 +567,9 @@ class App {
     // the match art finishes loading in the background after first paint; on a slow link wait for it here
     if (!assetsDone) { const s0 = this.session; toast('Loading the battlefield…', 1500); assetsAll.then(() => { if (this.session === s0 && !this.match) this.startMatch(); }); return; }
     const s = this.session;
+    // every champion once per match: each side fields exactly its own drafted heroes (repairs a bad peer prep)
+    // (Mirror Match: both sides field the identical shared lineup, lanes and deck)
+    if (!s.replay && s.draft && s.preps) for (let t = 0; t < 2; t++) s.preps[t] = s.draft.mirror ? fitMirror(s.preps[t], s.draft.mirror) : fitPrep(s.preps[t], s.draft.picks[t]);
     const cfg = s.replay ? JSON.parse(JSON.stringify(s.replay.cfg)) : {
       seed: s.seed, map: s.mapId, ...(s.gameMode === 'rush' ? { mode: 'rush' } : {}), ...(s.event ? { event: s.event } : {}),
       teams: [0, 1].map((t) => ({ heroes: s.preps[t].heroes, plan: s.preps[t].plan, deck: s.preps[t].deck, name: s.names[t] })),

@@ -123,7 +123,9 @@ export function startRoom(app) {
   const s = app.session, room = s.room;
   if (!s.host || !canStart(room)) return;
   const seed = (Math.random() * 2 ** 31) >>> 0;
-  const start = { t: 'start', coop: 1, seed, map: app.pickMap(seed, 'classic'), ev: app.eventFor('classic', 'private'), room: publicRoom(room) }; // weekly event: the host's choice, like a private room
+  // Mirror Match has no draft (one shared lineup per side), so co-op seats have nothing to split: co-op plays Classic that week.
+  const coopEvent = (e) => (e && EVENT_BY_ID[e] && EVENT_BY_ID[e].mirror ? null : e);
+  const start = { t: 'start', coop: 1, seed, map: app.pickMap(seed, 'classic'), ev: coopEvent(app.eventFor('classic', 'private')), room: publicRoom(room) }; // weekly event: the host's choice, like a private room
   const hub = app.net.hub;
   for (const p of room.players) if (p.slot) hub.sendTo(p.slot, start);
   // a link still connecting (no hello yet) is turned away rather than pulled into a match it never joined
@@ -185,7 +187,7 @@ export function onCoopNet(app, m) {
 function beginMatchFlow(app, start, mySlot) {
   const room = mySlot ? cleanRoom(start.room) : start.room, me = room.players.find((p) => p.slot === mySlot);
   const s = app.session = {
-    mode: 'coop', host: mySlot === 0, slot: mySlot, kind: room.kind, gameMode: 'classic', seed: start.seed, mapId: start.map, event: EVENT_BY_ID[start.ev] ? start.ev : null,
+    mode: 'coop', host: mySlot === 0, slot: mySlot, kind: room.kind, gameMode: 'classic', seed: start.seed, mapId: start.map, event: EVENT_BY_ID[start.ev] && !EVENT_BY_ID[start.ev].mirror ? start.ev : null,
     myTeam: me.team, mySeat: me.seat, aiLevel: room.aiLevel, rng: new Rng(start.seed), players: room.players.slice(),
     slots: Math.max(...room.players.map((p) => p.slot)) + 1,
   };

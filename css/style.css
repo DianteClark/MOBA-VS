@@ -398,8 +398,11 @@ h1, h2, h3 { margin: 0; font-weight: normal; }
 #cmdbar .potgbar { display: flex; align-items: center; gap: 10px; color: var(--ink); border-color: var(--gold); padding: 4px 6px 4px 12px; }
 .potgbar b { font-weight: normal; font-size: 10px; color: #2a1608; background: var(--gold); padding: 0 5px; } .potgbar span { color: #ffe3a3; font-size: 13px; }
 .dock { display: flex; flex-direction: column; gap: 5px; align-items: stretch; width: min(100%, 560px); }
-.handrow { display: flex; gap: 6px; align-items: stretch; }
-.hand { display: flex; gap: 6px; flex: 1; min-width: 0; }
+/* The dock row is a grid, not flex: every child (meter, cards, Moments, Ults) gets its own track, so nothing can
+   overlap. (iOS WebKit sized the flex .hand from the card content and ignored the cards' flex-basis, so the
+   third tactic card slid under the Moments button.) Any number of cards: one equal track each. */
+.handrow { display: grid; grid-auto-flow: column; grid-template-columns: auto minmax(0, 1fr); grid-auto-columns: auto; gap: 6px; align-items: stretch; }
+.hand { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 6px; min-width: 0; }
 .callrow { display: flex; gap: 5px; background: var(--panel); border: 2px solid var(--line); padding: 5px; box-shadow: 0 3px 0 #000a; }
 .meter { position: relative; cursor: pointer; font-family: inherit; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 4px 8px 8px; font-size: 9px; color: var(--muted); background: var(--panel); border: 2px solid var(--line); min-width: 74px; }
 /* momentum: a thin bar along the bottom of the charge meter; full = gold pulse, tap for Kami Surge */
@@ -933,9 +936,9 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 20px; border-radius: 
   .dock { flex-direction: row-reverse !important; align-items: stretch; width: min(100%, 760px) !important; gap: 4px !important; }
   .callrow { flex: 1 1 auto; }
   .call { min-height: 46px !important; }
-  .handrow { flex: 0 0 auto; gap: 3px !important; }
+  .handrow { flex: 0 0 auto; grid-template-columns: auto auto; gap: 3px !important; }
   .handrow .meter { padding: 2px 4px !important; } .handrow .meter .ctxt { display: none; } .handrow .meter .pips { flex-direction: column; gap: 5px !important; } .handrow .meter .pip { width: 9px !important; height: 9px !important; }
-  .hand { flex: 0 0 auto; }
+  .hand { grid-auto-columns: 46px; } /* fixed tracks: the same intrinsic width in WebKit, Blink and Gecko */
   .tcard { flex: 0 0 46px !important; justify-content: center; padding: 2px !important; min-height: 46px; }
   .tcard .tc-t { display: none; }
   .tcard img { width: 24px !important; height: 24px !important; flex-basis: 24px !important; }
