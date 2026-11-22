@@ -5,6 +5,8 @@ import { SKINS, BANNERS, TITLES, rewardName } from '../data/seasons.js';
 import { profile } from '../profile.js';
 import { tierBadge } from './badges.js';
 import { audio } from '../audio.js';
+import { PRESTIGE, PRESTIGE_REWARDS } from '../data/meta.js';
+import { rewardIcon } from './collection.js';
 import { tweenNumber } from './juice.js';
 
 const bar = (frac, color) => h('div', { class: 'pbar' }, h('i', { style: { width: Math.round(Math.max(0, Math.min(1, frac)) * 100) + '%', background: color } }));
@@ -71,6 +73,12 @@ export function rankTab() {
         h('small', { class: 'muted' }, `${ss.rg} rated match${ss.rg === 1 ? '' : 'es'} this season${ss.rg < MIN_RATED_GAMES ? ` · play ${MIN_RATED_GAMES - ss.rg} more to earn season rewards` : ''}`))),
     h('div', { class: 'panel rk-ladder' },
       h('div', { class: 'row', style: { justifyContent: 'space-between' } }, h('b', {}, 'Tiers & season rewards'), h('small', { class: 'muted' }, 'Rewards for your peak tier (and every tier below) arrive when the season ends.')),
+      // Prestige: past Kami I, a rank every 100 rating, each with its own badge; the looks below come once
+      h('div', { class: 'rk-tier prestige' + (rk.prestige ? ' cur got' : ''), style: { '--tc': '#fff6dc' } },
+        tierBadge(rankOf(PRESTIGE.from + (Math.max(1, rk.prestige) - 1) * PRESTIGE.step), 34),
+        h('div', { class: 'rk-tn' }, h('b', { style: { color: '#fff6dc' } }, rk.prestige ? `Prestige ${rk.prestige}` : 'Prestige'), h('small', { class: 'muted' }, `${PRESTIGE.from}+, 1-${PRESTIGE.max}`)),
+        h('div', { class: 'rk-divs' }, h('small', { class: 'muted' }, 'every 100')),
+        h('div', { class: 'rk-rw' }, ...Object.entries(PRESTIGE_REWARDS).map(([n, r]) => h('span', { class: 'rwd', title: `Prestige ${n}: ${rewardName(r)}` }, rewardIcon(r), h('small', {}, `P${n}`))))),
       ...TIERS.slice().reverse().map((t) => {
         const i = TIERS.indexOf(t), mine = rk.idx === i, got = peak.idx >= i;
         return h('div', { class: 'rk-tier' + (mine ? ' cur' : '') + (got ? ' got' : ''), style: { '--tc': t.color } },
@@ -80,12 +88,4 @@ export function rankTab() {
           h('div', { class: 'rk-rw' }, ...(SEASON_REWARDS[t.id] || []).map(rw)));
       })),
     h('small', { class: 'muted center' }, `Start of season: ${START_ELO} (Silver III). Ranked vs AI, the Season Cup and online Ranked move your rating; Casual and Lane Rush never do. Easy AI tops out at ${rankOf(AI_CAP[0]).label}, Normal at ${rankOf(AI_CAP[1]).label}, Hard at ${rankOf(AI_CAP[2]).label}: Kami is earned online.`));
-}
-
-// Home: one-line note after a season ends.
-export function seasonEndNote(n) {
-  if (!n) return null;
-  return h('div', { class: 'panel note' }, `Season ${n.from} is over. You peaked at ${n.peak}. `,
-    n.eligible ? (n.rewards.length ? `Rewards: ${n.rewards.map((r) => r.kind === 'title' ? `“${TITLES[r.id]}”` : rewardName(r)).join(', ')}. ` : '') : `Play ${MIN_RATED_GAMES}+ rated matches to earn season rewards. `,
-    'Your rating was soft-reset toward 1000.');
 }

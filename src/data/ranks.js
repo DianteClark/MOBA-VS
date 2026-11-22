@@ -16,18 +16,26 @@ export const DIVS = ['III', 'II', 'I'];
 const BRONZE_FLOOR = 850; // Bronze divisions span 850-999 like every other tier (below 850 is still Bronze III)
 const KAMI_STEP = 100;    // Kami divisions are wider: 1750, 1850, 1950+
 
+// Past Kami I every 100 rating is a Prestige rank (src/data/meta.js PRESTIGE): prestige 1..10 (0 below).
+const P_FROM = 2050, P_STEP = 100, P_MAX = 10;
+export const prestigeOf = (elo) => (elo >= P_FROM ? Math.min(P_MAX, 1 + Math.floor((elo - P_FROM) / P_STEP)) : 0);
 export function rankOf(elo = START_ELO) {
   let i = 0; for (let k = 0; k < TIERS.length; k++) if (elo >= TIERS[k].min) i = k;
   const t = TIERS[i], next = TIERS[i + 1] || null;
   const lo = i === 0 ? BRONZE_FLOOR : t.min, step = next ? (next.min - lo) / 3 : KAMI_STEP;
   const d = Math.max(0, Math.min(2, Math.floor((elo - lo) / step)));
   const divLo = lo + d * step, divHi = d < 2 || next ? lo + (d + 1) * step : Infinity;
-  return {
-    tier: t, idx: i, div: DIVS[d], d, label: `${t.name} ${DIVS[d]}`, elo: Math.round(elo),
-    // progress inside the current division (Kami I keeps counting up)
+  const base = {
+    tier: t, idx: i, div: DIVS[d], d, label: `${t.name} ${DIVS[d]}`, elo: Math.round(elo), prestige: 0,
+    // progress inside the current division
     into: Math.max(0, elo - divLo), span: divHi === Infinity ? KAMI_STEP : divHi - divLo, next, step: i * 3 + d,
     nextLabel: d < 2 ? `${t.name} ${DIVS[d + 1]}` : next ? `${next.name} III` : null, toNext: divHi === Infinity ? 0 : Math.ceil(divHi - elo),
   };
+  if (divHi !== Infinity) return base;
+  // Kami I and the Prestige ranks above it
+  const p = prestigeOf(elo), at = p ? P_FROM + (p - 1) * P_STEP : divLo, nx = p < P_MAX ? (p ? at + P_STEP : P_FROM) : Infinity;
+  return { ...base, prestige: p, label: p ? `Prestige ${p}` : base.label, step: base.step + p, into: nx === Infinity ? P_STEP : Math.max(0, elo - at), span: nx === Infinity ? P_STEP : nx - at,
+    nextLabel: nx === Infinity ? null : `Prestige ${p + 1}`, toNext: nx === Infinity ? 0 : Math.ceil(nx - elo) };
 }
 // Elo with a floor; K shrinks a little for established players (same as worker/index.js).
 export function eloDelta(mine, theirs, won, games) {

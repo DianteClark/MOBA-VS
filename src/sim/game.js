@@ -7,6 +7,7 @@ import { World, S as MAP_SIZE, C as CELL, N as GRID_N } from './world.js';
 import { MAP_BY_ID } from '../maps/defs.js';
 import { HERO_BY_ID, PERSONALITIES } from '../data/heroes.js';
 import { TACTICS, DEFAULT_DECK } from '../data/tactics.js';
+import { momentVariants, playSkillTactic, perkOf, addPerk } from './sidegrades.js';
 import { TUNE } from '../data/tuning.js';
 import { BUILDS } from '../data/items.js';
 import { heroThink, heroMacro, laneBrain } from './ai.js';
@@ -87,7 +88,7 @@ export class Game {
       charges: 1, kills: 0, towers: 0, dragons: [], soul: null, heraldEye: 0, baronUntil: 0, elderUntil: 0,
       focus: null, call: null, heroes: [], goldHistory: [], invadeCamp: null,
       deck: (cfg.teams[t].deck || DEFAULT_DECK).slice(0, 3).map((id) => ({ id, used: false })), siegeWaves: {}, siegeUntil: 0, fortifyUntil: 0, pactUntil: 0, swapUntil: 0,
-      momentum: 0, surgeUntil: 0, permitCd: 0, moments: {}, momentCd: 0, allOut: 0,
+      momentum: 0, surgeUntil: 0, permitCd: 0, moments: {}, momentCd: 0, allOut: 0, mv: momentVariants(cfg.teams[t].mv),
     }));
     const mapDef = MAP_BY_ID[cfg.map] || MAP_BY_ID.sakura, living = !!cfg.living && this.mode === 'classic' && !mapDef.single;
     this.world = new World(mapDef, { walls: living });
@@ -213,7 +214,7 @@ export class Game {
         for (const h of team.heroes) { if (h.homeLane === 'top') h.lane = 'bot'; else if (h.homeLane === 'bot') h.lane = 'top'; if (h.task.kind === 'lane') h.task = { kind: 'idle' }; }
         break;
       }
-      default: return false;
+      default: if (!playSkillTactic(this, c, team, alive)) return false; // coach skill tree cards (src/sim/sidegrades.js)
     }
     card.used = true;
     this.emit({ type: 'tactic', team: c.team, card: c.card, lane: c.lane, hero: c.hero });
@@ -288,6 +289,7 @@ export class Game {
       stats: null, maxHp: 1, hp: 1, trust: 50, tiltUntil: 0, pendingCall: null, stealthUntil: 0, ambushUntil: 0, revealUntil: 0,
     });
     h.pers = PERSONALITIES[def.pers] || PERSONALITIES.calm;
+    if (this.cfg.perks) h.perk = perkOf(this.cfg, team, def.id); // hero mastery perk (vs AI only)
     this.updateMods(h);
     this.recalc(h); h.hp = h.maxHp;
     this.teams[team].heroes.push(h);
@@ -348,6 +350,7 @@ export class Game {
     if (this.clanStats) add(this.clanStats[h.team]);
     const tn = TUNE[h.heroId] || 1; if (tn !== 1) { s.dmgPct += tn - 1; s.hpPct += (tn - 1) * 0.6; }
     if (h.fmod) { s.dmgPct += h.fmod; s.hpPct += h.fmod * 0.6; }
+    if (h.perk) addPerk(s, h.perk);
     if (this.shrines) for (const sh of this.shrines) if (sh.owner === h.team) s.dmgPct += this.rules.shrine ? this.rules.shrine.dmg : 0.05;
     s.dmgPct += planEdge(this, h.team); // game plans: countering the enemy's plan
     for (const d of team.dragons) {

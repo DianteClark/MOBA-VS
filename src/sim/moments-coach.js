@@ -2,6 +2,7 @@
 // They travel as ordinary deterministic commands ({ type: 'moment', id }), cost no charges,
 // and share a short lockout so a team cannot chain all three into one fight.
 import { sec } from './constants.js';
+import { applyVariant } from './sidegrades.js';
 
 export const MOMENTS = {
   timeout: { name: 'Timeout', icon: 'Heal', color: '#5fe0d0', short: 'Reset basics, heal up',
@@ -24,8 +25,8 @@ export function applyMoment(g, c) {
   const team = g.teams[c.team], id = c.id;
   if (!momentReady(g, c.team, id)) return false;
   const alive = team.heroes.filter((h) => h.alive);
-  const now = g.tick;
-  if (id === 'timeout') {
+  const now = g.tick, v = team.mv && team.mv[id]; // a coach skill tree variant replaces the slot's moment
+  if (v) { if (!applyVariant(g, team, v, alive)) return false; } else if (id === 'timeout') {
     if (!alive.length) return false;
     const base = g.world.baseCenter[c.team];
     for (const h of alive) {
@@ -47,7 +48,7 @@ export function applyMoment(g, c) {
   } else return false;
   team.moments[id] = now + 1; // tick+1 so "used at tick 0" is still truthy
   team.momentCd = now + sec(MOMENT.lockout);
-  g.emit({ type: 'moment', team: c.team, id });
+  g.emit(v ? { type: 'moment', team: c.team, id, v } : { type: 'moment', team: c.team, id });
   return true;
 }
 

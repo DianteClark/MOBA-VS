@@ -39,6 +39,8 @@ import { showWeekendCup } from './ui/cups.js';
 import { packReplay } from './net/replaypack.js';
 import { startSocial, matchPresence, lobbyInvite, closeInvites, showInviteLink, socialPanel, onRematch, rematchGone } from './ui/social.js';
 import { profile } from './profile.js';
+import { momentLoadout, perksFor, adoptDivision } from './meta.js';
+import { reportDivision } from './net/divisions.js';
 import { newCup, recordCup, myMatch } from './cup.js';
 import { findPOTG, reportCard } from './ui/moments.js';
 import { rankMoment } from './ui/ranks.js';
@@ -62,7 +64,7 @@ import { openAdminReplay } from './ui/adminreplay.js';
 import { frPrep, frRecord } from './franchise/play.js';
 import { showFranchise, franchiseResults } from './ui/franchise.js';
 
-const VERSION = 27; // bump whenever the sim or balance changes (peers must match)
+const VERSION = 28; // bump whenever the sim or balance changes (peers must match)
 const PREP_SECONDS = 60;
 installCrashReporter(VERSION); // window errors, unhandled rejections and lockstep desyncs → the owner dashboard (src/net/ops.js)
 
@@ -571,6 +573,7 @@ class App {
     if (s.mode === 'coop' ? seatReady(s, me, s.mySeat) : s.ready[me]) return;
     const deck = s.myPrep.deck || (s.myPrep.deck = []);
     for (const id of DEFAULT_DECK) if (deck.length < 3 && !deck.includes(id)) deck.push(id);
+    const mv = momentLoadout(profile.d.meta); if (mv) s.myPrep.mv = mv; else delete s.myPrep.mv; // coach skill tree Moment variants
     if (s.mode === 'coop') { audio.sfx('accept'); sendPrep(this, JSON.parse(JSON.stringify(s.myPrep))); this.renderPrep(); return; }
     s.preps[me] = JSON.parse(JSON.stringify(s.myPrep)); s.ready[me] = true;
     audio.sfx('accept');
@@ -595,12 +598,15 @@ class App {
     const cfg = s.replay ? JSON.parse(JSON.stringify(s.replay.cfg)) : {
       seed: s.seed, map: s.mapId, ...(s.gameMode === 'rush' ? { mode: 'rush' } : { living: 1 }), ...(s.event ? { event: s.event } : {}), // living: Living World (classic maps)
       ...(s.gameMode !== 'rush' ? { depth: true } : {}), // v23 match depth: talents, item override, ult upgrades, revenge, duo ults
-      teams: [0, 1].map((t) => ({ heroes: s.preps[t].heroes, plan: s.preps[t].plan, deck: s.preps[t].deck, name: s.names[t] })),
+      teams: [0, 1].map((t) => ({ heroes: s.preps[t].heroes, plan: s.preps[t].plan, deck: s.preps[t].deck, name: s.names[t], ...(s.preps[t].mv ? { mv: s.preps[t].mv } : {}) })),
       coach: s.mode === 'coop' ? s.ai.slice() : s.mode === 'ai' ? [s.myTeam !== 0, s.myTeam !== 1] : s.mode === 'watch' ? [true, true] : [false, false],
       coachLevel: [s.aiLevel ?? this.aiLevel, s.aiLevel ?? this.aiLevel],
       ...(s.rival && RIVAL_BY_ID[s.rival] ? { coachStyle: [0, 1].map((t) => (t === s.myTeam ? null : rivalStyle(RIVAL_BY_ID[s.rival]))) } : {}),
       ...(s.mode === 'coop' ? { coop: coopCfg(s) } : {}),
     };
+    // hero mastery perks: only in unrated matches against the AI (Franchise, Lane Rush vs AI); never where a rating moves (src/meta.js perksFor)
+    const perks = !s.replay && s.myTeam >= 0 && s.mode === 'ai' && (s.franchise || s.gameMode === 'rush') ? perksFor(profile, s.preps[s.myTeam].heroes.map((x) => x.id), { online: !!s.wasOnline, cup: !!s.cup }) : null;
+    if (perks) cfg.perks = [0, 1].map((t) => (t === s.myTeam ? perks : null));
     const cfgSaved = JSON.parse(JSON.stringify(cfg));
     const pre = s.prebuilt; s.prebuilt = null; // Play of the Game: a game already fast-forwarded to the highlight
     const game = pre ? pre.game : new Game(cfg);
@@ -744,6 +750,7 @@ class App {
       } catch (e) { console.error(e); }
       if (s.rival && !s.replay) rivalPlayed(this, s.rival);
       if (!s.replay && m.cfg && s.mode !== 'watch') track('match_done', { mode: modeKey(s), map: m.cfg.map, event: m.cfg.event || null, len: Math.round(m.game.time) });
+      if (sum && sum.meta && !s.replay) reportDivision(won, sum.meta.calls).then((r) => r && adoptDivision(profile, r)); // Weekly Divisions (signed in)
       if (!s.replay && m.cfg) this.saveReplay(m, s, analytics, sum && profile.d.history[0] ? profile.d.history[0].t : Date.now());
       if (sum && (sum.promoted || sum.unlocks.length) && !sum.demoted) setTimeout(() => audio.sfx('powerup', 0.8), 700);
       const src = s.replay ? s.replay : m.cfg ? { cfg: m.cfg, log: m.runner.log, skins: this.renderer.skins } : null;
