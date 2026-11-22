@@ -10,6 +10,9 @@
 # (ladder, Friends tab, public profile) are audited with real data: two friends are seeded through the API.
 import sys, os, asyncio
 from playwright.async_api import async_playwright
+# GAME_LANG=<code> audits in that language, HAND=left|right in one-handed mode, HC=1 in high contrast
+PREFS = "try { localStorage.setItem('mobavs_lang', %r); localStorage.setItem('mobavs_settings', JSON.stringify(Object.assign(JSON.parse(localStorage.getItem('mobavs_settings') || '{}'), %s))); } catch (e) {}" % (
+    os.environ.get('GAME_LANG') or 'en', '{' + ', '.join(x for x in [("hand: '%s'" % os.environ['HAND']) if os.environ.get('HAND') else '', 'contrast: true' if os.environ.get('HC') == '1' else ''] if x) + '}')
 URL = sys.argv[1] if len(sys.argv) > 1 else 'http://localhost:8765/'
 OUT = sys.argv[2] if len(sys.argv) > 2 and sys.argv[2] else None
 
@@ -136,6 +139,7 @@ async def main():
         b = await p.chromium.launch(executable_path='/usr/bin/google-chrome')
         for (w, h, sl, sr, st, sb, name) in VIEWS:
             ctx = await b.new_context(viewport={'width': w, 'height': h}, has_touch=w < 1000, is_mobile=w < 1000, device_scale_factor=2 if w < 1000 else 1)
+            await ctx.add_init_script(PREFS)  # GAME_LANG=de / HAND=left / HC=1: audit a language or an accessibility layout
             if os.environ.get('API') is not None: await ctx.add_init_script(f"localStorage.setItem('mobavs_api', {os.environ['API']!r})")
             pg = await ctx.new_page()
             errs = []

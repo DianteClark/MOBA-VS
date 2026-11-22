@@ -1,0 +1,95 @@
+/* ───────── languages: the pixel font has Latin only (and not all of it: ñ ß « » ¿ are missing), so every
+   other language gets a system font after it. Browsers fall back glyph by glyph: Latin stays pixel, the rest
+   (kana, hanzi, hangul, Cyrillic, ñ) comes from the platform font for that script. ───────── */
+html:not(.lang-en) body { font-family: PixelFont, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", Arial, sans-serif; }
+html.lang-ja body { font-family: PixelFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", Meiryo, "Noto Sans JP", "Noto Sans CJK JP", sans-serif; }
+html.lang-ko body { font-family: PixelFont, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", "Noto Sans CJK KR", sans-serif; }
+html.lang-zh body { font-family: PixelFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", "Noto Sans CJK SC", sans-serif; }
+html.lang-ru body { font-family: PixelFont, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", Arial, sans-serif; }
+/* CJK lines need a little more air; words do not break on spaces, so allow breaks anywhere */
+html.lang-cjk body { line-break: strict; word-break: normal; overflow-wrap: anywhere; }
+html.lang-cjk .ldtip, html.lang-cjk .tline, html.lang-cjk .tx { line-height: 1.3; }
+.langsel { font: inherit; font-size: 12px; color: var(--ink); background: #241d30; border: 2px solid var(--line); min-height: 34px; padding: 2px 8px; max-width: 170px; cursor: pointer; }
+.langsel option { font-family: system-ui, sans-serif; }
+
+/* ───────── keys / gamepad: a clear focus ring, only when keys or a pad are in use ───────── */
+.kbnav :focus { outline: 3px solid var(--gold) !important; outline-offset: 2px; }
+.kbnav .call:focus, .kbnav .tcard:focus, .kbnav .tile:focus, .kbnav .tch:focus { outline-offset: -1px; box-shadow: 0 0 0 3px #000, 0 0 12px var(--gold); }
+[role="dialog"]:focus { outline: none !important; }
+h2:focus, h1:focus { outline: none !important; }
+
+/* ───────── help overlay ───────── */
+.khelp { width: min(760px, 100%); display: flex; flex-direction: column; gap: 8px; }
+.khelp .kh-pad { color: var(--green); }
+.kh-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px 14px; }
+.kh-sec { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.kh-t { color: var(--gold); font-weight: normal; font-size: 12px; }
+.kh-sec dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 8px; margin: 0; font-size: 11px; align-items: center; }
+.kh-sec dt { display: flex; gap: 2px; flex-wrap: wrap; } .kh-sec dd { margin: 0; color: var(--muted); }
+kbd { font: inherit; font-size: 10px; min-width: 16px; text-align: center; padding: 1px 4px; color: var(--ink); background: #2a2236; border: 1px solid var(--line); border-bottom-width: 3px; }
+@media (max-height: 500px) { .kh-grid { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 4px 10px; } .kh-sec dl { font-size: 10px; gap: 2px 6px; } kbd { font-size: 9px; } }
+
+/* ───────── gamepad call wheel ───────── */
+#padradial { position: absolute; inset: 0; z-index: 30; display: grid; place-items: center; pointer-events: none; background: rgba(6, 4, 10, 0.35); }
+#padradial .pr-ring { position: relative; width: min(300px, 78vh); aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle, rgba(18, 14, 26, 0.92) 0 30%, rgba(18, 14, 26, 0.72) 31% 70%, transparent 71%); }
+#padradial .pr-it { position: absolute; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 3px 5px; min-width: 58px; background: #1e1928; border: 2px solid var(--line); font-size: 10px; color: var(--ink); }
+#padradial .pr-it img { width: 22px; height: 22px; image-rendering: pixelated; }
+#padradial .pr-it.on { border-color: var(--gold); color: var(--gold); transform: translate(-50%, -50%) scale(1.15); box-shadow: 0 0 14px var(--gold); }
+#padradial .pr-mid { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); text-align: center; display: flex; flex-direction: column; font-size: 12px; }
+#padradial .pr-mid b { color: var(--gold); font-weight: normal; } #padradial .pr-mid small { font-size: 9px; color: var(--muted); }
+
+/* ───────── high contrast: solid panels, white text, bold outlines ───────── */
+html.hc { --panel: #000; --line: #f3ead8; --ink: #fff; --muted: #e8e2f0; --gold: #ffe14d; }
+.hc .panel, .hc .card, .hc .mpanel, .hc .sheet, .hc .tray .titem, .hc .callrow, .hc .tcard, .hc .call, .hc .tile, .hc .chip, .hc #scorebar, .hc .tline, .hc .ot, .hc .hrow, .hc .meter, .hc .momentbtn, .hc .ultbtn {
+  background: #000 !important; border-color: #fff !important; }
+.hc .call, .hc .tcard, .hc .tile, .hc .chip, .hc .hrow, .hc .titem { border-width: 2px; border-style: solid; }
+.hc .chip.on, .hc .tog.on, .hc .call.rel, .hc .tile.on { border-color: var(--gold) !important; color: var(--gold); }
+.hc .call:disabled, .hc .tile:disabled, .hc .chip:disabled, .hc button:disabled { opacity: 0.55; border-style: dashed !important; }
+.hc #hud, .hc #hud * { text-shadow: 0 1px 0 #000, 1px 0 0 #000, -1px 0 0 #000, 0 -1px 0 #000; }
+.hc small, .hc .muted, .hc .sub { color: var(--muted) !important; }
+.hc #mm { border-color: #fff; }
+.hc .modal, .hc #scoreboard, .hc #halftime { background: rgba(0, 0, 0, 0.9); }
+.hc :focus-visible, .hc.kbnav :focus { outline: 3px solid var(--gold) !important; }
+.hc .toast { background: #000; border: 2px solid #fff; color: #fff; }
+
+/* ───────── one-handed: every control the coach taps gathers on one side, compacted ─────────
+   .oh-right: dock, Coach's Calls, target sheet, minimap and Menu on the right; the team portraits move left.
+   .oh-left: the mirror. Phones in landscape get a 3x2 call grid under the tactic row. */
+@media (max-width: 999px), (max-height: 599px) {
+  .oh-right #cmdbar, .oh-left #cmdbar { width: var(--ohw); align-items: stretch; }
+  html.oh-right, html.oh-left { --ohw: min(350px, 47vw); }
+  .oh-right .hand, .oh-left .hand { grid-auto-columns: minmax(30px, 46px) !important; }
+  .oh-right .tcard, .oh-left .tcard { flex: 0 1 46px !important; min-width: 0; }
+  .oh-right .handrow .meter, .oh-left .handrow .meter { padding: 2px 3px !important; }
+  .oh-right .handrow, .oh-left .handrow { grid-template-columns: auto minmax(0, 1fr) !important; }
+  .oh-right #cmdbar { left: auto !important; right: calc(4px + var(--safe-r)); }
+  .oh-left #cmdbar { right: auto !important; left: calc(4px + var(--safe-l)); }
+  .oh-right .dock, .oh-left .dock { flex-direction: column !important; width: 100% !important; gap: 3px !important; }
+  .oh-right .callrow, .oh-left .callrow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .oh-right .callrow::before, .oh-left .callrow::before { display: none; }
+  .oh-right .call, .oh-left .call { min-height: 38px !important; flex-direction: row; gap: 4px; }
+  .oh-right .handrow, .oh-left .handrow { justify-content: stretch; }
+  .oh-right .sheet, .oh-right .tray, .oh-left .sheet, .oh-left .tray { width: 100% !important; }
+  .oh-right .sheet, .oh-left .sheet { max-height: calc(100vh - 250px - var(--safe-t) - var(--safe-b)); overflow-y: auto; }
+  .oh-left .handrow { direction: rtl; } .oh-left .handrow > * { direction: ltr; }
+  /* the opposite side: team portraits and the enemy strip */
+  .oh-right #foestrip { right: auto; left: calc(56px + var(--safe-l)); top: calc(6px + var(--safe-t)); }
+  .oh-left #leftcol { left: auto; right: calc(4px + var(--safe-r)); }
+  .oh-left #foestrip { right: calc(56px + var(--safe-r)); top: calc(6px + var(--safe-t)); }
+  .oh-left #brcol { right: auto; left: calc(6px + var(--safe-l)); flex-direction: row; }
+  .oh-left #ctrl { align-items: flex-start !important; }
+  .oh-left #ctrl.open .seg { right: auto; left: 0; }
+  .oh-left #topcenter, .oh-right #topcenter { max-width: calc(100vw - 330px); }
+  /* quick-chat feed and banners keep clear of the control column */
+  .oh-right #qfeed { left: calc(96px + var(--safe-l)); top: calc(118px + var(--safe-t)); }
+  .oh-left #qfeed { left: auto; right: calc(96px + var(--safe-r)); align-items: flex-end; top: calc(118px + var(--safe-t)); }
+  .oh-right #banner { left: calc(96px + var(--safe-l)); right: calc(var(--ohw) + 10px + var(--safe-r)); }
+  .oh-left #banner { right: calc(96px + var(--safe-r)); left: calc(var(--ohw) + 10px + var(--safe-l)); }
+  .oh-right #banner .big, .oh-left #banner .big { font-size: 17px; padding: 3px 12px; } .oh-right #banner .mfxb b, .oh-left #banner .mfxb b { font-size: 17px; }
+}
+@media (min-width: 1000px) and (min-height: 600px) {
+  .oh-right #cmdbar { left: auto; width: min(560px, calc(100vw - 480px)); align-items: flex-end; }
+  .oh-left #cmdbar { right: auto; left: calc(8px + var(--safe-l)); width: min(560px, calc(100vw - 480px)); align-items: flex-start; }
+  .oh-left #brcol { right: auto; left: calc(8px + var(--safe-l)); align-items: flex-start; }
+  .oh-left #cmdbar { left: calc(232px + var(--safe-l)); }
+}

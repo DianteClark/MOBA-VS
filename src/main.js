@@ -61,6 +61,10 @@ import { openFeedback } from './ui/feedback.js';
 import { pushPromptCard, onPushOpen } from './ui/notify.js';
 import { openAdminReplay } from './ui/adminreplay.js';
 import { frPrep, frRecord } from './franchise/play.js';
+import { initI18n } from './i18n/i18n.js';
+import { installA11y } from './ui/a11y.js';
+import { installKeys } from './ui/keys.js';
+import { installGamepad } from './ui/gamepad.js';
 import { showFranchise, franchiseResults } from './ui/franchise.js';
 
 const VERSION = 28; // bump whenever the sim or balance changes (peers must match)
@@ -124,6 +128,8 @@ class App {
       lastView = view;
     }).observe(scr, { childList: true });
     installBuildTips();
+    await initI18n(); // the device's language pack (lazy: English loads nothing)
+    installA11y(); installKeys(); installGamepad(); // screen readers, keyboard menus + [?] help, controllers
     const bar = document.querySelector('#loading .barw i');
     await loadAssets((p) => { bar.style.width = Math.round(p * 100) + '%'; }, true);
     try { await document.fonts.load('12px PixelFont'); } catch { /* ignore */ }

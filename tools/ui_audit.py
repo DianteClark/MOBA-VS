@@ -13,6 +13,9 @@
 # Safe areas are simulated by overriding the --safe-* CSS variables (Chrome cannot fake the notch).
 import sys, asyncio, os
 from playwright.async_api import async_playwright
+# GAME_LANG=<code> audits in that language, HAND=left|right in one-handed mode, HC=1 in high contrast
+PREFS = "try { localStorage.setItem('mobavs_lang', %r); localStorage.setItem('mobavs_settings', JSON.stringify(Object.assign(JSON.parse(localStorage.getItem('mobavs_settings') || '{}'), %s))); } catch (e) {}" % (
+    os.environ.get('GAME_LANG') or 'en', '{' + ', '.join(x for x in [("hand: '%s'" % os.environ['HAND']) if os.environ.get('HAND') else '', 'contrast: true' if os.environ.get('HC') == '1' else ''] if x) + '}')
 
 # (name, W, H, side inset (notch / Dynamic Island), bottom inset (home indicator))
 IPHONES = [('SE3', 667, 375, 0, 0), ('mini', 812, 375, 50, 21), ('12/13/14/16e', 844, 390, 47, 21), ('14Pro/15/16', 852, 393, 59, 21),
@@ -200,6 +203,7 @@ async def main():
         b = await p.chromium.launch(executable_path='/usr/bin/google-chrome')
         for (w, h, sl, sr, st, sb, name) in VIEWS:
             ctx = await b.new_context(viewport={'width': w, 'height': h}, has_touch=w < 1000, is_mobile=w < 1000, device_scale_factor=2 if w < 1000 else 1)
+            await ctx.add_init_script(PREFS)  # GAME_LANG=de / HAND=left / HC=1: audit a language or an accessibility layout
             pg = await ctx.new_page()
             errs = []
             pg.on('pageerror', lambda e: errs.append(str(e) + ' ' + str(getattr(e, 'stack', ''))[:300]))
