@@ -23,6 +23,7 @@ const ATTRS = ['title', 'aria-label', 'placeholder', 'alt', 'aria-description'];
 export let lang = 'en';
 let dict = null; // skeleton -> { out: [string pieces and arg indices], n }
 let pats = []; // { re, need, out } for keys with text placeholders, most specific first
+let lower = new Map(); // lower-cased skeleton -> entry (text the UI upper-cases in code)
 const cache = new Map();
 let observer = null;
 
@@ -65,11 +66,12 @@ const fill = (out, vals) => out.map((p) => (typeof p === 'number' ? (vals[p] ?? 
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 export function installPack(pack) {
-  dict = new Map(); pats = []; cache.clear();
+  dict = new Map(); pats = []; lower = new Map(); cache.clear();
   for (const [src, dst] of Object.entries(pack)) {
     if (!dst || typeof dst !== 'string') continue;
     const c = compile(src, dst);
     if (!dict.has(c.k)) dict.set(c.k, c);
+    if (!lower.has(c.k.toLowerCase())) lower.set(c.k.toLowerCase(), c);
     if (!NUM.test(dst)) cache.set(dst, dst);
     NUM.lastIndex = 0;
     // keys with a text placeholder ({0} that is not a number at runtime) also match as patterns
@@ -92,6 +94,7 @@ export function tr(s) {
   const lead = s.match(/^\s*/)[0], trail = s.length > lead.length ? s.match(/\s*$/)[0] : '';
   const core = s.slice(lead.length, s.length - trail.length);
   let r = /[A-Za-z]/.test(core) ? look(core, 0) : null;
+  if (r == null && misses && /[A-Za-z]{2}/.test(core)) misses.add(core);
   r = r == null ? s : lead + r + trail;
   if (cache.size > 6000) cache.clear();
   cache.set(s, r);
@@ -103,6 +106,7 @@ function look(core, depth) {
   const { k, args } = skel(core);
   const e = dict.get(k);
   if (e) return fill(e.out, args);
+  if (k.length > 2 && k === k.toUpperCase() && /[A-Z]{2}/.test(k)) { const u = lower.get(k.toLowerCase()); if (u) return fill(u.out, args).toLocaleUpperCase(lang); } // "ALL-OUT PUSH"
   if (depth > 2) return null;
   for (const p of pats) {
     if (p.need && !k.includes(p.need)) continue;
@@ -117,8 +121,19 @@ function look(core, depth) {
     }
     return fill(p.c.out, vals);
   }
+  // decorated text: "★ Title", "Label:", "\"Quote\"", "Happy (64)", "Name ×2"
+  let m = core.match(/^([^\p{L}\p{N}"“'«{]+)(.+)$/u);
+  if (m) { const x = look(m[2], depth + 1); if (x != null) return m[1] + x; }
+  m = core.match(/^(.+?)([:!?.…]+)$/u);
+  if (m && m[1].length > 1) { const x = look(m[1], depth + 1); if (x != null) return x + (/^(ja|zh)$/.test(lang) && m[2] === ':' ? '：' : m[2]); }
+  m = core.match(/^(["“'«])(.+)(["”'»])$/u);
+  if (m) { const x = look(m[2], depth + 1); if (x != null) return m[1] + x + m[3]; }
+  m = core.match(/^(.+?) ([^\p{L}]+)$/u); // "Control 1/10", "Chemistry 66%", "Burst ★"
+  if (m && /\p{L}/u.test(m[1])) { const x = look(m[1], depth + 1); if (x != null) return x + ' ' + m[2]; }
+  m = core.match(/^(.+?) (\([^()]*\)|[×x]\d+|\[[^\]]*\])$/u);
+  if (m) { const x = look(m[1], depth + 1); if (x != null) return x + ' ' + m[2].replace(/^\((.*)\)$/, (_, i) => '(' + (/[A-Za-z]{2}/.test(i) ? look(i, depth + 1) ?? i : i) + ')'); }
   // compound text: "Top · Tank", "Gold: 350", two sentences: translate each part
-  for (const sep of [' · ', ' — ', ' | ', '. ', ': ', ' / ', ', ']) {
+  for (const sep of [' · ', ' — ', ' | ', '. ', ': ', ' / ', ', ', '/']) {
     if (!core.includes(sep)) continue;
     const parts = core.split(sep); let any = false;
     const outp = parts.map((x, i) => {
@@ -200,7 +215,15 @@ async function fetchPack(code) {
   return r.json();
 }
 // Boot: load the device's language before the first screen is drawn. A failed load stays in English.
+// Coverage audit (tools/screen_audit.py MISS=file): with localStorage.mobavs_i18n_miss = '1' the English catalog is
+// installed as an identity pack and every UI string that is not in it is collected in window.__i18nMiss.
+let misses = null;
 export async function initI18n() {
+  let dbg = null; try { dbg = localStorage.getItem('mobavs_i18n_miss'); } catch { /* ignore */ }
+  if (dbg === '1') {
+    try { const cat = await (await fetch('src/i18n/en.json')).json(); installPack(Object.fromEntries(cat.map((k) => [k, k]))); misses = window.__i18nMiss = new Set(); startObserver(); translateTree(document.body); } catch { /* no catalog */ }
+    applyLangAttr(); return lang;
+  }
   const want = detectLang();
   if (want !== 'en') {
     try { installPack(await fetchPack(want)); lang = want; startObserver(); translateTree(document.body); } catch { lang = 'en'; dict = null; }

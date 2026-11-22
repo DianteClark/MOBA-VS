@@ -10,8 +10,9 @@
 # (ladder, Friends tab, public profile) are audited with real data: two friends are seeded through the API.
 import sys, os, asyncio
 from playwright.async_api import async_playwright
-# GAME_LANG=<code> audits in that language, HAND=left|right in one-handed mode, HC=1 in high contrast
-PREFS = "try { localStorage.setItem('mobavs_lang', %r); localStorage.setItem('mobavs_settings', JSON.stringify(Object.assign(JSON.parse(localStorage.getItem('mobavs_settings') || '{}'), %s))); } catch (e) {}" % (
+# GAME_LANG=<code> audits in that language, HAND=left|right in one-handed mode, HC=1 in high contrast,
+# MISS=<file> appends every UI string missing from the i18n catalog (src/i18n/en.json) to <file>
+PREFS = ("try { localStorage.setItem('mobavs_i18n_miss', '1'); } catch (e) {}" if os.environ.get('MISS') else '') + "try { localStorage.setItem('mobavs_lang', %r); localStorage.setItem('mobavs_settings', JSON.stringify(Object.assign(JSON.parse(localStorage.getItem('mobavs_settings') || '{}'), %s))); } catch (e) {}" % (
     os.environ.get('GAME_LANG') or 'en', '{' + ', '.join(x for x in [("hand: '%s'" % os.environ['HAND']) if os.environ.get('HAND') else '', 'contrast: true' if os.environ.get('HC') == '1' else ''] if x) + '}')
 URL = sys.argv[1] if len(sys.argv) > 1 else 'http://localhost:8765/'
 OUT = sys.argv[2] if len(sys.argv) > 2 and sys.argv[2] else None
@@ -156,6 +157,10 @@ async def main():
                 issues = await pg.evaluate(CHECK, [sl, sr])
                 if OUT: await pg.screenshot(path=f"{OUT}/scr_{w}x{h}{'_' + name if name else ''}_{scr}.png", animations='disabled')
                 if issues: print(f'  {tag} {scr}: ' + '; '.join(issues)); bad += len(issues)
+            if os.environ.get('MISS'):  # i18n coverage: UI strings that are not in src/i18n/en.json
+                miss = await pg.evaluate("[...(window.__i18nMiss || [])]")
+                with open(os.environ['MISS'], 'a') as f: f.write('\n'.join(miss) + '\n')
+                print(f'  {tag}: {len(miss)} strings missing from the i18n catalog -> {os.environ["MISS"]}')
             for e in errs[:3]: print(f'  {tag} JS error: {e[:200]}'); bad += 1
             print(f'{tag}: done', flush=True)
             await ctx.close()

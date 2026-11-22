@@ -13,8 +13,9 @@
 # Safe areas are simulated by overriding the --safe-* CSS variables (Chrome cannot fake the notch).
 import sys, asyncio, os
 from playwright.async_api import async_playwright
-# GAME_LANG=<code> audits in that language, HAND=left|right in one-handed mode, HC=1 in high contrast
-PREFS = "try { localStorage.setItem('mobavs_lang', %r); localStorage.setItem('mobavs_settings', JSON.stringify(Object.assign(JSON.parse(localStorage.getItem('mobavs_settings') || '{}'), %s))); } catch (e) {}" % (
+# GAME_LANG=<code> audits in that language, HAND=left|right in one-handed mode, HC=1 in high contrast,
+# MISS=<file> appends every HUD string missing from the i18n catalog (src/i18n/en.json) to <file>
+PREFS = ("try { localStorage.setItem('mobavs_i18n_miss', '1'); } catch (e) {}" if os.environ.get('MISS') else '') + "try { localStorage.setItem('mobavs_lang', %r); localStorage.setItem('mobavs_settings', JSON.stringify(Object.assign(JSON.parse(localStorage.getItem('mobavs_settings') || '{}'), %s))); } catch (e) {}" % (
     os.environ.get('GAME_LANG') or 'en', '{' + ', '.join(x for x in [("hand: '%s'" % os.environ['HAND']) if os.environ.get('HAND') else '', 'contrast: true' if os.environ.get('HC') == '1' else ''] if x) + '}')
 
 # (name, W, H, side inset (notch / Dynamic Island), bottom inset (home indicator))
@@ -234,6 +235,9 @@ async def main():
                 if OUT and COOPIFY and state == 'tray': await pg.screenshot(path=f"{OUT}/ui_coop_{w}x{h}{'_' + name.split()[-1] if name else ''}_tray.png", timeout=20000, animations='disabled')
                 elif OUT and state in ('tray', 'sheet', 'quickchat', 'halftime', 'ring', 'momentcard', 'tip', 'bar', 'follow', 'analysis'):
                     await pg.screenshot(path=f"{OUT}/ui_{w}x{h}{'_' + name.split()[-1] if name else ''}_{state}.png", timeout=20000, animations='disabled')
+            if os.environ.get('MISS'):
+                miss = await pg.evaluate("[...(window.__i18nMiss || [])]")
+                with open(os.environ['MISS'], 'a') as f: f.write('\n'.join(miss) + '\n')
             issues += [f'JS error: {e}' for e in errs[:3]]
             print(f'{tag}: ' + ('OK' if not issues else f'{len(issues)} issue(s)'), flush=True)
             for s in issues: print('   ', s)

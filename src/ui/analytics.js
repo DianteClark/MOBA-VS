@@ -5,6 +5,7 @@
 //  * analyze(rec): fights, aces, the turning point (with a plain-language reason), call stats and payoffs,
 //    missed chances and a key-event timeline.
 //  * analysisCard / showAnalysis: the results-screen card and the full Analysis sheet (Story, Damage, Calls).
+import { tr } from '../i18n/i18n.js';
 import { TEAM_NAME, OBJ_NAME, DRAGON_INFO } from '../sim/constants.js';
 import { MOMENTS } from '../sim/moments-coach.js';
 import { HERO_BY_ID, ROLE_LABEL } from '../data/heroes.js';
@@ -309,7 +310,7 @@ function drawGraph(c, A, d, opts = {}) {
     }
   }
   // direct labels (identity is never colour alone)
-  ctx.fillStyle = ink; ctx.fillText(`Blue +${kGold(mx)}`, padL + 2, top + 10); ctx.fillText(`Red +${kGold(mx)}`, padL + 2, plotB - 3);
+  ctx.fillStyle = ink; ctx.fillText(tr(`Blue +${kGold(mx)}`), padL + 2, top + 10); ctx.fillText(tr(`Red +${kGold(mx)}`), padL + 2, plotB - 3);
   // event lanes: Blue's row, then Red's
   const ms = markerList(A, d), hits = [];
   const rowY = (t) => plotB + 4 + lane * (t === 1 ? 1 : 0) + lane / 2;

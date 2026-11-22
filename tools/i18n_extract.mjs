@@ -90,9 +90,9 @@ const looksText = (s) => {
   s = s.trim();
   if (s.length < 2 || !/[A-Za-z]{2}/.test(s)) return false;
   if (/^(https?:|data:|mailto:|blob:|wss?:)/.test(s) || /^\.{0,2}\/[\w./-]*$/.test(s) || /\.(png|jpe?g|webp|mp3|ogg|wav|js|css|json|ttf|html)(\?|$)/i.test(s)) return false;
-  if (/^[\w$]+$/.test(s) && !/^[A-Z][a-z]/.test(s) && !/^[A-Z]{2,5}$/.test(s)) return false; // ids, camelCase, snake_case
+  if (/^[\w$]+$/.test(s) && !/^[A-Z][a-z]+$/.test(s) && !/^[A-Z]{2,}$/.test(s)) return false; // ids, camelCase, snake_case
   if (/^[A-Z][a-z]+[A-Z]\w*$/.test(s)) return false; // PascalCase ids (icons, key names: ArrowUp)
-  if (/^[a-z0-9_ .#:>\[\]=*()"'-]+$/.test(s) && !/ (a|an|the|of|to|for|in|on|is|and|or|with|you|your|it|by)\b/.test(s)) return false; // class lists, selectors
+  if (/^[a-z0-9_ .#:>\[\]=*()"'-]+$/.test(s) && (/[#.:>\[\]=*_]|-[a-z]|\d/.test(s) || !/ /.test(s))) return false; // class lists, selectors
   if (/^[.#[]/.test(s) || /^[a-z-]+:\s?[^ ]+;?$/.test(s)) return false; // selectors, css
   if (/^(rgba?|hsla?|var|url|translate|scale|rotate|linear-gradient|cubic-bezier|calc)\(/.test(s) || /^#[0-9a-f]{3,8}$/i.test(s)) return false;
   if (/^\d+(px|ms|s|%|em|rem|vh|vw)?( \d+(px|%)?)*$/.test(s)) return false;
@@ -102,13 +102,21 @@ const looksText = (s) => {
   if (/^[a-z]+(\.[a-z]+)+$/i.test(s)) return false; // dotted keys
   return true;
 };
+// Tokens that pass looksText but are never shown: mime types, query strings, sprite keys, bare placeholders.
+const junk = (s) => (!/ /.test(s) && /[_/;=&]|^[a-z]+\{\d\}|\{\d\}\{\d\}/.test(s)) || /^[{}\d\s.!?:,]+$/.test(s) || /^[a-z]+\/[a-z0-9.+-]+/.test(s);
 // Context words in front of a literal that mean "not text".
-const NOT_TEXT_PREV = new Set(['class', 'className', 'id', 'type', 'key', 'role', 'name', 'src', 'href', 'for', 'tag', 'kind', 'cls', 'icon', 'fx', 'proj', 'sprite', 'img', 'face', 'mode', 'event', 'sfx', 'clan', 'pers', 'curve', 'dmgType', 'element', 'map', 'theme', 'skin', 'rarity', 'slot', 'state', 'status', 'phase', 'col', 'color', 'bg', 'stat', 'k', 'use', 'tags', 'builds', 'flex', 'ref', 'rule', 'plan', 'tactic', 'trait', 'emote', 'voice', 'track', 'music', 'mood', 'sound', 'anim', 'shape', 'cmd', 'op', 'act', 'action', 'zone', 'lane', 'side', 'pos', 'at', 'path', 'url', 'route', 'unit', 'ui', 'cat', 'group', 'tier', 'v', 'version', 'season']);
-const NOT_TEXT_CALL = new Set(['querySelector', 'querySelectorAll', 'getElementById', 'getElementsByClassName', 'closest', 'matches', 'add', 'remove', 'toggle', 'contains', 'addEventListener', 'removeEventListener', 'dispatchEvent', 'Event', 'CustomEvent', 'getItem', 'setItem', 'removeItem', 'createElement', 'setProperty', 'getPropertyValue', 'getAttribute', 'setAttribute', 'removeAttribute', 'hasAttribute', 'import', 'fetch', 'log', 'warn', 'error', 'info', 'debug', 'Error', 'TypeError', 'RangeError', 'sfx', 'ui', 'play', 'music', 'track', 'icon', 'face', 'getContext', 'postMessage', 'matchMedia', 'startsWith', 'endsWith', 'includes', 'split', 'join', 'replace', 'indexOf', 'h', 'emit', 'on', 'off', 'send', 'loadImage', 'img', 'sprite', 'haptic', 'buzz', 'vibe', 'track', 'beacon', 'api', 'post', 'get', 'put', 'del', 'cmd', 'push', 'has', 'delete', 'set', 'is', 'cheer', 'stinger']);
-
+const NOT_TEXT_PREV = new Set(['class', 'className', 'id', 'type', 'key', 'role', 'src', 'href', 'for', 'icon', 'fx', 'proj', 'sprite', 'img', 'face', 'sfx', 'bg', 'col', 'color',
+  'path', 'url', 'route', 'voice', 'track', 'music', 'anim', 'shape', 'cmd', 'op', 'v', 'version', 'tag', 'clan', 'pers', 'curve', 'dmgType', 'element', 'cls', 'kind', 'slot', 'rarity', 'mood', 'sound']);
+// method calls whose string arguments are never text (el.classList.add('x'), map.get('k'), audio.sfx('hit'))
+const NOT_TEXT_METHOD = new Set(['querySelector', 'querySelectorAll', 'getElementById', 'getElementsByClassName', 'closest', 'matches', 'add', 'remove', 'toggle', 'contains', 'addEventListener',
+  'removeEventListener', 'dispatchEvent', 'getItem', 'setItem', 'removeItem', 'createElement', 'setProperty', 'getPropertyValue', 'getAttribute', 'removeAttribute', 'hasAttribute', 'log', 'warn',
+  'error', 'info', 'debug', 'sfx', 'ui', 'play', 'music', 'getContext', 'postMessage', 'startsWith', 'endsWith', 'includes', 'split', 'join', 'indexOf', 'has', 'get', 'set', 'delete', 'emit', 'on',
+  'off', 'send', 'cheer', 'stinger', 'buzz', 'haptic', 'track', 'beacon', 'load', 'fonts', 'padStart', 'padEnd', 'match', 'test', 'exec', 'search', 'lastIndexOf', 'getEntriesByType', 'mark', 'measure']);
+// plain functions whose string arguments are never text
+const NOT_TEXT_FN = new Set(['import', 'fetch', 'Event', 'CustomEvent', 'Error', 'TypeError', 'RangeError', 'icon', 'face', 'matchMedia', 'loadImage', 'item', 'heroSprite', 'require', 'call', 'api', 'post', 'byId', 'haptic', 'track', 'Request', 'URL', 'RegExp', 'mapThumb', 'bossFace', 'tr']);
 function extract(file, src) {
   const toks = tokenize(src), out = [];
-  const add = (s, kind) => { s = norm(s); if (s && looksText(s)) out.push(s); };
+  const add = (s) => { s = norm(s); if (s && looksText(s) && !junk(s)) out.push(s); };
   const tplKey = (tp) => { let s = tp.parts[0]; for (let k = 0; k < tp.exprs.length; k++) s += `{${k}}` + tp.parts[k + 1]; return s; };
   for (let k = 0; k < toks.length; k++) {
     const tk = toks[k];
@@ -126,9 +134,7 @@ function extract(file, src) {
     if (nx && ['===', '!==', '==', '!='].includes(nx.v)) continue;
     if (p1 && p1.v === 'case') continue;
     // f('selector') / el.classList.add('x') / h('div', ...)
-    if (p1 && p1.v === '(' && p2 && p2.t === 'w' && NOT_TEXT_CALL.has(p2.v)) {
-      if (!(p2.v === 'h' && false)) continue;
-    }
+    if (p1 && p1.v === '(' && p2 && p2.t === 'w' && (NOT_TEXT_FN.has(p2.v) || (p3 && (p3.v === '.' || p3.v === '?.') && NOT_TEXT_METHOD.has(p2.v)))) continue;
     if (p1 && p1.v === ',' ) { // second+ args of non-text calls: find the call name
       let d = 0, j = k - 1;
       for (; j >= 0; j--) { const v = toks[j].v; if (v === ')' || v === ']' || v === '}') d++; else if (v === '(' || v === '[' || v === '{') { if (d === 0) break; d--; } }
@@ -146,7 +152,7 @@ function extract(file, src) {
     else {
       const key = tplKey(tk.v);
       const lit = tk.v.parts.join('');
-      if (looksText(lit)) add(key);
+      if (looksText(lit) || (/[A-Za-z]{3}/.test(lit) && !/^[\w-]*\{\d\}[\w-]*$/.test(key) && !/[;#=<>]|^\.|\/\w|px|\(\{/.test(key) && tk.v.exprs.length)) add(key);
       // literals inside ${...} are scanned as their own files (cheap: recursive extract)
       for (const e of tk.v.exprs) out.push(...extract(file, e));
     }
@@ -176,7 +182,7 @@ function extract(file, src) {
 // Normalize: trim, collapse whitespace. Keys keep inner punctuation.
 export function norm(s) { return String(s).replace(/\s+/g, ' ').trim(); }
 
-export function buildCatalog() {
+export async function buildCatalog() {
   const files = [...DIRS.flatMap(walk), ...FILES.filter((f) => existsSync(join(ROOT, f)))].filter((f) => !SKIP.test(f)).sort();
   const seen = new Map(); const per = {};
   for (const f of files) {
@@ -184,13 +190,24 @@ export function buildCatalog() {
     per[f] = 0;
     for (const s of got) if (!seen.has(s)) { seen.set(s, f); per[f]++; }
   }
+  // "Head: rest" (patch notes, tips) is shown as a bold head and its text: catalog the parts (the whole is
+  // translated part by part at runtime)
+  for (const [k, f] of [...seen]) {
+    const m = k.match(/^([A-Z0-9][^:.!?]{1,38}): (.{3,})$/);
+    if (!m || /\{\d\}/.test(m[1])) continue;
+    seen.delete(k);
+    for (const part of [m[1], m[2]]) if (!seen.has(part)) seen.set(part, f);
+  }
+  // data the UI shows that the source holds as ids/arrays (hero tags)
+  const { HEROES } = await import('../src/data/heroes.js');
+  for (const hero of HEROES) for (const tg of hero.tags || []) if (!seen.has(tg)) seen.set(tg, 'src/data/heroes.js');
   const extraP = join(ROOT, 'src/i18n/extra.json');
   if (existsSync(extraP)) for (const s of JSON.parse(readFileSync(extraP, 'utf8'))) if (!seen.has(norm(s))) { seen.set(norm(s), 'extra'); per.extra = (per.extra || 0) + 1; }
   return { strings: [...seen.keys()], per, src: seen };
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const { strings, per } = buildCatalog();
+  const { strings, per } = await buildCatalog();
   const target = join(ROOT, 'src/i18n/en.json');
   const json = JSON.stringify(strings, null, 0).replace(/","/g, '",\n"') + '\n';
   if (process.argv.includes('--stats')) { for (const [f, c] of Object.entries(per)) console.log(String(c).padStart(5), f); }
