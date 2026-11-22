@@ -30,14 +30,15 @@ export class Attention {
     if (!s || (!s.lines.length && !s.banners.length)) return;
     const hud = this.hud;
     // the best line: a caster line reads best, then the most important one, then the first
-    const best = s.lines.slice().sort((a, b) => (b.cls === 'cast') - (a.cls === 'cast') || b.prio - a.prio)[0] || null;
+    // ('extra' lines are news of their own, e.g. what a Tengu kill unlocks: they follow on the ticker)
+    const extra = s.lines.filter((l) => /\bextra\b/.test(l.cls)), lines = s.lines.filter((l) => !extra.includes(l));
+    const best = lines.slice().sort((a, b) => (b.cls === 'cast') - (a.cls === 'cast') || b.prio - a.prio)[0] || null;
     if (s.banners.length) {
       const [b, ...rest] = s.banners;
       if (best && !b.node && !sameText(best.text, b.text)) b.sub = best.text;
       for (const x of [b, ...rest]) hud.showBannerItem(x);
-      return;
-    }
-    if (best) hud.tickerNow(best.text, best.cls, best.prio);
+    } else if (best) hud.tickerNow(best.text, best.cls, best.prio);
+    for (const l of extra) hud.tickerNow(l.text, l.cls, l.prio);
   }
   // Hud.ticker / Hud.banner ask first: true = taken into the current event's message.
   takeLine(text, cls, prio) { if (!this.scope) return false; this.scope.lines.push({ text, cls, prio }); return true; }

@@ -8,7 +8,7 @@ let total = 0;
 for (const map of (process.env.MAPS || CLASSIC_IDS.join(',')).split(',')) {
   const rng = new Rng(map.length * 77); const used = new Set();
   const draft = () => ROLES.map((r) => { const pool = HEROES.filter((h) => h.role === r && !used.has(h.id)); const h = pool[rng.int(pool.length)]; used.add(h.id); return { id: h.id, role: r, build: h.rec }; });
-  const g = new Game({ seed: 99, map, coach: [true, true], teams: [{ heroes: draft() }, { heroes: draft() }] });
+  const g = new Game({ seed: 99, map, coach: [true, true], ...(process.env.LIVING !== '0' ? { living: 1 } : {}), teams: [{ heroes: draft() }, { heroes: draft() }] }); // Living World unless LIVING=0
   const last = {}; const reports = [];
   while (g.time < 600 && !g.over) {
     g.step([]); g.fx.length = 0;

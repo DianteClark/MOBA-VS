@@ -53,7 +53,7 @@ export class Alerts {
       if (recent(u.lastHurt, 2.5) && u.hp < u.maxHp) out.push({ key: 'st' + u.id, kind: 'tower', x: u.x, y: u.y - 30, img: null, label: Math.round(u.hp / u.maxHp * 100) + '%', team: u.team });
     }
     // objectives being attacked (only if someone can see them)
-    for (const k of ['dragon', 'herald', 'baron']) {
+    for (const k of ['dragon', 'herald', 'baron', 'boss', 'yokai']) {
       const o = g.objectives[k];
       if (!o || !o.alive || o.hp >= o.maxHp || !recent(o.lastHurt, 2.5)) continue;
       if (my >= 0 && !g.vision[view].has(o.id)) continue;

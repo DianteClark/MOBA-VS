@@ -47,6 +47,24 @@ export class Minimap {
         if (img) { ctx.save(); ctx.beginPath(); ctx.arc(pit.x * k, pit.y * k, r, 0, Math.PI * 2); ctx.clip(); ctx.drawImage(img, 3, 3, 32, 32, pit.x * k - r, pit.y * k - r, r * 2, r * 2); ctx.restore(); }
       }
     }
+    // Living World: the Tengu and the wandering Yokai Parade (portraits, always shown), Moon Spirits that are up,
+    // and closed walls (short brown bars)
+    if (g.living) {
+      for (const key of ['boss', 'yokai']) {
+        const o = g.objectives[key]; if (!o || !o.alive) continue;
+        const r = S * (key === 'boss' ? 0.045 : 0.035), img = IMG[key === 'boss' ? 'tengu_faceset' : 'yokai_faceset'];
+        ctx.fillStyle = key === 'boss' ? '#ff4a5a' : '#ffb347'; ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.arc(o.x * k, o.y * k, r + 1.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        if (img) { ctx.save(); ctx.beginPath(); ctx.arc(o.x * k, o.y * k, r, 0, Math.PI * 2); ctx.clip(); ctx.drawImage(img, 3, 3, 32, 32, o.x * k - r, o.y * k - r, r * 2, r * 2); ctx.restore(); }
+      }
+      for (const c of g.camps) if (c.night && c.mobs.some((m) => m.alive && m.big)) {
+        const x = c.x * k, y = c.y * k, r = S * 0.018;
+        ctx.fillStyle = '#bfefff'; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(20,30,60,0.9)'; ctx.beginPath(); ctx.arc(x + r * 0.45, y - r * 0.2, r * 0.85, 0, Math.PI * 2); ctx.fill(); // a crescent
+      }
+      ctx.strokeStyle = '#8a6a44'; ctx.lineWidth = Math.max(2, S / 70);
+      for (const w of g.living.walls) if (!w.open) { const d = g.world.walls[w.id]; ctx.beginPath(); ctx.moveTo(d.a.x * k, d.a.y * k); ctx.lineTo(d.b.x * k, d.b.y * k); ctx.stroke(); }
+    }
     // shrines
     for (const sh of g.shrines) {
       ctx.fillStyle = sh.owner >= 0 ? TEAM_COL[sh.owner] : '#ffe9a8'; ctx.strokeStyle = '#000'; ctx.lineWidth = 1;

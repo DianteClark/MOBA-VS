@@ -35,6 +35,9 @@ function run(name, cfg, seconds, calls, more) {
 // (Red is a rival-style coach: Coach Moments early, a backup plan for halftime.)
 const okC = run('classic', { seed: 4242, map: 'frost', coach: [false, true], coachStyle: [null, { moment: 'early', backup: 'protect' }], teams }, 600,
   [{ type: 'gank', lane: 'mid' }, { type: 'group', lane: 'bot' }, { type: 'objective', obj: 'dragon' }, { type: 'moment', id: 'rally' }, { type: 'ult', mode: 'go' }, { type: 'safe' }, { type: 'plan', plan: 'aggro' }, { type: 'moment', id: 'timeout' }]);
+// Living World (night, Yokai Parade, walls, Tengu): the calls that only exist there replay too
+const okL = run('living', { seed: 4245, map: 'ember', living: 1, coach: [false, true], teams }, 760,
+  [{ type: 'objective', obj: 'yokai' }, { type: 'gank', lane: 'top' }, { type: 'invade', camp: '1:moon' }, { type: 'objective', obj: 'boss' }, { type: 'group', lane: 'mid' }, { type: 'objective', obj: 'boss' }]);
 const okR = run('rush', { seed: 4243, map: 'rush_sakura', mode: 'rush', coach: [false, true], teams }, 480,
   [{ type: 'moment', id: 'rally' }, { type: 'group', lane: 'mid' }, { type: 'objective', obj: 'dragon' }, { type: 'moment', id: 'push' }, { type: 'ult', mode: 'go' }, { type: 'objective', obj: 'baron' }, { type: 'moment', id: 'timeout' }]);
 // Co-op vs AI: two coaches' seat-stamped commands in one log (some rejected by the ownership rules),
@@ -74,5 +77,5 @@ const okD = run('depth', { seed: 4245, map: 'marsh', depth: true, coach: [false,
     for (const x of g.teams[0].heroes) { const k = x.tal.findIndex((p, i) => p >= 0 && g.tick - x.talAt[i] < 80); if (k >= 0) { r.send({ type: 'talent', hero: x.id, tier: k, pick: 1 - x.tal[k] }); return; } }
     if (g.tick % 600 === 13) { const x = g.teams[0].heroes[g.tick / 600 % 5 | 0], o = itemOptions(x); if (o.length > 1) r.send({ type: 'item', hero: x.id, item: o[o.length - 1].name }); }
   });
-console.log(okC && okR && okCo && okE && okD ? 'REPLAY MATCHES ✔' : 'REPLAY DIVERGED ✘');
-process.exit(okC && okR && okCo && okE && okD ? 0 : 1);
+console.log(okC && okR && okCo && okE && okD && okL ? 'REPLAY MATCHES ✔' : 'REPLAY DIVERGED ✘');
+process.exit(okC && okR && okCo && okE && okD && okL ? 0 : 1);

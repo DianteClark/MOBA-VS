@@ -50,7 +50,7 @@ PANELS = [('myteam', '#myteam'), ('scorebar', '#scorebar'), ('objtimers', '#objt
           ('killfeed', '#killfeed*'), ('mm', '#mm'), ('ctrl', '#ctrl*'), ('detail', '#detail'), ('foestrip', '#foestrip'),
           ('tray', '#cmdbar .tray'), ('sheet', '#cmdbar .sheet'), ('cancel', '#cmdbar .cancelpill'), 
           ('handrow', '#cmdbar .handrow'), ('calls', '#cmdbar .callrow'), ('banner', '#banner*'),
-          ('qchatbtn', '#qchatbtn'), ('qfeed', '#qfeed*'), ('ring', '#ring*'), ('theater', '#cmdbar .theaterbar')]
+          ('qchatbtn', '#qchatbtn'), ('qfeed', '#qfeed*'), ('ring', '#ring*'), ('theater', '#cmdbar .theaterbar'), ('irchip', '.irchip'), ('irpip', '.irpip')]
 # overlays that may cover the HUD on purpose: they only have to fit the safe area
 OVERLAYS = [('menu', '#ctrl.open .seg:last-child'), ('qchat', '#qchat'), ('scoreboard', '#scoreboard .sbcard'), ('hpop', '#hpop'), ('modal', '.modal .mpanel'), ('halftime', '#halftime .ht-card'), ('follow', '#thfollow'), ('analysis', '#anasheet')]
 # pairs that are allowed to touch (one lives inside the other's column / is drawn over the map on purpose)
@@ -145,7 +145,8 @@ BASE = """() => { const H = app.match.hud, g = app.match.game; H.enableChat(() =
   H.dock.tick(); }"""
 RESET = """() => { const H = app.match.hud; H.dock.close(); H.dock.closeRing(); H.toggleScoreboard(false); H.closePop(); document.getElementById('rightcol').classList.remove('show');
   document.getElementById('ctrl').classList.remove('open'); for (const e of document.querySelectorAll('.modal')) e.remove();
-  if (H.chat) H.chat.close(); import('./src/ui/halftime.js').then((m) => m.hideHalftime()); }"""
+  if (H.chat) H.chat.close(); if (app.match.instant) app.match.instant.destroy(); import('./src/ui/halftime.js').then((m) => m.hideHalftime()); }"""
+INSTANT = "async () => { const i = app.match.instant, g = app.match.game, S = await import('./src/ui/snapshot.js'), x = g.teams[0].heroes[0]; i.snaps = [S.snapshot(g)]; i.offer = { x: x.x, y: x.y, start: g.tick, end: g.tick + 400, prio: 3, until: performance.now() + 600000 }; %s; }"
 STATES = [
     ('tray', None),
     ('sheet', "() => app.match.hud.dock.open('gank')"),
@@ -166,6 +167,9 @@ STATES = [
     ('talentprompt', "() => { const H = app.match.hud, x = H.g.teams[0].heroes[3]; if (!H.depth) return; H.dock.tray.clear(); x.tal = [1, -1, -1]; x.talAt = [H.g.tick, 0, 0]; H.depth.talentPrompt(x, 0, 1); }"),
     ('forecast', "() => { const H = app.match.hud; if (!H.depth) return; H.dock.tray.clear(); H.depth.showForecast({ at: { x: 649, y: 678 }, where: 'Kraken', obj: 'baron', eta: 8, mine: 4, theirs: 3, unseen: 1, edge: 1 }); }"),
     ('halftime', "() => { const r = app.match.runner; import('./src/ui/halftime.js').then((m) => m.showHalftime(app, app.match.game, 0, r, { end: performance.now() + 60000 })); }"),
+    # Instant Replay: the chip by the minimap, then its picture-in-picture panel
+    ('replaychip', INSTANT % 'i.showChip()'),
+    ('replaypip', INSTANT % 'i.start()'),
 ]
 
 # Co-op: the same match, seen by the non-lead coach of a shared team (HUD rebuilt with the co-op session)
