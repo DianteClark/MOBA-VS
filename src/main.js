@@ -863,7 +863,7 @@ class App {
       const args = [this, m.game, s.myTeam,
         cr ? cr.again : s.customOpts && s.mode !== 'join' ? () => this.playCustom(s.customOpts, s.pnp ? 'pnp' : s.mode === 'host' ? 'host' : 'ai') : s.wcup ? () => showWeekendCup(this) : s.cup ? () => showCup(this) : s.franchise ? () => { this.session = null; audio.music('menu'); showFranchise(this, 'team'); } : s.mode === 'ai' ? () => { if (s.rival) this.rivalRoll = { tier: s.aiLevel, id: s.rival }; this.startVsAI(s.gameMode === 'rush' ? 'rush' : 'classic', true); } : s.mode === 'watch' ? (s.spectate ? null : () => this.watch()) : pa ? pa.fn : null,
         () => this.menu(), { progress: progressPanel(sum, cupOut), rival: cr ? cr.panel : s.franchise ? franchiseResults(this, frOut) : s.myTeam >= 0 && !s.wasOnline ? rivalPanel(sum, s, won) : null, ladder, social: s.wcup ? null : s.mode === 'coop' ? coopResults(this, s, m.game) : socialPanel(this, s), againLabel: cr ? cr.label : pa ? pa.label : s.cup || s.wcup ? 'Back to bracket' : s.franchise ? 'Back to franchise' : s.rival && RIVAL_BY_ID[s.rival] && !s.wasOnline ? `Rematch ${RIVAL_BY_ID[s.rival].name}` : null, potg: this.potgReel ? potg : null, report,
-          onPOTG: () => this.playPOTG(), onClip: potg && src && clipSupport() ? () => saveClip(src, potg, s.names, this.mapCanvas(m.game.world, m.game.event)) : null,
+          onPOTG: () => this.playPOTG(), onClip: potg && src && clipSupport() ? () => this.clipPOTG(src, potg, s.names, this.mapCanvas(m.game.world, m.game.event)) : null,
           analytics, onAnalysis: analytics ? () => showAnalysis(analytics, { title: 'Match analysis', onTheater: this.lastReplay() ? () => this.watchReplay(null, { back: () => this.backToResults() }) : null }) : null,
           emotes: resultEmotes(s), avatars: resultAvatars(s), foot: this.resultsFoot(s, m, potg), onReplay: () => this.watchReplay(null, { back: () => this.backToResults() }), share: sum ? () => shareMatch(profile.d.history[0], { name: this.name, rank: profile.rank.label, border: profile.border }, this.lastReplay()) : null }];
       this.lastResults = { args, session: s, src, potg };
@@ -896,6 +896,14 @@ class App {
     setTimeout(bg, 400);
     reel.slice = slice;
     return reel;
+  }
+  // Save clip: borrows the Play of the Game reel when it is already at the highlight (no second rewind of the whole
+  // match); a fresh reel is prerolled for Watch once the clip is done with it.
+  clipPOTG(src, potg, names, map) {
+    const reel = this.potgReel, s0 = this.session;
+    const pre = reel && reel.ready && !reel.used && reel.potg === potg ? { game: reel.game, runner: reel.runner } : null;
+    if (pre) { reel.used = true; reel.stop = true; }
+    saveClip(src, potg, names, map, pre, pre ? () => { if (this.potgReel === reel && this.session === s0 && !this.match) this.potgReel = this.prerollPOTG(src, potg); } : null);
   }
   playPOTG() {
     const reel = this.potgReel; if (!reel || reel.used) return;
