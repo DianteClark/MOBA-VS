@@ -10,7 +10,8 @@
 //               break the ones in their way (a few hits); thickets wilt at nightfall (into tall grass) and
 //               every wall still standing crumbles when the Tengu lands.
 //   Tengu       the World Boss lands in the map centre at 12:00. Its slayers get Tengu's Gale for 90s
-//               (empowered minion waves, +40% structure damage, +6% speed): a stalemate breaker.
+//               (All-Out waves: a super minion per lane and stronger, faster minions; +60% structure damage and
+//               +6% speed for the heroes): a stalemate breaker.
 // Deterministic: only + - * / sqrt, the game's rng, and tick-based timers. Without cfg.living none of this
 // exists and the classic match is bit-identical.
 import { DT, sec, NEUTRAL, BLUE } from './constants.js';
@@ -22,7 +23,7 @@ export const LIVING = {
   moonsight: 90, moonGold: [160, 30], moonXp: [200, 40], bloodMoonGold: 1.5,
   yokaiFirst: 240, yokaiRespawn: 150, tameSec: 60, paradeMs: 60,
   breachFrom: 150, wallHits: { wall: 6, thicket: 3 },
-  bossAt: 720, bossWarn: 30, bossBuff: 90, bossSiege: 0.4, bossMs: 0.06,
+  bossAt: 720, bossWarn: 30, bossBuff: 90, bossSiege: 0.6, bossMs: 0.06,
 };
 const NIGHT = { name: 'Moon Spirits', night: true, mobs: [{ k: 'camp_moon', hp: 1900, ad: 50, big: true }, { k: 'camp_wisp', hp: 520, ad: 18, dx: 34, dy: -14 }, { k: 'camp_wisp', hp: 520, ad: 18, dx: -30, dy: 22 }] };
 const FOLLOW = [{ k: 'yokai_skull', dx: -34, dy: 26 }, { k: 'yokai_kappa', dx: 34, dy: 26 }];
@@ -189,9 +190,10 @@ export class Living {
   spawnBoss() {
     const g = this.g, gm = g.gameMinute, p = this.bossSpot;
     const first = !this.quake;
-    const hp = 15000 + Math.max(0, gm - 12) * 600;
+    // tough but quick for a grouped team (about a Kraken's worth): it must fall in a late-game window
+    const hp = 9500 + Math.max(0, gm - 12) * 500;
     g.objectives.boss = g.addUnit({ type: 'objective', kind: 'boss', team: NEUTRAL, x: p.x, y: p.y, home: { ...p },
-      maxHp: hp, hp, radius: 34, big: true, boss: true, slam: 0, stats: { ad: 190 + gm * 5, ap: 0, armor: 70, mr: 70, as: 0.75, range: 220, ms: 0, pen: 0 } });
+      maxHp: hp, hp, radius: 34, big: true, boss: true, slam: 0, stats: { ad: 150 + gm * 5, ap: 0, armor: 50, mr: 50, as: 0.75, range: 220, ms: 0, pen: 0 } });
     g.objTimers.boss = 0;
     g.emit({ type: 'spawn', obj: 'boss', x: p.x, y: p.y, first });
     if (first) {

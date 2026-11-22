@@ -716,7 +716,7 @@ export class Game {
       if (enemyInhibDown) kinds.unshift('super', 'super');
       let baron = this.teams[t].heroes.some((h) => h.alive && h.baronUntil > this.tick) || this.teams[t].tenguUntil > this.tick; // Tengu's Gale empowers waves too
       if (this.teams[t].siegeWaves[ln] > 0) { this.teams[t].siegeWaves[ln]--; baron = true; }
-      const allOut = this.teams[t].allOut > 0; // Coach Moment: All-Out Push
+      const allOut = this.teams[t].allOut > 0 || this.teams[t].tenguUntil > this.tick; // Coach Moment: All-Out Push (and Tengu's Gale)
       if (allOut) kinds.unshift('super');
       kinds.forEach((k, i) => this.spawnMinion(t, ln, k, i, minute, baron, allOut));
     }

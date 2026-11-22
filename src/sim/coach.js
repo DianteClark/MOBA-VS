@@ -18,12 +18,16 @@ export class Coach {
   // night the enemy's Moon Spirits are worth stealing.
   livingCalls(takeObj, s) {
     const g = this.g, me = g.teams[this.team], jg = me.heroes.find((h) => h.role === 'jungle'), y = g.objectives.yokai;
-    if (takeObj('boss', 4, s.deadEnemies >= 1 || s.alive.length >= s.enemyAlive.length + (this.level >= 1 ? 0 : 1))) return true;
-    // the parade on our half of the map (closer to our fountain), or an enemy down
+    // The Tengu breaks stalemates: called when even or behind (or with enemies down). A team well ahead on towers
+    // keeps its siege going instead of walking to mid.
+    const lead = g.towersStanding(this.team) - g.towersStanding(1 - this.team);
+    if ((lead < 3 || s.deadEnemies >= 2) && takeObj('boss', 4, s.deadEnemies >= 1 || s.alive.length >= s.enemyAlive.length + (this.level >= 1 ? 0 : 1))) return true;
+    // the parade on our half of the map (closer to our fountain), or an enemy down; late on, charges go to pushes
     const f = g.world.fountain[this.team], o = g.world.fountain[1 - this.team];
     const ours = y && y.alive && dist2(y, f) < dist2(y, o);
-    if (takeObj('yokai', 3, jg && jg.alive && (s.deadEnemies >= 1 || ours))) return true;
-    if (g.living.night && this.level >= 1 && s.ready('invade') && s.charges >= 2 && jg && jg.alive && jg.hp > jg.maxHp * 0.6) {
+    if (g.time < 600 * g.rules.k && takeObj('yokai', 3, jg && jg.alive && (s.deadEnemies >= 1 || ours))) return true;
+    // stealing Moon Spirits only with charges to spare (a full bar)
+    if (g.living.night && this.level >= 1 && s.ready('invade') && s.charges >= 3 && jg && jg.alive && jg.hp > jg.maxHp * 0.6) {
       const camp = g.camps.find((c) => c.night && c.side !== this.team && c.mobs.length);
       const theirJg = g.teams[1 - this.team].heroes.find((h) => h.role === 'jungle');
       if (camp && !(theirJg && theirJg.alive && s.visibleEnemies.includes(theirJg) && dist2(theirJg, camp) < 900 * 900) && dist2(jg, camp) < 1300 * 1300) {
@@ -100,7 +104,7 @@ export class Coach {
       if (!(o && o.alive) && !spawnSoon) return false;
       if (charges < 2 || !ready('objective')) return false;
       const pit = g.objPit(obj);
-      const enemiesNearPit = near(pit, LANE_NAMES.length === 1 ? 650 : 1100, visibleEnemies);
+      const enemiesNearPit = near(pit, LANE_NAMES.length === 1 || obj === 'boss' ? 650 : 1100, visibleEnemies); // (the Tengu sits on mid lane: only count those right on it)
       if (alive.length < minAlive) return false;
       if (enemiesNearPit > 1 && deadEnemies === 0) return false;
       if (W.objWait && deadEnemies < 1) return false;
