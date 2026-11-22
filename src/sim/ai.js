@@ -12,6 +12,7 @@ import { isCCd } from './effects.js';
 import { planRisk, planLane, planSplits, planCarry, diveMul, gankWeights, wardWeights, contestReach, peelMul } from './plans.js';
 
 const LANES = ['top', 'mid', 'bot'];
+const OBJ_KEYS = ['dragon', 'baron', 'herald', 'boss', 'yokai']; // boss / yokai: Living World (absent otherwise)
 const CARRY = (h) => h.def.cls === 'marksman' || h.def.cls === 'mage';
 const FRONT = (h) => h.def.cls === 'tank' || h.def.cls === 'bruiser';
 
@@ -252,7 +253,7 @@ export function heroMacro(g, h) {
   const [wardK, allWard] = wardWeights(g, h.team); // Objective Control: faster wards, and everyone carries them
   if ((h.role === 'support' || h.role === 'jungle' || h.stats.sight > 0 || allWard) && now >= h.wardCd) {
     for (const s of g.wardSpots(h.team)) if (dist2(h, s) < 240 * 240 && !g.wards.some((w) => w.team === h.team && dist2(w, s) < 220 * 220 && w.until > now)) {
-      g.placeWard(h, s); h.wardCd = now + sec((h.role === 'support' ? 22 : 40) * wardK / (h.stats.sight >= 0.2 ? 2 : 1)); break;
+      g.placeWard(h, s); h.wardCd = now + sec((h.role === 'support' ? 22 : 40) * wardK / (h.stats.sight >= 0.2 ? 2 : 1) * (g.living ? 1 - 0.35 * g.living.nightK : 1)); break; // night: wards matter more
     }
   }
 
@@ -315,7 +316,7 @@ function baseThreat(g, team) {
   return null;
 }
 function contestTarget(g, h, C) {
-  for (const k of ['dragon', 'baron', 'herald']) {
+  for (const k of OBJ_KEYS) {
     const o = g.objectives[k];
     if (!o || !o.alive || o.hp > o.maxHp * 0.92) continue;
     const on = C.enemies.filter((e) => dist2(e, o) < 650 * 650);
@@ -365,7 +366,7 @@ function gankOpportunity(g, h, C) {
     }
   }
   const [gate, mul] = gankWeights(g, h.team); // Early Aggression ganks on thinner chances; Scale farms instead
-  return bs > gate && g.rng.chance(Math.min(0.95, 0.55 * mods(h).aggro * mul)) ? best : null;
+  return bs > gate * (g.living ? 1 - 0.2 * g.living.nightK : 1) && g.rng.chance(Math.min(0.95, 0.55 * mods(h).aggro * mul)) ? best : null;
 }
 
 // ─────────────────────────── micro ───────────────────────────
@@ -598,7 +599,7 @@ function outOfReach(g, h, e) {
   return false;
 }
 // Task-level movement (never used for chasing or fleeing): respects keep-out zones.
-function walk(g, h, p, nav = true, stopAt = 0) { g.moveToward(h, clampOut(g, h, p), nav, stopAt); }
+function walk(g, h, p, nav = true, stopAt = 0) { if (g.living && nav && !stopAt && g.living.breach(h, p)) return; g.moveToward(h, clampOut(g, h, p), nav, stopAt); } // Living World: break a wall that saves a detour
 
 // Role-aware positioning + attacking with kiting for ranged heroes.
 function position(g, h, t, near, killable) {
@@ -936,7 +937,7 @@ function doGroup(g, h, lane) {
 }
 
 function doJungle(g, h) {
-  const here = g.grid.query(h.x, h.y, 260).filter((m) => m.type === 'mob' && m.alive && !m.resetting).sort((a, b) => (b.big - a.big) || a.id - b.id);
+  const here = g.grid.query(h.x, h.y, 260).filter((m) => m.type === 'mob' && m.alive && !m.resetting && !m.parade).sort((a, b) => (b.big - a.big) || a.id - b.id); // the Yokai Parade is a team objective, not a camp
   if (here.length) {
     const t = here.find((m) => m.target === h) || here[0];
     h.why = 'jungle: clear camp';
@@ -954,7 +955,7 @@ function doJungle(g, h) {
     const wait = up ? 0 : c.respawnAt > 0 ? (c.respawnAt - g.tick) / 20 : Infinity;
     if (wait < nt) { nt = wait; next = c; }
     if (!up && wait > d / ms + 2) continue;
-    const v = d / (c.def.buff ? 1.5 : 1) + (up ? 0 : 300);
+    const v = d / (c.def.buff ? 1.5 : c.night ? 2.2 : 1) + (up ? 0 : 300); // Moon Spirits (night only) are worth the walk
     if (c.key === h.jgCamp) { cur = c; cv = v; }
     if (v < bv) { bv = v; best = c; }
   }
@@ -962,6 +963,7 @@ function doJungle(g, h) {
   if (best) { h.jgCamp = best.key; h.why = 'jungle: to ' + best.def.name; walk(g, h, best); return; }
   h.jgCamp = null;
   // nothing up: wait at the camp that comes back first if it is close in time, else help a lane
+  if (g.living && nt > 6 && g.living.idleBreach(h)) return; // Living World: spare time opens a shortcut nearby
   if (next && nt < 12) { h.why = 'jungle: wait for ' + next.def.name; if (arrive(g, h, next, 80, 160)) h.vx = h.vy = 0; return; }
   const L = g.teams[h.team].lanes, need = L && g.world.laneNames.find((l) => L[l] && L[l].need);
   // (same lane for both teams: Blue used to help its duo lane while Red helped its solo top laner)
@@ -992,7 +994,7 @@ function doGank(g, h, task, C) {
 }
 
 function doObjective(g, h, obj, task, contest) {
-  const pit = obj === 'dragon' ? g.world.pits.kami : g.world.pits.kraken;
+  const pit = g.objPit(obj);
   const ob = g.objectives[obj];
   // contesting non-junglers hold a zone on our side of the pit (vision + threat), they do not wander
   const f = g.world.fountain[h.team], zd = norm(f.x - pit.x, f.y - pit.y);
