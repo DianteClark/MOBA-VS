@@ -63,9 +63,10 @@ function panel(i, cast, caption, bubble) {
   const draw = () => { const ctx = cv.getContext('2d'); ctx.imageSmoothingEnabled = false; ctx.clearRect(0, 0, W, H); PAINT[i](ctx, cast); };
   draw();
   setTimeout(() => { if (cv.isConnected) draw(); }, 700); // a late tileset (ruins props) may arrive a moment later
+  // the caption sits under the art (any language length fits); the speech bubble floats over the art's sky
   return h('figure', { class: 'lpanel p' + i },
-    cv, h('figcaption', { class: 'lcap' }, caption),
-    bubble ? h('div', { class: 'lbub' + (i === 1 ? ' l' : '') }, bubble) : null);
+    h('div', { class: 'lpart' }, cv, bubble ? h('div', { class: 'lbub' + (i === 1 ? ' l' : '') }, bubble) : null),
+    h('figcaption', { class: 'lcap' }, caption));
 }
 
 // ── relationship graph: hero in the middle, duo partners (green), rivals (red) and clan-mates around ──
@@ -89,7 +90,7 @@ function graph(id, c, onHero) {
 export function lorePanel(id, onHero) {
   const x = HERO_BY_ID[id], beats = STORY[id], c = { ...loreCast(id), id, x };
   return h('div', { class: 'lore' },
-    h('div', { class: 'dsec' }, h('div', { class: 'dsh' }, 'Story'), h('p', { class: 'lstory' }, beats.join(' '))),
+    h('div', { class: 'dsec' }, h('div', { class: 'dsh' }, 'Story'), h('p', { class: 'lstory' }, ...beats.map((b) => h('span', {}, b)))), // one span per beat: each is its own catalog string
     h('div', { class: 'lcomic', role: 'img', 'aria-label': `${x.name}'s story in three panels` },
       panel(0, c, beats[0], null), panel(1, c, beats[1], c.line), panel(2, c, beats[2], c.duo ? c.duo + '!' : null)),
     graph(id, c, onHero));
