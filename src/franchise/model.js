@@ -10,6 +10,8 @@ import { MOD, FATIGUE, BOND_MAX, GM_STYLES } from './data.js';
 //   fo: form -2..2, b: bond with the team 0-10, inj: sits the next match, g/w: games/wins this season }
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 export const roleOf = (id) => HERO_BY_ID[id].role;
+// Roles a hero can play: their main role first, then their flex roles.
+export const rolesOf = (id) => HERO_BY_ID[id].roles;
 
 // Deterministic seeds from a few integers (FNV-1a).
 export function hseed(...vals) {
@@ -60,10 +62,11 @@ export function heroMod(x, chemMod = 0) {
 export function heroModParts(x, chemMod = 0) {
   return [['OVR', (x.o - 70) * MOD.ovr], ['Morale', moraleMod(x.m)], ['Form', (x.fo || 0) * MOD.form], ['Fatigue', fatigueMod(x.f)], ['Chemistry', chemMod]];
 }
-// Lineup strength = average hero edge (same units as the cfg mods, e.g. 0.03 = +3%).
+// Lineup strength = average hero edge (same units as the cfg mods, e.g. 0.03 = +3%). starters in ROLES order.
+export const offRole = (x, i) => !rolesOf(x.id).includes(ROLES[i]);
 export function lineupMods(starters) {
   const ch = chemistry(starters);
-  return { mods: starters.map((x) => Math.round(heroMod(x, ch.mod) * 1000) / 1000), chem: ch };
+  return { mods: starters.map((x, i) => Math.round(clamp(heroMod(x, ch.mod) + (offRole(x, i) ? MOD.offRole : 0), -MOD.cap, MOD.cap) * 1000) / 1000), chem: ch };
 }
 export const strengthOf = (mods) => mods.reduce((a, b) => a + b, 0) / Math.max(1, mods.length);
 
@@ -85,22 +88,24 @@ export function quickScore(rng, sa, sb, pA = winProb(sa, sb)) {
 }
 
 // Best 5 starters (one per role) from a roster by edge, skipping injured heroes; exhausted heroes only when no one
-// else can play that role. Returns hero records in ROLES order, or null if the roles cannot be filled.
-export function bestLineup(roster, hurtOk = false) {
+// else can play. A hero can start outside their roles (MOD.offRole) when the roster has a hole; strict = never.
+// Returns hero records in ROLES order, or null if there are not five heroes to field.
+export function bestLineup(roster, hurtOk = false, strict = false) {
   const ok = roster.filter((x) => hurtOk || !x.inj), score = (x) => heroMod(x) - (x.f >= FATIGUE.exhausted ? 0.05 : 0);
-  const byRole = ROLES.map((r) => ok.filter((x) => HERO_BY_ID[x.id].roles.includes(r)).sort((a, b) => score(b) - score(a)));
+  const fit = (x, r) => (rolesOf(x.id).includes(r) ? (HERO_BY_ID[x.id].role === r ? 0.004 : 0) : strict ? null : MOD.offRole);
+  const byRole = ROLES.map((r) => ok.filter((x) => fit(x, r) !== null).map((x) => [x, score(x) + fit(x, r)]).sort((a, b) => b[1] - a[1]).slice(0, 5));
   let best = null, bs = -Infinity;
   const used = new Set(), cur = [];
   (function go(i, s) {
     if (i === ROLES.length) { if (s > bs) { bs = s; best = cur.slice(); } return; }
-    for (const x of byRole[i].slice(0, 4)) {
+    for (const [x, sc] of byRole[i]) {
       if (used.has(x.id)) continue;
       used.add(x.id); cur.push(x);
-      go(i + 1, s + score(x) + (HERO_BY_ID[x.id].role === ROLES[i] ? 0.004 : 0));
+      go(i + 1, s + sc);
       cur.pop(); used.delete(x.id);
     }
   })(0, 0);
-  return best || (hurtOk ? null : bestLineup(roster, true)); // nobody healthy for a role: the strained hero plays
+  return best || (hurtOk ? null : bestLineup(roster, true, strict)); // not enough healthy heroes: the strained hero plays
 }
-// Can this roster field all five roles (ignoring injuries)?
-export function coversRoles(roster) { return !!bestLineup(roster.map((x) => ({ ...x, inj: 0 }))); }
+// Can this roster field all five roles with heroes in their own roles (ignoring injuries)?
+export function coversRoles(roster) { return !!bestLineup(roster.map((x) => ({ ...x, inj: 0 })), true, true); }

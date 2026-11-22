@@ -7,6 +7,7 @@ export const ROUNDS = 14;               // double round robin
 export const PLAYOFF_TEAMS = 4;         // semis 1v4, 2v3, then the final
 export const ROSTER_MIN = 6;            // 5 starters + at least one to rotate in
 export const ROSTER_MAX = 9;
+export const AI_ROSTER = 7;            // AI franchises trim to this in the offseason (keeps a free-agent pool)
 export const TRADE_DEADLINE = 10;       // no trades after round 10 (signings stay open)
 
 // ── money (in k) ──
@@ -25,6 +26,7 @@ export const MOD = {
   form: 0.0075,     // form -2..+2 = ∓1.5%
   tired: -0.015,    // fatigue 4-5
   exhausted: -0.03, // fatigue 6+
+  offRole: -0.04,  // a starter outside their main and flex roles
   chem: 0.025,      // full team chemistry (all starters bonded) = +2.5%
   duo: 0.005,       // each bonded duo among the starters
   cap: 0.1,

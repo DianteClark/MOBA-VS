@@ -3,7 +3,7 @@
 // style), want a small edge, and never take a deal that breaks their roles, roster size or budget.
 import { HERO_BY_ID } from '../data/heroes.js';
 import * as D from './data.js';
-import { salaryFor, valueOf, coversRoles, clamp } from './model.js';
+import { salaryFor, valueOf, coversRoles, clamp, rolesOf } from './model.js';
 import { rosterOf, payroll, news } from './league.js';
 
 export const freeAgents = (fr) => Object.values(fr.h).filter((x) => x.t === -1).sort((a, b) => b.o - a.o || b.p - a.p);
@@ -34,8 +34,8 @@ export function releaseBlock(fr, id) {
   const x = fr.h[id], ros = rosterOf(fr, 0);
   if (!x || x.t !== 0) return 'Not on your roster';
   if (!marketOpen(fr)) return 'The market is closed during the playoffs';
+  if (ros.length <= D.ROSTER_MIN && fr.phase === 'season') return `You need at least ${D.ROSTER_MIN} heroes in season`;
   if (ros.length <= 5) return 'You need at least five heroes';
-  if (!coversRoles(ros.filter((y) => y !== x))) return 'Nobody else could play their role';
   return '';
 }
 export function release(fr, id) {
@@ -60,15 +60,15 @@ export function evalTrade(fr, t, give, get) {
   if (G.some((x) => !x || x.t !== 0) || R.some((x) => !x || x.t !== t)) return out(false, 'Pick heroes from both rosters');
   const myAfter = [...rosterOf(fr, 0).filter((x) => !give.includes(x.id)), ...R], theirAfter = [...rosterOf(fr, t).filter((x) => !get.includes(x.id)), ...G];
   if (myAfter.length > D.ROSTER_MAX) return out(false, `Your roster would have ${myAfter.length} (max ${D.ROSTER_MAX})`);
-  if (myAfter.length < 5 || !coversRoles(myAfter)) return out(false, 'You could not fill all five roles after this');
+  if (myAfter.length < D.ROSTER_MIN) return out(false, `You must keep at least ${D.ROSTER_MIN} heroes`);
   if (theirAfter.length > D.ROSTER_MAX || theirAfter.length < D.ROSTER_MIN) return out(false, `${tm.name} must keep ${D.ROSTER_MIN}-${D.ROSTER_MAX} heroes`);
-  if (!coversRoles(theirAfter)) return out(false, `${tm.name} could not fill all five roles`);
+  if (coversRoles(rosterOf(fr, t)) && !coversRoles(theirAfter)) return out(false, `${tm.name} could not fill all five roles`);
   const sal = (xs) => xs.reduce((s, x) => s + x.s, 0);
   if (payroll(fr, 0) - sal(G) + sal(R) > fr.teams[0].bud) return out(false, 'That would put you over your budget');
   if (payroll(fr, t) - sal(R) + sal(G) > tm.bud) return out(false, `${tm.name} cannot fit the salary`);
   // value to them: what they get (plus a little for filling a thin role) vs what they give up
   const ros = rosterOf(fr, t);
-  const fills = (x) => { const r = HERO_BY_ID[x.id].role, best = Math.max(0, ...ros.filter((y) => HERO_BY_ID[y.id].roles.includes(r) && !get.includes(y.id)).map((y) => y.o)); return x.o > best ? 2.5 : 0; };
+  const fills = (x) => { const r = HERO_BY_ID[x.id].role, best = Math.max(0, ...ros.filter((y) => rolesOf(y.id).includes(r) && !get.includes(y.id)).map((y) => y.o)); return x.o > best ? 2.5 : 0; };
   const mine = Math.round(G.reduce((s, x) => s + valueOf(x, st) + fills(x), 0) * 10) / 10;
   const theirs = Math.round(R.reduce((s, x) => s + valueOf(x, st), 0) * 10) / 10;
   const want = theirs * 1.08 + (R.length ? 1.5 : 0); // they want a small edge for their trouble

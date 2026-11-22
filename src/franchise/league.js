@@ -4,7 +4,7 @@
 import { HEROES, HERO_BY_ID, ROLES } from '../data/heroes.js';
 import { Rng } from '../sim/rng.js';
 import * as D from './data.js';
-import { clamp, salaryFor, valueOf, heroMod, lineupMods, strengthOf, winProb, quickScore, bestLineup, coversRoles, chemistry } from './model.js';
+import { clamp, salaryFor, valueOf, heroMod, lineupMods, strengthOf, winProb, quickScore, bestLineup, coversRoles, chemistry, rolesOf } from './model.js';
 import { compOf, DUOS } from '../data/synergy.js';
 
 export const FR_VERSION = 1;
@@ -241,37 +241,43 @@ function aiMidseason(fr) {
 // Offseason free agency for the AI: re-balance to budget, then fill to 7 (roles first), best value per k.
 export function aiFreeAgency(fr, t, r) {
   const tm = fr.teams[t], st = tm.gm;
-  let ros = rosterOf(fr, t);
-  // over budget or too many: cut the worst value-for-money hero (never break the roles)
-  while (ros.length > D.ROSTER_MIN && (payroll(fr, t) > tm.bud || ros.length > D.ROSTER_MAX - 1)) {
-    const cut = ros.slice().sort((a, b) => (valueOf(a, st) - a.s * 0.3) - (valueOf(b, st) - b.s * 0.3)).find((x) => coversRoles(ros.filter((y) => y !== x)));
-    if (!cut) break;
-    tm.deadNext = (tm.deadNext || 0) + Math.round(cut.s * 0.5);
-    cut.t = -1; cut.y = 0; cut.s = salaryFor(cut.o, cut.p, cut.a); cut.b = 0; cut.ys = 0; ros = rosterOf(fr, t);
-  }
-  for (let guard = 0; guard < 12; guard++) {
-    ros = rosterOf(fr, t);
-    const need = !coversRoles(ros), want = ros.length < 7 || need;
-    if (!want || ros.length >= D.ROSTER_MAX) break;
-    const room = capSpace(fr, t);
-    let pool = freeAgents(fr).filter((x) => salaryFor(x.o, x.p, x.a) <= room);
-    if (need) { const fill = pool.filter((x) => coversRoles([...ros, x]) || helpsRoles(ros, x)); if (fill.length) pool = fill; }
-    if (!pool.length) {
-      if (ros.length >= D.ROSTER_MIN && !need) break;
-      // must field a team: the cheapest free agent signs a minimum deal
-      const cheap = freeAgents(fr).filter((x) => !need || helpsRoles(ros, x)).sort((a, b) => a.o - b.o)[0] || freeAgents(fr).sort((a, b) => a.o - b.o)[0];
-      if (!cheap) break;
-      aiSign(fr, t, cheap, r, false); cheap.s = 3; continue;
+  for (let pass = 0; pass < 5; pass++) {
+    let ros = rosterOf(fr, t);
+    // over budget or too many: cut the worst value-for-money hero (keep the roles when possible). Over budget, the
+    // roster may dip to five: the fill below brings back a cheaper hero (a salary dump saves half the salary).
+    while ((payroll(fr, t) > tm.bud && ros.length > 5) || (ros.length > D.AI_ROSTER && t > 0)) {
+      const cov = coversRoles(ros), over = payroll(fr, t) > tm.bud;
+      const order = ros.filter((x) => !over || x.s > 6).sort((a, b) => (valueOf(a, st) - a.s * (over ? 1 : 0.3)) - (valueOf(b, st) - b.s * (over ? 1 : 0.3)));
+      const cut = order.find((x) => !cov || coversRoles(ros.filter((y) => y !== x))) || (over ? order[0] : null);
+      if (!cut) break;
+      tm.deadNext = (tm.deadNext || 0) + Math.round(cut.s * 0.5);
+      cut.t = -1; cut.y = 0; cut.s = salaryFor(cut.o, cut.p, cut.a); cut.b = 0; cut.ys = 0; ros = rosterOf(fr, t);
     }
-    pool.sort((a, b) => (valueOf(b, st) + 30) / (8 + salaryFor(b.o, b.p, b.a)) - (valueOf(a, st) + 30) / (8 + salaryFor(a.o, a.p, a.a)));
-    const pickTop = pool.slice(0, 3).sort((a, b) => valueOf(b, st) - valueOf(a, st))[0];
-    aiSign(fr, t, pickTop, r, pickTop.o >= 74);
+    for (let guard = 0; guard < 12; guard++) {
+      ros = rosterOf(fr, t);
+      const need = !coversRoles(ros), want = ros.length < D.AI_ROSTER || need;
+      if (!want || ros.length >= D.ROSTER_MAX) break;
+      const room = capSpace(fr, t);
+      let pool = freeAgents(fr).filter((x) => salaryFor(x.o, x.p, x.a) <= room);
+      if (need) { const fill = pool.filter((x) => helpsRoles(ros, x)); if (fill.length) pool = fill; }
+      if (!pool.length) {
+        if (ros.length >= D.ROSTER_MIN) break;
+        // must field a team: a free agent signs a minimum deal (3k)
+        const cheap = freeAgents(fr).filter((x) => !need || helpsRoles(ros, x)).sort((a, b) => a.o - b.o)[0] || freeAgents(fr).sort((a, b) => a.o - b.o)[0];
+        if (!cheap) break;
+        aiSign(fr, t, cheap, r, false); cheap.s = 3; continue;
+      }
+      pool.sort((a, b) => (valueOf(b, st) + 30) / (8 + salaryFor(b.o, b.p, b.a)) - (valueOf(a, st) + 30) / (8 + salaryFor(a.o, a.p, a.a)));
+      const pickTop = pool.slice(0, 3).sort((a, b) => valueOf(b, st) - valueOf(a, st))[0];
+      aiSign(fr, t, pickTop, r, pickTop.o >= 74 && t > 0);
+    }
+    if (payroll(fr, t) <= tm.bud) break;
   }
 }
 // Does adding x give the roster a hero for a role it cannot fill yet?
 function helpsRoles(ros, x) {
-  const have = new Set(); for (const y of ros) for (const rl of HERO_BY_ID[y.id].roles) have.add(rl);
-  return HERO_BY_ID[x.id].roles.some((rl) => !have.has(rl));
+  const have = new Set(); for (const y of ros) for (const rl of rolesOf(y.id)) have.add(rl);
+  return rolesOf(x.id).some((rl) => !have.has(rl));
 }
 
 // ── season end and the offseason ──
@@ -397,9 +403,12 @@ export function seasonBlockers(fr) {
   const ros = rosterOf(fr, 0), out = [];
   if (ros.length < D.ROSTER_MIN) out.push(`Sign ${D.ROSTER_MIN - ros.length} more hero${D.ROSTER_MIN - ros.length > 1 ? 'es' : ''} (at least ${D.ROSTER_MIN}).`);
   if (ros.length > D.ROSTER_MAX) out.push(`Release ${ros.length - D.ROSTER_MAX} (at most ${D.ROSTER_MAX}).`);
-  if (!coversRoles(ros)) out.push('Your roster cannot fill all five roles.');
   if (payroll(fr, 0) > fr.teams[0].bud) out.push(`Payroll ${payroll(fr, 0)}k is over your ${fr.teams[0].bud}k budget.`);
   return out;
+}
+// Soft warnings shown before the season (the season can still start).
+export function seasonWarnings(fr) {
+  return coversRoles(rosterOf(fr, 0)) ? [] : ['A role has no natural hero: someone will play off-role (-4%).'];
 }
 export function startNextSeason(fr) {
   if (seasonBlockers(fr).length) return false;
@@ -419,9 +428,11 @@ export function assistant(fr, upTo = 'season') {
   if (fr.phase !== 'offseason') return false;
   if (fr.off.step === 'review') fr.off.step = 'contracts';
   if (fr.off.step === 'contracts') {
+    // keep room for a rookie and for enough cheap signings to reach the roster minimum
+    const kept = () => rosterOf(fr, 0).filter((x) => x.y > 0).length, reserve = () => D.ROOKIE_SAL[0] + Math.max(0, D.ROSTER_MIN - 1 - kept()) * 5;
     for (const id of fr.off.exp.slice().sort((a, b) => valueOf(fr.h[b]) - valueOf(fr.h[a]))) {
-      const x = fr.h[id];
-      if (x.ask > 0 && valueOf(x) > x.ask * 0.35 && payroll(fr, 0) - x.s + x.ask <= fr.teams[0].bud) resign(fr, id, x.a <= 3 ? 3 : x.a >= 6 ? 1 : 2);
+      const x = fr.h[id], pay = rosterOf(fr, 0).filter((y) => y.y > 0).reduce((s, y) => s + y.s, 0) + (fr.teams[0].deadNext || 0);
+      if (x.ask > 0 && valueOf(x) > x.ask * 0.35 && pay + x.ask + reserve() - 5 <= fr.teams[0].bud) resign(fr, id, x.a <= 3 ? 3 : x.a >= 6 ? 1 : 2);
     }
     startDraft(fr);
     if (upTo === 'draft') return true;
