@@ -90,10 +90,10 @@ html.hc { --panel: #000; --line: #f3ead8; --ink: #fff; --muted: #e8e2f0; --gold:
   .oh-left #cmdbar { left: calc(232px + var(--safe-l)); }
 }
 
-/* translated banners: long words (ALLES-ODER-NICHTS-PUSH) wrap, and on small phones the banner clears the minimap */
+/* translated banners: long words (ALLES-ODER-NICHTS-PUSH) wrap, and on phones the banner clears the minimap (hud.js sets --banner-side) */
 html:not([lang="en"]) #banner .big b, html:not([lang="en"]) #banner .big { overflow-wrap: anywhere; }
-@media (max-height: 500px) and (max-width: 740px) {
-  html:not([lang="en"]):not(.oh-left):not(.oh-right) #banner { left: calc(190px + max(var(--safe-l), var(--safe-r))); right: calc(190px + max(var(--safe-l), var(--safe-r))); }
+@media (max-height: 500px) {
+  html:not([lang="en"]):not(.oh-left):not(.oh-right) #banner { left: var(--banner-side, 190px); right: var(--banner-side, 190px); }
 }
 
 /* ───────── offline ───────── */

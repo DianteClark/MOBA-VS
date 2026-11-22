@@ -712,6 +712,9 @@ export class Hud {
     // phones: the banner takes the ticker's slot right under the objective timers (CSS reads --banner-top)
     const ob = this.el.obj.getBoundingClientRect();
     if (ob.height) hud.style.setProperty('--banner-top', Math.round(ob.bottom + 3) + 'px');
+    // and keeps a side gap that clears the minimap (long translated banners are wider)
+    const mm = document.getElementById('mm').getBoundingClientRect();
+    if (mm.width) hud.style.setProperty('--banner-side', Math.round(window.innerWidth - mm.left + 6) + 'px');
     hud.classList.add('bannering');
     const b = n.node ? h('div', { class: 'big mfxb', style: { '--mc': n.color } }, n.node)
       : h('div', { class: 'big', style: { color: n.color } }, n.img ? h('img', { src: n.img }) : null, h('span', {}, n.text));
