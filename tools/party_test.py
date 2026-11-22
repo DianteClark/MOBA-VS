@@ -115,7 +115,9 @@ async def local(b):
     await A.click(".ppanel .pmodes .chip:nth-child(3)")
     ok(await until(B, "(document.querySelector('.ppanel .pt-desc') || {}).textContent?.includes('Private 2v2')", 3000), 'mode change reaches the partner')
     await B.click('.ppanel .pgo', force=True); await A.wait_for_timeout(300); await A.click('.ppanel .pgo', force=True)
-    ok(await until(A, "!!(app.session && app.session.room && app.session.room.players.length === 2)", 10000), 'leader hosts the 2v2 room, partner seated')
+    hosted = await until(A, "!!(app.session && app.session.room && app.session.room.players.length === 2)", 10000)
+    ok(hosted, 'leader hosts the 2v2 room, partner seated')
+    if not hosted: print('   A:', await A.evaluate(PARTY), await A.evaluate("JSON.stringify(app.session && { mode: app.session.mode, lobby: app.session.lobby, room: app.session.room && app.session.room.players.length })"), '| B:', await B.evaluate(PARTY), await B.evaluate("JSON.stringify(app.session && { mode: app.session.mode })"), await B.evaluate("[...document.querySelectorAll('.toast')].map((t) => t.textContent)")); await shot(A, 'fail_room2_a'); await shot(B, 'fail_room2_b')
     room = await A.evaluate("app.session.room.code")
     C = await tab('Cy'); D = await tab('Dee')
     for pg in (C, D): await pg.evaluate(f"app.joinScreen('{room}', {{ checked: true }})")
@@ -150,9 +152,12 @@ async def worker(b):
     async def ctx_for(name, w=844, h=390):
         ctx = await b.new_context(viewport={'width': w, 'height': h})
         await ctx.add_init_script(f"localStorage.setItem('mobavs_api', ''); localStorage.setItem('mobavs_tips', '{{\"done\":true}}'); if (!localStorage.getItem('mobavs_name')) localStorage.setItem('mobavs_name', '{name}');" + BRIDGE)
+        async def deliver(pg, chan, data):
+            try: await pg.evaluate('([n, d]) => window.__bcRecv && window.__bcRecv(n, d)', [chan, data])
+            except Exception: pass  # that page is navigating
         async def send(source, chan, data):
             for k, other in list(pages.items()):
-                if other is not source['page']: asyncio.ensure_future(other.evaluate('([n, d]) => window.__bcRecv && window.__bcRecv(n, d)', [chan, data]))
+                if other is not source['page']: asyncio.ensure_future(deliver(other, chan, data))
         await ctx.expose_binding('__bcSend', send)
         pg = await ctx.new_page(); pages[name] = pg
         pg.on('pageerror', lambda e: errors.append(f'{name}: {e}'))
