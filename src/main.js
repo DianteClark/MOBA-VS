@@ -1,4 +1,5 @@
 // App controller: menu → lobby → draft → prep → match → results.
+import './datareset.js'; // first: a launch DATA_VERSION bump clears the local profile before anything reads it
 import { loadAssets, assetsAll, assetsDone } from './render/assets.js';
 import { Renderer } from './render/renderer.js';
 import { Minimap } from './render/minimap.js';
@@ -78,8 +79,11 @@ import { missionDraft } from './data/campaign.js';
 import { recordMission } from './campaign.js';
 import { campaignResults } from './ui/campaign.js';
 import { publishChip } from './ui/hub.js';
+import { rankedReady, refreshKoban, trialOn, ownershipOn, usable } from './unlocks.js';
+import { rankedGate } from './ui/shop.js';
+import { resultAvatars } from './ui/avatar.js';
 
-const VERSION = 36; // bump whenever the sim or balance changes (peers must match)
+const VERSION = 37; // bump whenever the sim or balance changes (peers must match)
 const PREP_SECONDS = 60;
 installCrashReporter(VERSION); // window errors, unhandled rejections and lockstep desyncs → the owner dashboard (src/net/ops.js)
 
@@ -156,6 +160,7 @@ class App {
     // a tapped notification while the game is open: follow its link from the menu, never mid-match
     onPushOpen((u) => { if (this.match || this.session) return; const i = u.searchParams.get('i'); if (i) showInviteLink(this, i); else if (u.searchParams.get('go') === 'cup') showWeekendCup(this); });
     this.connectOnline();
+    try { if (sessionStorage.getItem('mobavs_reset')) { sessionStorage.removeItem('mobavs_reset'); setTimeout(() => toast('Welcome to the full launch! Every coach starts fresh with 15 champions. Earn Koban to unlock more.', 5200), 1200); } } catch { /* ignore */ } // src/datareset.js
     setTimeout(warmNet, 3000); // PeerJS off the first-paint path, ready before anyone taps Host / Join
   }
   // Online services: create/restore the account, then sync the profile (newest copy wins).
@@ -171,6 +176,7 @@ class App {
         if (me.name && me.name !== this.name) this.setName(me.name);
         if (this.session === null && !this.match) this.menu();
       } else profile.save({ keepTime: true });
+      refreshKoban(profile).then((ok) => { if (ok && this.session === null && !this.match && document.querySelector('#screen .home2')) this.menu(); }); // champion ledger (worker/koban.js)
     } catch (e) { console.warn('online', e); }
   }
   // Slowly panning painted map behind the menus.
@@ -353,6 +359,7 @@ class App {
   async findMatch(checked = false) {
     if (queueSize() === '2v2') { findDuo(this); return; } // 2v2: solo or with your party (src/party.js)
     const q0 = this.queueMode || 'ranked';
+    if (q0 === 'ranked' && !rankedReady(profile)) { rankedGate(this); return; } // Ranked: own 25 champions first
     if (!checked && readyCheck(this, { label: 'Find match', go: () => this.findMatch(true), queue: q0, gameMode: q0 === 'rush' ? 'rush' : 'classic' })) return;
     this.immersive(); stopParade();
     const id = this.lobbyId = (this.lobbyId || 0) + 1;
@@ -487,6 +494,7 @@ class App {
     stopParade(); this.dropReel(); closeInvites(this);
     const s = this.session;
     s.draft = this.newDraft(); s.turnStart = performance.now(); s.turnLeft = TURN_SECONDS;
+    s.pickRoles = {}; s.loaners = {}; // champion ownership: the role each of my picks was made for, and this match's loaners
     // The active lineup is frozen for this draft (auto-picks, prep builds/plan/deck).
     const pre = profile.activePreset; s.preset = pre && s.mode !== 'coop' && !s.pnp && !s.tutorial ? JSON.parse(JSON.stringify(pre)) : null; // co-op: each coach picks for their roles; pass-and-play: no auto-picks; the tutorial teaches picking
     this.showScreen(true);
@@ -521,13 +529,16 @@ class App {
     // Preset auto-pick lands after a short grace (the coach can tap another hero to override).
     if (s.autoPick && s.autoPick.turn === s.draft.turn && performance.now() >= s.autoPick.at) { this.lockAutoPick(); return; }
     // Timeout: the acting side auto-locks (the local player for their own turns).
-    if (s.turnLeft <= 0 && this.myDraftTurn()) this.draftAct(s.mode === 'coop' ? draftAuto(s) : s.pickPrompt && s.pickPrompt.recs[0] || autoChoice(s.draft, t.team, s.rng, 1));
+    if (s.turnLeft <= 0 && this.myDraftTurn()) this.draftAct(s.pickPrompt && s.pickPrompt.recs[0] || this.draftView.ownedAuto() || (s.mode === 'coop' ? draftAuto(s) : autoChoice(s.draft, t.team, s.rng, 1)));
   }
   // Is it this coach's draft turn? (Co-op: the team's turn and this coach's seat.)
   myDraftTurn() { const s = this.session, t = currentTurn(s.draft); return s.mode === 'coop' ? myDraftTurn(s) : !!t && t.team === s.myTeam; }
   // Every local pick/ban (manual, auto-pick, timeout) goes through here, so online drafts stay in lockstep.
   draftAct(heroId) {
     const s = this.session, t = currentTurn(s.draft);
+    // role steps: the role this pick was made for (prep keeps it)
+    const dv = this.draftView, stepRole = t && t.act === 'pick' && dv && ownershipOn(s) && dv.step && HERO_BY_ID[heroId] && HERO_BY_ID[heroId].roles.includes(dv.step) ? dv.step : null;
+    if (stepRole && s.pickRoles) s.pickRoles[heroId] = stepRole;
     if (s.mode === 'coop') {
       const turn = s.draft.turn;
       if (!myDraftTurn(s) || !applyDraft(s, s.myTeam, s.mySeat, heroId)) return false;
@@ -559,8 +570,14 @@ class App {
     const s = this.session, d = s.draft, t = currentTurn(d);
     s.autoPick = null; s.pickPrompt = null;
     if (!t || t.team !== s.myTeam || t.act !== 'pick' || !s.preset) return;
-    const c = presetChoice(d, s.myTeam, s.preset);
+    const dv = this.draftView, own = ownershipOn(s) && dv;
+    let c = presetChoice(d, s.myTeam, s.preset, own ? (id) => usable(profile, s, id) : undefined, s.pickRoles);
     if (!c) return;
+    if (own && c.prompt && !c.recs.length) { // main and backup gone and nothing usable for the role: the loaner steps in
+      dv.step = c.prompt; const l = dv.ownedAuto();
+      c = l ? { id: l, role: dv.step, backup: true, loaner: true } : c;
+    }
+    if (c.id && own) dv.step = c.role;
     if (c.prompt) s.pickPrompt = c;
     else s.autoPick = { ...c, turn: d.turn, at: performance.now() + AUTO_GRACE * 1000 };
     if (this.draftView) this.draftView.sel = null; // a hero browsed while waiting doesn't count as an override
@@ -568,7 +585,7 @@ class App {
   lockAutoPick() {
     const s = this.session, a = s.autoPick; if (!a) return;
     s.autoPick = null;
-    if (a.turn === s.draft.turn && this.draftAct(a.id)) toast(`Auto-picked ${HERO_BY_ID[a.id].name}${a.backup ? ' (backup)' : ''}`, 1400);
+    if (a.turn === s.draft.turn && this.draftAct(a.id)) toast(`Auto-picked ${HERO_BY_ID[a.id].name}${a.loaner ? ' (loaner)' : a.backup ? ' (backup)' : ''}`, 1400);
   }
   cancelAutoPick() { const s = this.session; if (s && s.autoPick) { s.autoPick = null; toast('Auto-pick off for this turn: choose your hero', 1600); } }
   maybeAiDraft() {
@@ -593,7 +610,7 @@ class App {
     const s = this.session, me = s.myTeam, d = s.draft;
     if (!(s.pnp && s.preps)) { s.preps = [null, null]; s.ready = [false, false]; } // pass-and-play: Red preps after Blue (src/passplay.js)
     const coop = s.mode === 'coop';
-    const pp = coop ? { prep: coopPrep(s), fromPreset: [] } : prepFromPreset(d.picks[me], d.picks[1 - me], s.preset, s.gameMode);
+    const pp = coop ? { prep: coopPrep(s), fromPreset: [] } : prepFromPreset(d.picks[me], d.picks[1 - me], s.preset, s.gameMode, s.pickRoles);
     if (d.mirror) { pp.prep = fitMirror(pp.prep, d.mirror); pp.fromPreset = []; } // Mirror Match: lanes + deck are fixed
     s.myPrep = pp.prep; s.prepFromPreset = pp.fromPreset; s.prepAdjust = false;
     for (const hp of s.myPrep.heroes) if (!hp.tal) hp.tal = heroPrefs(hp.id); // the coach's talent defaults (Dojo)
@@ -805,7 +822,7 @@ class App {
         profile.lastNames = s.names;
         if (!exhibition) sum = profile.record({ game: m.game, myTeam: s.myTeam, mode: s.mode === 'ai' && !s.wasOnline ? 'ai' : 'online', aiLevel: s.aiLevel ?? this.aiLevel, cup: !!s.cup, story: !!s.mission,
           ranked: !!s.ranked, franchise: !!s.franchise, oppElo: s.oppElo, potgHero: potg && potg.team === s.myTeam ? potg.heroId : null, analytics, rival: s.rival && !s.wasOnline && !s.replay && !s.mission ? s.rival : null,
-          coop: s.mode === 'coop' ? { kind: s.kind, heroes: myHeroIds(s), info: historyCoop(s) } : null });
+          coop: s.mode === 'coop' ? { kind: s.kind, heroes: myHeroIds(s), info: historyCoop(s) } : null, trialOk: trialOn(s) });
         if (s.cup && profile.d.cup) cupOut = recordCup(profile.d.cup, m.game.winner === s.myTeam);
         if (s.franchise && !s.replay) frOut = frRecord(s, m.game);
         if (s.mission && !s.replay) campOut = recordMission(s, m.game); // stars, Koban, the next mission
@@ -828,7 +845,7 @@ class App {
         () => this.menu(), { progress: progressPanel(sum, cupOut), rival: cr ? cr.panel : s.franchise ? franchiseResults(this, frOut) : s.myTeam >= 0 && !s.wasOnline ? rivalPanel(sum, s, won) : null, ladder, social: s.wcup ? null : s.mode === 'coop' ? coopResults(this, s, m.game) : socialPanel(this, s), againLabel: cr ? cr.label : pa ? pa.label : s.cup || s.wcup ? 'Back to bracket' : s.franchise ? 'Back to franchise' : s.rival && RIVAL_BY_ID[s.rival] && !s.wasOnline ? `Rematch ${RIVAL_BY_ID[s.rival].name}` : null, potg: this.potgReel ? potg : null, report,
           onPOTG: () => this.playPOTG(), onClip: potg && src && clipSupport() ? () => saveClip(src, potg, s.names, this.mapCanvas(m.game.world, m.game.event)) : null,
           analytics, onAnalysis: analytics ? () => showAnalysis(analytics, { title: 'Match analysis', onTheater: this.lastReplay() ? () => this.watchReplay(null, { back: () => this.backToResults() }) : null }) : null,
-          emotes: resultEmotes(s), foot: this.resultsFoot(s, m, potg), onReplay: () => this.watchReplay(null, { back: () => this.backToResults() }), share: sum ? () => shareMatch(profile.d.history[0], { name: this.name, rank: profile.rank.label, border: profile.border }, this.lastReplay()) : null }];
+          emotes: resultEmotes(s), avatars: resultAvatars(s), foot: this.resultsFoot(s, m, potg), onReplay: () => this.watchReplay(null, { back: () => this.backToResults() }), share: sum ? () => shareMatch(profile.d.history[0], { name: this.name, rank: profile.rank.label, border: profile.border }, this.lastReplay()) : null }];
       this.lastResults = { args, session: s, src, potg };
       showResults(...args);
       if (s.mode === 'coop') this.cleanupNet(); // no rematch in co-op: the room closes with the results

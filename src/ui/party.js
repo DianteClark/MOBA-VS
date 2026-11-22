@@ -1,6 +1,7 @@
 // Party UI: the shared party panel on Home (members, ready, mode, quick chat, Start / Ready), the invite
 // dialog (online friends, invite link, party code) and the "joining your party's room" screen.
 // The party itself lives in src/party.js; this file only draws it.
+import { avatar } from './avatar.js';
 import { h, mount, toast } from './dom.js';
 import { tierBadge } from './badges.js';
 import { BANNERS } from '../data/seasons.js';
@@ -29,7 +30,7 @@ export function partyPanel(app) {
     const state = (x) => (x.lost ? ['Reconnecting…', 'lost'] : x.busy ? ['In a match', 'busy'] : x.leader ? ['Leader', 'lead'] : x.ready ? ['Ready', 'ready'] : ['Not ready', 'wait']);
     const row = (x) => { const [txt, cls] = state(x), b = x.looks && x.looks.banner && BANNERS[x.looks.banner];
       return h('div', { class: 'pmem' + (x.self ? ' me' : ''), style: b ? { background: b.bg } : {} },
-        tierBadge(x.elo || 1000, 18), h('span', { class: 'pt-n' }, x.leader ? h('i', { class: 'crown', title: 'Party leader' }) : null, x.name + (x.self ? ' (you)' : '')),
+        avatar(x.looks && x.looks.pfp, 'ppfp'), tierBadge(x.elo || 1000, 18), h('span', { class: 'pt-n' }, x.leader ? h('i', { class: 'crown', title: 'Party leader' }) : null, x.name + (x.self ? ' (you)' : '')),
         said(x) || h('small', { class: 'pst ' + cls }, txt)); };
     const slot = lead && !m ? h('button', { class: 'pmem pinv', onclick: () => openInvite(app) }, h('b', {}, '+'), h('span', {}, 'Invite a friend'))
       : !m && !lead ? h('div', { class: 'pmem muted' }, P.status || 'Connecting…') : null;

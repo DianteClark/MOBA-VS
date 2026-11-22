@@ -1,4 +1,7 @@
 // Dojo: browse the roster (hero pages with ratings, abilities, matchups, skins) and edit lineup presets.
+import { shopTab, accessBadge, openShop, kobanAmount } from './shop.js';
+import { TIERS, tierOf, priceOf, isStarter } from '../data/unlocks.js';
+import { owns, inRotation } from '../unlocks.js';
 import { h, mount, face, icon, emptyState } from './dom.js';
 import { HEROES, HERO_BY_ID, ROLES, ROLE_LABEL, PERSONALITIES } from '../data/heroes.js';
 import { CLANS } from '../sim/constants.js';
@@ -35,11 +38,11 @@ export function showDojo(app, patch = {}) {
   stopParade();
   if (patch.tab === 'lineups' && patch.slot === undefined) state.slot = Math.max(0, profile.d.presets.active);
   const prevScroll = screen().scrollTop;
-  const body = state.tab === 'lineups' ? lineups(app) : state.tab === 'builds' ? buildGuide((id) => { tap(); showDojo(app, { tab: 'heroes', hero: id }); }) : state.hero ? heroPage(app, state.hero) : heroList(app);
+  const body = state.tab === 'shop' ? shopTab(app, () => showDojo(app, { keepScroll: true })) : state.tab === 'lineups' ? lineups(app) : state.tab === 'builds' ? buildGuide((id) => { tap(); showDojo(app, { tab: 'heroes', hero: id }); }) : state.hero ? heroPage(app, state.hero) : heroList(app);
   const head = h('div', { class: 'shead dojohead' + (app.dojoReturn ? ' ret' : '') },
     h('button', { class: 'btn backbtn', onclick: () => { tap(); if (state.hero && state.tab === 'heroes') showDojo(app, { hero: null }); else app.menu(); } }, state.hero && state.tab === 'heroes' ? '‹ Heroes' : '‹ Back'),
     // opened from the ready check (src/ui/readycheck.js): straight back into the match start
-    h('div', { class: 'dojotabs' }, ...[['heroes', 'Heroes'], ['builds', 'Builds'], ['lineups', 'Lineups']].map(([k, l]) => h('button', { class: 'chip' + (state.tab === k ? ' on' : ''), onclick: () => { tap(); showDojo(app, { tab: k }); } }, l))),
+    h('div', { class: 'dojotabs' }, ...[['heroes', 'Heroes'], ['builds', 'Builds'], ['lineups', 'Lineups'], ['shop', 'Shop']].map(([k, l]) => h('button', { class: 'chip' + (state.tab === k ? ' on' : ''), onclick: () => { tap(); showDojo(app, { tab: k }); } }, l))),
     app.dojoReturn ? h('button', { class: 'btn dojoret', onclick: () => { const r = app.dojoReturn; app.dojoReturn = null; audio.sfx('accept', 0.6); r.go(); } }, `${app.dojoReturn.label} ›`) : h('h2', {}, 'Dojo'));
   mount(screen(), h('div', { class: 'subscreen dojo', 'data-view': 'dojo:' + state.tab + ':' + (state.tab === 'heroes' && state.hero ? 'hero' : '') }, head, body));
   if (patch.keepScroll) screen().scrollTop = prevScroll; else screen().scrollTop = 0;
@@ -52,10 +55,11 @@ function heroList(app) {
   const list = HEROES.filter((x) => (state.role === 'all' || x.roles.includes(state.role)) && (state.clan === 'all' || x.clan === state.clan))
     .sort((a, b) => (state.role === 'all' ? ROLES.indexOf(a.role) - ROLES.indexOf(b.role) : (a.role === state.role ? 0 : 1) - (b.role === state.role ? 0 : 1)));
   const grid = h('div', { class: 'dgrid' }, ...list.map((x) => {
-    const r = record(x.id), mine = presetRole(lineup, x.id);
-    return h('button', { class: 'dcard', 'data-hero': x.id, style: { '--cc': CLANS[x.clan].color }, onclick: () => { tap(); showDojo(app, { hero: x.id }); } },
+    const r = record(x.id), mine = presetRole(lineup, x.id), have = owns(profile, x.id), free = !have && inRotation(x.id);
+    return h('button', { class: 'dcard' + (have ? '' : ' dlock'), 'data-hero': x.id, style: { '--cc': CLANS[x.clan].color }, onclick: () => { tap(); showDojo(app, { hero: x.id }); } },
       h('img', { src: face(x.id) }), h('b', {}, x.name), h('small', {}, x.roles.map((q) => ROLE_LABEL[q]).join(' / ')),
-      masteryBadge(profile.mastery(x.id).lv), r ? h('span', { class: 'drec' }, `${r.w}-${r.g - r.w}`) : null, mine ? h('span', { class: 'mine', title: 'In your active lineup' }, '★') : null);
+      masteryBadge(profile.mastery(x.id).lv), r ? h('span', { class: 'drec' }, `${r.w}-${r.g - r.w}`) : null, mine ? h('span', { class: 'mine', title: 'In your active lineup' }, '★') : null,
+      have ? null : accessBadge(free ? 'free' : null));
   }));
   const none = emptyState('assets/img/emote/doubt.png', 'No heroes match', 'Try another role, clan or search.');
   const filter = () => { none.classList.toggle('hidden', applySearch(grid, (id) => HERO_BY_ID[id], state.q) > 0); };
@@ -70,6 +74,13 @@ function heroList(app) {
   return out;
 }
 
+// Champion ownership on the hero page: owned, free this week, or its tier and price with a way to the Shop.
+function ownLine(app, id) {
+  const t = TIERS[tierOf(id)];
+  if (owns(profile, id)) return h('div', { class: 'downl' }, h('span', { class: 'tierc', style: { '--tc': t.color } }, t.name), h('small', { class: 'muted' }, isStarter(id) ? 'Starter' : 'Owned'));
+  return h('button', { class: 'chip downl', title: 'Champions shop', onclick: () => { tap(); openShop(app); } }, h('span', { class: 'tierc', style: { '--tc': t.color } }, t.name),
+    inRotation(id) ? h('small', {}, 'Free this week · ') : null, kobanAmount(priceOf(id)), h('small', {}, ' Unlock ›'));
+}
 // ───────────── hero page ─────────────
 function heroPage(app, id) {
   const x = HERO_BY_ID[id], pers = PERSONALITIES[x.pers], clan = CLANS[x.clan];
@@ -102,6 +113,7 @@ function heroPage(app, id) {
       animBtns,
       h('button', { class: 'chip dskinbtn', title: 'Preview and equip this hero\'s skins', onclick: () => viewer(equipped) }, `Skins ${heroSkinKeys(id).filter((k) => profile.hasSkin(id, k)).length}/${heroSkinKeys(id).length} ›`),
       h('div', { class: 'dh-name' }, h('h2', {}, x.name), h('div', { class: 'muted' }, x.title)),
+      ownLine(app, id),
       x.lore ? h('p', { class: 'muted small' }, x.lore) : null,
       h('div', { class: 'chips' }, h('span', { class: 'chipx', style: { '--cc': clan.color }, title: clan.tiers.map((q) => `${q.n}+: ${q.text}`).join(' · ') }, clan.name),
         h('span', { class: 'chipx', style: { '--cc': pers.color } }, pers.name)),
@@ -142,7 +154,8 @@ function lineups(app) {
   const heroBtn = (role, kind) => {
     const id = p[kind][role];
     return h('button', { class: 'lhero' + (id ? '' : ' empty') + (kind === 'backup' ? ' bk' : ''), onclick: () => { tap(); pickHero(app, role, kind); } },
-      id ? h('img', { src: face(id) }) : h('span', { class: 'plus' }, '+'), h('span', { class: 'ln' }, id ? HERO_BY_ID[id].name : kind === 'main' ? 'Choose' : 'Backup'));
+      id ? h('img', { src: face(id) }) : h('span', { class: 'plus' }, '+'), h('span', { class: 'ln' }, id ? HERO_BY_ID[id].name : kind === 'main' ? 'Choose' : 'Backup'),
+      id && !owns(profile, id) ? accessBadge(inRotation(id) ? 'free' : null) : null);
   };
   const buildChips = (id) => id ? h('div', { class: 'lbuilds' }, ...HERO_BY_ID[id].builds.map((b) => h('button', { class: 'bchip' + (p.builds[id] === b ? ' on' : ''), style: { '--bc': BUILDS[b].color }, title: buildLine(b), 'data-build': b,
     onclick: () => { tap(); p.builds[id] = b; save(app, p); } }, BUILDS[b].name)),
@@ -177,7 +190,8 @@ function modal(title, ...kids) {
 function pickHero(app, role, kind) {
   const p = cur(), here = p[kind][role];
   const usedAt = {}; for (const k of ['main', 'backup']) for (const r of ROLES) if (p[k][r] && !(k === kind && r === role)) usedAt[p[k][r]] = `${ROLE_LABEL[r]}${k === 'backup' ? ' backup' : ''}`;
-  const list = HEROES.filter((x) => x.roles.includes(role)).sort((a, b) => (a.role === role ? 0 : 1) - (b.role === role ? 0 : 1));
+  // champion ownership: lineups hold heroes you own (or this week's free ones, which the draft skips once they rotate out)
+  const list = HEROES.filter((x) => x.roles.includes(role) && (owns(profile, x.id) || inRotation(x.id) || x.id === here)).sort((a, b) => (a.role === role ? 0 : 1) - (b.role === role ? 0 : 1));
   let close = null;
   const choose = (id) => {
     if (id) p.builds[id] = p.builds[id] || HERO_BY_ID[id].rec;
@@ -187,8 +201,9 @@ function pickHero(app, role, kind) {
     h('div', { class: 'pgrid' }, ...list.map((x) => {
       const used = usedAt[x.id];
       return h('button', { class: 'dcard' + (here === x.id ? ' sel' : ''), disabled: !!used, style: { '--cc': CLANS[x.clan].color }, onclick: () => choose(x.id) },
-        h('img', { src: face(x.id) }), h('b', {}, x.name), h('small', {}, used ? `in ${used}` : x.role === role ? ROLE_LABEL[role] : 'flex'));
+        h('img', { src: face(x.id) }), h('b', {}, x.name), h('small', {}, used ? `in ${used}` : x.role === role ? ROLE_LABEL[role] : 'flex'), owns(profile, x.id) ? null : accessBadge(inRotation(x.id) ? 'free' : null));
     })),
+    h('button', { class: 'linkbtn', onclick: () => { close(); openShop(app); } }, 'More champions in the Shop'),
     here ? h('button', { class: 'btn', onclick: () => choose(null) }, 'Remove ' + HERO_BY_ID[here].name) : null);
 }
 // Talent defaults for one hero (shared by every lineup and the hero page).

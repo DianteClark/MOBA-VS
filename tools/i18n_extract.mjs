@@ -13,7 +13,7 @@ import { join, relative } from 'node:path';
 
 const ROOT = new URL('..', import.meta.url).pathname;
 const DIRS = ['src/ui', 'src/data', 'src/franchise', 'src/maps', 'src/render', 'src/net', 'src/sim'];
-const FILES = ['src/main.js', 'src/cup.js', 'src/meta.js', 'src/mastery.js', 'src/coop-room.js', 'src/looks.js', 'src/presets.js', 'src/profile.js', 'src/talentprefs.js', 'src/audio-match.js'];
+const FILES = ['src/main.js', 'src/cup.js', 'src/meta.js', 'src/unlocks.js', 'src/mastery.js', 'src/coop-room.js', 'src/looks.js', 'src/presets.js', 'src/profile.js', 'src/talentprefs.js', 'src/audio-match.js'];
 const SKIP = /(^|\/)(admin|adminreplay|broadcast-worker)\.js$|src\/i18n\//; // owner dashboard stays English
 
 function walk(d) {

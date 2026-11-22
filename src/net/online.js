@@ -23,19 +23,21 @@ async function call(path, { method = 'GET', body, auth = false, timeout = 8000 }
     return data;
   } finally { clearTimeout(t); }
 }
-export const online = { ok: false };
-export async function ping() { try { const h = await call('/api/health', { timeout: 5000 }); online.ok = !!(h.db && h.tables); } catch { online.ok = false; } return online.ok; }
+export const online = { ok: false, dv: 1 };
+// dv: the server's data version (worker/koban.js launch wipe); an account made before it no longer exists there
+export async function ping() { try { const h = await call('/api/health', { timeout: 5000 }); online.ok = !!(h.db && h.tables); online.dv = Number(h.dv) || 1; } catch { online.ok = false; } return online.ok; }
 
 // ── account ──
 export async function ensureAccount(name) {
+  if (account && (account.dv || 1) < online.dv) setAccount(null); // made before the server's launch wipe: start a new one
   if (account) return account;
   const a = await call('/api/account', { method: 'POST', body: { name } });
-  setAccount({ id: a.id, secret: a.secret, code: a.code });
+  setAccount({ id: a.id, secret: a.secret, code: a.code, dv: online.dv });
   return account;
 }
 export async function recover(code) {
   const a = await call('/api/recover', { method: 'POST', body: { code } });
-  setAccount({ id: a.id, secret: a.secret, code: a.code });
+  setAccount({ id: a.id, secret: a.secret, code: a.code, dv: online.dv });
   return a; // { name, profile, profileAt }
 }
 export async function fetchMe() { return account ? call('/api/me', { auth: true }) : null; }

@@ -6,6 +6,7 @@
 //    Ranked needs both: the host picks Ranked, the friend accepts a Ranked invite, and the two
 //    clients AND their ranked flags in the hello/start handshake (main.js) so they always report alike.
 //  * Rematch runs over the still-open match connection: both accept, the old host starts, sides swap.
+import { avatar } from './avatar.js';
 import { h, mount, toast, emptyState, face, MODE_LABEL } from './dom.js';
 import { HERO_BY_ID } from '../data/heroes.js';
 import { BANNERS } from '../data/seasons.js';
@@ -198,7 +199,7 @@ export function friendsTab(app) {
     const act = (action, id, msg) => async () => { try { await friendAction(action, id); if (msg) toast(msg); refresh(); } catch (e) { toast(e.message); } };
     const known = new Set([acct.id, ...((d && [...d.friends, ...d.sent, ...d.blocked, ...d.requests]) || []).map((x) => x.id)]);
     const recent = []; for (const m of profile.d.history) if (m.opp && !known.has(m.opp) && !recent.some((r) => r.id === m.opp) && recent.length < 5) recent.push({ id: m.opp, name: (m.names || [])[1 - m.side] || 'Coach', t: m.t, mode: m.mode });
-    const nameBtn = (f, extra) => h('button', { class: 'fname', title: 'View profile', onclick: () => showPlayer(app, f.id, { name: f.name }) }, f.elo ? tierBadge(f.elo, 22) : null, h('span', {}, f.name), extra || null);
+    const nameBtn = (f, extra) => h('button', { class: 'fname', title: 'View profile', onclick: () => showPlayer(app, f.id, { name: f.name }) }, f.pfp ? avatar(f.pfp, 'fpfp') : null, f.elo ? tierBadge(f.elo, 22) : null, h('span', {}, f.name), extra || null);
     mount(el,
       h('div', { class: 'panel fcode' },
         h('div', { class: 'col', style: { gap: '2px' } }, h('small', { class: 'muted' }, 'Your friend code'), h('b', { class: 'gold' }, friendCode(acct.id))),
@@ -250,7 +251,7 @@ export async function showPlayer(app, id, { name = 'Coach' } = {}) {
   ];
   mount(body,
     h('div', { class: 'phead', style: { background: ban ? ban.bg : null, borderColor: border ? border.color : null } },
-      tierBadge(rk, 44),
+      pub && pub.pfp ? avatar(pub.pfp, 'ppfpbig') : null, tierBadge(rk, 44),
       h('div', { class: 'col', style: { gap: '2px', minWidth: 0 } },
         h('b', { class: 'pname' }, r.name, r.presence ? h('small', { class: 'ppres p-' + r.presence }, ' · ' + PRES[r.presence]) : null),
         title ? h('small', { class: 'gold' }, title) : null,

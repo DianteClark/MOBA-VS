@@ -13,8 +13,9 @@ const LEGACY_PLAN = { aggressive: 'aggro', scaling: 'scale' };
 
 const emptyRoles = () => Object.fromEntries(ROLES.map((r) => [r, null]));
 export function newPreset(name) { return { name, main: emptyRoles(), backup: emptyRoles(), builds: {}, plan: 'auto', deck: DEFAULT_DECK.slice() }; }
-const STARTER = { name: 'Starter', main: { top: 'bastion', jungle: 'kaze', mid: 'ember', bot: 'fletch', support: 'oak' },
-  backup: { top: 'grok', jungle: 'leonin', mid: 'raiden', bot: 'marlowe', support: 'wu' } };
+// The first lineup uses the 15 free starters only (src/data/unlocks.js STARTERS).
+const STARTER = { name: 'Starter', main: { top: 'monolith', jungle: 'upa', mid: 'hitotsume', bot: 'fletch', support: 'aurelia' },
+  backup: { top: 'varro', jungle: 'leonin', mid: 'totem', bot: 'sling', support: 'frost' } };
 function freshPresets() {
   const slots = Array.from({ length: PRESET_SLOTS }, (_, i) => newPreset(`Lineup ${i + 1}`));
   Object.assign(slots[0], { name: STARTER.name, main: { ...STARTER.main }, backup: { ...STARTER.backup } });
@@ -72,7 +73,8 @@ function assignPreferred(ids, prefer = []) {
   })(0);
   return best;
 }
-export const teamRoles = (ids, preset) => assignPreferred(ids, ids.map((id) => presetRole(preset, id)));
+// pref: { heroId: role } chosen in the draft's role steps (src/ui/draftview.js); it wins over the preset.
+export const teamRoles = (ids, preset, pref = null) => assignPreferred(ids, ids.map((id) => (pref && pref[id]) || presetRole(preset, id)));
 
 // ── draft helpers ──
 // How good a pick is for `team` right now (matchups, a missing role, clan synergy).
@@ -82,10 +84,11 @@ export function pickScore(d, team, x) {
   const clanN = {}; for (const id of d.picks[team]) { const c = HERO_BY_ID[id].clan; clanN[c] = (clanN[c] || 0) + 1; }
   return matchupScore(x, enemy).score * 2 + (x.roles.some((r) => need.includes(r)) ? 3 : -4) + (need.includes(x.role) ? 1 : 0) + (clanN[x.clan] || 0) * 1.5;
 }
-// The 3 best open heroes for one role (shown when the preset hero and its backup are gone).
-function recommendForRole(d, team, role, n = 3) {
+// The 3 best open heroes for one role (shown when the preset hero and its backup are gone). avail: the
+// coach may use the hero (champion ownership, src/unlocks.js).
+function recommendForRole(d, team, role, n = 3, avail = () => true) {
   const tk = taken(d, team), mine = d.picks[team];
-  return HEROES.filter((x) => x.roles.includes(role) && !tk.has(x.id) && legal(d, team, x.id) && assignPreferred([...mine, x.id], [...mine.map(() => null), role]))
+  return HEROES.filter((x) => x.roles.includes(role) && !tk.has(x.id) && avail(x.id) && legal(d, team, x.id) && assignPreferred([...mine, x.id], [...mine.map(() => null), role]))
     .map((x) => [pickScore(d, team, x) + (x.role === role ? 2 : 0), x.id]).sort((a, b) => b[0] - a[0] || (a[1] < b[1] ? -1 : 1)).slice(0, n).map((q) => q[1]);
 }
 // Threats worth banning: strong into your lineup (preset + picks so far), never your own preset heroes.
@@ -99,28 +102,29 @@ export function suggestedBans(d, team, preset, n = 3) {
 }
 // What the active preset wants on this pick turn:
 //   { id, role, backup }    auto-pick this hero (main, or backup when the main is gone)
-//   { prompt: role, recs }  both are gone: ask the coach, with 3 recommendations
+//   { prompt: role, recs }  both are gone: ask the coach, with 3 recommendations (recs may be empty: a loaner)
 //   null                    the preset has nothing left to say (pick manually)
-export function presetChoice(d, team, preset) {
+// avail(id): the coach may use that hero (owned / free rotation / loaner); an unusable main is skipped like a banned one.
+export function presetChoice(d, team, preset, avail = () => true, pref = null) {
   const t = currentTurn(d);
   if (!preset || !t || t.team !== team || t.act !== 'pick') return null;
-  const mine = d.picks[team], have = teamRoles(mine, preset) || [];
+  const mine = d.picks[team], have = teamRoles(mine, preset, pref) || [];
   for (const role of ROLES) {
     if (have.includes(role) || (!preset.main[role] && !preset.backup[role])) continue;
     for (const [id, backup] of [[preset.main[role], false], [preset.backup[role], true]]) {
-      if (!id || !legal(d, team, id)) continue;
-      const roles = teamRoles([...mine, id], preset);
+      if (!id || !avail(id) || !legal(d, team, id)) continue;
+      const roles = teamRoles([...mine, id], preset, pref);
       if (roles && roles[roles.length - 1] === role) return { id, role, backup };
     }
-    return { prompt: role, recs: recommendForRole(d, team, role) };
+    return { prompt: role, recs: recommendForRole(d, team, role, 3, avail) };
   }
   return null;
 }
 
 // ── prep ──
 // Builds, lanes, plan and deck from the preset for heroes that came from it; recommended defaults otherwise.
-export function prepFromPreset(ids, enemyIds, preset, mode) {
-  const rec = aiPrep(ids, enemyIds, mode), roles = teamRoles(ids, preset);
+export function prepFromPreset(ids, enemyIds, preset, mode, pref = null) {
+  const rec = aiPrep(ids, enemyIds, mode), roles = teamRoles(ids, preset, pref);
   const fromPreset = ids.filter((id) => presetRole(preset, id));
   const prep = { plan: rec.plan, deck: DEFAULT_DECK.slice(), heroes: rec.heroes.map((hp, i) => {
     const b = preset && preset.builds[hp.id];

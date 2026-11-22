@@ -1,6 +1,10 @@
 // Champion scan (unlock price tiers): coaching sensitivity per hero, SHARP coach vs PASSIVE coach.
 //   node tools/scan.mjs [pairs=40] [workers=2] [--seed N] [--log games.jsonl] [--duos P] [--quiet] [--noliving]
 //   node tools/scan.mjs --from a.jsonl[,b.jsonl] [--json out.json]        (re-aggregate saved games)
+//   --focus a,b,c  a focused re-check: every matchup seats the listed heroes in their main role (one per team and
+//                  role, rotating through the list, each role on a random side); every other seat is a control
+//                  drawn from the shuffled decks.
+//   The summary flags any hero whose SHRUNK sharp win rate is >= 90% or passive win rate <= 12% (--focus: those only).
 // Test-only (no gameplay change): every matchup is played TWICE with the same seed, map and heroes,
 // once with team A sharp / team B passive and once the other way round, so each hero's coaching gap is a
 // paired difference in an identical matchup.
@@ -41,7 +45,7 @@ if (!isMainThread) {
   const args = process.argv.slice(2);
   const flag = (k) => args.includes('--' + k);
   const opt = (k, d) => { const i = args.indexOf('--' + k); return i >= 0 ? args[i + 1] : d; };
-  const pos = args.filter((a, i) => !a.startsWith('--') && !['--seed', '--json', '--log', '--from', '--duos'].includes(args[i - 1]));
+  const pos = args.filter((a, i) => !a.startsWith('--') && !['--seed', '--json', '--log', '--from', '--duos', '--focus'].includes(args[i - 1]));
   const N = +(pos[0] || 40), NW = +(pos[1] || 2), seed0 = +opt('seed', 50000);
   const { HEROES, ROLES, HERO_BY_ID } = await import('../src/data/heroes.js');
   const { Rng } = await import('../src/sim/rng.js');
@@ -63,10 +67,14 @@ if (!isMainThread) {
       throw new Error('deck');
     };
     const crossDuos = DUOS.filter((d) => HERO_BY_ID[d.a].role !== HERO_BY_ID[d.b].role);
-    const jobs = [];
+    const jobs = [], focus = (opt('focus', '') || '').split(',').filter((id) => HERO_BY_ID[id]);
+    const fRole = Object.fromEntries(ROLES.map((r) => [r, focus.filter((id) => HERO_BY_ID[id].role === r)]));
     for (let i = 0; i < N; i++) {
-      const used = new Set(), a = ROLES.map((r) => draw(r, used)), b = ROLES.map((r) => draw(r, used));
-      if (rng.next() < +opt('duos', 0.4)) {
+      const used = new Set(), fixed = [{}, {}];
+      // each role picks its own side at random, so focus heroes of different roles are not always teammates
+      for (const r of ROLES) { const L = fRole[r]; if (!L.length) continue; const x = L[(2 * i) % L.length], y = L[(2 * i + 1) % L.length], side = rng.int(2); fixed[side][r] = x; used.add(x); if (y !== x) { fixed[1 - side][r] = y; used.add(y); } }
+      const a = ROLES.map((r) => fixed[0][r] || draw(r, used)), b = ROLES.map((r) => fixed[1][r] || draw(r, used));
+      if (!focus.length && rng.next() < +opt('duos', 0.4)) {
         const d = crossDuos[rng.int(crossDuos.length)], [mine, other] = rng.next() < 0.5 ? [a, b] : [b, a];
         if (!other.includes(d.a) && !other.includes(d.b)) for (const id of [d.a, d.b]) mine[ROLES.indexOf(HERO_BY_ID[id].role)] = id;
       }
@@ -166,6 +174,13 @@ if (!isMainThread) {
     const s = r.s;
     console.log(`${r.id.padEnd(10)} ${HERO_BY_ID[r.id].role.padEnd(7)} ${String(s.sg).padStart(3)}/${String(s.pg).padEnd(3)} ${pc(s.sw / s.sg)}   ${pc(s.pw / s.pg)}   | ${sg(r.rs)} ${sg(r.rp)} ${sg(r.gap)}   ${sg(r.rpShr)} ${sg(r.gapShr)} ±${(100 * r.gapSe).toFixed(1)}   ${(100 * r.spread).toFixed(1).padStart(4)}  ${sg(r.gsShr)} ${sg(r.dsShr)}  ${r.kdaS.toFixed(2)} ${r.kdaP.toFixed(2)}  ${r.ctxWhy}`);
   }
+  // bounds check (unlock pricing: no hero far above or below the field, after shrinkage)
+  const watch = (opt('focus', '') || '').split(',').filter((id) => H[id]);
+  const chk = rows.filter((r) => !watch.length || watch.includes(r.id)).map((r) => ({ id: r.id, s: 100 * (S + r.rsShr), p: 100 * (P + r.rpShr) }));
+  console.log('\nShrunk win rates (limits: sharp < 90%, passive > 12%):');
+  for (const c of chk.sort((a, b) => b.s - a.s)) if (watch.length || c.s >= 88 || c.p <= 14) console.log(`  ${c.id.padEnd(10)} sharp ${c.s.toFixed(1).padStart(5)}%  passive ${c.p.toFixed(1).padStart(5)}%${c.s >= 90 || c.p <= 12 ? '   OUT OF BOUNDS' : ''}`);
+  const outB = chk.filter((c) => c.s >= 90 || c.p <= 12);
+  console.log(outB.length ? `  ${outB.length} hero(es) out of bounds` : '  all within bounds');
   const out = opt('json', null);
   if (out) writeFileSync(out, JSON.stringify({ n, S, tau: { s: Math.sqrt(ebS.tau2), p: Math.sqrt(ebP.tau2), g: Math.sqrt(ebG.tau2) }, rows: rows.map((r) => ({ id: r.id, sg: r.s.sg, sw: r.s.sw, pg: r.s.pg, pw: r.s.pw, pn: r.s.pn, rs: r.rs, rp: r.rp, gap: r.gap, rsShr: r.rsShr, rpShr: r.rpShr, gapShr: r.gapShr, gapSe: r.gapSe, rpSe: r.rpSe, spread: r.spread, gs: r.gs, gsShr: r.gsShr, ds: r.ds, dsShr: r.dsShr, ctxWhy: r.ctxWhy, kdaS: r.kdaS, kdaP: r.kdaP, ctx: r.s.ctx })) }, null, 1));
 }

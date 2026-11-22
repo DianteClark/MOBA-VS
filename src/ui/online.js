@@ -1,5 +1,6 @@
 // Online screens: global / friends ladder, account (recovery code / sign in), shared-match links,
 // and the post-match ladder result panel.
+import { avatar } from './avatar.js';
 import { h, mount, toast, emptyState } from './dom.js';
 import { HERO_BY_ID } from '../data/heroes.js';
 import { profile } from '../profile.js';
@@ -32,7 +33,7 @@ export async function showLeaderboard(app, view = 'global') {
     if (!body.isConnected) return;
     const me = getAccount();
     const row = (r) => h('button', { class: 'lbr' + (me && r.id === me.id ? ' me' : '') + (r.rank <= 3 ? ' top' + r.rank : ''), title: 'View profile', onclick: () => showPlayer(app, r.id, { name: r.name }) },
-      h('b', { class: 'lbrank' }, `#${r.rank}`), tierBadge(r.rating, 24, 'lbtier'), h('span', { class: 'lbname' }, r.name), h('span', { class: 'lbrat', style: { color: rankOf(r.rating).tier.color } }, h('small', {}, rankOf(r.rating).label + ' '), r.rating), h('small', {}, `${r.wins}W ${r.losses}L`));
+      h('b', { class: 'lbrank' }, `#${r.rank}`), avatar(r.pfp, 'lbpfp'), tierBadge(r.rating, 24, 'lbtier'), h('span', { class: 'lbname' }, r.name), h('span', { class: 'lbrat', style: { color: rankOf(r.rating).tier.color } }, h('small', {}, rankOf(r.rating).label + ' '), r.rating), h('small', {}, `${r.wins}W ${r.losses}L`));
     const list = h('div', { class: 'lblist' }, h('div', { class: 'lbr head' }, h('b', { class: 'lbrank' }, 'Rank'), h('i', { class: 'lbtier' }), h('span', { class: 'lbname' }, 'Coach'), h('span', { class: 'lbrat' }, 'Rating'), h('small', {}, 'Record')), ...lb.top.map(row));
     let next = lb.next, shown = lb.top.length;
     const more = h('button', { class: 'chip lbmore', onclick: async () => {
