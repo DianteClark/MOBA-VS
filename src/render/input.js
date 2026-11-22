@@ -1,7 +1,7 @@
 // Camera controls: one pointer-event pipeline for touch, pen and mouse (drag to pan, pinch / wheel to zoom,
 // keyboard), the minimap tap / drag, and map taps.
 // A tap is a press that stays within a small slop (10 CSS px for a finger, 5 for a mouse) and lifts within
-// TAP_MS; it is reported at the point where the finger landed. The camera does not move inside the slop (a
+// TAP_MS; it is reported at the point where the finger landed (screen and world, as they were then). The camera does not move inside the slop (a
 // tap never nudges the map), and once a press becomes a drag it pans by the whole distance (no jump). A pinch
 // zooms around the fingers' midpoint; a tap can't come out of a pinch until every finger has lifted.
 // Pointer events only: no touch + emulated mouse double-fire, no 300ms delay (touch-action: none on the canvases).
@@ -31,7 +31,8 @@ export function bindCamera(r, canvas, minimap, mmCanvas, hooks = {}) {
     if (pts.size >= 2) return; // a third finger changes nothing
     try { canvas.setPointerCapture(e.pointerId); } catch { /* synthetic pointer */ }
     pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (pts.size === 1) g = { mode: 'press', id: e.pointerId, sx: e.clientX, sy: e.clientY, lx: e.clientX, ly: e.clientY, t: e.timeStamp, slop: TAP_SLOP[e.pointerType] || 10, type: e.pointerType };
+    // the world point is taken as the finger lands: the auto-camera may still be easing while it is down
+    if (pts.size === 1) g = { mode: 'press', id: e.pointerId, sx: e.clientX, sy: e.clientY, lx: e.clientX, ly: e.clientY, w: toWorld(e.clientX, e.clientY), t: e.timeStamp, slop: TAP_SLOP[e.pointerType] || 10, type: e.pointerType };
     else startPinch();
     if (e.pointerType !== 'mouse') e.preventDefault();
   });
@@ -61,7 +62,7 @@ export function bindCamera(r, canvas, minimap, mmCanvas, hooks = {}) {
     if (!g) return;
     if (g.mode === 'press' && e.pointerId === g.id && e.type === 'pointerup' && !g.dead && e.timeStamp - g.t <= TAP_MS && hooks.onClick) {
       const t = g; g = null;
-      hooks.onClick(toWorld(t.sx, t.sy), t.sx, t.sy, t.type);
+      hooks.onClick(t.w, t.sx, t.sy, t.type);
       return;
     }
     if (g.mode === 'pinch' && pts.size === 1) {
