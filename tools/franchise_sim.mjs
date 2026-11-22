@@ -51,7 +51,7 @@ if (!isMainThread) {
   }
   console.log(`weighted K ≈ ${(num / den).toFixed(1)}`);
 } else if (flag('pro')) {
-  const P = await import('../src/franchise/pro.js');
+  const P = await import('../src/franchise/pro.js'); const D = await import('../src/franchise/data.js');
   const W = +(pos[0] || 20), w0 = P.weekIndex(Date.UTC(2026, 10, 23));
   const titles = {}; let upsets = 0, games = 0; const t0 = performance.now();
   for (let w = w0; w < w0 + W; w++) {
@@ -61,7 +61,7 @@ if (!isMainThread) {
   }
   const ms = performance.now() - t0;
   console.log(`${W} weeks, ${games} matches, upsets ${(100 * upsets / games).toFixed(0)}%, ${(ms / W).toFixed(2)} ms per week`);
-  console.log('titles', Object.entries(titles).sort((a, b) => b[1] - a[1]).map(([t, n]) => `${P.PRO_BY_ID[t].abbr} ${n}`).join(' · '));
+  console.log('titles', Object.entries(titles).sort((a, b) => b[1] - a[1]).map(([t, n]) => `${D.PRO_TEAMS[t].abbr} ${n}`).join(' · '));
 } else {
   const L = await import('../src/franchise/league.js'); const D = await import('../src/franchise/data.js');
   const N = +(pos[0] || 40), S = +(pos[1] || 12), seed0 = +opt('seed', 1);

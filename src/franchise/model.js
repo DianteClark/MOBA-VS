@@ -71,10 +71,11 @@ export function lineupMods(starters) {
 export const strengthOf = (mods) => mods.reduce((a, b) => a + b, 0) / Math.max(1, mods.length);
 
 // ── quick-resolve model ──
-// Win chance from the strength gap, calibrated against full 5v5 sims (tools/franchise_sim.mjs --calibrate):
-// equal teams are a coin flip; every 1% of average stat edge is worth about K/4 percentage points.
-export const K = 14;
-export const winProb = (sa, sb) => 1 / (1 + Math.exp(-K * (sa - sb)));
+// Win chance from the strength gap, calibrated against full 5v5 sims (tools/franchise_sim.mjs --calibrate: one team
+// +3/6/10% on every hero, AI coaches both sides, ~110 games): equal teams are a coin flip, and every 1% of average
+// stat edge is worth about K/4 percentage points (+10% ≈ 68%). The 5v5 is a coaching game first: edges are small.
+export const K = 8;
+export const winProb = (sa, sb, k = K) => 1 / (1 + Math.exp(-k * (sa - sb)));
 // A believable box score for a quick-resolved match. rng: Rng; sa/sb strengths; returns
 // { w: 0|1, k: [kills a, kills b], tw: [towers destroyed by a, by b], len: seconds, crystal: bool }.
 export function quickScore(rng, sa, sb, pA = winProb(sa, sb)) {
