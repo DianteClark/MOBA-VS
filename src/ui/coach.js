@@ -82,11 +82,12 @@ export function coachTab(refresh, sel = null) {
 // Results: coach XP, level-ups and today's goal ticks.
 export function coachRow(meta) {
   if (!meta) return null;
-  const c = coachOf(profile.d.meta), up = meta.lvAfter > meta.lvBefore;
+  const c = coachOf(profile.d.meta), up = meta.lvAfter > meta.lvBefore, story = meta.storyEv ? STORY.find((e) => e.id === meta.storyEv) : null;
   return h('div', { class: 'prow crow2' }, h('div', { class: 'lvb clvb' }, `C${meta.lvAfter}`),
     h('div', { class: 'col', style: { gap: '3px', flex: 1, minWidth: 0 } },
       h('div', { class: 'xps' }, h('span', {}, `Coach +${meta.cxp}`), ...meta.goals.map((g) => h('span', { class: g.done ? 'gdone' : '' }, `${g.done ? '✓ ' : ''}${g.text} ${g.prog}/${g.n}`)),
-        meta.div && meta.div.pts ? h('span', {}, `Division +${meta.div.pts}`) : null),
+        meta.div && meta.div.pts ? h('span', {}, `Division +${meta.div.pts}`) : null,
+        story ? h('span', { class: 'sty', style: { '--ec': story.color } }, `${story.name} ${story.goals.filter((g, i) => (profile.d.meta.story[story.id] || { p: [] }).p[i] >= g.n).length}/${story.goals.length}`) : null),
       bar(c.into, '#8fd3ff')),
     up ? h('b', { class: 'gold' }, `Coach level ${meta.lvAfter}!`) : null);
 }

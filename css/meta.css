@@ -85,7 +85,8 @@
 }
 
 /* Results: coach row */
-.clvb { border-color: #8fd3ff; color: #8fd3ff; }
+.clvb { border-color: #8fd3ff; color: #8fd3ff; flex: none; }
+.crow2 .xps span.sty { color: var(--ec, var(--gold)); }
 .crow2 .xps span.gdone { color: var(--green); }
 
 /* Dojo: mastery perks */
