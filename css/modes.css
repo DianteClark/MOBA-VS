@@ -157,6 +157,7 @@
 .evpanel { border-color: var(--ec); } .evpanel .mhead b { color: var(--ec); }
 .evpanel p { margin: 4px 0 6px; } .evwhere { margin: 0 0 8px; padding-left: 16px; font-size: 11px; display: grid; gap: 3px; }
 .evseg { margin-bottom: 6px; } .evseg .chip { min-height: 34px; }
-.home2 .h2ai .maprow { grid-template-columns: repeat(4, minmax(0, 1fr)); } /* Random + 6 maps: two rows of four */
+.home2 .h2ai .maprow { grid-template-columns: repeat(5, minmax(0, 1fr)); } /* Random + 8 maps: two rows of five */
+@media (max-width: 720px) { .home2 .h2ai .maprow { gap: 3px; } .home2 .h2ai .mapchip img.mkami { display: none; } } /* narrow phones: the names need the room (the Kami shows on hover and in the draft) */
 @media (max-height: 500px) { .h2event { padding: 4px 8px; } .h2event .h2h b { font-size: 12px; } .h2new .h2hl i:nth-child(n+2) { display: none; } .h2rush .h2h small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } }
 @media (max-height: 340px) { .h2event .h2h small:not(.kick) { display: none; } }
