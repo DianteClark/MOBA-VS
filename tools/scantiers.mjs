@@ -1,9 +1,11 @@
 // Champion scan, step 2: unlock price tiers from a tools/scan.mjs result plus the static kit data.
 //   node tools/scantiers.mjs scan.json [--ex 0.55] [--ge 0.1] [--out tiers.json]
 // Signals (all z-scored across the roster):
-//   coaching sensitivity CS = paired sharp-minus-passive gaps: win (shrunk) 50%, gold 30%, hero damage 20%
+//   coaching sensitivity CS = paired sharp-minus-passive gaps: win 50%, gold 30%, hero damage 20%
+//   (CS and PF use empirical-Bayes shrunk values over the sd of the raw values, so a measure that is mostly
+//   noise at this sample size carries little weight; the static signals are plain z-scores)
 //   skill load SK         = Difficulty rating (src/data/herostats.js) 60%, kit complexity (conditional mechanics) 40%
-//   passive floor PF      = shrunk passive-coach win rate (centred) 70%, passive relative KDA 30%
+//   passive floor PF      = shrunk passive-coach win rate (centred)
 //   context dependence CD = measured context spread (comp / duo / clan / plan) 60%, static plan dependence 40%
 // Tiers: Expert = high CS+SK; General = solid PF with low CS+SK; everyone else is a Specialist (plus anyone
 // whose CD stands out). Borderline: within 0.25 of a cut.
@@ -49,20 +51,25 @@ const R = Object.fromEntries(scan.rows.map((r) => [r.id, r]));
 const z = (vals) => { const m = vals.reduce((a, v) => a + v, 0) / vals.length, sd = Math.sqrt(vals.reduce((a, v) => a + (v - m) ** 2, 0) / vals.length) || 1; return vals.map((v) => (v - m) / sd); };
 const H = HEROES.filter((h) => R[h.id]);
 const col = (f) => z(H.map(f));
-const zGap = col((h) => R[h.id].gapShr), zGold = col((h) => R[h.id].lgShr), zDmg = col((h) => R[h.id].ldShr);
+// shrunk measures are scaled by the sd of their RAW values (not z-scored): when shrinkage says a measure is
+// mostly noise its spread collapses, and so does its weight in the score
+const zs = (shr, raw) => { const v = H.map((h) => R[h.id][raw]), m = v.reduce((a, x) => a + x, 0) / v.length, sd = Math.sqrt(v.reduce((a, x) => a + (x - m) ** 2, 0) / v.length) || 1;
+  const w = H.map((h) => R[h.id][shr]), ms = w.reduce((a, x) => a + x, 0) / w.length; return w.map((x) => (x - ms) / sd); };
+const zGap = zs('gapShr', 'gap'), zGold = zs('lgShr', 'lg'), zDmg = zs('ldShr', 'ld');
 const zDiff = col((h) => heroRatings(h.id).difficulty), zCx = col((h) => complexity(h).c);
-const zPass = col((h) => R[h.id].rpShr), zPk = col((h) => Math.log(R[h.id].kdaP));
+const zPass = zs('rpShr', 'rp');
 const zSpread = col((h) => R[h.id].spread), zDep = col((h) => staticDep(h));
 const rows = H.map((h, i) => {
   const r = R[h.id], CS = 0.5 * zGap[i] + 0.3 * zGold[i] + 0.2 * zDmg[i], SK = 0.6 * zDiff[i] + 0.4 * zCx[i];
-  const PF = 0.7 * zPass[i] + 0.3 * zPk[i], CD = 0.6 * zSpread[i] + 0.4 * zDep[i];
+  const PF = zPass[i], CD = 0.6 * zSpread[i] + 0.4 * zDep[i];
   const E = 0.5 * CS + 0.5 * SK, G = 0.45 * PF - 0.3 * CS - 0.25 * SK - 0.15 * CD;
   return { h, r, CS, SK, PF, CD, E, G, diff: heroRatings(h.id).difficulty, cx: complexity(h) };
 });
 // cuts: Expert = E >= EX; General = G >= GE (and not Expert, and PF not clearly weak); the rest Specialist
 const EX = +opt('ex', 0.55), GE = +opt('ge', 0.1);
 for (const x of rows) {
-  x.tier = x.E >= EX ? 'Expert' : x.G >= GE && x.PF > -0.6 && x.CD < 1.2 ? 'General' : 'Specialist';
+  // General must also be straightforward: Difficulty 7+ or a 2.5+ complexity kit never prices as General
+  x.tier = x.E >= EX ? 'Expert' : x.G >= GE && x.PF > -0.6 && x.CD < 1.2 && x.diff < 7 && x.cx.c < 2.5 ? 'General' : 'Specialist';
   x.border = Math.abs(x.E - EX) < 0.25 || (x.tier !== 'Expert' && Math.abs(x.G - GE) < 0.25);
 }
 const PRICE = { General: 1500, Specialist: 3000, Expert: 4500 };
