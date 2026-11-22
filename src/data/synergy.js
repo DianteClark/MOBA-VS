@@ -32,6 +32,13 @@ export const DUOS = [
   { id: 'jungleking', a: 'brawlo', b: 'saru', name: 'Monkey Business', stats: { asPct: 0.08 }, combo: 'rush', desc: 'Cousins who never stop scrapping.' },
   { id: 'caveclan', a: 'grok', b: 'sling', name: 'Cave Clan', stats: { hp: 120 }, combo: 'burst', desc: 'Big rock, small rock, same family.' },
   { id: 'desert', a: 'azim', b: 'zahra', name: 'Desert Court', stats: { power: 10 }, combo: 'shield', desc: 'The sultan never fights without his dancer.' },
+  // v24
+  { id: 'tinker', a: 'taro', b: 'suzu', name: 'Tinker Twins', stats: { dmgPct: 0.05 }, combo: 'burst', desc: 'Same goggles, same workshop, twice the boom.' },
+  { id: 'hearthhome', a: 'ume', b: 'aki', name: 'Hearth and Home', stats: { healPower: 0.1 }, combo: 'shield', desc: 'Granny keeps the kettle on; Aki keeps the lantern lit.' },
+  { id: 'woodsmen', a: 'tobi', b: 'isamu', name: 'Ridge Woodsmen', stats: { msPct: 0.05 }, combo: 'rush', desc: 'One clears the trail, the other follows the tracks.' },
+  { id: 'festival', a: 'mame', b: 'kenta', name: 'Spring Festival', stats: { haste: 8 }, combo: 'rush', desc: 'Beans in one hand, firecrackers in the other. Oni beware.' },
+  { id: 'bigbears', a: 'kuma', b: 'bao', name: 'Big Bears', stats: { hp: 120 }, combo: 'shield', desc: 'One naps, one meditates. Wake either and regret it.' },
+  { id: 'nightwing', a: 'fukuro', b: 'komori', name: 'Night Wings', stats: { crit: 0.05 }, combo: 'burst', desc: 'The owl sees it, the bat hears it. Nothing hides after dark.' },
 ];
 export const DUO_BY_ID = Object.fromEntries(DUOS.map((d) => [d.id, d]));
 export function duosOf(heroId) { return DUOS.filter((d) => d.a === heroId || d.b === heroId).map((d) => ({ ...d, partner: d.a === heroId ? d.b : d.a })); }

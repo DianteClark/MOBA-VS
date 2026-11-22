@@ -29,6 +29,7 @@ import { COOP_COL, coachOf } from '../coop-room.js';
 import { Depth } from './depth.js';
 import { placeName, fightClusters, followFight, laneFront, towerName } from '../world/places.js';
 import { talentIcons, talentKey } from './talentui.js';
+import { HEARTH, HEARTH_TEXT } from '../data/hearth.js';
 import { Attention, cardTopic, BANNER } from './attention.js';
 import { livingEvent, livingObjective } from './livinghud.js';
 import { LIVING } from '../sim/living.js';
@@ -118,7 +119,10 @@ export class Hud {
     };
     this.mineRows = g.teams[this.view].heroes.map((x) => card(x, true));
     this.enemyRows = g.teams[1 - this.view].heroes.map((x) => card(x, false));
-    const clanTags = (t) => h('div', { class: 'clantags' }, ...(g.teams[t].clans || []).map((c) => h('span', { style: { borderColor: CLANS[c.clan].color, color: CLANS[c.clan].color }, title: c.text }, `${CLANS[c.clan].name} ${c.n}`)));
+    // v24: a team with Hearth heroes also shows its Hearthfire (embers / max), kept current by the 'hearth' event
+    this.hearthEls = [null, null];
+    const hearthTag = (t) => { const H = g.hearth && g.hearth[t]; if (!H) return null; const el = h('span', { class: 'hearthtag', style: { borderColor: CLANS.hearth.color, color: CLANS.hearth.color }, title: HEARTH_TEXT.short }); this.hearthEls[t] = el; this.hearthTag(t); return el; };
+    const clanTags = (t) => h('div', { class: 'clantags' }, ...(g.teams[t].clans || []).map((c) => h('span', { style: { borderColor: CLANS[c.clan].color, color: CLANS[c.clan].color }, title: c.text }, `${CLANS[c.clan].name} ${c.n}`)), hearthTag(t));
     this.leadEl = this.coopTeam() && this.coopTeam().seats === 2 ? h('button', { class: 'coopbar', onclick: () => this.tapLead() }) : null;
     mount(this.el.mine, this.leadEl, clanTags(this.view), this.mineRows);
     mount(this.el.enemy, clanTags(1 - this.view), this.enemyRows);
@@ -205,6 +209,10 @@ export class Hud {
     this.leadEl.classList.toggle('solo', solo); this.leadEl.classList.toggle('arm', !!arm);
     this.leadEl.title = solo ? 'Your partner left: you run all five heroes' : lead ? `You make the team calls. Tap twice to hand them to ${this.coachName(1 - this.seat)}` : `${this.coachName(ct.lead)} makes the team calls: tap a team call to suggest it`;
     mount(this.leadEl, h('i', { class: 'sl' }, solo ? '5' : 'L'), h('span', { class: 'cl' }, solo ? 'Solo' : lead ? 'You' : this.coachName(ct.lead)), h('small', {}, solo ? 'all yours' : arm ? 'Pass?' : 'lead'));
+  }
+  hearthTag(t) {
+    const el = this.hearthEls && this.hearthEls[t], H = this.g.hearth && this.g.hearth[t]; if (!el || !H) return;
+    el.textContent = `Hearthfire ${H.embers}/${H.max}`; el.classList.toggle('on', H.embers >= HEARTH.bonfire);
   }
   tapLead() {
     const ct = this.coopTeam(); if (!ct || ct.ai || ct.left[0] || ct.left[1]) return;
@@ -597,6 +605,14 @@ export class Hud {
         }
         case 'callResult': if (e.team === this.my) { this.payoff(e); buzz(e.result === 'success' ? 'callWin' : 'callFail'); } break;
         case 'momentumFull': if (e.team === this.my && this.isLead()) this.dock.surgeOffer(); break;
+        case 'hearth': { // v24: Hearthfire changed; call out the Bonfire (5+ embers) once each time it lights
+          this.hearthTag(e.team);
+          if (e.up && e.embers === HEARTH.bonfire) {
+            if (e.team === this.view || this.my < 0) this.ticker(`${this.my < 0 ? TEAM_NAME[e.team] + ' ' : ''}Bonfire! Hearth heroes +15% damage and faster`, 'act', 2);
+            else this.ticker('Enemy Bonfire: catch a Hearth hero to douse it (-2 embers)', 'danger', 2);
+          }
+          break;
+        }
         case 'coop': {
           // the lead changed hands, or a coach left (their heroes go to the partner, or to the AI coach)
           if (!this.coop) break;
