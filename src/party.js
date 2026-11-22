@@ -27,7 +27,7 @@ import { audio } from './audio.js';
 
 export const PARTY_LINES = ['Ready?', 'Let\'s go!', 'One more?', 'GG', 'Brb', 'Thanks!'];
 export const PARTY_MODES = { coop: 'Co-op vs AI', mm2: 'Find Match 2v2', room2: 'Private 2v2' };
-const MAX = 2, PING_MS = 15000, SILENT_MS = 70000, LOST_MS = 45000, CHAT_GAP = 1200;
+const MAX = 2, PING_MS = 15000, SILENT_MS = 120000, LOST_MS = 45000, CHAT_GAP = 1200; // (hidden tabs run timers slowly: be patient before calling a link dead)
 const tok = () => Math.random().toString(36).slice(2, 12).padEnd(8, '0');
 const clean = (s, n = 12) => String(s || 'Coach').slice(0, n);
 

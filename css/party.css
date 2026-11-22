@@ -37,13 +37,13 @@
 .ppanel .pmodes .chip { min-height: 28px; }
 .ppanel .pt-desc { font-size: 10px; color: var(--muted); line-height: 1.25; }
 .ppanel .pt-desc b { color: var(--ink); font-weight: normal; }
+.ppanel .pt-want b { color: var(--gold); }
 .ppanel .pt-row { display: flex; gap: 6px; margin-top: auto; }
 .ppanel .pt-row .pchatbtn { flex: 0 0 auto; min-height: 38px; padding: 0 8px; }
 .ppanel .pgo { flex: 1; min-width: 0; min-height: 38px; font-size: 15px; padding: 2px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ppanel .pgo.waiting { font-size: 11px; color: var(--muted); }
 .ppanel .pgo.nudge { animation: startPulse 1s ease-in-out infinite alternate; }
-.pchat { position: absolute; left: 6px; right: 6px; bottom: 50px; z-index: 3; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 5px;
-  background: #120e18f2; border: 2px solid #6fe3c8; box-shadow: 0 4px 0 #000a; }
+.pchat { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
 .pchat .chip { min-height: 28px; padding: 1px 2px; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* invite dialog */
@@ -62,6 +62,6 @@
   .ppanel .pt-row .pchatbtn, .ppanel .pgo { min-height: 34px; }
   .ppanel .pt-desc { font-size: 9px; }
   .ppanel .pgo { font-size: 13px; }
-  .pchat { bottom: 42px; }
+  .pchat .chip { min-height: 26px; }
 }
 .reduce-motion .pmem .psay, .reduce-motion .ppanel .pgo.nudge { animation: none; }

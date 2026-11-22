@@ -43,10 +43,11 @@ export function partyPanel(app) {
       h('div', { class: 'pt-head' }, h('b', {}, 'Party'), h('small', { class: 'muted', title: 'Party code: friends can type it in Join' }, P.code),
         h('button', { class: 'pleave', title: lead ? 'Leave and disband the party' : 'Leave the party', onclick: () => { if (confirm(lead ? 'Leave and disband your party?' : 'Leave the party?')) leaveParty(app); } }, 'Leave')),
       h('div', { class: 'pmems' }, ...P.members.map(row), slot),
-      lead ? h('div', { class: 'seg3 pmodes', role: 'radiogroup', 'aria-label': 'Party mode' }, ...MODE_SHORT.map(([k, l]) =>
+      // the chat lines take the place of the mode while they are open (nothing overlaps)
+      chat || [lead ? h('div', { class: 'seg3 pmodes', role: 'radiogroup', 'aria-label': 'Party mode' }, ...MODE_SHORT.map(([k, l]) =>
         h('button', { class: 'chip' + (mode === k ? ' on' : ''), role: 'radio', 'aria-checked': String(mode === k), title: PARTY_MODES[k], onclick: () => { audio.sfx('move', 0.4); setMode(k); } }, l))) : null,
-      h('small', { class: 'pt-desc' }, h('b', {}, PARTY_MODES[mode] + (mode === 'coop' ? ` · ${DIFF[app.aiLevel ?? 1]}` : '')), ' · ', MODE_DESC[mode]),
-      chat,
+      !lead && P.want && !(self && self.ready) ? h('small', { class: 'pt-desc pt-want' }, h('b', {}, `${(P.members.find((x) => x.leader) || {}).name || 'Your leader'} wants to start ${PARTY_MODES[mode]}`), ': tap Ready.')
+        : h('small', { class: 'pt-desc' }, h('b', {}, PARTY_MODES[mode] + (mode === 'coop' ? ` · ${DIFF[app.aiLevel ?? 1]}` : '')), ' · ', MODE_DESC[mode])],
       h('div', { class: 'pt-row' }, h('button', { class: 'chip pchatbtn' + (chatOpen ? ' on' : ''), 'aria-expanded': String(chatOpen), disabled: !m, title: m ? 'Quick chat with your party' : 'Quick chat (once a friend joins)', onclick: () => { chatOpen = !chatOpen; render(); } }, 'Chat'), main));
     // a line someone said fades after a few seconds
     clearTimeout(tm);
@@ -80,7 +81,7 @@ export async function openInvite(app) {
   const copy = async () => {
     let link;
     try { link = (await inviteToParty(app, null)).url; } catch { link = null; }
-    if (!link) { toast(`Party code: ${P.code} (friends type it in Join)`, 5000); return; }
+    if (!link) { try { await navigator.clipboard.writeText(P.code); toast(`Party code ${P.code} copied: friends type it in Join`, 3500); } catch { toast(`Party code: ${P.code} (friends type it in Join)`, 5000); } return; }
     const text = `Team up with me in MOBA-VS: ${link}`;
     try {
       if (navigator.share && matchMedia('(pointer: coarse)').matches) await navigator.share({ title: 'MOBA-VS party', text, url: link });

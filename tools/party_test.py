@@ -229,6 +229,14 @@ async def worker(b):
     if started:
         t = {n: await pg.evaluate("app.session.myTeam") for n, pg in (('A', A), ('B', B), ('C', C), ('D', D))}
         ok(t['A'] == t['B'] and t['C'] == t['D'] and t['A'] != t['C'], f'each party on its own side ({t})')
+    print('— nobody else searching: 60 s, then back to Home —')
+    for pg in (A, B, C, D): await pg.evaluate("app.menu()")
+    await D.evaluate("import('./src/party.js').then((m) => m.leaveParty(app, true))")
+    await until(C, "!document.querySelector('.ppanel')", 5000)
+    await C.click('.h2online .h2go')
+    ok(await until(C, "!!document.getElementById('mmsearch')", 5000), 'a solo coach searches 2v2 alone')
+    ok(await until(C, "[...document.querySelectorAll('.toast')].some((t) => t.textContent.includes('No one is online for 2v2'))", 75000) and await until(C, "!!document.querySelector('#screen .home2')", 3000),
+       '"no one online" after the time limit, back to Home (no bots)')
     for e in errors: print('  JS error:', e)
     ok(not errors, 'no page errors')
 
