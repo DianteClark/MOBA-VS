@@ -93,3 +93,9 @@ html.hc { --panel: #000; --line: #f3ead8; --ink: #fff; --muted: #e8e2f0; --gold:
   .oh-left #brcol { right: auto; left: calc(8px + var(--safe-l)); align-items: flex-start; }
   .oh-left #cmdbar { left: calc(232px + var(--safe-l)); }
 }
+
+/* ───────── offline ───────── */
+.offtag { display: none; }
+.is-offline .offtag { display: block; color: var(--gold); font-size: 10px; line-height: 1.25; }
+.is-offline .net { opacity: 0.45; filter: grayscale(0.8); }
+.is-offline .h2online .seg3 { display: none; }

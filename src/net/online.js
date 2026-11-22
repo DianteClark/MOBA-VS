@@ -40,14 +40,24 @@ export async function recover(code) {
 }
 export async function fetchMe() { return account ? call('/api/me', { auth: true }) : null; }
 
-// Cloud save: debounced upload of the whole profile blob (+ coach name).
+// Cloud save: debounced upload of the whole profile blob (+ coach name). Offline-safe: with no connection the
+// latest copy waits here (nothing is sent) and goes up when the connection is back (flushCloudSave, called by
+// src/net/offline.js); a failed upload is kept and retried. After a reload, connectOnline uploads the local copy
+// if it is newer than the cloud's, so nothing played offline is lost.
 let saveTimer = 0, pending = null;
+const offlineNow = () => typeof navigator !== 'undefined' && navigator.onLine === false;
 export function queueCloudSave(name, profile, at) {
   if (!account) return;
   pending = { name, profile, at };
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(async () => { const p = pending; pending = null; try { await call('/api/profile', { method: 'PUT', auth: true, body: p }); } catch { /* retry on next save */ } }, 2500);
+  if (!offlineNow()) saveTimer = setTimeout(flushCloudSave, 2500);
 }
+export async function flushCloudSave() {
+  const p = pending; if (!p || !account || offlineNow()) return false;
+  pending = null;
+  try { await call('/api/profile', { method: 'PUT', auth: true, body: p }); return true; } catch { if (!pending) pending = p; return false; }
+}
+export const cloudPending = () => !!pending;
 
 // ── ladder ──
 export async function reportMatch(r) { return account ? call('/api/match/report', { method: 'POST', auth: true, body: r }) : null; }

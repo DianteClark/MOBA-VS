@@ -65,6 +65,7 @@ import { initI18n } from './i18n/i18n.js';
 import { installA11y } from './ui/a11y.js';
 import { installKeys } from './ui/keys.js';
 import { installGamepad } from './ui/gamepad.js';
+import { installOffline } from './net/offline.js';
 import { showFranchise, franchiseResults } from './ui/franchise.js';
 
 const VERSION = 28; // bump whenever the sim or balance changes (peers must match)
@@ -130,6 +131,7 @@ class App {
     installBuildTips();
     await initI18n(); // the device's language pack (lazy: English loads nothing)
     installA11y(); installKeys(); installGamepad(); // screen readers, keyboard menus + [?] help, controllers
+    installOffline(this, VERSION); // offline indicator, sync on reconnect, offline pack in the service worker
     const bar = document.querySelector('#loading .barw i');
     await loadAssets((p) => { bar.style.width = Math.round(p * 100) + '%'; }, true);
     try { await document.fonts.load('12px PixelFont'); } catch { /* ignore */ }
@@ -146,7 +148,7 @@ class App {
   }
   // Online services: create/restore the account, then sync the profile (newest copy wins).
   async connectOnline() {
-    if (!(await ping())) return;
+    if (navigator.onLine === false || !(await ping())) return; // offline: src/net/offline.js calls this again on reconnect
     try {
       await ensureAccount(this.name);
       opsHello(VERSION); // activity + A/B flag assignments

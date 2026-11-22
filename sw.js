@@ -7,8 +7,11 @@
 //   background. If any file changed (a deploy that did not bump VERSION), the whole cached set is
 //   re-downloaded into a staging cache and swapped in together, then the page is told an update is
 //   ready (it reloads on the menu). So the cache always holds one consistent build.
-// * Audio (range requests), the online API and the owner dashboard (admin.html, src/ui/admin.js) are left to
-//   the network: the dashboard is never cached.
+// * Music (range requests), the online API and the owner dashboard (admin.html, src/ui/admin.js) are left to
+//   the network: the dashboard is never cached. Sound effects (plain fetches) are cached like any file.
+// * Offline: after the first full load the page asks for everything a vs-AI match needs (precache.json, written
+//   by tools/precache.mjs, plus the files the page itself loaded and its language pack). Missing files are
+//   fetched into the same cache, so the game opens and plays vs AI with no connection.
 // * Push notifications (worker/push.js): show the message; a tap focuses the game (or opens it) at its url.
 const V = new URL(self.location.href).searchParams.get('v') || '0';
 // REV: bump when the cache layout itself changes. r2: never store or serve redirected responses
@@ -37,7 +40,37 @@ self.addEventListener('install', (e) => {
     if (old.length) await self.skipWaiting();
   })());
 });
-self.addEventListener('message', (e) => { if (e.data && e.data.t === 'skipWaiting') self.skipWaiting(); });
+self.addEventListener('message', (e) => {
+  if (e.data && e.data.t === 'skipWaiting') self.skipWaiting();
+  if (e.data && e.data.t === 'precache') e.waitUntil(precacheAll(e.data.extra || [], e.source));
+});
+
+// Offline pack: every file of the vs-AI game into the live cache (only those not there yet). Same rules as
+// the fetch handler: same origin, nothing private, never a redirected response (clean()).
+let precaching = null;
+function precacheAll(extra, client) {
+  if (precaching) return precaching;
+  precaching = (async () => {
+    let list = [];
+    try { const r = await fetch('precache.json', { cache: 'no-cache' }); if (r.ok) list = (await r.json()).files || []; } catch { /* offline: extra only */ }
+    const urls = [...new Set([...list, ...extra].map((u) => new URL(u, self.registration.scope).href))]
+      .filter((u) => { const url = new URL(u); return url.origin === self.location.origin && cacheable(new Request(u), url); });
+    const cache = await caches.open(CACHE);
+    let got = 0, failed = 0;
+    for (let i = 0; i < urls.length; i += 6) {
+      await Promise.all(urls.slice(i, i + 6).map(async (u) => {
+        try {
+          if (await cache.match(u, { ignoreSearch: false })) { got++; return; }
+          const res = await clean(await fetch(u, { cache: 'no-cache' }));
+          if (res && res.ok && !res.redirected) { await cache.put(u, res); got++; } else failed++;
+        } catch { failed++; }
+      }));
+    }
+    if (client) client.postMessage({ t: 'precached', got, failed, total: urls.length });
+    precaching = null;
+  })();
+  return precaching;
+}
 self.addEventListener('activate', (e) => {
   e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k.startsWith('mobavs-') && k !== CACHE).map((k) => caches.delete(k))))
     .then(() => self.clients.claim()));
@@ -45,7 +78,7 @@ self.addEventListener('activate', (e) => {
 
 const PRIVATE = /\/(admin(\.html)?|src\/ui\/admin\.js|css\/admin\.css)$/; // '/admin': Cloudflare's pretty URL for admin.html
 const cacheable = (req, url) => req.method === 'GET' && !req.headers.has('range') &&
-  ((url.origin === self.location.origin && !url.pathname.includes('/assets/audio/') && !PRIVATE.test(url.pathname)) || url.href.startsWith(PEERJS));
+  ((url.origin === self.location.origin && !url.pathname.includes('/assets/audio/music/') && !PRIVATE.test(url.pathname)) || url.href.startsWith(PEERJS));
 
 self.addEventListener('fetch', (e) => {
   const req = e.request, url = new URL(req.url);
