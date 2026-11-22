@@ -60,8 +60,8 @@ export function matchCounters(sm, winner, mode) {
   if (sm && typeof sm === 'object') {
     (Array.isArray(sm.picks) ? sm.picks : []).slice(0, 2).forEach((ids, t) => (Array.isArray(ids) ? ids : []).slice(0, 5).forEach((h) => { if (ID.test(String(h))) { add(c, 'hg:' + h); if (t === winner) add(c, 'hw:' + h); } }));
     (Array.isArray(sm.bans) ? sm.bans : []).slice(0, 2).forEach((ids) => (Array.isArray(ids) ? ids : []).slice(0, 5).forEach((h) => { if (ID.test(String(h))) add(c, 'hb:' + h); }));
-    (Array.isArray(sm.plans) ? sm.plans : []).slice(0, 2).forEach((pl, t) => { if (ID.test(String(pl))) { add(c, 'pg:' + pl); if (t === winner) add(c, 'pw:' + pl); } });
-    if (ID.test(String(sm.map))) add(c, 'vmap:' + sm.map);
+    (Array.isArray(sm.plans) ? sm.plans : []).slice(0, 2).forEach((pl, t) => { if (typeof pl === 'string' && ID.test(pl)) { add(c, 'pg:' + pl); if (t === winner) add(c, 'pw:' + pl); } });
+    if (typeof sm.map === 'string' && ID.test(sm.map)) add(c, 'vmap:' + sm.map);
   }
   return c;
 }
@@ -140,8 +140,8 @@ export function opsApi(H) {
     add(c, 'ev:' + ev);
     if (mode) add(c, `ev:${ev}:${mode}`);
     if (ev === 'match_done') {
-      if (ID.test(String(b.map))) add(c, 'map:' + b.map);
-      add(c, 'event:' + (ID.test(String(b.event)) ? b.event : 'classic'));
+      if (typeof b.map === 'string' && ID.test(b.map)) add(c, 'map:' + b.map);
+      add(c, 'event:' + (typeof b.event === 'string' && ID.test(b.event) ? b.event : 'classic'));
       if (Number(b.len) > 0) add(c, 'len:' + (mode || 'other'), Math.min(3600, Math.round(Number(b.len))));
     }
     const ex = (await db.prepare('SELECT flag, variant FROM flag_expo WHERE player = ? LIMIT 20').bind(me.id).all()).results || [];

@@ -68,7 +68,9 @@ function timeChart(days, series, { bars = false, fmt = num, height = 120 } = {})
       const pts = days.map((d, i) => [X(i), Y(x.v[d] || 0)]);
       svg.append(s('polyline', { points: pts.map((p) => p.join(',')).join(' '), fill: 'none', stroke: x.color, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
       const last = pts[pts.length - 1];
-      if (last && series.length > 1) svg.append(s('text', { x: Math.min(last[0], W - R - 2), y: last[1] - 6, class: 'dl', 'text-anchor': 'end' }, document.createTextNode(x.name)));
+      // direct labels only where they cannot collide (the legend always names the series)
+      const clash = series.some((o) => o !== x && Math.abs(Y(o.v[days[n - 1]] || 0) - last[1]) < 14);
+      if (last && series.length > 1 && !clash) svg.append(s('text', { x: Math.min(last[0], W - R - 2), y: last[1] - 6, class: 'dl', 'text-anchor': 'end' }, document.createTextNode(x.name)));
     }
   }
   const cross = s('line', { y1: T, y2: H - B, class: 'cross' }), dots = series.map((x) => s('circle', { r: 4, fill: x.color, class: 'dot' }));
@@ -127,7 +129,7 @@ function overview(D) {
       card('Matches by map', table([{ label: 'Map', get: (r) => (MAP_BY_ID[r[0]] ? MAP_BY_ID[r[0]].name : r[0]) }, { label: 'Matches', num: 1, get: (r) => num(r[1]) }, { label: 'Share', num: 1, get: (r) => pct(r[1], total) }], maps)),
       card('Matches by weekly event', table([{ label: 'Event', get: (r) => (EVENT_BY_ID[r[0]] ? EVENT_BY_ID[r[0]].name : r[0] === 'classic' ? 'Classic' : r[0]) }, { label: 'Matches', num: 1, get: (r) => num(r[1]) }], events))),
     card('Queues (online matchmaking)', table([{ label: 'Queue', get: (q) => MODE[q] || q }, { label: 'Searches', num: 1, get: (q) => num(S['qs:' + q] || 0) }, { label: 'Matched', num: 1, get: (q) => num(S['qm:' + q] || 0) },
-      { label: 'Fill rate', num: 1, get: (q) => pct(Math.min(S['qs:' + q] || 0, 2 * (S['qm:' + q] || 0)), S['qs:' + q] || 0) }, { label: 'Avg wait', num: 1, get: (q) => (S['qm:' + q] ? Math.round(S['qw:' + q] / S['qm:' + q]) + ' s' : '–') },
+      { label: 'Fill rate', num: 1, get: (q) => pct(Math.min(S['qs:' + q] || 0, 2 * (S['qm:' + q] || 0)), S['qs:' + q] || 0) }, { label: 'Avg wait', num: 1, get: (q) => (S['qm:' + q] ? Math.round((S['qw:' + q] || 0) / S['qm:' + q]) + ' s' : '–') },
       { label: 'Gave up', num: 1, get: (q) => num(S['qc:' + q] || 0) }], QUEUES.filter((q) => S['qs:' + q]), { empty: 'No online searches in this window.' }),
       h('p', { class: 'muted small' }, 'Fill rate: searches that found an opponent (each match is two searches). Wait: how long the first coach waited.')),
     card('Retention by signup day', table([{ label: 'Day', get: (d) => dayLabel(d) }, { label: 'New', num: 1, get: (d) => num(coh[d] || 0) }, { label: 'D1', num: 1, get: (d) => (d + 1 < D.today ? pct(r1[d] || 0, coh[d]) : '…') }, { label: 'D7', num: 1, get: (d) => (d + 7 < D.today ? pct(r7[d] || 0, coh[d]) : '…') }],
@@ -140,8 +142,9 @@ function overview(D) {
 }
 
 function heroes(D) {
-  const S = D.sums, vm = S.vm || 0, season = Object.fromEntries(D.heroes.map((r) => [r.hero, r]));
-  const rows = HEROES.map((x) => ({ id: x.id, name: x.name, role: x.role, g: S['hg:' + x.id] || 0, w: S['hw:' + x.id] || 0, b: S['hb:' + x.id] || 0, sg: (season[x.id] || {}).games || 0, sw: (season[x.id] || {}).wins || 0 }));
+  const S = D.sums, vm = D.series.filter((r) => r.k === 'vm').reduce((a, r) => a + r.n, 0), season = Object.fromEntries(D.heroes.map((r) => [r.hero, r]));
+  const all = HEROES.map((x) => ({ id: x.id, name: x.name, role: x.role, g: S['hg:' + x.id] || 0, w: S['hw:' + x.id] || 0, b: S['hb:' + x.id] || 0, sg: (season[x.id] || {}).games || 0, sw: (season[x.id] || {}).wins || 0 }));
+  const rows = all.filter((r) => r.g || r.b || r.sg), unseen = all.filter((r) => !(r.g || r.b || r.sg));
   const key = state.heroSort, by = { games: (r) => r.g, win: (r) => (r.g >= 5 ? r.w / r.g : -1), ban: (r) => r.b, name: (r) => r.name, season: (r) => r.sg };
   rows.sort((a, b) => (key === 'name' ? a.name.localeCompare(b.name) : by[key](b) - by[key](a)));
   const plans = Object.keys(PLAN_INFO).concat(['balanced']).map((id) => ({ id, g: S['pg:' + id] || 0, w: S['pw:' + id] || 0 })).filter((p) => p.g);
@@ -152,7 +155,8 @@ function heroes(D) {
         { key: 'games', label: 'Picks', num: 1, get: (r) => `${num(r.g)} · ${pct(r.g, vm)}` },
         { key: 'ban', label: 'Bans', num: 1, get: (r) => `${num(r.b)} · ${pct(r.b, vm)}` },
         { key: 'win', label: 'Win rate', num: 1, get: (r) => (r.g ? h('span', {}, meter(r.w / r.g, true), pct1(r.w, r.g)) : '–') },
-        { key: 'season', label: 'Season', num: 1, get: (r) => (r.sg ? `${pct(r.sw, r.sg)} of ${num(r.sg)}` : '–') }], rows, { sort: key, onSort: sortBy }),
+        { key: 'season', label: 'Season', num: 1, get: (r) => (r.sg ? `${pct(r.sw, r.sg)} of ${num(r.sg)}` : '–') }], rows, { sort: key, onSort: sortBy, empty: 'No verified online matches yet.' }),
+      unseen.length ? h('p', { class: 'muted small' }, `Not picked or banned yet (${unseen.length}): ${unseen.map((r) => r.name).join(', ')}.`) : null,
       h('p', { class: 'muted small' }, 'Pick and ban rates: share of matches. Tap a column to sort. Win rates under 30 games are noise; tools/autobalance.mjs only nudges heroes with enough games.')),
     card('Game plans', table([{ label: 'Plan', get: (p) => (PLAN_INFO[p.id] ? PLAN_INFO[p.id].name : 'Balanced') }, { label: 'Teams', num: 1, get: (p) => num(p.g) }, { label: 'Win rate', num: 1, get: (p) => h('span', {}, meter(p.w / p.g, true), pct1(p.w, p.g)) }], plans, { empty: 'No plan data yet.' })),
   ];
