@@ -52,7 +52,7 @@ export const MOMENTUM = { max: 100, call: 14, kill: 4, objective: 18, tower: 10,
 export const PERMIT = { fight: 12, split: 60, range: 1500, cooldown: 20 };
 export const CMD = {
   maxCharges: 3, regen: 20, // seconds per charge
-  cost: { ult: 0, plan: 0, redraw: 0, surge: 0, permit: 0, moment: 0, gank: 1, objective: 2, shrine: 1, group: 1, split: 1, focus: 1, safe: 1, reset: 1, invade: 2, herald: 0, build: 0, cancel: 0, tactic: 0 },
+  cost: { ult: 0, plan: 0, redraw: 0, surge: 0, permit: 0, moment: 0, gank: 1, objective: 2, shrine: 1, group: 1, split: 1, focus: 1, safe: 1, reset: 1, invade: 2, herald: 0, build: 0, cancel: 0, tactic: 0, talent: 0, item: 0 },
 };
 
 // Internal ids keep their old names (dragon/herald/baron); these are the names players see.

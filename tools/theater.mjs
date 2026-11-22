@@ -44,6 +44,7 @@ function run(name, cfg, seconds, extra = []) {
 run('classic', { seed: 777, map: 'sakura', coach: [false, true], teams }, 420);
 run('rush', { seed: 778, map: 'rush_sakura', mode: 'rush', coach: [false, true], teams }, 240);
 run('event', { seed: 779, map: 'oasis', event: 'shrine', coach: [false, true], teams }, 300); // weekly event rules are a per-game copy
+run('depth', { seed: 780, map: 'frost', depth: true, coach: [false, true], teams }, 540); // v23: per-hero talent views of the hero data, empowered ults
 // Living World: walls live on the World that snapshots share; every copy puts its own walls back before it steps
 // (thickets open at 6:00, every wall at 12:00), and a restored copy must still match the original.
 run('living', { seed: 780, map: 'marsh', living: 1, coach: [false, true], teams }, 750, [{ type: 'objective', obj: 'yokai' }, { type: 'invade', camp: '1:moon' }, { type: 'objective', obj: 'boss' }]);

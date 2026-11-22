@@ -16,6 +16,8 @@ import { rulesFor } from './modes.js';
 import { applyMoment } from './moments-coach.js';
 import { normPlan, planChangeOk, planEdge } from './plans.js';
 import { setupCoop, coopGate } from './coop.js';
+import { openCrystal } from './endgame.js';
+import * as D from './talents.js'; // v23 match depth (cfg.depth): talents, item override, ult upgrades, revenge, duo ults
 import { Living } from './living.js';
 
 // Champion-vs-champion damage scale: keeps fights readable and lanes from snowballing at level 1.
@@ -63,6 +65,7 @@ export class Game {
   constructor(cfg) {
     this.cfg = cfg;
     this.rng = new Rng(cfg.seed >>> 0);
+    this.depth = !!cfg.depth;
     this.mode = cfg.mode || 'classic'; this.rules = rulesFor(this.mode, cfg.event); this.T = this.rules.T;
     this.event = this.rules.event; // weekly map event id (src/data/events.js) or null for Classic
     this.tick = 0;
@@ -108,6 +111,7 @@ export class Game {
     this.clanStats = [{}, {}];
     for (let t = 0; t < 2; t++) for (const h of cfg.teams[t].heroes) this.spawnHero(t, h);
     if (cfg.coop) setupCoop(this); // co-op coaching: which coach owns which hero (src/sim/coop.js)
+    if (this.depth) D.setupDepth(this);
     for (let t = 0; t < 2; t++) {
       const counts = {};
       for (const h of this.teams[t].heroes) counts[h.def.clan] = (counts[h.def.clan] || 0) + 1;
@@ -280,6 +284,7 @@ export class Game {
       level: this.rules.startLevel, xp: 0, gold: gold0, radius: 14, cds: [0, 0, 0], castLock: 0, dash: null, every3: 0, passiveCd: 0,
       kills: 0, deaths: 0, assists: 0, cs: 0, dmgHeroes: 0, dmgTaken: 0, healed: 0, goldEarned: gold0, streak: 0,
       respawnAt: 0, recallAt: 0, flashCd: 0, task: { kind: 'idle' }, dmgBy: {}, lowShieldCd: 0, smiteCd: 0, wardCd: sec(50), lastHurtByHero: -999,
+      fmod: spec.mod ? Math.max(-0.1, Math.min(0.1, +spec.mod || 0)) : 0, // Franchise roster form (src/franchise/roster.js): small stat edge
       stats: null, maxHp: 1, hp: 1, trust: 50, tiltUntil: 0, pendingCall: null, stealthUntil: 0, ambushUntil: 0, revealUntil: 0,
     });
     h.pers = PERSONALITIES[def.pers] || PERSONALITIES.calm;
@@ -336,11 +341,13 @@ export class Game {
       }
     };
     for (const it of h.items) add(it.stats);
+    if (h.talStats) add(h.talStats);
     const now = this.tick;
     for (const bf of h.buffs) if (bf.until > now && bf.stats) add(bf.stats);
     const team = this.teams[h.team];
     if (this.clanStats) add(this.clanStats[h.team]);
     const tn = TUNE[h.heroId] || 1; if (tn !== 1) { s.dmgPct += tn - 1; s.hpPct += (tn - 1) * 0.6; }
+    if (h.fmod) { s.dmgPct += h.fmod; s.hpPct += h.fmod * 0.6; }
     if (this.shrines) for (const sh of this.shrines) if (sh.owner === h.team) s.dmgPct += this.rules.shrine ? this.rules.shrine.dmg : 0.05;
     s.dmgPct += planEdge(this, h.team); // game plans: countering the enemy's plan
     for (const d of team.dragons) {
@@ -389,7 +396,7 @@ export class Game {
     let bought = false;
     while (true) {
       // next unowned item from current build path
-      const next = path.find((it) => !h.items.some((o) => o.name === it.name));
+      const next = this.depth ? D.nextBuy(h) : path.find((it) => !h.items.some((o) => o.name === it.name));
       if (!next || h.items.length >= 6 || h.gold < next.cost) break;
       h.gold -= next.cost; h.items.push(next); bought = true;
       this.emit({ type: 'buy', hero: h.id, team: h.team, item: next.name });
@@ -398,7 +405,7 @@ export class Game {
   }
   nextItemCost(h) {
     if (h.items.length >= 6) return Infinity;
-    const next = BUILDS[h.build].items.find((it) => !h.items.some((o) => o.name === it.name));
+    const next = this.depth ? D.nextBuy(h) : BUILDS[h.build].items.find((it) => !h.items.some((o) => o.name === it.name));
     return next ? next.cost : Infinity;
   }
   giveGold(h, g) { g *= this.rules.gold; h.gold += g; h.goldEarned += g; }
@@ -409,6 +416,7 @@ export class Game {
       h.xp -= xpNeeded(h.level); h.level++;
       this.recalc(h); h.hp = Math.min(h.maxHp, h.hp + h.def.base.hpL * 0.6);
       if (h.level === 5) this.emit({ type: 'ult', hero: h.id, team: h.team });
+      if (this.depth) D.talentLevel(this, h);
       this.fx.push({ kind: 'levelup', id: h.id });
     }
   }
@@ -499,6 +507,8 @@ export class Game {
       }
       case 'tactic': ok = this.playTactic(c); break;
       case 'moment': ok = applyMoment(this, c); break;
+      case 'talent': ok = this.depth && D.cmdTalent(this, c); break;
+      case 'item': ok = this.depth && D.cmdItem(this, c); break;
       case 'ult': {
         // Ult calls: 'save' holds ultimates for a kill or self-defence; 'go' fires them in the next fight.
         if (c.mode !== 'save' && c.mode !== 'go' && c.mode !== 'free') { ok = false; break; }
@@ -686,6 +696,7 @@ export class Game {
       u.alive = true; u.hp = u.maxHp; u.respawnAt = 0; this.emit({ type: 'inhibRespawn', team: u.team, lane: u.lane });
     }
     this.updateStatus();
+    if (this.depth && now % 10 === 0) D.depthTick(this);
     this.updateProjectiles();
     this.updatePending();
     this.separate(rev);
@@ -865,6 +876,7 @@ export class Game {
       if (ss.dmgPct) amt *= 1 + ss.dmgPct;
       amt *= src.trustMult || 1;
       amt = FX.heroDamageMods(this, src, tgt, amt, flags);
+      if (this.depth) amt = D.depthDamage(this, src, tgt, amt, flags);
       if (ss.waveClear && (tgt.type === 'minion' || tgt.type === 'mob')) amt *= 1 + ss.waveClear;
       if (!flags.dot && (src.stealthUntil > this.tick || src.ambushUntil > this.tick)) { amt *= 1.25; if (src.stealthUntil > this.tick) { src.stealthUntil = 0; src.ambushUntil = this.tick + sec(3); } }
       const st = this.teams[src.team];
@@ -1167,6 +1179,8 @@ export class Game {
         && this.grid.query(e.x, e.y, 400).some((a) => a.type === 'hero' && a.team === m.team && a.lastHurtByHero > now - sec(1.5)));
       if (!tgt) tgt = this.findTarget(m, aggro, (e) => (e.type === 'minion' || e.type === 'summon') && inZone(e));
       if (!tgt && m.type === 'summon') tgt = this.findTarget(m, 350, (e) => e.structure && this.isTargetable(e));
+      // endgame: an open enemy Crystal in reach beats chasing heroes (src/sim/endgame.js)
+      if (!tgt) { const n = openCrystal(this, m.team); if (n && dist2(m, n) < (aggro + 60) ** 2) tgt = n; }
       if (!tgt) tgt = this.findTarget(m, aggro, (e) => e.type === 'hero' && this.canSee(m.team, e) && inZone(e));
       if (!tgt) tgt = this.findTarget(m, aggro + 60, (e) => e.structure && this.isTargetable(e));
       if (tgt !== m.target && m.target && m.target.alive && m.target.type !== 'hero' && dist2(m, m.target) < (m.stats.range + 40) ** 2 && tgt && tgt.type !== 'hero') tgt = m.target;
@@ -1352,6 +1366,7 @@ export class Game {
   }
 
   cast(h, i, tgt, pt) {
+    if (this.depth) D.castHook(this, h, i, true);
     const ab = h.def.abilities[i];
     h.cds[i] = this.tick + sec(ab.cd * h.stats.cdMult);
     h.castLock = this.tick + 4;
@@ -1448,6 +1463,7 @@ export class Game {
       }
     }
     FX.onCast(this, h, ab, tgt, aim);
+    if (this.depth) D.castHook(this, h, i, false);
   }
   applyAllyEffects(h, a, ab) {
     if (ab.heal) this.heal(a, this.scaleVal(h, ab.heal), h);
@@ -1628,6 +1644,7 @@ export class Game {
         } else if (killerTeam !== NEUTRAL && killerTeam !== u.team) this.teams[killerTeam].kills++;
         for (const a of assists) { a.assists++; this.giveGold(a, GOLD.assist / Math.max(1, assists.length) * 1.5 * this.rules.killGold); }
         FX.onTakedown(this, u, killer, assists);
+        if (this.depth) D.depthTakedown(this, u, killer, assists);
         const xp = XP.killBase + XP.killPerLevel * u.level;
         const near = this.grid.query(u.x, u.y, 900).filter((h) => h.type === 'hero' && h.alive && h.team !== u.team);
         for (const h of near) this.giveXp(h, xp / near.length * (near.length > 1 ? 1.3 : 1));
@@ -1690,6 +1707,7 @@ export class Game {
         } else if (this.living) this.living.onObjective(u, team); // Yokai Parade tamed / Tengu's Gale
         const ev = { type: 'objective', obj: u.kind, element: u.element, team, killer: killer ? killer.id : 0, steal: smite };
         this.emit(ev); this.resolveCalls(ev);
+        if (this.depth) D.depthObjective(this, team, u);
         break;
       }
       case 'tower': case 'inhib': case 'nexus': {

@@ -4,7 +4,7 @@ import { Game } from '../src/sim/game.js';
 import { LocalRunner } from '../src/net/runner.js';
 import { aiPrep } from '../src/sim/draft.js';
 const teams = [aiPrep(['bastion', 'kaze', 'ember', 'fletch', 'aurelia'], ['varro', 'gama', 'hex', 'bolt', 'frost']), aiPrep(['varro', 'gama', 'hex', 'bolt', 'frost'], ['bastion', 'kaze', 'ember', 'fletch', 'aurelia'])];
-function run(name, cfg, seconds, calls) {
+function run(name, cfg, seconds, calls, more) {
   const g1 = new Game(JSON.parse(JSON.stringify(cfg))), r1 = new LocalRunner(g1, 0, { noHalftime: true });
   let k = 0;
   // also the coach-side extras: Kami Surge when momentum is full, and green-lighting a hero's solo play (permit)
@@ -18,11 +18,13 @@ function run(name, cfg, seconds, calls) {
       const foe = g1.teams[1].heroes.find((e) => e.alive && g1.vision[0].has(e.id)), h = foe && me.heroes.find((x) => x.alive && (x.x - foe.x) ** 2 + (x.y - foe.y) ** 2 < 1200 ** 2);
       if (h && me.permitCd <= g1.tick) { r1.send({ type: 'permit', kind: 'fight', hero: h.id, target: foe.id }); extra++; }
     }
+    if (more) more(g1, r1);
     r1.update(0.05);
   }
   const log = JSON.parse(JSON.stringify(r1.log));
   const g2 = new Game(JSON.parse(JSON.stringify(cfg))), r2 = new LocalRunner(g2, -1, { noHalftime: true, script: log });
   while (g2.tick < g1.tick && !g2.over) r2.update(0.05);
+  if (g1.depth) console.log(`[${name}] talents ${g1.teams[0].heroes.map((x) => x.tal.join('')).join(' ')} = ${g2.teams[0].heroes.map((x) => x.tal.join('')).join(' ')}; items ${g1.teams[0].heroes.map((x) => x.items.length).join('')}; ult upgrades ${g1.events.filter((e) => e.type === 'ultUp').length}`);
   console.log(`[${name}] commands ${log.reduce((a, b) => a + b[1].length, 0)} (${extra} surge/permit), applied permits ${g1.callLog.filter((c) => c.type === 'permit').length}, surges ${g1.events.filter((e) => e.type === 'surge' && e.team === 0).length}, moments ${g1.events.filter((e) => e.type === 'moment').length}, ticks ${g1.tick}`);
   const plans = g1.events.filter((e) => e.type === 'plan');
   if (g1.halftimeTick > 0 && g1.tick > g1.halftimeTick + 10) console.log(`[${name}] plans ${g1.cfg.teams.map((t) => t.plan).join(' vs ')}; halftime change: ${plans.map((e) => `T${e.team} ${e.from}→${e.plan}`).join(', ') || 'NONE'}`);
@@ -66,5 +68,14 @@ const okCo = runCoop();
 // a weekly event on a v22 map: Blood Moon on Mossgate Ruins
 const okE = run('event', { seed: 4244, map: 'ruins', event: 'bloodmoon', coach: [false, true], teams }, 600,
   [{ type: 'gank', lane: 'top' }, { type: 'objective', obj: 'dragon' }, { type: 'moment', id: 'rally' }, { type: 'group', lane: 'mid' }, { type: 'shrine' }, { type: 'safe' }]);
-console.log(okC && okR && okCo && okE ? 'REPLAY MATCHES ✔' : 'REPLAY DIVERGED ✘');
-process.exit(okC && okR && okCo && okE && okL ? 0 : 1);
+// v23 match depth: coach talent defaults in the cfg, live talent swaps and item overrides in the log
+const { itemOptions } = await import('../src/sim/talents.js');
+const dteams = JSON.parse(JSON.stringify(teams)); dteams[0].heroes.forEach((x, i) => { x.tal = [[1, -1, 0], [0, 1, 1], [-1, -1, -1], [1, 0, -1], [0, 0, 1]][i]; });
+const okD = run('depth', { seed: 4245, map: 'marsh', depth: true, coach: [false, true], teams: dteams }, 600,
+  [{ type: 'gank', lane: 'bot' }, { type: 'objective', obj: 'dragon' }, { type: 'group', lane: 'mid' }, { type: 'ult', mode: 'go' }], (g, r) => {
+    if (g.tick % 60 !== 13) return;
+    for (const x of g.teams[0].heroes) { const k = x.tal.findIndex((p, i) => p >= 0 && g.tick - x.talAt[i] < 80); if (k >= 0) { r.send({ type: 'talent', hero: x.id, tier: k, pick: 1 - x.tal[k] }); return; } }
+    if (g.tick % 600 === 13) { const x = g.teams[0].heroes[g.tick / 600 % 5 | 0], o = itemOptions(x); if (o.length > 1) r.send({ type: 'item', hero: x.id, item: o[o.length - 1].name }); }
+  });
+console.log(okC && okR && okCo && okE && okD && okL ? 'REPLAY MATCHES ✔' : 'REPLAY DIVERGED ✘');
+process.exit(okC && okR && okCo && okE && okD && okL ? 0 : 1);

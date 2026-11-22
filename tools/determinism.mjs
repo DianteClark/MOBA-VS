@@ -4,8 +4,8 @@ import { HEROES } from '../src/data/heroes.js';
 import { EVENTS } from '../src/data/events.js';
 const pick = (ids) => ids.map((id) => { const h = HEROES.find((x) => x.id === id); return { id, role: h.role, build: h.rec }; });
 // 'event': a weekly map event on a v22 map (Kami Storm on Mossgate Ruins); every other event gets a short run below
-// 'living': Living World (night, Moon Spirits, Yokai Parade, walls, Tengu) on Moonlit Marsh during Blood Moon week
-const cfg = (mode, ev) => ({ seed: 777, coach: [false, true], ...(mode === 'rush' ? { mode: 'rush', map: 'rush_ember' } : mode === 'event' ? { map: 'ruins', event: 'kamistorm' } : mode === 'living' ? { map: 'marsh', living: 1, event: 'bloodmoon' } : ev ? { map: 'oasis', event: ev } : {}), teams: [
+// 'living': Living World (night, Moon Spirits, Yokai Parade, walls, Tengu) on Moonlit Marsh during Blood Moon week, with v23 match depth as the app plays it
+const cfg = (mode, ev) => ({ seed: 777, coach: [false, true], ...(mode === 'rush' ? { mode: 'rush', map: 'rush_ember' } : mode === 'event' ? { map: 'ruins', event: 'kamistorm' } : mode === 'living' ? { map: 'marsh', living: 1, depth: true, event: 'bloodmoon' } : ev ? { map: 'oasis', event: ev } : {}), teams: [
   { heroes: pick(['grok', 'umbra', 'totem', 'bolt', 'bonehook']), plan: 'aggro', deck: ['smoke', 'ambush', 'rally'] },
   { heroes: pick(['varro', 'gama', 'hex', 'sling', 'aurelia']), plan: 'scale' } ] });
 // A scripted "human" for blue.
@@ -43,6 +43,38 @@ for (const e of EVENTS) {
   const same = a.sums.length === b.sums.length && a.sums.every((v, i) => v === b.sums[i]);
   console.log(`event ${e.id}: ${same ? 'same' : 'DIFFERENT'} (${a.sums.length} checkpoints, last ${a.sums[a.sums.length - 1]})`);
   ok = ok && same;
+}
+// Match depth (cfg.depth, v23): talents (coach defaults, a pref change, live swaps), item overrides, ult upgrades,
+// revenge and duo ults, with the same scripted coach as classic plus talent / item commands.
+const { itemOptions } = await import('../src/sim/talents.js');
+function runDepth() {
+  const c = { ...cfg('classic'), depth: true };
+  c.teams[0].heroes = pick(['tetsu', 'umbra', 'raiden', 'bolt', 'bonehook']).map((x, i) => ({ ...x, tal: [[1, 0, 1], [-1, 1, -1], [0, 0, 0], [-1, -1, -1], [1, 1, 1]][i] }));
+  c.teams[1].heroes = pick(['sora', 'gama', 'fujin', 'sling', 'aurelia']); // blue has the Siege Works duo (tetsu + bolt)
+  const g = new Game(c); const sums = []; let acc = '';
+  while (!g.over && g.tick < 20 * 60 * 14) {
+    const s = script[g.tick]; const cmds = [];
+    if (s) { const q = { ...s, team: 0, seq: 1 }; if (s.targetIdx !== undefined) q.target = g.teams[1].heroes[s.targetIdx].id; if (s.heroIdx !== undefined) q.hero = g.teams[0].heroes[s.heroIdx].id; cmds.push(q); }
+    if (g.tick === 400) cmds.push({ type: 'talent', team: 0, hero: g.teams[0].heroes[3].id, tier: 0, pick: 1, seq: 2 });  // pref before the level: ok
+    if (g.tick === 401) cmds.push({ type: 'talent', team: 0, hero: g.teams[0].heroes[3].id, tier: 0, pick: -1, seq: 3 }); // back to auto: ok
+    if (g.tick % 50 === 7) for (const x of g.teams[1].heroes) if (x.tal.some((p, i) => p >= 0 && g.tick - x.talAt[i] < 100)) { const i = x.tal.findIndex((p, k) => p >= 0 && g.tick - x.talAt[k] < 100); cmds.push({ type: 'talent', team: 1, hero: x.id, tier: i, pick: 1 - x.tal[i], seq: 4 }); break; } // live swap
+    if (g.tick === 3000) { const x = g.teams[0].heroes[1], o = itemOptions(x); if (o[1]) cmds.push({ type: 'item', team: 0, hero: x.id, item: o[1].name, seq: 5 }); }
+    const n = g.events.length; g.step(cmds); g.fx.length = 0;
+    if (cmds.some((q) => q.type === 'talent' || q.type === 'item')) acc += g.events.slice(n).some((e) => e.type === 'call' && (e.call.type === 'talent' || e.call.type === 'item')) ? '1' : '0';
+    if (g.tick % 200 === 0) sums.push(g.checksum());
+  }
+  const ev = {}; for (const e of g.events) if (['talent', 'ultUp', 'revenge', 'duoUlt', 'itemPick'].includes(e.type)) ev[e.type] = (ev[e.type] || 0) + 1;
+  return { sums, winner: g.winner, tick: g.tick, acc, ev, tal: g.teams.map((t) => t.heroes.map((x) => x.tal.join('')).join(' ')).join(' | ') };
+}
+{
+  const a = runDepth(), b = runDepth();
+  const same = a.sums.length === b.sums.length && a.sums.every((v, i) => v === b.sums[i]) && a.acc === b.acc && a.tal === b.tal;
+  console.log(`depth run A: ${a.sums.length} checkpoints, winner ${a.winner} @${(a.tick / 1200).toFixed(1)}m, cmds ${a.acc}, talents ${a.tal}, events ${JSON.stringify(a.ev)}`);
+  console.log(`depth run B: ${b.sums.length} checkpoints, winner ${b.winner}, cmds ${b.acc}`);
+  const pref = a.tal.split(' | ')[0].split(' ');
+  const prefsOk = pref[0].startsWith('1') && pref[2].startsWith('0') && pref[4].startsWith('1');
+  if (!prefsOk) console.log('depth: coach talent defaults were not applied');
+  ok = ok && same && a.acc.startsWith('11') && prefsOk;
 }
 // Co-op: two coaches on blue (seat-stamped commands, ownership checks, a lead pass, then the partner leaving)
 // and two on red (red's coaches both leave: the AI coach takes over).

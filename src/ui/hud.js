@@ -14,6 +14,7 @@ import { TEAM_COL } from '../render/renderer.js';
 import { audio } from '../audio.js';
 import { Dock } from './commands.js';
 import { Alerts } from './alerts.js';
+import { analystSuggestions } from './suggest.js';
 import { settings, openSettingsModal, isTouch } from './settings.js';
 import { Caster } from './caster.js';
 import { buzz } from './haptics.js';
@@ -25,6 +26,8 @@ import { planName } from '../data/plans.js';
 import { EVENT_BY_ID } from '../data/events.js';
 import { canCommand, HERO_CMDS } from '../sim/coop.js';
 import { COOP_COL, coachOf } from '../coop-room.js';
+import { Depth } from './depth.js';
+import { talentIcons, talentKey } from './talentui.js';
 import { livingEvent, livingObjective } from './livinghud.js';
 import { LIVING } from '../sim/living.js';
 
@@ -53,6 +56,7 @@ export class Hud {
     if (Hud.current && Hud.current !== this) Hud.current.destroy();
     Hud.current = this;
     if (!runner.online && mode !== 'watch') runner.speed = settings.speed || 1;
+    this.depth = game.depth ? new Depth(this) : null; // v23 match depth: talents, item override, forecasts
     this.build();
     // joining a game already in progress (Play of the Game): skip its history, keep its tallies
     if (game.tick > 0) {
@@ -210,7 +214,7 @@ export class Hud {
   send(cmd) { return this.dock.send(cmd); }
   callPoint(c) {
     const W = this.g.world;
-    if (c.obj) { const p = c.obj === 'dragon' ? W.pits.kami : W.pits.kraken; return [p.x, p.y]; }
+    if (c.obj) { const p = this.g.objPit(c.obj); return [p.x, p.y]; }
     if (c.type === 'shrine' && c.shrine !== undefined) { const s = this.g.shrines[c.shrine]; return [s.x, s.y]; }
     if (c.type === 'focus' || (c.type === 'permit' && c.target)) { const u = this.g.byId(c.target); if (u) return [u.x, u.y]; }
     if (c.lane) { const p = W.lanePoint(c.lane, 0.5); return [p.x, p.y]; }
@@ -414,7 +418,7 @@ export class Hud {
       if (q.mia) { row.classList.toggle('mia', !vis && x.alive); q.mia.classList.toggle('hidden', vis || !x.alive); }
       const ultUp = mine && x.alive && x.level >= 5 && g.abilityReady(x, 2);
       if (ultUp && q.ult.classList.contains('hidden')) { row.classList.remove('ultpop'); void row.offsetWidth; row.classList.add('ultpop'); }
-      q.ult.classList.toggle('hidden', !ultUp);
+      q.ult.classList.toggle('hidden', !ultUp); q.ult.classList.toggle('emp', !!(ultUp && x.ultUp));
       // mood badge (your heroes only): tilted > inspired > doubtful
       const mood = !mine || this.my < 0 || !x.alive ? null : x.tiltUntil > g.tick ? 'tilt' : x.trust >= 70 ? 'up' : x.trust <= 30 ? 'doubt' : null;
       if (mood !== q.mood) {
@@ -430,7 +434,7 @@ export class Hud {
     this.closePop();
     const g = this.g, pers = PERSONALITIES[x.def.pers], mine = x.team === this.view && this.my >= 0;
     const abl = x.def.abilities.map((ab, i) => h('div', { class: 'abl', title: ab.name }, h('img', { src: icon(ab.icon) }), h('div', { class: 'cd' }), h('span', { class: 'k' }, ab.ult ? 'R' : ['Q', 'W'][i])));
-    const els = { hp: h('i'), trust: h('i'), trustL: h('small', {}), stats: h('div', { class: 'pstats' }), task: h('div', { class: 'ptask' }), why: h('div', { class: 'pwhy' }), items: h('div', { class: 'its' }) };
+    const els = { hp: h('i'), trust: h('i'), trustL: h('small', {}), stats: h('div', { class: 'pstats' }), task: h('div', { class: 'ptask' }), why: h('div', { class: 'pwhy' }), items: h('div', { class: 'its' }), tal: h('div', { class: 'ptal' }) };
     const el = h('div', { id: 'hpop', class: 'hpop' },
       h('div', { class: 'phead' }, h('img', { class: 'pface', src: face(x.heroId), style: { borderColor: `var(--team${x.team})` } }),
         h('div', { class: 'pcol' }, h('b', { style: { color: `var(--team${x.team})` } }, x.def.name), h('small', { class: 'muted' }, x.def.title),
@@ -441,7 +445,7 @@ export class Hud {
       h('div', { class: 'pdesc' }, pers.desc),
       h('div', { class: 'pbarrow' }, h('span', {}, 'HP'), h('div', { class: 'pbar hp' }, els.hp)),
       mine ? h('div', { class: 'pbarrow' }, h('span', {}, 'Trust'), h('div', { class: 'pbar tr' }, els.trust), els.trustL) : null,
-      h('div', { class: 'ablrow' }, ...abl, els.items), els.stats, els.task, els.why);
+      h('div', { class: 'ablrow' }, ...abl, els.items), x.tal ? els.tal : null, els.stats, els.task, els.why);
     document.body.append(el);
     const upd = () => {
       const vis = mine || this.my < 0 || !this.r.fogOn || g.vision[this.view].has(x.id);
@@ -456,6 +460,7 @@ export class Hud {
         if (c.textContent !== t) c.textContent = t; abl[i].classList.toggle('cool', mine || this.my < 0 ? (locked || left > 0) : false);
       });
       if (els.items.childElementCount !== x.items.length) mount(els.items, ...x.items.map((it) => h('img', { src: icon(it.icon), title: it.name })));
+      if (x.tal && els.tal._k !== talentKey(x) + x.ultUp) { els.tal._k = talentKey(x) + x.ultUp; mount(els.tal, h('span', { class: 'muted' }, 'Talents'), talentIcons(x), x.ultUp ? h('b', { class: 'pemp' }, 'Ult empowered') : null); }
       els.stats.textContent = `Lv ${x.level}  ·  ${x.kills}/${x.deaths}/${x.assists}  ·  ${x.cs} CS  ·  ${Math.round(x.goldEarned / 100) / 10}k gold`;
       els.task.textContent = !x.alive ? this.taskLabel(x) : mine ? this.taskLabel(x) : vis ? this.taskLabelEnemy(x) : this.missingText(x);
       setText(els.why, this.whyText(x));
@@ -497,14 +502,14 @@ export class Hud {
     if (force || !this._det || this._det.id !== x.id) {
       const pers = PERSONALITIES[x.def.pers];
       const abl = x.def.abilities.map((ab, i) => h('div', { class: 'abl', title: `${ab.name}${ab.ult ? ' (ultimate)' : ''}` }, h('img', { src: icon(ab.icon) }), h('div', { class: 'cd' }), h('span', { class: 'k' }, ['Q', 'W', 'R'][i])));
-      this._det = { id: x.id, abl, xp: h('i'), hp: h('i'), stats: h('div', { class: 'stats' }), info: h('div', { class: 'dinfo' }), why: h('div', { class: 'dwhy' }), items: h('div', { class: 'its' }) };
+      this._det = { id: x.id, abl, xp: h('i'), hp: h('i'), stats: h('div', { class: 'stats' }), info: h('div', { class: 'dinfo' }), why: h('div', { class: 'dwhy' }), items: h('div', { class: 'its' }), tal: h('div', { class: 'dtal' }) };
       mount(this.el.detail,
         h('div', { class: 'dhead' }, h('img', { class: 'dface', src: face(x.heroId) }),
           h('div', { class: 'dcol' },
             h('div', { class: 'dname' }, h('span', { style: { color: TEAM_COL[x.team] } }, x.def.name), h('span', { class: 'muted' }, ` ${x.def.title}`)),
             h('div', { class: 'dtags' }, h('span', { style: { color: CLANS[x.def.clan].color } }, CLANS[x.def.clan].name), h('span', { style: { color: pers.color } }, pers.name), h('span', { style: { color: BUILDS[x.build].color } }, BUILDS[x.build].name)),
             h('div', { class: 'dbar hp' }, this._det.hp), h('div', { class: 'dbar xp' }, this._det.xp))),
-        h('div', { class: 'ablrow' }, ...abl, this._det.items), this._det.stats, this._det.info, this._det.why);
+        h('div', { class: 'ablrow' }, ...abl, this._det.items, x.tal ? this._det.tal : null), this._det.stats, this._det.info, this._det.why);
     }
     const d = this._det;
     setCss(d.hp, 'width', Math.round(x.alive ? x.hp / x.maxHp * 200 : 0) / 2 + '%');
@@ -517,6 +522,8 @@ export class Hud {
       d.abl[i].classList.toggle('cool', locked || left > 0);
     });
     if (d.items.childElementCount !== x.items.length) mount(d.items, ...x.items.map((it) => h('img', { src: icon(it.icon), title: it.name })));
+    if (x.tal && d.tal._k !== talentKey(x)) { d.tal._k = talentKey(x); mount(d.tal, talentIcons(x)); }
+    d.abl[2].classList.toggle('emp', !!x.ultUp);
     setText(d.stats, `AD ${Math.round(s.ad)}  AP ${Math.round(s.ap)}  AR ${Math.round(s.armor)}  MR ${Math.round(s.mr)}  AS ${s.as.toFixed(2)}  MS ${Math.round(g.moveSpeed(x))}`);
     setText(d.info, `Lv ${x.level} · ${x.kills}/${x.deaths}/${x.assists} · ${x.cs} CS · ${Math.round(x.goldEarned / 100) / 10}k` + (x.team === this.my ? ` · Trust ${Math.round(x.trust)}${x.tiltUntil > g.tick ? ' (tilted)' : ''}` : '') + ` · ${this.taskLabel(x)}`);
     const why = this.whyText(x); setText(d.why, why); d.why.classList.toggle('hidden', !why);
@@ -607,6 +614,7 @@ export class Hud {
         case 'stolenCamp': if (e.big && e.team !== this.view) this.ticker(e.camp && e.camp.endsWith(':moon') ? 'Enemy stole your Moon Spirits!' : 'Enemy invaded your jungle!', 'danger', 2); break;
         default: livingEvent(this, e);
       }
+      if (this.depth) this.depth.event(e);
     }
   }
   // A call in words (spectator ticker, a co-op partner's calls and suggestions).
@@ -614,7 +622,7 @@ export class Hud {
     return c.type === 'gank' ? `${c.hero ? this.name(c.hero) : 'Jungler'} gank ${LANE_L[c.lane]}` : c.type === 'objective' ? `Take ${OBJ_L[c.obj]}` : c.type === 'group' ? `Group ${LANE_L[c.lane]}` :
       c.type === 'split' ? `${this.name(c.hero)} split ${LANE_L[c.lane]}` : c.type === 'focus' ? `Focus ${this.name(c.target)}` : c.type === 'build' ? `${this.name(c.hero)} → ${(BUILDS[c.build] || {}).name || 'new build'}` :
       c.type === 'herald' ? `Oni ${LANE_L[c.lane]}` : c.type === 'shrine' ? 'Capture shrine' : c.type === 'safe' ? 'Play safe' : c.type === 'reset' ? 'Reset' : c.type === 'invade' ? 'Invade' :
-      c.type === 'permit' ? `${this.name(c.hero)} green-lit` : c.type === 'surge' ? 'Kami Surge' : c.type === 'moment' ? (MOMENTS[c.id] || {}).name || 'Coach Moment' :
+      c.type === 'permit' ? `${this.name(c.hero)} green-lit` : c.type === 'talent' ? `${this.name(c.hero)} talent` : c.type === 'item' ? `${this.name(c.hero)} item swap` : c.type === 'surge' ? 'Kami Surge' : c.type === 'moment' ? (MOMENTS[c.id] || {}).name || 'Coach Moment' :
       c.type === 'tactic' ? `${(TACTICS[c.card] || {}).name || 'Tactic card'}${c.lane ? ' ' + LANE_L[c.lane] : c.hero ? ' on ' + this.name(c.hero) : ''}` :
       c.type === 'ult' ? ({ go: 'ALL-IN, ultimates fire next fight!', save: 'Hold ultimates', free: 'Ults: heroes choose' })[c.mode] || 'Ult stance' : c.type === 'plan' ? `Plan: ${planName(c.plan)}` : c.type === 'redraw' ? 'Swapped a tactic card' : 'Cancel calls';
   }
@@ -717,53 +725,25 @@ export class Hud {
     if (this.my < 0) return;
     const g = this.g, me = this.my, vis = g.vision[me], now = g.tick;
     const ready = (k, s) => { if ((this.cool[k] || 0) > now) return false; this.cool[k] = now + s * TICK_RATE; return true; };
-    const mine = g.teams[me].heroes, enemy = g.teams[1 - me].heroes;
+    const enemy = g.teams[1 - me].heroes;
     if (g.teams[me].charges >= CMD.maxCharges) this.stats.fullCharge += Math.max(0, now - this.stats.lastTick) / TICK_RATE;
     this.stats.lastTick = now;
     this.moments();
+    if (this.depth) this.depth.tick(); // fight forecast
     const carding = this.dock.tray.items.some((i) => i.prio >= PRIO.request);
-    const jg = mine.find((x) => x.role === 'jungle');
-    const deadEnemies = enemy.filter((x) => !x.alive && x.respawnAt - now > 15 * TICK_RATE);
     for (const k of ['dragon', 'baron', 'herald', ...(g.living ? ['boss', 'yokai'] : [])]) {
       const t = g.objTimers[k];
       if (t && t - now > 0 && t - now < 30 * TICK_RATE && ready('spawnwarn' + k + t, 60)) this.ticker(`${k === 'dragon' ? DRAGON_INFO[g.teams.some((x) => x.soul) ? 'elder' : g.nextDragon].name : OBJ_L[k]} awakens in 30s`, 'act', 1);
     }
-    if (deadEnemies.length >= 2) {
-      const best = ['boss', 'baron', 'dragon', 'herald'].find((k) => g.objectives[k] && g.objectives[k].alive);
-      if (best && ready('numbers', 30)) this.dock.suggest('numbers', `${deadEnemies.length} enemies down`, `Take ${OBJ_L[best]}`, { type: 'objective', obj: best }, { cls: 'good', valid: () => !!(g.objectives[best] && g.objectives[best].alive) });
-      else if (!best && ready('numbers2', 30)) this.dock.suggest('numbers2', `${deadEnemies.length} enemies down`, 'Push Mid', { type: 'group', lane: 'mid' }, { cls: 'good' });
-    }
-    const ej = enemy.find((x) => x.role === 'jungle');
-    if (ej && ej.alive && vis.has(ej.id)) {
-      const W = g.world, nearKraken = (ej.x - W.pits.kraken.x) ** 2 + (ej.y - W.pits.kraken.y) ** 2 < (ej.x - W.pits.kami.x) ** 2 + (ej.y - W.pits.kami.y) ** 2;
-      const o = nearKraken ? g.objectives.dragon : (g.objectives.baron || g.objectives.herald);
-      if (o && o.alive && !carding && ready('ejspot', 40)) this.dock.suggest('ejspot', `Their jungler is far from ${OBJ_L[o.kind]}`, `Take ${OBJ_L[o.kind]}`, { type: 'objective', obj: o.kind }, { valid: () => o.alive });
-    }
-    if (jg && jg.alive && jg.task.kind === 'jungle') {
-      for (const e of enemy) {
-        if (!e.alive || !vis.has(e.id) || e.role === 'jungle') continue;
-        for (const lane of g.world.laneNames) {
-          if (g.world.distToLane(lane, e) > 260) continue;
-          const pr = g.world.laneProgress(lane, e), deep = me === 0 ? pr : 1 - pr;
-          if (deep < 0.47 && ready('gank' + lane, 30)) this.dock.suggest('gank' + lane, `${e.def.name} overextended ${LANE_L[lane]}`, 'Gank', { type: 'gank', lane, hero: jg.id }, { valid: () => e.alive && jg.alive });
-        }
-      }
+    for (const s of analystSuggestions(g, me, { cool: this.cool, carding, own: (x) => this.ownHero(x) })) {
+      if (s.shrine) this.stats.shrineOpen++;
+      this.dock.suggest(s.key, s.text, s.label, s.cmd, { cls: s.cls, valid: s.valid });
     }
     for (const e of enemy) {
       if (!e.alive || e.role === 'jungle' || vis.has(e.id)) { this.missing[e.id] = 0; continue; }
       const ls = g.lastSeen[me][e.id]; if (!ls) continue;
       const gone = (now - ls.t) / TICK_RATE;
       if (gone > 8 && gone < 30 && g.time > 100 && !this.missing[e.id]) { this.missing[e.id] = 1; this.ticker(`${e.def.name} is missing!`, 'danger', 2); }
-    }
-    for (const k of ['dragon', 'baron', 'herald']) {
-      const o = g.objectives[k];
-      if (!o || !o.alive || o.hp > o.maxHp * 0.95 || !vis.has(o.id)) continue;
-      const on = enemy.filter((e) => e.alive && vis.has(e.id) && (e.x - o.x) ** 2 + (e.y - o.y) ** 2 < 500 * 500);
-      if (on.length && !carding && ready('contest' + k, 25)) this.dock.suggest('contest' + k, `Enemy is taking ${OBJ_L[k]}!`, 'Contest', { type: 'objective', obj: k }, { cls: 'bad', valid: () => o.alive });
-    }
-    for (const sh of g.shrines) if (sh.owner !== me && g.time > g.T.shrineUnlock && !enemy.some((e) => e.alive && vis.has(e.id) && (e.x - sh.x) ** 2 + (e.y - sh.y) ** 2 < 800 * 800) && ready('shr' + sh.id, 70)) {
-      this.stats.shrineOpen++;
-      this.dock.suggest('shr' + sh.id, `${sh.id === me ? 'Home' : 'Far'} shrine is open`, 'Capture', { type: 'shrine', shrine: sh.id }, { valid: () => sh.owner !== me });
     }
   }
   // Coach's Call moments and hero requests (rate-limited; never around halftime or with a sheet open).
@@ -772,7 +752,7 @@ export class Hud {
     if (g.over || this.holding() || this.dock.sheetId || g.time < 75) return;
     const cc = this.cc;
     if (cc.n < 8 && now - cc.last >= 45 * TICK_RATE && this.isLead() && !tray.items.some((i) => i.prio >= PRIO.call)) {
-      const m = coachMoment(g, me);
+      const m = coachMoment(g, me, (x) => this.ownHero(x));
       if (m && !cc.keys.has(m.key)) {
         cc.keys.add(m.key); cc.last = now; cc.n++; this.stats.coachCalls++;
         this.dock.coachCall(m, {

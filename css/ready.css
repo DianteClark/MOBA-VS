@@ -1,0 +1,41 @@
+/* Ready check (src/ui/readycheck.js): the active Dojo lineup before a match. Phone landscape first. */
+.rcmodal { align-items: center; justify-content: center; padding: calc(6px + var(--safe-t)) calc(8px + var(--safe-r)) calc(6px + var(--safe-b)) calc(8px + var(--safe-l)); }
+.rcpanel { width: min(640px, 100%); margin: auto; display: flex; flex-direction: column; gap: 6px; }
+.rcpanel .mhead { margin-bottom: 0; }
+.rcname { color: var(--ink); flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rccols { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; }
+.rccol { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 4px 3px 5px; min-width: 0; background: #1c1628; border: 2px solid #3a3050; }
+.rccol.warn { border-color: #d9a23a; }
+.rccol.bad { border-color: #ff5a5a; background: #2a1418; }
+.rcrole { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+.rcmain, .rcbk { display: flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; }
+.rcmain { flex-direction: column; gap: 2px; }
+.rcmain img { width: 40px; height: 40px; image-rendering: pixelated; }
+.rcmain i, .rcbk i { display: grid; place-items: center; font-style: normal; color: var(--muted); border: 2px dashed #5a4a7a; }
+.rcmain i { width: 40px; height: 40px; font-size: 18px; } .rcbk i { width: 18px; height: 18px; font-size: 10px; }
+.rcmain b, .rcbk b { font-weight: normal; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.rcmain b { font-size: 11px; color: var(--ink); } .rcbk b { font-size: 9px; color: var(--muted); }
+.rcbk img { width: 18px; height: 18px; image-rendering: pixelated; opacity: 0.85; }
+.rcmain.none b, .rcbk.none b { color: #ff9a8a; }
+.rcbuild { font-size: 9px; padding: 1px 5px; border: 1px solid var(--bc, #555); color: var(--bc, var(--muted)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.rcbuild.empty { border-color: transparent; }
+.rcmeta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 11px; color: var(--muted); }
+.rcplan b { font-weight: normal; color: var(--gold); } .rcdeck { display: flex; gap: 4px; flex-wrap: wrap; }
+.rcdeck .pdc { font-size: 10px; } .rcdeck .pdc img { width: 16px; height: 16px; }
+.rcnote { font-size: 11px; color: #ffcfe6; border-left: 3px solid #ff9ed2; padding: 2px 6px; }
+.rcissues { display: flex; flex-direction: column; gap: 2px; font-size: 11px; }
+.rcissues .bad { color: #ff8a7a; } .rcissues .warn { color: #f0c060; }
+.rcissues div::before { content: '! '; font-weight: bold; }
+.rcfoot { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.rcdont { margin-right: auto; display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); cursor: pointer; min-height: 36px; }
+.rcdont input { width: 18px; height: 18px; accent-color: var(--gold); }
+.rcgo { min-width: 0; }
+@media (max-height: 500px) {
+  .rcpanel { gap: 4px; padding: 6px 8px; }
+  .rcmain img, .rcmain i { width: 32px; height: 32px; }
+  .rcfoot .btn { min-height: 36px; padding: 4px 10px; font-size: 13px; }
+  .rcfoot .btn.big { font-size: 14px; }
+}
+/* Dojo opened from the ready check: a way straight back into the match */
+.dojohead.ret { grid-template-columns: 90px 1fr auto; }
+.dojoret { grid-column: 3; grid-row: 1; justify-self: end; white-space: nowrap; border-color: var(--gold); color: var(--gold); }

@@ -182,7 +182,7 @@ export function onAbilityHit(g, h, e, ab) {
   if (hero && s.peelSlow && e.lastHitHero > now - sec(2)) e.slows.push({ pct: s.peelSlow, until: now + sec(1) });
   if (p.kind === 'markAbilities' && hero) addMark(g, e, p.pct, p.dur, h);
   if (ab.reveal && hero) { e.revealUntil = now + sec(ab.reveal); e.stealthUntil = 0; }
-  if (ab.resetOnKill && hero) e.resetBy = { id: h.id, i: h.def.abilities.indexOf(ab), until: now + sec(3) };
+  if (ab.resetOnKill && hero) e.resetBy = { id: h.id, i: ab.slot ?? h.def.abilities.indexOf(ab), until: now + sec(3) };
   if (ab.knockAway && !e.boss && !e.structure) {
     const d = norm(e.x - h.x, e.y - h.y), want = { x: e.x + d.x * ab.knockAway, y: e.y + d.y * ab.knockAway };
     const end = g.rayEnd(e, want), short = dist(end, want);

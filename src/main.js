@@ -11,10 +11,12 @@ import { World } from './sim/world.js';
 import { Coach } from './sim/coach.js';
 import { Rng } from './sim/rng.js';
 import { MAPS, RUSH_MAPS } from './maps/defs.js';
-import { EVENT_BY_ID, weekEvent, mirrorPool } from './data/events.js';
-import { newDraft, apply as draftApply, currentTurn, autoChoice, aiPrep, TURN_SECONDS } from './sim/draft.js';
+import { EVENT_BY_ID, weekEvent, mirrorLineup } from './data/events.js';
+import { newDraft, mirrorDraft, apply as draftApply, currentTurn, autoChoice, aiPrep, fitPrep, fitMirror, TURN_SECONDS } from './sim/draft.js';
 import { presetChoice, prepFromPreset } from './presets.js';
-import { HERO_BY_ID, HEROES, ROLES } from './data/heroes.js';
+import { heroPrefs } from './talentprefs.js';
+import { readyCheck } from './ui/readycheck.js';
+import { HERO_BY_ID } from './data/heroes.js';
 import { LocalRunner, LockstepRunner } from './net/runner.js';
 import { host, join, makeCode, warmNet } from './net/peer.js';
 import { showLobby, showPrep, showResults, startParade, stopParade } from './ui/screens.js';
@@ -53,9 +55,16 @@ import { RIVAL_BY_ID } from './data/rivals.js';
 import { hostCoop, onCoopNet, enterAsGuest, myDraftTurn, applyDraft, draftAuto, aiDraftTurn, coopPrep, myHeroIds, sendPrep, seatReady, flushPendingPreps,
   coopCfg, runnerOpts, startedRunner, soloFallback, historyCoop } from './coop-room.js';
 import { coopResults } from './ui/coop.js';
+import { installCrashReporter, reportDesync, opsHello, track, modeKey } from './net/ops.js';
+import { openFeedback } from './ui/feedback.js';
+import { pushPromptCard, onPushOpen } from './ui/notify.js';
+import { openAdminReplay } from './ui/adminreplay.js';
+import { frPrep, frRecord } from './franchise/play.js';
+import { showFranchise, franchiseResults } from './ui/franchise.js';
 
-const VERSION = 24; // bump whenever the sim or balance changes (peers must match)
+const VERSION = 27; // bump whenever the sim or balance changes (peers must match)
 const PREP_SECONDS = 60;
+installCrashReporter(VERSION); // window errors, unhandled rejections and lockstep desyncs → the owner dashboard (src/net/ops.js)
 
 class App {
   constructor() {
@@ -121,7 +130,10 @@ class App {
     document.getElementById('loading').remove();
     this.startBg();
     const q = new URLSearchParams(location.search), code = q.get('join'), shared = q.get('s'), invite = q.get('i');
-    if (code) this.joinScreen(code); else if (shared) showShared(this, shared); else if (invite) showInviteLink(this, invite); else this.menu();
+    if (code) this.joinScreen(code); else if (shared) showShared(this, shared); else if (invite) showInviteLink(this, invite); else if (q.get('ar')) openAdminReplay(this, q.get('ar'), VERSION);
+    else if (q.get('go') === 'cup') { try { history.replaceState(null, '', location.pathname); } catch { /* ignore */ } this.menu(); showWeekendCup(this); } else this.menu();
+    // a tapped notification while the game is open: follow its link from the menu, never mid-match
+    onPushOpen((u) => { if (this.match || this.session) return; const i = u.searchParams.get('i'); if (i) showInviteLink(this, i); else if (u.searchParams.get('go') === 'cup') showWeekendCup(this); });
     this.connectOnline();
     setTimeout(warmNet, 3000); // PeerJS off the first-paint path, ready before anyone taps Host / Join
   }
@@ -130,6 +142,7 @@ class App {
     if (!(await ping())) return;
     try {
       await ensureAccount(this.name);
+      opsHello(VERSION); // activity + A/B flag assignments
       startSocial(this); // friends' presence + invites, polled only while the menu is open
       const me = await fetchMe();
       if (me && me.profile && (me.profileAt || 0) > (profile.d.savedAt || 0)) {
@@ -161,7 +174,7 @@ class App {
 
   menu() {
     keepAwake(false);
-    this.lobbyId = (this.lobbyId || 0) + 1;
+    this.lobbyId = (this.lobbyId || 0) + 1; this.dojoReturn = null; // (the ready check's way back from the Dojo ends here)
     this.dropReel();
     clearInterval(this.prepTimer); clearInterval(this.draftTimer);
     if (this.pendingPeer) { try { this.pendingPeer.destroy(); } catch { /* ignore */ } this.pendingPeer = null; }
@@ -212,7 +225,9 @@ class App {
     } catch { /* not supported */ }
   }
   // mode: 'classic' (5v5 on the chosen map) or 'rush' (Lane Rush on one of its maps).
-  startVsAI(mode = 'classic') {
+  // checked: the ready check (src/ui/readycheck.js) was shown or is skipped (play again).
+  startVsAI(mode = 'classic', checked = false) {
+    if (!checked && readyCheck(this, { label: 'Play', go: () => this.startVsAI(mode, true), queue: 'ai', gameMode: mode === 'rush' ? 'rush' : 'classic' })) return;
     this.immersive();
     try { localStorage.setItem('mobavs_ai', String(this.aiLevel)); } catch { /* ignore */ }
     const seed = (Math.random() * 2 ** 31) >>> 0, gameMode = mode === 'rush' ? 'rush' : 'classic';
@@ -244,6 +259,7 @@ class App {
   }
   // Host a room. opts.code/lobbyId/quiet are used by matchmaking (Find Match), which shows its own screen.
   async hostGame(opts = {}) {
+    if (!opts.quiet && !opts.checked && readyCheck(this, { label: 'Host room', go: () => this.hostGame({ ...opts, checked: true }), queue: opts.queue || 'private', gameMode: opts.gameMode })) return;
     this.immersive();
     const code = opts.code || makeCode();
     const cancel = () => this.menu();
@@ -269,6 +285,7 @@ class App {
   // Co-op room: two coaches share a team, vs the AI or 2v2 (src/coop-room.js).
   hostCoop(opts = {}) { stopParade(); hostCoop(this, opts); }
   joinScreen(prefill, opts = {}) {
+    if (!opts.quiet && !opts.checked && readyCheck(this, { label: 'Join room', go: () => this.joinScreen(prefill, { ...opts, checked: true }), queue: 'private' })) return;
     const cancel = () => this.menu();
     const go = async (code) => {
       if (!/^[A-Z]{5}$/.test(code)) { toast('Room codes are 5 letters'); return; }
@@ -294,7 +311,9 @@ class App {
     if (prefill) go(prefill.toUpperCase());
   }
   // Matchmaking (Ranked / Casual / Lane Rush queues): pair with a real player in the same queue or give up after 60s (no bots fill in).
-  async findMatch() {
+  async findMatch(checked = false) {
+    const q0 = this.queueMode || 'ranked';
+    if (!checked && readyCheck(this, { label: 'Find match', go: () => this.findMatch(true), queue: q0, gameMode: q0 === 'rush' ? 'rush' : 'classic' })) return;
     this.immersive(); stopParade();
     const id = this.lobbyId = (this.lobbyId || 0) + 1;
     const queue = this.queueMode || 'ranked', ranked = queue === 'ranked', gameMode = queue === 'rush' ? 'rush' : 'classic';
@@ -428,16 +447,22 @@ class App {
     this.showScreen(true);
     audio.music('draft');
     this.draftView = new DraftView(this);
+    if (s.draft.mirror) { // Mirror Match: reveal the shared lineup, then straight to prep
+      s.turnLeft = 0; this.draftView.render(); clearInterval(this.draftTimer);
+      toast(`Mirror Match: both teams play ${s.draft.mirror.name}. Same heroes, same cards.`, 2600);
+      setTimeout(() => { if (this.session === s) this.startPrep(); }, 2800);
+      return;
+    }
     this.armAutoPick();
     this.draftView.render();
     clearInterval(this.draftTimer);
     this.draftTimer = setInterval(() => this.draftTick(), 100);
     this.maybeAiDraft();
   }
-  // Mirror Draft: a shared pool from the match seed (the same on both peers).
+  // Mirror Match: no draft, both teams get the seed's curated lineup (the same on both peers).
   newDraft() {
     const s = this.session, ev = s.event && EVENT_BY_ID[s.event];
-    return ev && ev.draft && ev.draft.mirror ? newDraft({ mirror: true, pool: mirrorPool(HEROES, ROLES, s.seed, ev.draft.pool) }) : newDraft();
+    return ev && ev.mirror ? mirrorDraft(mirrorLineup(s.seed)) : newDraft();
   }
   draftTick() {
     const s = this.session; if (!s || !s.draft) return;
@@ -520,10 +545,13 @@ class App {
     s.preps = [null, null]; s.ready = [false, false];
     const coop = s.mode === 'coop';
     const pp = coop ? { prep: coopPrep(s), fromPreset: [] } : prepFromPreset(d.picks[me], d.picks[1 - me], s.preset, s.gameMode);
+    if (d.mirror) { pp.prep = fitMirror(pp.prep, d.mirror); pp.fromPreset = []; } // Mirror Match: lanes + deck are fixed
     s.myPrep = pp.prep; s.prepFromPreset = pp.fromPreset; s.prepAdjust = false;
+    for (const hp of s.myPrep.heroes) if (!hp.tal) hp.tal = heroPrefs(hp.id); // the coach's talent defaults (Dojo)
     s.myPrep.skins = profile.skinsFor(coop ? myHeroIds(s) : d.picks[me]);
     if (s.mode === 'ai') { const rv = s.rival && RIVAL_BY_ID[s.rival]; s.preps[1 - me] = rv ? rivalPrep(rv, d.picks[1 - me], d.picks[me], s.rng, s.gameMode) : aiPrep(d.picks[1 - me], d.picks[me], s.gameMode); s.ready[1 - me] = true; }
     if (s.pendingPrep) { s.preps[s.pendingPrep.team] = s.pendingPrep.prep; s.ready[s.pendingPrep.team] = true; s.pendingPrep = null; }
+    frPrep(s); // Franchise: lineup roles + roster edges (no-op otherwise)
     s.prepEnd = performance.now() + PREP_SECONDS * 1000;
     const meReady = () => (coop ? seatReady(s, me, s.mySeat) : s.ready[me]);
     const render = () => showPrep(this, s.myPrep, d.picks[1 - me], (s.prepEnd - performance.now()) / 1000, render, () => this.prepReady(), meReady());
@@ -561,8 +589,12 @@ class App {
     // the match art finishes loading in the background after first paint; on a slow link wait for it here
     if (!assetsDone) { const s0 = this.session; toast('Loading the battlefield…', 1500); assetsAll.then(() => { if (this.session === s0 && !this.match) this.startMatch(); }); return; }
     const s = this.session;
+    // every champion once per match: each side fields exactly its own drafted heroes (repairs a bad peer prep)
+    // (Mirror Match: both sides field the identical shared lineup, lanes and deck)
+    if (!s.replay && s.draft && s.preps) for (let t = 0; t < 2; t++) s.preps[t] = s.draft.mirror ? fitMirror(s.preps[t], s.draft.mirror) : fitPrep(s.preps[t], s.draft.picks[t]);
     const cfg = s.replay ? JSON.parse(JSON.stringify(s.replay.cfg)) : {
       seed: s.seed, map: s.mapId, ...(s.gameMode === 'rush' ? { mode: 'rush' } : { living: 1 }), ...(s.event ? { event: s.event } : {}), // living: Living World (classic maps)
+      ...(s.gameMode !== 'rush' ? { depth: true } : {}), // v23 match depth: talents, item override, ult upgrades, revenge, duo ults
       teams: [0, 1].map((t) => ({ heroes: s.preps[t].heroes, plan: s.preps[t].plan, deck: s.preps[t].deck, name: s.names[t] })),
       coach: s.mode === 'coop' ? s.ai.slice() : s.mode === 'ai' ? [s.myTeam !== 0, s.myTeam !== 1] : s.mode === 'watch' ? [true, true] : [false, false],
       coachLevel: [s.aiLevel ?? this.aiLevel, s.aiLevel ?? this.aiLevel],
@@ -602,7 +634,7 @@ class App {
     if (!pre && s.mode === 'coop' && runner.online) startedRunner(this, runner);
     runner.onHalftime = (ht) => showHalftime(this, game, s.myTeam, runner, ht);
     runner.onHalftimeEnd = () => hideHalftime();
-    if (runner.online) runner.onDesync = (k) => { console.warn('desync at', k); toast('Warning: games out of sync (tick ' + k + ')', 4000); };
+    if (runner.online) runner.onDesync = (k) => { console.warn('desync at', k); if (!s.desynced) { s.desynced = true; reportDesync({ tick: k, mode: modeKey(s), map: cfg.map, event: cfg.event }); } toast('Warning: games out of sync (tick ' + k + ')', 4000); };
     const hud = new Hud(this, game, runner, this.renderer, this.minimap, s.myTeam, s.mode);
     hud.toggleDirector(); // the auto-camera follows the action until the player drags, pans or picks a hero
     if (s.potg) {
@@ -616,6 +648,7 @@ class App {
     if (!s.replay && !pre) this.match.instant = new InstantReplay(this, this.match, s.myTeam); // the last 15s again, in a small panel
     if (s.replay && !s.potg) this.match.theater = new Theater(this, this.match, s.replay, { back: s.theaterBack });
     if (!pre && !s.replay && s.myTeam >= 0) matchPresence(); // friends see 'In a match'
+    if (!pre && !s.replay && s.mode !== 'watch') track('match_start', { mode: modeKey(s), map: cfg.map, event: cfg.event || null });
     this.lastFrame = performance.now();
     requestAnimationFrame((t) => this.frame(t));
     // Hidden tabs stop requestAnimationFrame: keep the lockstep sim ticking so the opponent never stalls.
@@ -698,17 +731,19 @@ class App {
       // Play of the Game: found from the event log, replayed from the saved replay (cfg + command log)
       let potg = null;
       try { potg = findPOTG(m.game); } catch (e) { console.error(e); }
-      let sum = null, cupOut = null;
+      let sum = null, cupOut = null, frOut = null;
       const analytics = m.rec ? m.rec.finish({ my: s.myTeam, cc: s.myTeam >= 0 ? [m.hud.stats.coachCalls, m.hud.stats.coachAnswered] : null }) : null;
       try {
         profile.lastNames = s.names;
         sum = profile.record({ game: m.game, myTeam: s.myTeam, mode: s.mode === 'ai' && !s.wasOnline ? 'ai' : 'online', aiLevel: s.aiLevel ?? this.aiLevel, cup: !!s.cup,
-          ranked: !!s.ranked, oppElo: s.oppElo, potgHero: potg && potg.team === s.myTeam ? potg.heroId : null, analytics, rival: s.rival && !s.wasOnline && !s.replay ? s.rival : null,
+          ranked: !!s.ranked, franchise: !!s.franchise, oppElo: s.oppElo, potgHero: potg && potg.team === s.myTeam ? potg.heroId : null, analytics, rival: s.rival && !s.wasOnline && !s.replay ? s.rival : null,
           coop: s.mode === 'coop' ? { kind: s.kind, heroes: myHeroIds(s), info: historyCoop(s) } : null });
         if (s.cup && profile.d.cup) cupOut = recordCup(profile.d.cup, m.game.winner === s.myTeam);
+        if (s.franchise && !s.replay) frOut = frRecord(s, m.game);
         if (sum && sum.ach) { sum.ach.push(...profile.checkState()); if (sum.ach.length) profile.save(); } // e.g. the Cup trophy just won
       } catch (e) { console.error(e); }
       if (s.rival && !s.replay) rivalPlayed(this, s.rival);
+      if (!s.replay && m.cfg && s.mode !== 'watch') track('match_done', { mode: modeKey(s), map: m.cfg.map, event: m.cfg.event || null, len: Math.round(m.game.time) });
       if (!s.replay && m.cfg) this.saveReplay(m, s, analytics, sum && profile.d.history[0] ? profile.d.history[0].t : Date.now());
       if (sum && (sum.promoted || sum.unlocks.length) && !sum.demoted) setTimeout(() => audio.sfx('powerup', 0.8), 700);
       const src = s.replay ? s.replay : m.cfg ? { cfg: m.cfg, log: m.runner.log, skins: this.renderer.skins } : null;
@@ -717,11 +752,11 @@ class App {
       this.potgReel = potg && src ? this.prerollPOTG(src, potg) : null;
       const report = s.myTeam >= 0 ? reportCard(m.game, s.myTeam, m.hud.stats) : null;
       const args = [this, m.game, s.myTeam,
-        s.wcup ? () => showWeekendCup(this) : s.cup ? () => showCup(this) : s.mode === 'ai' ? () => { if (s.rival) this.rivalRoll = { tier: s.aiLevel, id: s.rival }; this.startVsAI(s.gameMode === 'rush' ? 'rush' : 'classic'); } : s.mode === 'watch' ? () => this.watch() : null,
-        () => this.menu(), { progress: progressPanel(sum, cupOut), rival: s.myTeam >= 0 && !s.wasOnline ? rivalPanel(sum, s, won) : null, ladder, social: s.wcup ? null : s.mode === 'coop' ? coopResults(this, s, m.game) : socialPanel(this, s), againLabel: s.cup || s.wcup ? 'Back to bracket' : s.rival && RIVAL_BY_ID[s.rival] && !s.wasOnline ? `Rematch ${RIVAL_BY_ID[s.rival].name}` : null, potg: this.potgReel ? potg : null, report,
+        s.wcup ? () => showWeekendCup(this) : s.cup ? () => showCup(this) : s.franchise ? () => { this.session = null; audio.music('menu'); showFranchise(this, 'team'); } : s.mode === 'ai' ? () => { if (s.rival) this.rivalRoll = { tier: s.aiLevel, id: s.rival }; this.startVsAI(s.gameMode === 'rush' ? 'rush' : 'classic', true); } : s.mode === 'watch' ? () => this.watch() : null,
+        () => this.menu(), { progress: progressPanel(sum, cupOut), rival: s.franchise ? franchiseResults(this, frOut) : s.myTeam >= 0 && !s.wasOnline ? rivalPanel(sum, s, won) : null, ladder, social: s.wcup ? null : s.mode === 'coop' ? coopResults(this, s, m.game) : socialPanel(this, s), againLabel: s.cup || s.wcup ? 'Back to bracket' : s.franchise ? 'Back to franchise' : s.rival && RIVAL_BY_ID[s.rival] && !s.wasOnline ? `Rematch ${RIVAL_BY_ID[s.rival].name}` : null, potg: this.potgReel ? potg : null, report,
           onPOTG: () => this.playPOTG(), onClip: potg && src && clipSupport() ? () => saveClip(src, potg, s.names, this.mapCanvas(m.game.world, m.game.event)) : null,
           analytics, onAnalysis: analytics ? () => showAnalysis(analytics, { title: 'Match analysis', onTheater: this.lastReplay() ? () => this.watchReplay(null, { back: () => this.backToResults() }) : null }) : null,
-          emotes: resultEmotes(s), onReplay: () => this.watchReplay(null, { back: () => this.backToResults() }), share: sum ? () => shareMatch(profile.d.history[0], { name: this.name, rank: profile.rank.label, border: profile.border }, this.lastReplay()) : null }];
+          emotes: resultEmotes(s), foot: this.resultsFoot(s), onReplay: () => this.watchReplay(null, { back: () => this.backToResults() }), share: sum ? () => shareMatch(profile.d.history[0], { name: this.name, rank: profile.rank.label, border: profile.border }, this.lastReplay()) : null }];
       this.lastResults = { args, session: s, src, potg };
       showResults(...args);
       if (s.mode === 'coop') this.cleanupNet(); // no rematch in co-op: the room closes with the results
@@ -730,6 +765,12 @@ class App {
       // confetti only for a real win of your own (a promotion brings its own with the rank card)
       if (won && s.myTeam >= 0 && !s.replay && !(sum && sum.promoted)) setTimeout(() => confetti(), 350);
     });
+  }
+  // Under the results: "Send feedback", and (now and then, never early) the notifications opt-in card.
+  resultsFoot(s) {
+    const foot = h('div', { class: 'rfoot' }, h('button', { class: 'linkbtn', onclick: () => openFeedback(this, { from: 'results' }) }, 'Send feedback'));
+    if (s.myTeam >= 0 && !s.replay) pushPromptCard().then((card) => { if (card) foot.prepend(card); }).catch(() => {});
+    return foot;
   }
   // ───────────── Play of the Game ─────────────
   // A fresh Game is fast-forwarded headlessly to the highlight in small background slices while the
@@ -811,7 +852,8 @@ class App {
   async reportOnline(m, s) {
     const g = m.game, season = profile.season.id;
     const body = { match: s.matchId, season, side: s.myTeam, opponent: s.oppId, winner: g.winner, checksum: String(g.checksum()), mode: s.wcup ? 'cup' : s.queue === 'ranked' && s.ranked ? 'ranked' : s.gameMode === 'rush' ? 'rush' : 'casual',
-      summary: { picks: [0, 1].map((t) => g.teams[t].heroes.map((x) => x.heroId)), kills: [g.teams[0].kills, g.teams[1].kills], len: Math.round(g.time) } };
+      summary: { picks: [0, 1].map((t) => g.teams[t].heroes.map((x) => x.heroId)), kills: [g.teams[0].kills, g.teams[1].kills], len: Math.round(g.time),
+        bans: s.draft ? s.draft.bans : undefined, plans: [0, 1].map((t) => g.teams[t].planFrom || g.teams[t].plan || null), map: s.mapId } }; // bans / plans / map: live-ops counters
     try {
       // ranked and cup results carry the command log for server-side replay verification
       if (m.cfg && (body.mode === 'ranked' || body.mode === 'cup')) body.replay = await packReplay(VERSION, m.cfg, m.runner.log, s.aiTakeover);

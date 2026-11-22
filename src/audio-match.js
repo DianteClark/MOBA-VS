@@ -67,6 +67,8 @@ export const matchAudio = {
         case 'death': if (f.type === 'minion' && !rd && this.where(f.x, f.y).on && (this.my < 0 || f.team === this.my || r.visiblePoint(f.x, f.y))) this.at('minion', f.x, f.y, 0.35, { prio: 0, throttle: 50 }); break;
         case 'gold': if (u && !rd && this.mine(u.team) && this.where(f.x, f.y).on) this.at('coin2', f.x, f.y, 0.45, { prio: 0, throttle: 110 }); break;
         case 'levelup': if (u && this.mine(u.team)) this.at('levelup', u.x, u.y, 0.5, { throttle: 500 }); break;
+        case 'ultUp': if (u && r.visible(u)) this.at('powerup', u.x, u.y, 0.5, { throttle: 400 }); break; // v23: empowered ultimate
+        case 'duoUlt': if (r.visiblePoint(f.x, f.y)) this.at('explosion', f.x, f.y, 0.8, { prio: 2, rate: 0.8 }); break;
         case 'shield': if (u && this.where(u.x, u.y).on) this.at('shield', u.x, u.y, 0.4, { throttle: 120 }); break;
         case 'flash': if (r.visiblePoint(f.x, f.y)) this.at('shin1', f.x, f.y, 0.5, { rate: 1.3 }); break;
       }
