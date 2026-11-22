@@ -33,5 +33,5 @@ export function livingEvent(hud, e) {
 }
 // Extra words for an objective taken (after the shared banner / ticker).
 export function livingObjective(hud, e) {
-  if (e.obj === 'boss' && (e.team === 0 || e.team === 1)) hud.ticker(`Tengu's Gale: ${TEAM_NAME[e.team]}'s waves are empowered and hit towers harder for ${LIVING.bossBuff}s`, side(e.team), 3);
+  if (e.obj === 'boss' && (e.team === 0 || e.team === 1)) hud.ticker(`Tengu's Gale: ${TEAM_NAME[e.team]}'s waves are empowered and hit towers harder for ${LIVING.bossBuff}s`, side(e.team) + ' extra', 3); // (extra: news of its own, not the banner's sub-line)
 }
