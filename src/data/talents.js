@@ -58,10 +58,10 @@ const TEMPLATES = {
   lone: { name: () => 'Lone Wolf', text: () => 'No ally within 800: +18 armor and magic resist.', stat: { lone: 18 }, tags: ['split', 'safe'] },
   bully: { name: () => 'Bully', text: () => '+10% damage to stunned, rooted, feared or slowed heroes.', vs: { when: 'cc', pct: 0.1 }, tags: [] },
   ambush: { name: () => 'Opening Strike', text: () => 'The first hit on a hero after 5s out of combat deals +20%.', vs: { when: 'first', pct: 0.2 }, tags: ['snowball'] },
-  rampage: { name: () => 'Rampage', text: () => 'Takedowns heal 8% max HP and give +25% move speed for 3s.', kill: { heal: 0.08, ms: 0.25, dur: 3 }, tags: ['snowball'] },
+  rampage: { name: () => 'Rampage', text: () => 'Takedowns heal 6% max HP and give +20% move speed for 3s.', kill: { heal: 0.06, ms: 0.2, dur: 3 }, tags: ['snowball'] },
   reset: { name: () => 'Momentum', text: () => 'Takedowns cut your basic ability cooldowns by 3s.', kill: { cdr: 3 }, tags: ['snowball'] },
   // ── ultimate specials (tier 3) ──
-  overdrive: { name: () => 'Overdrive', text: () => 'Your ultimate empowers after a 2-kill streak (not 3), and empowered ults hit 10% harder.', ult: { streak: 2, extra: 0.1 }, tags: ['snowball'] },
+  overdrive: { name: () => 'Overdrive', text: () => 'Your ultimate empowers after a 2-kill streak (not 3), and empowered ults hit 5% harder.', ult: { streak: 2, extra: 0.05 }, tags: ['snowball'] },
   aftershock: { name: () => 'Aftershock', text: () => 'Casting your ultimate grants a shield of 12% max HP for 3s.', ult: { shield: 0.12 }, tags: ['safe', 'vsBurst'] },
 };
 
