@@ -23,6 +23,7 @@ import { OPS_SCHEMA, OPS_TABLES, OPS_MIGRATIONS, opsApi, bumpStmts, matchCounter
 import { PUSH_SCHEMA, PUSH_TABLES, pushApi, enqueueStmt, drainOutbox } from './push.js';
 import { PRO_SCHEMA, PRO_TABLES, proApi } from './pro.js';
 import { DIV_SCHEMA, DIV_TABLES, divApi } from './divisions.js';
+import { DUO_SCHEMA, DUO_TABLES, duoApi } from './duo.js';
 import { CLUB_SCHEMA, CLUB_TABLES, clubApi, clubPointStmts, clubCron, clubOfStmt } from './clubs.js';
 import { HUB_SCHEMA, HUB_TABLES, hubApi, reelStmt, reelRow } from './hub.js';
 
@@ -43,9 +44,9 @@ const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS invites (id TEXT PRIMARY KEY, sender TEXT, target TEXT, room TEXT, mode TEXT, status TEXT, created INTEGER)`,
   `CREATE INDEX IF NOT EXISTS invites_to ON invites (target, status, created)`,
   `CREATE INDEX IF NOT EXISTS invites_from ON invites (sender, created)`,
-  ...CUP_SCHEMA, ...REPLAY_SCHEMA, ...OPS_SCHEMA, ...PUSH_SCHEMA, ...PRO_SCHEMA, ...DIV_SCHEMA, ...CLUB_SCHEMA, ...HUB_SCHEMA,
+  ...CUP_SCHEMA, ...REPLAY_SCHEMA, ...OPS_SCHEMA, ...PUSH_SCHEMA, ...PRO_SCHEMA, ...DIV_SCHEMA, ...CLUB_SCHEMA, ...HUB_SCHEMA, ...DUO_SCHEMA,
 ];
-const TABLES = ['players', 'ladder', 'reports', 'matches', 'hero_results', 'queue', 'shares', 'friends', 'invites', ...CUP_TABLES, ...REPLAY_TABLES, ...OPS_TABLES, ...PUSH_TABLES, ...PRO_TABLES, ...DIV_TABLES, ...CLUB_TABLES, ...HUB_TABLES];
+const TABLES = ['players', 'ladder', 'reports', 'matches', 'hero_results', 'queue', 'shares', 'friends', 'invites', ...CUP_TABLES, ...REPLAY_TABLES, ...OPS_TABLES, ...PUSH_TABLES, ...PRO_TABLES, ...DIV_TABLES, ...CLUB_TABLES, ...HUB_TABLES, ...DUO_TABLES];
 // Columns added after launch: tables created by older deploys get them here. ALTER fails harmlessly
 // ("duplicate column") once the column exists, so each one is tried on its own.
 const MIGRATIONS = [
@@ -121,6 +122,7 @@ const PRO = proApi({ json, bad, body, auth, limited, slow });
 const DIVS = divApi({ json, bad, body, auth, limited, slow, onPoints: clubPointStmts }); // Weekly Divisions (worker/divisions.js); accepted matches also feed club points
 const CLUBS = clubApi({ json, bad, body, auth, limited, slow, ip }); // Clubs, club ladder, weekend Club Wars (worker/clubs.js)
 const HUB = hubApi({ json, bad, body, auth, limited, slow, rand, ip }); // Public Replay Hub (worker/hub.js)
+const DUO = duoApi({ json, bad, body, auth, rand, limited, slow, bumpStmts, dayOf }); // 2v2 matchmaking (worker/duo.js)
 
 // ── public profile ──
 // The read-only summary other coaches can see, cut from the uploaded cloud save: rank, title, banner, newest
@@ -152,7 +154,7 @@ function pubOf(d) {
 
 // ── social: friends, presence, invites, public profiles ──
 const PAGE = 50, MAX_FRIENDS = 100;
-const MODES = ['casual', 'ranked', 'rush', 'coop', 'club', 'custom']; // invite modes (coop: a co-op room, src/coop-room.js; club: room = a club code, worker/clubs.js; custom: a custom-rules room)
+const MODES = ['casual', 'ranked', 'rush', 'coop', 'club', 'custom', 'party']; // invite modes (coop: a co-op room, src/coop-room.js; club: room = a club code, worker/clubs.js; custom: a custom-rules room; party: room = a party code, src/party.js)
 const INVITE_TTL = 3 * 60000, LINK_TTL = 30 * 60000, ONLINE_MS = 120000, MATCH_MS = 25 * 60000;
 const presenceOf = (r, now) => (r.status === 'match' && now - (r.seen || 0) < MATCH_MS ? 'match' : now - (r.seen || 0) < ONLINE_MS ? 'online' : 'offline');
 // Friend codes are player ids (shown as XXXXX-XXXXX); they are public (already on the leaderboard), unlike the secret.
@@ -492,6 +494,7 @@ async function route(req, env, url) {
   const div = await DIVS(req, env, db, url, p, M, now); if (div) return div;
   const club = await CLUBS(req, env, db, url, p, M, now); if (club) return club;
   const hub = await HUB(req, env, db, url, p, M, now); if (hub) return hub;
+  const duo = await DUO(req, env, db, url, p, M, now); if (duo) return duo;
 
   // ── share links ──
   if (p === '/api/share' && M === 'POST') {
