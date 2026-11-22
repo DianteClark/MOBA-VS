@@ -23,6 +23,7 @@ import { OPS_SCHEMA, OPS_TABLES, OPS_MIGRATIONS, opsApi, bumpStmts, matchCounter
 import { PUSH_SCHEMA, PUSH_TABLES, pushApi, enqueueStmt, drainOutbox } from './push.js';
 import { PRO_SCHEMA, PRO_TABLES, proApi } from './pro.js';
 import { DIV_SCHEMA, DIV_TABLES, divApi } from './divisions.js';
+import { DUO_SCHEMA, DUO_TABLES, duoApi } from './duo.js';
 
 const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS players (id TEXT PRIMARY KEY, name TEXT NOT NULL, secret_hash TEXT NOT NULL, created INTEGER, updated INTEGER, profile TEXT, profile_at INTEGER DEFAULT 0)`,
@@ -41,9 +42,9 @@ const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS invites (id TEXT PRIMARY KEY, sender TEXT, target TEXT, room TEXT, mode TEXT, status TEXT, created INTEGER)`,
   `CREATE INDEX IF NOT EXISTS invites_to ON invites (target, status, created)`,
   `CREATE INDEX IF NOT EXISTS invites_from ON invites (sender, created)`,
-  ...CUP_SCHEMA, ...REPLAY_SCHEMA, ...OPS_SCHEMA, ...PUSH_SCHEMA, ...PRO_SCHEMA, ...DIV_SCHEMA,
+  ...CUP_SCHEMA, ...REPLAY_SCHEMA, ...OPS_SCHEMA, ...PUSH_SCHEMA, ...PRO_SCHEMA, ...DIV_SCHEMA, ...DUO_SCHEMA,
 ];
-const TABLES = ['players', 'ladder', 'reports', 'matches', 'hero_results', 'queue', 'shares', 'friends', 'invites', ...CUP_TABLES, ...REPLAY_TABLES, ...OPS_TABLES, ...PUSH_TABLES, ...PRO_TABLES, ...DIV_TABLES];
+const TABLES = ['players', 'ladder', 'reports', 'matches', 'hero_results', 'queue', 'shares', 'friends', 'invites', ...CUP_TABLES, ...REPLAY_TABLES, ...OPS_TABLES, ...PUSH_TABLES, ...PRO_TABLES, ...DIV_TABLES, ...DUO_TABLES];
 // Columns added after launch: tables created by older deploys get them here. ALTER fails harmlessly
 // ("duplicate column") once the column exists, so each one is tried on its own.
 const MIGRATIONS = [
@@ -115,6 +116,7 @@ const OPS = opsApi({ json, bad, body, auth, limited, slow, tokenOk, sha, ip });
 const PUSH = pushApi({ json, bad, body, auth, limited, slow, tokenOk, sha });
 const PRO = proApi({ json, bad, body, auth, limited, slow });
 const DIVS = divApi({ json, bad, body, auth, limited, slow }); // Weekly Divisions (worker/divisions.js)
+const DUO = duoApi({ json, bad, body, auth, rand, limited, slow, bumpStmts, dayOf }); // 2v2 matchmaking (worker/duo.js)
 
 // ── public profile ──
 // The read-only summary other coaches can see, cut from the uploaded cloud save: rank, title, banner, newest
@@ -141,7 +143,7 @@ function pubOf(d) {
 
 // ── social: friends, presence, invites, public profiles ──
 const PAGE = 50, MAX_FRIENDS = 100;
-const MODES = ['casual', 'ranked', 'rush', 'coop']; // invite modes (coop: a co-op room, src/coop-room.js)
+const MODES = ['casual', 'ranked', 'rush', 'coop', 'party']; // invite modes (coop: a co-op room, src/coop-room.js; party: a party, src/party.js)
 const INVITE_TTL = 3 * 60000, LINK_TTL = 30 * 60000, ONLINE_MS = 120000, MATCH_MS = 25 * 60000;
 const presenceOf = (r, now) => (r.status === 'match' && now - (r.seen || 0) < MATCH_MS ? 'match' : now - (r.seen || 0) < ONLINE_MS ? 'online' : 'offline');
 // Friend codes are player ids (shown as XXXXX-XXXXX); they are public (already on the leaderboard), unlike the secret.
@@ -476,6 +478,7 @@ async function route(req, env, url) {
   const pro = await PRO.route(req, env, db, url, p, M, now); if (pro) return pro;
   const adm = await admin(req, env, db, url, p, M, now); if (adm) return adm;
   const div = await DIVS(req, env, db, url, p, M, now); if (div) return div;
+  const duo = await DUO(req, env, db, url, p, M, now); if (duo) return duo;
 
   // ── share links ──
   if (p === '/api/share' && M === 'POST') {

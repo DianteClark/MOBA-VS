@@ -18,9 +18,10 @@ import { makeCode } from '../net/peer.js';
 import { online, ping, getAccount, ensureAccount, presence, friendAction, playerProfile, createInvite, getInvite, respondInvite,
   cancelInvites, friendCode, inviteUrl } from '../net/online.js';
 import { pushRematch } from './notify.js';
+import { joinParty, inviteToParty } from '../party.js';
 
 const POLL = 30000;
-const MODE_NAME = { casual: 'Casual 5v5', ranked: 'Ranked 5v5', rush: 'Lane Rush', coop: 'Co-op' };
+const MODE_NAME = { casual: 'Casual 5v5', ranked: 'Ranked 5v5', rush: 'Lane Rush', coop: 'Co-op', party: 'their party' };
 const PRES = { online: 'Online', match: 'In a match', offline: 'Offline' };
 const ago = (t) => { const m = Math.max(0, Math.round((Date.now() - t) / 60000)); return m < 1 ? 'just now' : m < 60 ? `${m}m ago` : m < 1440 ? `${Math.round(m / 60)}h ago` : `${Math.round(m / 1440)}d ago`; };
 
@@ -72,7 +73,7 @@ function showInvitePop() {
   const left = h('span', { class: 'muted' });
   const close = () => { clearInterval(tm); el.remove(); };
   const card = h('div', { class: 'panel invpop', role: 'dialog', 'aria-label': 'Match invite' },
-    h('div', { class: 'invtxt' }, h('small', { class: 'muted' }, 'MATCH INVITE'), h('b', {}, `${inv.from.name} invites you`), h('span', {}, MODE_NAME[inv.mode] || 'Casual 5v5', ' · expires in ', left)),
+    h('div', { class: 'invtxt' }, h('small', { class: 'muted' }, inv.mode === 'party' ? 'PARTY INVITE' : 'MATCH INVITE'), h('b', {}, `${inv.from.name} invites you`), h('span', {}, inv.mode === 'party' ? 'to team up (co-op and 2v2)' : MODE_NAME[inv.mode] || 'Casual 5v5', ' · expires in ', left)),
     inv.mode === 'ranked' ? h('small', { class: 'muted' }, 'Joining agrees to a rated match.') : null,
     h('div', { class: 'row', style: { justifyContent: 'center' } },
       h('button', { class: 'chip', onclick: async () => { close(); try { await respondInvite(inv.id, false); } catch { /* expired anyway */ } } }, 'Decline'),
@@ -90,8 +91,9 @@ async function acceptInvite(app, id) {
     joinRoom(app, r.room, r.mode);
   } catch (e) { toast(e.message || 'Could not join'); }
 }
-// Join an invite's room (agreeing to Ranked when the invite is Ranked).
+// Join an invite's room (agreeing to Ranked when the invite is Ranked), or the inviter's party.
 function joinRoom(app, room, mode) {
+  if (mode === 'party') { joinParty(app, room); app.menu(); return; } // Home shows the party panel while it connects
   const ranked = mode === 'ranked';
   app.joinScreen(room, { ranked, queue: ranked ? 'ranked' : 'private' });
 }
@@ -101,10 +103,11 @@ function joinRoom(app, room, mode) {
 export function inviteFriend(app, friend) {
   const close = modal(`Invite ${friend.name}`,
     h('small', { class: 'muted' }, 'You host a private room; they get an invite card on their menu. Ranked counts only if they accept it as Ranked.'),
-    h('div', { class: 'invmodes' }, ...['casual', 'rush', 'ranked', 'coop'].map((m) => h('button', { class: 'btn' + (m === 'ranked' ? ' ranked' : ''), onclick: () => { close(); hostInvite(app, { to: friend, mode: m }); } },
-      h('b', {}, MODE_NAME[m]), h('small', {}, m === 'ranked' ? 'Climbs the ladder' : m === 'rush' ? 'One lane, ~7 min' : m === 'coop' ? 'One team, two coaches' : 'No rating change')))));
+    h('div', { class: 'invmodes' }, ...['party', 'casual', 'rush', 'ranked', 'coop'].map((m) => h('button', { class: 'btn' + (m === 'ranked' ? ' ranked' : '') + (m === 'party' ? ' party' : ''), onclick: () => { close(); hostInvite(app, { to: friend, mode: m }); } },
+      h('b', {}, m === 'party' ? 'Party' : MODE_NAME[m]), h('small', {}, m === 'party' ? 'Team up: co-op vs AI and 2v2, match after match' : m === 'ranked' ? 'Climbs the ladder' : m === 'rush' ? 'One lane, ~7 min' : m === 'coop' ? 'One team, two coaches' : 'No rating change')))));
 }
 export function hostInvite(app, { to = null, mode = 'casual' } = {}) {
+  if (mode === 'party') { inviteToParty(app, to).then(() => toast(`Party invite sent to ${to.name}`), (e) => toast(e.message || 'Could not send the invite')); return; } // src/party.js
   if (mode === 'coop') { app.hostCoop({ invite: { to, mode } }); return; } // a co-op room (src/coop-room.js)
   const ranked = mode === 'ranked';
   app.hostGame({ code: makeCode(), ranked, queue: ranked ? 'ranked' : 'private', gameMode: mode === 'rush' ? 'rush' : 'classic', invite: { to, mode } });
@@ -159,6 +162,7 @@ export async function showInviteLink(app, id) {
     const acct = getAccount() || await ensureAccount(app.name);
     if (inv.from.id === acct.id) { mount(body, h('p', {}, 'This is your own invite link: send it to a friend.'), home); return; }
     if (inv.status !== 'open' && inv.status !== 'pending') { mount(body, h('p', {}, `${inv.from.name}'s invite has ${inv.status === 'expired' ? 'expired' : 'closed'}.`), h('small', { class: 'muted' }, 'Ask them for a new link, or add them as a friend.'), h('div', { class: 'row' }, h('button', { class: 'chip', onclick: () => showPlayer(app, inv.from.id, { name: inv.from.name }) }, 'Profile'), home)); return; }
+    if (inv.mode === 'party') { const t = document.querySelector('#screen .lobby h2'); if (t) t.textContent = 'Party invite'; }
     mount(body, h('p', {}, h('b', { class: 'gold' }, inv.from.name), ` invites you to ${MODE_NAME[inv.mode] || 'a match'}.`),
       inv.mode === 'ranked' ? h('small', { class: 'muted' }, 'Ranked: joining agrees to a rated match. It counts when both games report the same result.') : null,
       h('div', { class: 'row', style: { justifyContent: 'center' } },

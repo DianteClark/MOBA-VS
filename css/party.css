@@ -1,0 +1,67 @@
+/* ── party: Home party panel, invite dialog, Co-op / 1v1-2v2 entry points (src/ui/party.js, src/ui/home.js) ── */
+/* Home: Play + Co-op side by side; Find Match header with the 1v1 / 2v2 toggle */
+.h2gorow { display: flex; gap: 6px; margin-top: auto; }
+.h2gorow .h2go { flex: 1.6; margin-top: 0; }
+.h2coop { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; min-width: 0; padding: 2px 6px; border-color: #6fe3c8; color: #d8fff4;
+  background: linear-gradient(160deg, rgba(20, 74, 62, 0.95), rgba(14, 40, 36, 0.95)); }
+.h2coop b { font-weight: normal; font-size: 15px; line-height: 1.1; }
+.h2coop small { font-size: 9px; opacity: 0.85; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.h2fmhead { display: flex; align-items: flex-start; gap: 6px; min-width: 0; }
+.h2fmhead .h2h { flex: 1; min-width: 0; }
+.seg2 { display: flex; gap: 0; flex: 0 0 auto; }
+.home2 .seg2 .chip { min-height: 26px; padding: 1px 7px; font-size: 11px; }
+.seg2 .chip + .chip { border-left-width: 0; }
+.home2 .seg3 .chip:disabled { opacity: 0.38; }
+.partychip.on { border-color: #6fe3c8; color: #d8fff4; }
+
+/* the party panel (Home's side column while in a party) */
+.ppanel { flex: 1; gap: 6px; border-color: #6fe3c8; background: linear-gradient(160deg, rgba(16, 60, 52, 0.95), var(--panel) 70%); min-height: 0; }
+.ppanel .pt-head { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.ppanel .pt-head b { color: #bff7e8; font-weight: normal; font-size: 15px; }
+.ppanel .pt-head small { letter-spacing: 2px; flex: 1; }
+.ppanel .pleave { font: inherit; font-size: 10px; color: var(--muted); background: #1c1626; border: 1px solid #4a3f5c; padding: 2px 6px; min-height: 26px; cursor: pointer; }
+.ppanel .pleave:hover { color: var(--ink); border-color: var(--red, #e05050); }
+.pmems { display: flex; flex-direction: column; gap: 4px; }
+.pmem { display: flex; align-items: center; gap: 5px; min-height: 30px; padding: 2px 6px; background: #1e1928; border: 1px solid #3a2f48; min-width: 0; font: inherit; color: var(--ink); text-align: left; }
+.pmem.me { border-color: #6fe3c899; }
+.pmem .pt-n { flex: 1; min-width: 0; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pmem .crown { display: inline-block; width: 9px; height: 7px; margin-right: 4px; vertical-align: 1px; background: var(--gold);
+  clip-path: polygon(0 100%, 0 20%, 25% 60%, 50% 0, 75% 60%, 100% 20%, 100% 100%); }
+.pmem .pst { flex: 0 0 auto; font-size: 9px; padding: 0 4px; border: 1px solid currentColor; }
+.pst.ready { color: var(--green); } .pst.wait { color: var(--muted); } .pst.busy { color: var(--gold); } .pst.lost { color: #ff9a7a; } .pst.lead { color: var(--gold); }
+.pmem .psay { flex: 0 1 auto; max-width: 55%; font-size: 10px; color: #1a1208; background: #fff1c4; padding: 1px 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; animation: psay 0.25s ease-out; }
+@keyframes psay { from { transform: scale(0.6); opacity: 0; } to { transform: none; opacity: 1; } }
+.pmem.pinv { white-space: nowrap; overflow: hidden; border-style: dashed; color: #bff7e8; cursor: pointer; justify-content: center; }
+.pmem.pinv b { font-weight: normal; font-size: 15px; }
+.pmem.pinv:hover { border-color: #6fe3c8; }
+.ppanel .pmodes .chip { min-height: 28px; }
+.ppanel .pt-desc { font-size: 10px; color: var(--muted); line-height: 1.25; }
+.ppanel .pt-desc b { color: var(--ink); font-weight: normal; }
+.ppanel .pt-row { display: flex; gap: 6px; margin-top: auto; }
+.ppanel .pt-row .pchatbtn { flex: 0 0 auto; min-height: 38px; padding: 0 8px; }
+.ppanel .pgo { flex: 1; min-width: 0; min-height: 38px; font-size: 15px; padding: 2px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ppanel .pgo.waiting { font-size: 11px; color: var(--muted); }
+.ppanel .pgo.nudge { animation: startPulse 1s ease-in-out infinite alternate; }
+.pchat { position: absolute; left: 6px; right: 6px; bottom: 50px; z-index: 3; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 5px;
+  background: #120e18f2; border: 2px solid #6fe3c8; box-shadow: 0 4px 0 #000a; }
+.pchat .chip { min-height: 28px; padding: 1px 2px; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* invite dialog */
+.pinvite .pcode { justify-content: space-between; gap: 10px; padding: 6px 4px; }
+.pinvite .pcode b { font-size: 22px; letter-spacing: 4px; }
+.pfriends { gap: 4px; max-height: 46vh; overflow: auto; }
+.pfriends .frow .fname { flex: 1; }
+.invmodes .btn.party { grid-column: 1 / -1; min-height: 50px; border-color: #6fe3c8; }
+.invmodes .btn.party b { color: #bff7e8; }
+
+@media (max-height: 500px) {
+  .h2coop b { font-size: 13px; }
+  .ppanel { gap: 4px; }
+  .pmem { min-height: 26px; }
+  .ppanel .pmodes .chip { min-height: 26px; }
+  .ppanel .pt-row .pchatbtn, .ppanel .pgo { min-height: 34px; }
+  .ppanel .pt-desc { font-size: 9px; }
+  .ppanel .pgo { font-size: 13px; }
+  .pchat { bottom: 42px; }
+}
+.reduce-motion .pmem .psay, .reduce-motion .ppanel .pgo.nudge { animation: none; }

@@ -67,6 +67,9 @@ export const newMatchId = () => { let s = 'M'; const a = 'ABCDEFGHJKMNPQRSTUVWXY
 // ── matchmaking ──
 export async function findQueue(body) { return call('/api/queue/find', { method: 'POST', auth: true, body }); }
 export async function cancelQueue(ticket) { try { await call('/api/queue/cancel', { method: 'POST', auth: true, body: { ticket } }); } catch { /* best effort */ } }
+// 2v2 (worker/duo.js): a party of one or two; party = the partner's player id.
+export async function findDuo(body) { return call('/api/queue2/find', { method: 'POST', auth: true, body }); }
+export async function cancelDuo(ticket) { try { await call('/api/queue2/cancel', { method: 'POST', auth: true, body: { ticket } }); } catch { /* best effort */ } }
 
 // ── social: friends, presence, invites, public profiles ──
 // Friend codes are the public player id shown as XXXXX-XXXXX (never the secret).
