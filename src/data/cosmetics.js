@@ -1,5 +1,7 @@
 // Emotes, achievement banners and coach-card borders (cosmetic only).
 import { TIERS } from './ranks.js';
+import { S2_EMOTES, S2_BANNERS, S2_BORDERS } from './season2.js';
+import { META_BANNERS, META_BORDERS } from './meta.js';
 
 // Emotes (assets/img/emote/<id>.png). `free`: owned from the start; the rest come from achievements and the pass.
 // Order is the quick-chat order. Only these keys ever cross the wire (src/ui/quickchat.js validates them).
@@ -9,6 +11,7 @@ export const EMOTES = {
   happy: { name: 'Delighted' }, wink: { name: 'Wink' }, smug: { name: 'Smug' }, gasp: { name: 'Gasp' }, alert: { name: 'Alert!' }, huh: { name: 'Huh?!' },
   meh: { name: 'Meh' }, nervous: { name: 'Nervous' }, sad: { name: 'Sad' }, cry: { name: 'Teary' }, grumpy: { name: 'Grumpy' }, dizzy: { name: 'Dazed' },
   ko: { name: 'K.O.' }, zzz: { name: 'Sleepy' },
+  ...S2_EMOTES, // Season 2 (pass, coach skill tree, goal streaks)
 };
 export const EMOTE_IDS = Object.keys(EMOTES);
 export const FREE_EMOTES = EMOTE_IDS.filter((k) => EMOTES[k].free);
@@ -22,6 +25,7 @@ export const BANNERS_EXTRA = {
   lotus: { name: 'Lotus Pond', bg: 'radial-gradient(circle at 25% 80%, #f48ab8, #2a5a4a 45%, #0e2420 85%)' },
   abyss: { name: 'Abyss', bg: 'radial-gradient(circle at 50% 120%, #ff5ad0, #2a1040 40%, #06040c 80%)' },
   dojo: { name: 'Dojo Hall', bg: 'repeating-linear-gradient(90deg, #3a2414 0 18px, #2a1a0e 18px 20px), linear-gradient(#3a2414, #1a1008)' },
+  ...S2_BANNERS, ...META_BANNERS,
   starfield: { name: 'Starfield', bg: 'radial-gradient(1px 1px at 20% 30%, #fff, transparent), radial-gradient(1px 1px at 70% 60%, #fff, transparent), radial-gradient(1.5px 1.5px at 85% 25%, #ffe69a, transparent), linear-gradient(160deg, #0c0a2a, #1a1440 60%, #2a1a5a)' },
 };
 
@@ -35,5 +39,6 @@ export const BORDERS = {
   sensei: { name: 'Sensei', c1: '#ffe08a', c2: '#7a5410', shine: true },
   shogun: { name: 'Shogun', c1: '#ff6a6a', c2: '#3a0a12' },
   moon: { name: 'Moonlit', c1: '#d8fff4', c2: '#3a2a8a' },
+  ...S2_BORDERS, ...META_BORDERS,
 };
 export const borderStyle = (id) => { const b = BORDERS[id]; return b ? { '--bd1': b.c1, '--bd2': b.c2 } : null; };

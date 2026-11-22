@@ -2,6 +2,8 @@
 // Changes go out as ordinary commands and apply the moment play resumes.
 import { h, mount, face, icon } from './dom.js';
 import { TACTICS, TACTIC_IDS } from '../data/tactics.js';
+import { ownsTactic } from '../meta.js';
+import { profile } from '../profile.js';
 import { BUILDS } from '../data/items.js';
 import { audio } from '../audio.js';
 import { PLAN_IDS, PLAN_INFO, planName, beats, EDGE_TEXT } from '../data/plans.js';
@@ -39,7 +41,7 @@ export function showHalftime(app, g, my, runner, ht) {
     const unused = team.deck.filter((d) => !d.used);
     const swap = !lead ? null : h('div', { class: 'ht-sec' }, h('div', { class: 'ht-h' }, pick.swapped ? 'Card swapped' : pick.swapFrom ? `Swap ${TACTICS[pick.swapFrom].name} for…` : 'Swap one unused card (optional)'),
       pick.swapped ? null : pick.swapFrom
-        ? h('div', { class: 'ht-row wrap' }, ...TACTIC_IDS.filter((id) => !team.deck.some((d) => d.id === id)).map((id) => h('button', { class: 'tcard', title: TACTICS[id].desc, onclick: () => { runner.send({ type: 'redraw', card: pick.swapFrom, to: id }); pick.swapped = true; audio.sfx('accept', 0.6); render(); } }, h('img', { src: icon(TACTICS[id].icon) }), h('div', { class: 'tc-t' }, h('b', {}, TACTICS[id].name), h('small', {}, TACTICS[id].short)))))
+        ? h('div', { class: 'ht-row wrap' }, ...TACTIC_IDS.filter((id) => !team.deck.some((d) => d.id === id) && ownsTactic(profile.d.meta, id)).map((id) => h('button', { class: 'tcard', title: TACTICS[id].desc, onclick: () => { runner.send({ type: 'redraw', card: pick.swapFrom, to: id }); pick.swapped = true; audio.sfx('accept', 0.6); render(); } }, h('img', { src: icon(TACTICS[id].icon) }), h('div', { class: 'tc-t' }, h('b', {}, TACTICS[id].name), h('small', {}, TACTICS[id].short)))))
         : h('div', { class: 'ht-row wrap' }, ...(unused.length ? unused.map((d) => h('button', { class: 'tcard', onclick: () => { pick.swapFrom = d.id; render(); } }, h('img', { src: icon(TACTICS[d.id].icon) }), h('div', { class: 'tc-t' }, h('b', {}, TACTICS[d.id].name), h('small', {}, 'tap to swap'))))
           : [h('small', { class: 'muted' }, 'All cards played.')])));
     const builds = h('div', { class: 'ht-sec' }, h('div', { class: 'ht-h' }, 'Builds (future items)'),

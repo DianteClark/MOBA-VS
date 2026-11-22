@@ -1,7 +1,7 @@
 // The coach's profile: rank, season pass, cosmetics, trophies and match history.
 // Stored in this browser (localStorage). Every match is recorded in a compact, shareable
 // format so a future shared backend can feed real results into the season balancer.
-import { seasonAt, XP_PER_LEVEL, MAX_LEVEL, MATCH_XP, TRACK, SKINS, BANNERS, TITLES } from './data/seasons.js';
+import { seasonAt, seasonById, passOf, XP_PER_LEVEL, MATCH_XP, SKINS, BANNERS, TITLES } from './data/seasons.js';
 import { rankOf, eloDelta, START_ELO, AI_ELO, AI_CAP, CUP_ELO, RATED, SEASON_REWARDS, TIERS, MIN_RATED_GAMES } from './data/ranks.js';
 import { masteryInfo, masteryLevel, matchPoints, masteryRewards, masteryTitleName } from './mastery.js';
 import { HERO_BY_ID } from './data/heroes.js';
@@ -11,12 +11,13 @@ import { recordCareer } from './ui/career.js';
 import { FREE_EMOTES, EMOTES, BORDERS } from './data/cosmetics.js';
 import { ACH, matchContext } from './data/achievements.js';
 import { RIVAL_BY_ID } from './data/rivals.js';
+import { normalizeMeta, recordMeta, goalContext } from './meta.js';
 
 const KEY = 'mobavs_profile_v1';
 const fresh = () => ({
   v: 1, seasons: {}, unlocked: { skins: ['base'], banners: ['plain'], titles: ['rookie'], emotes: [...FREE_EMOTES], borders: [] },
   equip: { banner: 'plain', title: 'rookie', skins: {}, emote: 'grin', border: null }, ach: { got: {}, roles: [] }, trophies: { gold: 0, silver: 0 }, borders: [],
-  history: [], heroStats: {}, cup: null, seenPatch: '', lastSeason: 0, mastery: {}, rivals: {},
+  history: [], heroStats: {}, cup: null, seenPatch: '', lastSeason: 0, mastery: {}, rivals: {}, meta: null,
 });
 
 // Same MVP rule as the results screen.
@@ -47,6 +48,7 @@ export class Profile {
     if (e.border && !BORDERS[e.border]) e.border = null;
     const a = d.ach && typeof d.ach === 'object' ? d.ach : {};
     d.ach = { got: Object.fromEntries(Object.entries(a.got || {}).filter(([k]) => ACH.some((x) => x.id === k))), roles: (Array.isArray(a.roles) ? a.roles : []).slice(0, 5) };
+    normalizeMeta(d); // coach level, skill tree, perks, goals, story weeks, divisions (src/meta.js)
     this.checkState(); // retroactive: progress earned before achievements existed (no toasts)
   }
   // Saves locally and (when signed in) queues a cloud save of the whole profile.
@@ -66,8 +68,18 @@ export class Profile {
   }
   get rank() { return rankOf(this.ss().elo); }
   get elo() { return this.ss().elo; }
-  get level() { return Math.min(MAX_LEVEL, 1 + Math.floor(this.ss().xp / XP_PER_LEVEL)); }
-  get levelProgress() { const xp = this.ss().xp; return this.level >= MAX_LEVEL ? 1 : (xp % XP_PER_LEVEL) / XP_PER_LEVEL; }
+  // This season's pass: { id, track, max } (Season 1: 20 tiers; Season 2 on: 30).
+  get pass() { return passOf(this.season); }
+  passLevel(id = this.season.id) { const ps = passOf(seasonById(id)); return Math.min(ps.max, 1 + Math.floor(((this.d.seasons[id] || {}).xp || 0) / XP_PER_LEVEL)); }
+  get level() { return this.passLevel(); }
+  get levelProgress() { const xp = this.ss().xp; return this.level >= this.pass.max ? 1 : (xp % XP_PER_LEVEL) / XP_PER_LEVEL; }
+  // Season pass XP from anywhere (matches, daily goals, story weeks, division finishes); returns the new unlocks.
+  addPassXp(xp, out = []) {
+    const lvBefore = this.level, track = this.pass.track;
+    this.ss().xp += Math.max(0, Math.round(xp));
+    for (let lv = lvBefore + 1; lv <= this.level; lv++) this.unlock(track[lv], out);
+    return out;
+  }
 
   // New season: soft-reset rank, award last season's border and title.
   // Season end: every reward up to the peak tier (with enough rated matches), then a soft reset toward 1000.
@@ -83,7 +95,9 @@ export class Profile {
         }
       }
       const s = this.ss(cur); s.elo = Math.round(START_ELO + (prev.elo - START_ELO) * 0.5); s.peakElo = s.elo;
-      this.newSeasonNote = { from: prevId, peak: r.label, tier: r.tier.id, rewards: got, eligible: prev.rg >= MIN_RATED_GAMES };
+      // the season-end ceremony (src/ui/ceremony.js) shows this once
+      this.newSeasonNote = { from: prevId, to: cur, peak: r.label, peakElo: prev.peakElo, tier: r.tier.id, rewards: got, eligible: prev.rg >= MIN_RATED_GAMES,
+        pass: this.passLevel(prevId), passMax: passOf(seasonById(prevId)).max, w: prev.w || 0, l: prev.l || 0, elo: s.elo };
     }
     this.d.lastSeason = cur;
     this.save();
@@ -126,11 +140,14 @@ export class Profile {
     if (good) xpParts.push([`${good} good call${good > 1 ? 's' : ''}`, Math.min(MATCH_XP.goodCallCap, good * MATCH_XP.perGoodCall)]);
     if (featured) xpParts.push([`${featured} featured-clan hero${featured > 1 ? 'es' : ''}`, featured * MATCH_XP.featuredHero]);
     if (cup) xpParts.push(['Season Cup', MATCH_XP.cup]);
+    const lvBefore = this.level, unlocks = [];
+    // coach level, daily goals, story week, division points and prestige (src/meta.js)
+    let meta = null;
+    try { meta = recordMeta(this, goalContext(game, myTeam), { peakElo: s.peakElo }); unlocks.push(...meta.unlocks); } catch (e) { console.error(e); }
+    if (meta && meta.passXp) xpParts.push([meta.story.length && !meta.goals.length ? 'Story week' : 'Goals', meta.passXp]);
     const xp = xpParts.reduce((a, p) => a + p[1], 0);
-    const lvBefore = this.level;
-    s.xp += xp;
-    const lvAfter = this.level, unlocks = [];
-    for (let lv = lvBefore + 1; lv <= lvAfter; lv++) this.unlock(TRACK[lv], unlocks);
+    this.addPassXp(xp, unlocks);
+    const lvAfter = this.level;
     // hero stats + mastery
     const mvp = mvpOf(game), mastery = [];
     for (const x of team.heroes) {
@@ -169,7 +186,7 @@ export class Profile {
     const rankAfter = rankOf(elo);
     return { won, rated, rg: s.rg, key, eloBefore: before, elo, delta: elo - before, rankBefore, rankAfter,
       promoted: rankAfter.step > rankBefore.step, demoted: rankAfter.step < rankBefore.step,
-      xp, xpParts, lvBefore, lvAfter, unlocks, mastery, ach, rival: rv, capped: rated && key.startsWith('ai') && won && elo >= AI_CAP[aiLevel] };
+      xp, xpParts, lvBefore, lvAfter, unlocks, mastery, ach, rival: rv, meta, capped: rated && key.startsWith('ai') && won && elo >= AI_CAP[aiLevel] };
   }
 
   // Rival coaches: { [id]: { w, l, s (streak: +wins / -losses), t } } for the 12 known rivals only (bounded).

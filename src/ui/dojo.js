@@ -4,6 +4,7 @@ import { HEROES, HERO_BY_ID, ROLES, ROLE_LABEL, PERSONALITIES } from '../data/he
 import { CLANS } from '../sim/constants.js';
 import { BUILDS } from '../data/items.js';
 import { TACTICS, TACTIC_IDS } from '../data/tactics.js';
+import { ownsTactic } from '../meta.js';
 import { SKINS } from '../data/seasons.js';
 import { skinViewer, heroSkinKeys } from './collection.js';
 import { matchups } from '../data/herostats.js';
@@ -176,7 +177,7 @@ function pickCards(app) {
   const p = cur();
   let close = null;
   const grid = h('div', { class: 'deck' });
-  const draw = () => mount(grid, ...TACTIC_IDS.map((id) => {
+  const draw = () => mount(grid, ...TACTIC_IDS.filter((id) => ownsTactic(profile.d.meta, id) || p.deck.includes(id)).map((id) => {
     const t = TACTICS[id], on = p.deck.includes(id);
     return h('button', { class: 'card' + (on ? ' sel' : ''), onclick: () => { if (on) p.deck = p.deck.filter((d) => d !== id); else p.deck = [...p.deck.slice(p.deck.length >= 3 ? 1 : 0), id]; tap(); draw(); count.textContent = `${p.deck.length}/3`; } },
       h('img', { src: icon(t.icon) }), h('div', { class: 'cn' }, t.name), h('div', { class: 'cd' }, t.desc), on ? h('i', { class: 'tick' }) : null);

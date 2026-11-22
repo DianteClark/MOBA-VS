@@ -9,6 +9,7 @@ import { TACTICS } from '../data/tactics.js';
 import { CMD, DRAGON_INFO, TICK_RATE, OBJ_NAME, MOMENTUM } from '../sim/constants.js';
 import { Tray, PRIO } from './tray.js';
 import { MOMENTS, MOMENT_IDS, MOMENT, momentReady } from '../sim/moments-coach.js';
+import { momentAs } from '../sim/sidegrades.js';
 import { TEAM_COL } from '../render/renderer.js';
 import { audio } from '../audio.js';
 import { COOP_COL } from '../coop-room.js';
@@ -258,7 +259,7 @@ export class Dock {
     if (id === 'moments') {
       const team = this.team;
       return { title: 'Coach Moments · once per match', els: [h('div', { class: 'tiles' }, ...MOMENT_IDS.map((k) => {
-        const m = MOMENTS[k];
+        const m = momentAs(MOMENTS, team, k); // a coach skill tree variant shows its own name
         const b = this.tile({ ico: m.icon, title: m.name, cls: 'moment', sub: () => (team.moments[k] ? 'Used' : g.time < MOMENT.openAt * g.rules.k ? `Opens at ${fmtTime(MOMENT.openAt * g.rules.k)}` : team.momentCd > g.tick ? `Ready in ${Math.ceil((team.momentCd - g.tick) / TICK_RATE)}s` : m.short),
           state: () => ({ off: !momentReady(g, this.my, k), rec: momentReady(g, this.my, k) }), onclick: () => this.send({ type: 'moment', id: k }) });
         b.style.setProperty('--mc', m.color); b.title = m.desc;

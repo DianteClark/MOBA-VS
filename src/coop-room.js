@@ -293,7 +293,7 @@ function gotPrep(app, team, seat, prep) {
     return { id, role: hp.role, build: hp.build };
   });
   const skins = {}; for (const k of need) Object.assign(skins, s.seatPreps[team][k].skins || {});
-  s.preps[team] = { heroes, plan: lead.plan, deck: lead.deck, skins };
+  s.preps[team] = { heroes, plan: lead.plan, deck: lead.deck, skins, ...(lead.mv ? { mv: lead.mv } : {}) };
   s.ready[team] = true;
   if (app.renderPrep) app.renderPrep();
   app.checkPrepDone();
