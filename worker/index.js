@@ -499,7 +499,7 @@ export default {
     const now = Date.now();
     // every 5 minutes: drain queued pushes; once a day (03:07 UTC): stats rollup + pruning
     if (event.cron === '7 3 * * *') ctx.waitUntil(OPS.rollup(env.DB, now));
-    else ctx.waitUntil(drainOutbox(env.DB, env, now, 3));
+    else ctx.waitUntil(drainOutbox(env.DB, env, now));
   },
   async fetch(req, env, ctx) {
     const url = new URL(req.url);

@@ -7,7 +7,7 @@
 //    sendPush() with a stubbed fetch. The Worker free plan allows ~10 ms CPU per invocation; worker/push.js
 //    drains at most DRAIN_PER_CALL messages per invocation, and this prints the head-room.
 // Exits non-zero if the round trip fails or one message costs more than 2 ms of CPU.
-import { encryptPayload, sendPush, vapidAuth, generateVapidKeys, b64u, unb64u, DRAIN_PER_CALL } from '../worker/push.js';
+import { encryptPayload, sendPush, vapidAuth, generateVapidKeys, b64u, unb64u, DRAIN_PER_CALL, MAX_SUBS } from '../worker/push.js';
 
 const subtle = globalThis.crypto.subtle, te = new TextEncoder();
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
@@ -80,7 +80,9 @@ console.log('\nCPU per message (Node WebCrypto, this machine)');
 console.log(`  encrypt (ECDH + 3 HKDF + AES-GCM)      ${encMs.toFixed(3)} ms`);
 console.log(`  VAPID JWT sign (cold, per push origin)  ${signMs.toFixed(3)} ms`);
 console.log(`  sendPush, warm JWT cache                ${fullMs.toFixed(3)} ms`);
-console.log(`  worst case per Worker drain: ${DRAIN_PER_CALL} x ${(fullMs + signMs).toFixed(2)} ms = ${(DRAIN_PER_CALL * (fullMs + signMs)).toFixed(2)} ms of the ~10 ms budget`);
+const worst = DRAIN_PER_CALL * MAX_SUBS;
+console.log(`  worst case per Worker drain: ${DRAIN_PER_CALL} rows x ${MAX_SUBS} devices = ${worst} x ${(fullMs + signMs).toFixed(2)} ms = ${(worst * (fullMs + signMs)).toFixed(2)} ms of the ~10 ms budget`);
+ok(worst * (fullMs + signMs) < 7, 'worst-case drain < 7 ms CPU');
 ok(fullMs < 2, 'one message < 2 ms CPU');
 console.log(bad ? `\n${bad} FAILED` : '\nall ok');
 process.exit(bad ? 1 : 0);

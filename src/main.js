@@ -125,7 +125,7 @@ class App {
     document.getElementById('loading').remove();
     this.startBg();
     const q = new URLSearchParams(location.search), code = q.get('join'), shared = q.get('s'), invite = q.get('i');
-    if (code) this.joinScreen(code); else if (shared) showShared(this, shared); else if (invite) showInviteLink(this, invite); else if (q.get('ar')) openAdminReplay(this, q.get('ar'));
+    if (code) this.joinScreen(code); else if (shared) showShared(this, shared); else if (invite) showInviteLink(this, invite); else if (q.get('ar')) openAdminReplay(this, q.get('ar'), VERSION);
     else if (q.get('go') === 'cup') { try { history.replaceState(null, '', location.pathname); } catch { /* ignore */ } this.menu(); showWeekendCup(this); } else this.menu();
     // a tapped notification while the game is open: follow its link from the menu, never mid-match
     onPushOpen((u) => { if (this.match || this.session) return; const i = u.searchParams.get('i'); if (i) showInviteLink(this, i); else if (u.searchParams.get('go') === 'cup') showWeekendCup(this); });

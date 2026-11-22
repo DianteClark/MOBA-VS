@@ -13,7 +13,7 @@ export async function decodeReplay(r) {
   return JSON.parse(text);
 }
 
-export async function openAdminReplay(app, match) {
+export async function openAdminReplay(app, match, version) {
   try { history.replaceState(null, '', location.pathname); } catch { /* ignore */ }
   let tok = null; try { tok = localStorage.getItem('mobavs_admin'); } catch { /* ignore */ }
   if (!tok) { toast('Open the dashboard (admin.html) on this device and paste the token first.', 3500); app.menu(); return; }
@@ -23,7 +23,7 @@ export async function openAdminReplay(app, match) {
     const d = await r.json(), pick = d.replays.find((x) => x.status === 'bad') || d.replays[0];
     if (!pick) throw new Error('No replay was uploaded for this match');
     const doc = await decodeReplay(pick);
-    if (doc.v !== app.version) { toast(`This replay is from game version ${doc.v}; this build plays ${app.version}. Re-check it with tools/verify.mjs instead.`, 4500); app.menu(); return; }
+    if (doc.v !== version) { toast(`This replay is from game version ${doc.v}; this build plays ${version}. Re-check it with tools/verify.mjs instead.`, 4500); app.menu(); return; }
     if (doc.ai && doc.ai.length) toast(`Note: an AI coach took over at tick ${doc.ai[0][0]}; the Theater keeps the human log only.`, 3500);
     const m = d.match;
     app.watchReplay({ v: doc.v, cfg: { ...doc.cfg, coach: [false, false], coachLevel: [1, 1] }, log: doc.log, names: [m.bname || m.blue || 'Blue', m.rname || m.red || 'Red'], mapId: doc.cfg.map }, { back: () => app.menu() });

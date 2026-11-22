@@ -259,6 +259,18 @@ export function opsApi(H) {
       if (!(await tokenOk(req, env, sha))) return bad('not found', 404);
       if (p === '/api/admin/ops/summary' && M === 'GET') return json(await summary(db, url, now));
       if (p === '/api/admin/ops/rollup' && M === 'POST') return json(await rollup(db, now, Math.max(1, Math.min(60, Number(url.searchParams.get('back')) || 14))));
+      // Real-player hero results over the last `days` days (verified online matches), for tools/autobalance.mjs.
+      if (p === '/api/admin/ops/heroes' && M === 'GET') {
+        const days = Math.max(1, Math.min(60, Number(url.searchParams.get('days')) || 7)), from = dayOf(now) - days + 1;
+        const rows = (await db.prepare(`SELECT k, SUM(n) AS n FROM ops_day WHERE day >= ? AND (k = 'vm' OR k LIKE 'hg:%' OR k LIKE 'hw:%' OR k LIKE 'hb:%') GROUP BY k`).bind(from).all()).results || [];
+        const heroes = {}; let matches = 0;
+        for (const r of rows) {
+          if (r.k === 'vm') { matches = r.n; continue; }
+          const [t, id] = r.k.split(':'), x = heroes[id] || (heroes[id] = { hero: id, games: 0, wins: 0, bans: 0 });
+          x[t === 'hg' ? 'games' : t === 'hw' ? 'wins' : 'bans'] = r.n;
+        }
+        return json({ days, from, matches, heroes: Object.values(heroes) });
+      }
       if (p === '/api/admin/ops/crash' && M === 'GET') {
         const hash = String(url.searchParams.get('hash') || '');
         const [c, t, d] = await db.batch([db.prepare('SELECT * FROM crashes WHERE hash = ?').bind(hash), db.prepare('SELECT tag, n FROM crash_tags WHERE hash = ? ORDER BY n DESC').bind(hash),
