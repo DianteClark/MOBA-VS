@@ -59,6 +59,13 @@ SCREENS = [
     ('profile-emotes', "H.showProfile(app, 'emotes')"),
     ('profile-borders', "H.showProfile(app, 'borders')"),
     ('home-casual-rush', "app.queueMode = 'casual'; app.mapPref = 'frost'; app.menu()"),
+    # parties (src/party.js): the leader's panel with a partner (2v2 toggle on), its chat lines, the invite dialog,
+    # the partner's panel, then the party is left and Home is back to normal
+    ('home-party', "const PT = await import('./src/party.js'); app.queueMode = 'ranked'; await PT.createParty(app); PT.party().members.push({ id: 'mate0001', self: false, leader: false, name: 'Benedikt', elo: 1320, ready: true, busy: false, lost: false, said: { i: 1, t: Date.now() + 60000 } }); PT.setQueueSize('2v2'); app.menu()"),
+    ('home-party-chat', "document.querySelector('.ppanel .pchatbtn').click()"),
+    ('party-invite', "(await import('./src/ui/party.js')).openInvite(app); await new Promise((r) => setTimeout(r, 400))"),
+    ('home-party-partner', "for (const e of document.querySelectorAll('.modal')) e.remove(); const PT = await import('./src/party.js'), P = PT.party(); P.leader = false; P.link = { send() {}, close() {} }; P.want = true; P.mode = 'mm2'; P.members = [{ id: 'lead0001', self: false, leader: true, name: 'Alexandria', elo: 1600, ready: true }, { id: 'mate0001', self: true, leader: false, name: app.name, elo: 1000, ready: false }]; app.menu()"),
+    ('home-after-party', "const PT = await import('./src/party.js'); PT.leaveParty(app, true); PT.setQueueSize('1v1'); app.menu()"),
     ('cup', 'H.showCup(app)'),
     ('franchise-found', "const F = await import('./src/ui/franchise.js'), FP = await import('./src/franchise/play.js'); (await import('./src/profile.js')).profile.d.fr = null; F.showFranchise(app, 'team')"),
     ('franchise-team', "const F = await import('./src/ui/franchise.js'), FP = await import('./src/franchise/play.js'); FP.foundFranchise({ name: 'Moonlit Kitsune FC', abbr: 'MKF', c1: '#e0453a', c2: '#f4f1e8', p: 2, e: 3, diff: 1 }); for (let i = 0; i < 4; i++) FP.simFixture(); F.showFranchise(app, 'team')"),

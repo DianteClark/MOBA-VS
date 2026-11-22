@@ -63,6 +63,7 @@ import { pushPromptCard, onPushOpen } from './ui/notify.js';
 import { openAdminReplay } from './ui/adminreplay.js';
 import { frPrep, frRecord } from './franchise/play.js';
 import { showFranchise, franchiseResults } from './ui/franchise.js';
+import { party, partyAgain, adoptJoinLink, findDuo, queueSize } from './party.js';
 import { cleanCustom, randomDraft } from './sim/custom.js';
 import { customMap, customMode, customLobby, customToast } from './ui/custom.js';
 import { pnpTurn, pnpPrepNext, pnpMatch, pnpEnd, clearCover } from './passplay.js';
@@ -70,7 +71,7 @@ import { startRelay, stopRelay, stopWatching, liveTag } from './ui/spectate.js';
 import { Broadcast } from './ui/broadcast.js';
 import { publishChip } from './ui/hub.js';
 
-const VERSION = 30; // bump whenever the sim or balance changes (peers must match)
+const VERSION = 31; // bump whenever the sim or balance changes (peers must match)
 const PREP_SECONDS = 60;
 installCrashReporter(VERSION); // window errors, unhandled rejections and lockstep desyncs → the owner dashboard (src/net/ops.js)
 
@@ -206,7 +207,8 @@ class App {
   safeUpdate(force) {
     const u = this.update;
     if (!u || u.busy || this.match || this.session) { updateChip(false); return; }
-    if (!force && (document.querySelector('.modal') || !document.querySelector('#screen .home2'))) { updateChip(true); return; }
+    // in a party a reload would end it: offer the chip instead of switching by itself
+    if (!force && (party() || document.querySelector('.modal') || !document.querySelector('#screen .home2'))) { updateChip(true); return; }
     u.busy = true; updateChip(false);
     document.getElementById('fade').classList.add('on');
     setTimeout(() => {
@@ -325,7 +327,7 @@ class App {
         this.net = { peer, t: transport };
         this.session = { mode: 'join', gameMode: 'classic', myTeam: 1, seed: 0, names: ['Host', this.name], rng: null, ranked: !!opts.ranked, queue: opts.queue || 'private', wcup: opts.wcup || null };
         this.wireNet();
-        transport.send({ t: 'hello', v: VERSION, name: this.name, pid: getAccount() && getAccount().id, elo: profile.elo, ranked: !!this.session.ranked, looks: myLooks() });
+        transport.send({ t: 'hello', v: VERSION, name: this.name, pid: getAccount() && getAccount().id, elo: profile.elo, ranked: !!this.session.ranked, looks: myLooks(), ...(opts.hello || {}) });
         showLobby(this, { joining: true, code, status: 'Connected! Waiting for host…', onJoin: go, onCancel: cancel });
       } catch (e) {
         if (this.lobbyId !== id) return;
@@ -338,6 +340,7 @@ class App {
   }
   // Matchmaking (Ranked / Casual / Lane Rush queues): pair with a real player in the same queue or give up after 60s (no bots fill in).
   async findMatch(checked = false) {
+    if (queueSize() === '2v2') { findDuo(this); return; } // 2v2: solo or with your party (src/party.js)
     const q0 = this.queueMode || 'ranked';
     if (!checked && readyCheck(this, { label: 'Find match', go: () => this.findMatch(true), queue: q0, gameMode: q0 === 'rush' ? 'rush' : 'classic' })) return;
     this.immersive(); stopParade();
@@ -382,6 +385,9 @@ class App {
     switch (m.t) {
       case 'room': // the room we joined is a co-op room
         if (s.mode === 'join') enterAsGuest(this, m);
+        break;
+      case 'party': // the code we joined is a party (src/party.js takes the link over)
+        if (s.mode === 'join') adoptJoinLink(this, m);
         break;
       case 'closed':
         if (s.mode === 'join') { toast(m.why || 'That room is closed.', 3000); this.menu(); }
@@ -798,9 +804,10 @@ class App {
       if (sum && s.oppId && profile.d.history[0]) { profile.d.history[0].opp = s.oppId; profile.save(); } // Friends: Recently played
       this.potgReel = potg && src ? this.prerollPOTG(src, potg) : null;
       const report = s.myTeam >= 0 ? reportCard(m.game, s.myTeam, m.hud.stats) : null;
+      const pa = s.mode === 'coop' ? partyAgain(this) : null; // a party: Play again (leader) / Back to party
       const args = [this, m.game, s.myTeam,
-        s.customOpts && s.mode !== 'join' ? () => this.playCustom(s.customOpts, s.pnp ? 'pnp' : s.mode === 'host' ? 'host' : 'ai') : s.wcup ? () => showWeekendCup(this) : s.cup ? () => showCup(this) : s.franchise ? () => { this.session = null; audio.music('menu'); showFranchise(this, 'team'); } : s.mode === 'ai' ? () => { if (s.rival) this.rivalRoll = { tier: s.aiLevel, id: s.rival }; this.startVsAI(s.gameMode === 'rush' ? 'rush' : 'classic', true); } : s.mode === 'watch' ? (s.spectate ? null : () => this.watch()) : null,
-        () => this.menu(), { progress: progressPanel(sum, cupOut), rival: s.franchise ? franchiseResults(this, frOut) : s.myTeam >= 0 && !s.wasOnline ? rivalPanel(sum, s, won) : null, ladder, social: s.wcup ? null : s.mode === 'coop' ? coopResults(this, s, m.game) : socialPanel(this, s), againLabel: s.cup || s.wcup ? 'Back to bracket' : s.franchise ? 'Back to franchise' : s.rival && RIVAL_BY_ID[s.rival] && !s.wasOnline ? `Rematch ${RIVAL_BY_ID[s.rival].name}` : null, potg: this.potgReel ? potg : null, report,
+        s.customOpts && s.mode !== 'join' ? () => this.playCustom(s.customOpts, s.pnp ? 'pnp' : s.mode === 'host' ? 'host' : 'ai') : s.wcup ? () => showWeekendCup(this) : s.cup ? () => showCup(this) : s.franchise ? () => { this.session = null; audio.music('menu'); showFranchise(this, 'team'); } : s.mode === 'ai' ? () => { if (s.rival) this.rivalRoll = { tier: s.aiLevel, id: s.rival }; this.startVsAI(s.gameMode === 'rush' ? 'rush' : 'classic', true); } : s.mode === 'watch' ? (s.spectate ? null : () => this.watch()) : pa ? pa.fn : null,
+        () => this.menu(), { progress: progressPanel(sum, cupOut), rival: s.franchise ? franchiseResults(this, frOut) : s.myTeam >= 0 && !s.wasOnline ? rivalPanel(sum, s, won) : null, ladder, social: s.wcup ? null : s.mode === 'coop' ? coopResults(this, s, m.game) : socialPanel(this, s), againLabel: pa ? pa.label : s.cup || s.wcup ? 'Back to bracket' : s.franchise ? 'Back to franchise' : s.rival && RIVAL_BY_ID[s.rival] && !s.wasOnline ? `Rematch ${RIVAL_BY_ID[s.rival].name}` : null, potg: this.potgReel ? potg : null, report,
           onPOTG: () => this.playPOTG(), onClip: potg && src && clipSupport() ? () => saveClip(src, potg, s.names, this.mapCanvas(m.game.world, m.game.event)) : null,
           analytics, onAnalysis: analytics ? () => showAnalysis(analytics, { title: 'Match analysis', onTheater: this.lastReplay() ? () => this.watchReplay(null, { back: () => this.backToResults() }) : null }) : null,
           emotes: resultEmotes(s), foot: this.resultsFoot(s, m, potg), onReplay: () => this.watchReplay(null, { back: () => this.backToResults() }), share: sum ? () => shareMatch(profile.d.history[0], { name: this.name, rank: profile.rank.label, border: profile.border }, this.lastReplay()) : null }];

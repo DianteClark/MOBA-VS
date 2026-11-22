@@ -12,8 +12,8 @@ import { seasonAt } from '../data/seasons.js';
 
 const LS = 'mobavs_admin';
 const HERO = Object.fromEntries(HEROES.map((x) => [x.id, x.name]));
-const MODE = { ai: 'vs AI', rush_ai: 'Lane Rush vs AI', cup_ai: 'Season Cup vs AI', franchise: 'Franchise', coop: 'Co-op', ranked: 'Ranked', casual: 'Casual', rush: 'Lane Rush online', private: 'Private room', cup: 'Weekend Cup', watch: 'Watch' };
-const QUEUES = ['ranked', 'casual', 'rush', 'coop'];
+const MODE = { ai: 'vs AI', rush_ai: 'Lane Rush vs AI', cup_ai: 'Season Cup vs AI', franchise: 'Franchise', coop: 'Co-op', coop2v2: '2v2 (Find Match)', ranked: 'Ranked', casual: 'Casual', rush: 'Lane Rush online', private: 'Private room', cup: 'Weekend Cup', watch: 'Watch' };
+const QUEUES = ['ranked', 'casual', 'rush', 'coop', 'coop2v2'];
 const PUSH_T = [['invite', 'Invites'], ['rematch', 'Rematch'], ['cup', 'Cup check-ins'], ['event', 'Weekly event'], ['division', 'Division results']];
 // chart colors: categorical slots 1 and 2 of the dashboard palette (dark surface), validated with the dataviz checks
 const C1 = '#3987e5', C2 = '#d95926';

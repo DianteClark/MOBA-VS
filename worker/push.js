@@ -126,7 +126,7 @@ export function cleanSub(s, allowAny = false) {
 // origin or a mirror's sub-path).
 export function message(type, x = {}) {
   switch (type) {
-    case 'invite': return { t: 'invite', title: `${x.from || 'A friend'} invites you`, body: x.mode === 'club' ? 'Join their club. Tap to open (3 minutes).' : `${x.mode === 'ranked' ? 'Ranked' : x.mode === 'rush' ? 'Lane Rush' : x.mode === 'coop' ? 'Co-op' : x.mode === 'custom' ? 'Custom game' : 'Casual'} match. Tap to join (3 minutes).`, url: x.id ? `./?i=${x.id}` : './', tag: 'invite' };
+    case 'invite': return { t: 'invite', title: `${x.from || 'A friend'} invites you`, body: x.mode === 'club' ? 'Join their club. Tap to open (3 minutes).' : x.mode === 'party' ? 'Party: team up for co-op and 2v2. Tap to join (3 minutes).' : `${x.mode === 'ranked' ? 'Ranked' : x.mode === 'rush' ? 'Lane Rush' : x.mode === 'coop' ? 'Co-op' : x.mode === 'custom' ? 'Custom game' : 'Casual'} match. Tap to join (3 minutes).`, url: x.id ? `./?i=${x.id}` : './', tag: 'invite' };
     case 'rematch': return { t: 'rematch', title: 'Rematch ready', body: `${x.from || 'Your opponent'} wants a rematch, sides swapped.`, url: './', tag: 'rematch' };
     case 'cup': return { t: 'cup', title: 'Weekend Cup: check in now', body: `Your ${x.round === 2 ? 'final' : x.round === 1 ? 'semifinal' : 'quarterfinal'} is ready. Tap Ready within 3 minutes or it is a no-show.`, url: './?go=cup', tag: 'cup' };
     case 'event': return { t: 'event', title: `This week: ${x.name || 'a new event'}`, body: x.blurb || 'A new weekly event is live.', url: './', tag: 'event' };
