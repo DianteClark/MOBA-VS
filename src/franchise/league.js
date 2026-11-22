@@ -4,7 +4,7 @@
 import { HEROES, HERO_BY_ID, ROLES } from '../data/heroes.js';
 import { Rng } from '../sim/rng.js';
 import * as D from './data.js';
-import { clamp, salaryFor, valueOf, heroMod, lineupMods, strengthOf, winProb, quickScore, bestLineup, coversRoles, chemistry, rolesOf } from './model.js';
+import { clamp, salaryFor, valueOf, lineupMods, strengthOf, winProb, quickScore, bestLineup, coversRoles, rolesOf } from './model.js';
 import { compOf, DUOS } from '../data/synergy.js';
 
 export const FR_VERSION = 1;
@@ -13,8 +13,6 @@ const NEWS_MAX = 12, HIST_MAX = 30, HOF_MAX = 24;
 // Run fn with the franchise's own Rng (its state is stored, so a save/reload never changes what happens next).
 export function withRng(fr, fn) { const r = new Rng(fr.rs); const out = fn(r); fr.rs = r.state(); return out; }
 export const rosterOf = (fr, t) => Object.values(fr.h).filter((x) => x.t === t);
-export const heroRec = (fr, id) => fr.h[id];
-export const teamName = (fr, t) => fr.teams[t].name;
 export function news(fr, text) { fr.news.unshift({ s: fr.season, r: fr.round, text }); fr.news.length = Math.min(fr.news.length, NEWS_MAX); }
 export const budgetFor = (fans, prize) => Math.round(clamp(D.BUDGET_BASE + fans * D.BUDGET_PER_FAN + prize * 0.5, D.BUDGET_MIN, D.CAP));
 export function payroll(fr, t) { const tm = fr.teams[t]; return rosterOf(fr, t).reduce((s, x) => s + x.s, 0) + (fr.phase === 'offseason' ? tm.deadNext || 0 : tm.dead || 0); }
@@ -217,7 +215,6 @@ function advancePlayoffs(fr) {
   });
   if (fr.po.f && fr.po.f[2] >= 0) endSeason(fr);
 }
-export const inPlayoffs = (fr) => !!(fr.po && fr.po.seeds.includes(0));
 
 // ── AI general managers ──
 function aiSign(fr, t, x, r, why) {
@@ -420,7 +417,6 @@ export function startNextSeason(fr) {
   news(fr, `Season ${fr.season} begins.`);
   return true;
 }
-export { chemistry, heroMod };
 
 // ── assistant GM: does the offseason paperwork for you (also drives your team in tools/franchise_sim.mjs) ──
 // Re-signs expiring heroes worth their price, drafts the best prospect, fills the roster in free agency.

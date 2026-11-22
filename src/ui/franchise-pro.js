@@ -144,7 +144,8 @@ function watchFeatured(app, w, day, idx) {
   if (c[key]) { open(c[key].t, c[key].len); return; }
   if (bcWorker) return;
   const note = h('small', { class: 'muted' }, 'Setting up the broadcast cameras…');
-  const card = h('div', { class: 'modal' }, h('div', { class: 'panel mpanel probc' }, h('b', {}, 'Featured match'), note, h('div', { class: 'pbar' }, h('i', { class: 'probcbar' })),
+  const bar = h('i', { class: 'probcbar' });
+  const card = h('div', { class: 'modal' }, h('div', { class: 'panel mpanel probc' }, h('b', {}, 'Featured match'), note, h('div', { class: 'pbar' }, bar),
     h('button', { class: 'chip', onclick: () => { stop(); } }, 'Cancel')));
   const stop = () => { if (bcWorker) bcWorker.terminate(); bcWorker = null; card.remove(); };
   document.body.append(card);
@@ -152,6 +153,7 @@ function watchFeatured(app, w, day, idx) {
   bcWorker.onmessage = (e) => {
     const m = e.data;
     if (m.t === 'try') note.textContent = m.n ? `Reviewing the tapes… (${m.n + 1})` : 'Setting up the broadcast cameras…';
+    if (m.t === 'p') { bar.classList.add('det'); bar.style.width = Math.round(m.f * 100) + '%'; }
     if (m.t === 'done') {
       stop();
       if (m.tries < 0) { toast('This broadcast is not available'); return; }

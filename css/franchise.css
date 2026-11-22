@@ -203,6 +203,7 @@
 .probc b { font-weight: normal; color: var(--gold); }
 .probc .pbar { width: 100%; height: 8px; background: #2b2233; overflow: hidden; }
 .probcbar { display: block; height: 100%; width: 30%; background: var(--gold); animation: probc 1.2s ease-in-out infinite alternate; }
+.probcbar.det { animation: none; transform: none; transition: width 0.3s; }
 @keyframes probc { from { transform: translateX(-10%); } to { transform: translateX(240%); } }
 
 @media (max-height: 430px) {

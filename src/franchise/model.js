@@ -9,7 +9,6 @@ import { MOD, FATIGUE, BOND_MAX, GM_STYLES } from './data.js';
 //   a: seasons in the league, y: contract seasons left, s: salary (k), m: morale 0-100, f: fatigue 0-10,
 //   fo: form -2..2, b: bond with the team 0-10, inj: sits the next match, g/w: games/wins this season }
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-export const roleOf = (id) => HERO_BY_ID[id].role;
 // Roles a hero can play: their main role first, then their flex roles.
 export const rolesOf = (id) => HERO_BY_ID[id].roles;
 
@@ -20,15 +19,12 @@ export function hseed(...vals) {
   return h >>> 0;
 }
 export const rngOf = (...vals) => new Rng(hseed(...vals));
-export function strSeed(s) { let h = 0; for (const c of String(s)) h = (Math.imul(h, 31) + c.charCodeAt(0)) >>> 0; return h; }
 
 // What a hero asks for (k per season). Stars ~25, solid starters ~14, depth ~6; young upside costs a little extra.
 export function salaryFor(o, p, a) {
   const base = Math.max(3, (o - 45) * 0.6), upside = a <= 2 ? Math.max(0, p - o) * 0.12 : 0, vet = a >= 7 ? -2 : 0;
   return Math.round(clamp(base + upside + vet, 3, 30));
 }
-// How good a hero is likely to be next season (for valuations): young heroes grow toward potential, veterans fade.
-export function outlook(x) { return x.a <= 2 ? Math.min(x.p, x.o + 4) : x.a >= 7 ? x.o - 3 : x.o; }
 
 // Trade/market value (higher = better). `style` is an AI GM style id (src/franchise/data.js GM_STYLES).
 export function valueOf(x, style = 'balanced') {
@@ -41,7 +37,6 @@ export function valueOf(x, style = 'balanced') {
 }
 
 // ── roster effects ──
-export const isTired = (x) => x.f >= FATIGUE.tired;
 export function moraleMod(m) { return clamp((m - 60) / 40, -1, 1) * MOD.morale; }
 export function fatigueMod(f) { return f >= FATIGUE.exhausted ? MOD.exhausted : f >= FATIGUE.tired ? MOD.tired : 0; }
 // Team chemistry for a set of starters: average bond, plus every duo whose two heroes both have bond 4+.
@@ -72,9 +67,9 @@ export const strengthOf = (mods) => mods.reduce((a, b) => a + b, 0) / Math.max(1
 
 // ── quick-resolve model ──
 // Win chance from the strength gap, calibrated against full 5v5 sims (tools/franchise_sim.mjs --calibrate: one team
-// +3/6/10% on every hero, AI coaches both sides, ~110 games): equal teams are a coin flip, and every 1% of average
-// stat edge is worth about K/4 percentage points (+10% ≈ 68%). The 5v5 is a coaching game first: edges are small.
-export const K = 8;
+// +3/6/10% on every hero, AI coaches both sides, 135 games: K ≈ 5.5, noisy): equal teams are a coin flip, and every
+// 1% of average stat edge is worth about K/4 percentage points (+10% ≈ 65%). The 5v5 is a coaching game first: edges are small.
+export const K = 6;
 export const winProb = (sa, sb, k = K) => 1 / (1 + Math.exp(-k * (sa - sb)));
 // A believable box score for a quick-resolved match. rng: Rng; sa/sb strengths; returns
 // { w: 0|1, k: [kills a, kills b], tw: [towers destroyed by a, by b], len: seconds, crystal: bool }.

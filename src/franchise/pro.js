@@ -12,7 +12,6 @@ import { hseed, rngOf, winProb, quickScore, clamp } from './model.js';
 
 export const PRO_SEED = 0x5a17e;
 export const PRO_K = 40; // the Pro League's own model: established pro teams are more consistent than the 5v5 edge alone
-export const PRO_BY_ID = Object.fromEntries(PRO_TEAMS.map((t) => [t.id, t]));
 const DAY = 86400000, HOUR = 3600000;
 export const RESOLVE_HOUR = 18;          // UTC
 export const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
