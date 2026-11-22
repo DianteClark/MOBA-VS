@@ -10,10 +10,10 @@ import { MatchRecorder, analyze } from '../src/ui/analytics.js';
 const A = ['bastion', 'kaze', 'ember', 'fletch', 'aurelia'], B = ['varro', 'gama', 'hex', 'bolt', 'frost'];
 const teams = [aiPrep(A, B), aiPrep(B, A)];
 let ok = true;
-function run(name, cfg, seconds) {
+function run(name, cfg, seconds, extra = []) {
   // 1. record a match with player commands
   const g = new Game(JSON.parse(JSON.stringify(cfg))), r = new LocalRunner(g, 0, { noHalftime: true });
-  const calls = [{ type: 'gank', lane: 'mid' }, { type: 'objective', obj: 'dragon' }, { type: 'group', lane: 'bot' }, { type: 'moment', id: 'rally' }, { type: 'shrine', shrine: 0 }];
+  const calls = [{ type: 'gank', lane: 'mid' }, { type: 'objective', obj: 'dragon' }, { type: 'group', lane: 'bot' }, { type: 'moment', id: 'rally' }, { type: 'shrine', shrine: 0 }, ...extra];
   const rec = new MatchRecorder(g);
   let k = 0;
   while (g.time < seconds && !g.over) { if (g.tick % 300 === 11) r.send(calls[k++ % calls.length]); r.update(0.05, null, () => rec.step()); }
@@ -44,5 +44,8 @@ function run(name, cfg, seconds) {
 run('classic', { seed: 777, map: 'sakura', coach: [false, true], teams }, 420);
 run('rush', { seed: 778, map: 'rush_sakura', mode: 'rush', coach: [false, true], teams }, 240);
 run('event', { seed: 779, map: 'oasis', event: 'shrine', coach: [false, true], teams }, 300); // weekly event rules are a per-game copy
+// Living World: walls live on the World that snapshots share; every copy puts its own walls back before it steps
+// (thickets open at 6:00, every wall at 12:00), and a restored copy must still match the original.
+run('living', { seed: 780, map: 'marsh', living: 1, coach: [false, true], teams }, 750, [{ type: 'objective', obj: 'yokai' }, { type: 'invade', camp: '1:moon' }, { type: 'objective', obj: 'boss' }]);
 console.log(ok ? 'THEATER SNAPSHOTS OK ✔' : 'THEATER SNAPSHOTS FAILED ✘');
 process.exit(ok ? 0 : 1);

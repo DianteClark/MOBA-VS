@@ -33,6 +33,9 @@ function run(name, cfg, seconds, calls) {
 // (Red is a rival-style coach: Coach Moments early, a backup plan for halftime.)
 const okC = run('classic', { seed: 4242, map: 'frost', coach: [false, true], coachStyle: [null, { moment: 'early', backup: 'protect' }], teams }, 600,
   [{ type: 'gank', lane: 'mid' }, { type: 'group', lane: 'bot' }, { type: 'objective', obj: 'dragon' }, { type: 'moment', id: 'rally' }, { type: 'ult', mode: 'go' }, { type: 'safe' }, { type: 'plan', plan: 'aggro' }, { type: 'moment', id: 'timeout' }]);
+// Living World (night, Yokai Parade, walls, Tengu): the calls that only exist there replay too
+const okL = run('living', { seed: 4245, map: 'ember', living: 1, coach: [false, true], teams }, 760,
+  [{ type: 'objective', obj: 'yokai' }, { type: 'gank', lane: 'top' }, { type: 'invade', camp: '1:moon' }, { type: 'objective', obj: 'boss' }, { type: 'group', lane: 'mid' }, { type: 'objective', obj: 'boss' }]);
 const okR = run('rush', { seed: 4243, map: 'rush_sakura', mode: 'rush', coach: [false, true], teams }, 480,
   [{ type: 'moment', id: 'rally' }, { type: 'group', lane: 'mid' }, { type: 'objective', obj: 'dragon' }, { type: 'moment', id: 'push' }, { type: 'ult', mode: 'go' }, { type: 'objective', obj: 'baron' }, { type: 'moment', id: 'timeout' }]);
 // Co-op vs AI: two coaches' seat-stamped commands in one log (some rejected by the ownership rules),
@@ -64,4 +67,4 @@ const okCo = runCoop();
 const okE = run('event', { seed: 4244, map: 'ruins', event: 'bloodmoon', coach: [false, true], teams }, 600,
   [{ type: 'gank', lane: 'top' }, { type: 'objective', obj: 'dragon' }, { type: 'moment', id: 'rally' }, { type: 'group', lane: 'mid' }, { type: 'shrine' }, { type: 'safe' }]);
 console.log(okC && okR && okCo && okE ? 'REPLAY MATCHES ✔' : 'REPLAY DIVERGED ✘');
-process.exit(okC && okR && okCo && okE ? 0 : 1);
+process.exit(okC && okR && okCo && okE && okL ? 0 : 1);

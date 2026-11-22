@@ -5,7 +5,7 @@ import { LockstepRunner } from '../src/net/runner.js';
 import { loopbackPair, Hub } from '../src/net/peer.js';
 import { DEFAULT_OWN } from '../src/sim/coop.js';
 const pick = (ids) => ids.map((id) => { const h = HEROES.find((x) => x.id === id); return { id, role: h.role, build: h.rec }; });
-const cfg = (mode) => ({ seed: 4242, coach: [false, false], ...(mode === 'rush' ? { mode: 'rush', map: 'rush_sakura' } : mode === 'event' ? { map: 'oasis', event: 'shrine' } : {}), teams: [
+const cfg = (mode) => ({ seed: 4242, coach: [false, false], ...(mode === 'rush' ? { mode: 'rush', map: 'rush_sakura' } : mode === 'event' ? { map: 'oasis', event: 'shrine' } : mode === 'living' ? { map: 'ruins', living: 1 } : {}), teams: [
   { heroes: pick(['bastion', 'kaze', 'ember', 'fletch', 'oak']), plan: 'protect' },
   { heroes: pick(['kenshi', 'leonin', 'raiden', 'marlowe', 'wu']), plan: 'split' } ] });
 async function run(mode) {
@@ -21,8 +21,9 @@ async function run(mode) {
     g.step = (cmds) => { step(cmds); m.set(g.tick, `${g.checksum()}|${g.teams.map((t) => t.kills)}|${g.callLog.length}`); };
   }
   let desync = 0; ra.onDesync = rb.onDesync = (k) => { desync++; console.log('DESYNC at', k); };
-  const TARGET = 20 * 60 * (mode === 'rush' ? 4 : 6); // minutes of game time
-  const calls = [{ type: 'gank', lane: mode === 'rush' ? 'mid' : 'top' }, { type: 'objective', obj: 'dragon' }, { type: 'group', lane: 'mid' }, { type: 'moment', id: 'rally' }, { type: 'safe' }, { type: 'moment', id: 'push' }, { type: 'reset' }, { type: 'moment', id: 'timeout' }];
+  const TARGET = 20 * 60 * (mode === 'rush' ? 4 : mode === 'living' ? 6.6 : 6); // minutes of game time (Living World: past nightfall)
+  const calls = [{ type: 'gank', lane: mode === 'rush' ? 'mid' : 'top' }, { type: 'objective', obj: 'dragon' }, { type: 'group', lane: 'mid' }, { type: 'moment', id: 'rally' }, { type: 'safe' }, { type: 'moment', id: 'push' }, { type: 'reset' }, { type: 'moment', id: 'timeout' },
+    ...(mode === 'living' ? [{ type: 'objective', obj: 'yokai' }, { type: 'invade', camp: '1:moon' }] : [])];
   let i = 0;
   const t0 = Date.now();
   await new Promise((res) => {
@@ -129,6 +130,7 @@ for (const [k, ok] of rules2) console.log(`[coop-2v2] ${ok ? 'ok ' : 'BAD'} ${k}
 const okCoop = coopAi.ok && room.ok && rules.every((x) => x[1]) && rules2.every((x) => x[1]);
 
 // 'event': Shrine Rush on Sunscar Oasis (v22 weekly event + map)
-const okC = process.env.COOP_ONLY ? true : await run('classic'), okR = process.env.COOP_ONLY ? true : await run('rush'), okE = process.env.COOP_ONLY ? true : await run('event');
-console.log(okC && okR && okE && okCoop ? 'LOCKSTEP IN SYNC ✔' : 'LOCKSTEP DESYNC ✘');
-process.exit(okC && okR && okE && okCoop ? 0 : 1);
+// 'living': Living World on Mossgate Ruins (Yokai Parade from 4:00, thickets and Moon Spirits at nightfall)
+const okC = process.env.COOP_ONLY ? true : await run('classic'), okR = process.env.COOP_ONLY ? true : await run('rush'), okE = process.env.COOP_ONLY ? true : await run('event'), okL = process.env.COOP_ONLY ? true : await run('living');
+console.log(okC && okR && okE && okL && okCoop ? 'LOCKSTEP IN SYNC ✔' : 'LOCKSTEP DESYNC ✘');
+process.exit(okC && okR && okE && okL && okCoop ? 0 : 1);

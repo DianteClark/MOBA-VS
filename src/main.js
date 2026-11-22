@@ -46,6 +46,7 @@ import { installPressSounds, confetti } from './ui/juice.js';
 import { keepAwake } from './ui/awake.js';
 import { MatchRecorder, showAnalysis } from './ui/analytics.js';
 import { Theater } from './ui/theater.js';
+import { InstantReplay } from './ui/instant.js';
 import { loadLib, storeMatch } from './ui/replays.js';
 import { nextRival, rivalPlayed, rivalPref, rivalPrep, rivalStyle, rivalPanel } from './ui/rivals.js';
 import { RIVAL_BY_ID } from './data/rivals.js';
@@ -612,6 +613,7 @@ class App {
     matchAudio.attach(game, this.renderer, runner, s.myTeam);
     // post-match analytics are recorded live; a replay (not the Play of the Game) opens in the Theater
     if (!s.replay && !pre) this.match.rec = new MatchRecorder(game);
+    if (!s.replay && !pre) this.match.instant = new InstantReplay(this, this.match, s.myTeam); // the last 15s again, in a small panel
     if (s.replay && !s.potg) this.match.theater = new Theater(this, this.match, s.replay, { back: s.theaterBack });
     if (!pre && !s.replay && s.myTeam >= 0) matchPresence(); // friends see 'In a match'
     this.lastFrame = performance.now();
@@ -621,7 +623,7 @@ class App {
     this.bgTick = setInterval(() => {
       const m = this.match; if (!m || !document.hidden) return;
       const now = performance.now(), dt = Math.min(1.5, (now - this.lastFrame) / 1000); this.lastFrame = now;
-      m.runner.update(dt, () => this.renderer.snapshot(), () => { this.renderer.game.fx.length = 0; if (m.rec) m.rec.step(); });
+      m.runner.update(dt, () => this.renderer.snapshot(), () => { this.renderer.game.fx.length = 0; if (m.rec) m.rec.step(); if (m.instant) m.instant.step(); });
     }, 100);
   }
   clickWorld(w, sx, sy) {
@@ -647,11 +649,12 @@ class App {
     const raw = (now - this.lastFrame) / 1000; this.lastFrame = now;
     const dt = Math.min(0.1, raw);
     const r = this.renderer;
-    m.runner.update(m.runner.online ? Math.min(1, raw) : dt, () => r.snapshot(), () => { matchAudio.consume(); r.consume(); if (m.rec) m.rec.step(); });
+    m.runner.update(m.runner.online ? Math.min(1, raw) : dt, () => r.snapshot(), () => { matchAudio.consume(); r.consume(); if (m.rec) m.rec.step(); if (m.instant) m.instant.step(); });
     this.camCtl.update(dt);
     r.draw(m.runner.alpha, dt);
     this.minimap.draw();
     m.hud.update(dt);
+    if (m.instant) m.instant.frame(dt);
     matchAudio.frame();
     if (m.theater) m.theater.frame(raw);
     const potg = this.session && this.session.potg;
@@ -678,6 +681,7 @@ class App {
     matchAudio.detach();
     for (const id of ['scoreboard', 'halftime']) { const el = document.getElementById(id); if (el) el.remove(); }
     if (m && m.hud) m.hud.destroy();
+    if (m && m.instant) m.instant.destroy();
   }
   // The Play of the Game pre-roll fast-forwards a whole match in the background: stop it once the results are left.
   dropReel() { if (this.potgReel) { this.potgReel.stop = true; this.potgReel = null; } }
