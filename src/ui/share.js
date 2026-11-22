@@ -1,4 +1,5 @@
 // Share cards: a 1200x630 image of a match for bragging rights (social-preview size).
+import { tr } from '../i18n/i18n.js';
 import { IMG } from '../render/assets.js';
 import { HERO_BY_ID } from '../data/heroes.js';
 import { MAP_BY_ID } from '../maps/defs.js';
@@ -31,7 +32,7 @@ export async function drawShareCard(m, coach) {
   if (bd) { x.strokeStyle = bd.c1; x.lineWidth = 6; x.strokeRect(14, 14, W - 28, H - 28); x.strokeStyle = bd.c2; x.lineWidth = 3; x.strokeRect(19, 19, W - 38, H - 38); }
   const T = (s, px, py, size, col, align = 'left', shadow = true) => {
     x.font = `${size}px PixelFont, monospace`; x.textAlign = align; x.textBaseline = 'alphabetic';
-    const str = String(s).replace(/ /g, ' ');
+    const str = String(tr(s)).replace(/ /g, ' ');
     if (shadow) { x.fillStyle = '#000'; x.fillText(str, px + size / 12, py + size / 10); }
     x.fillStyle = col; x.fillText(str, px, py);
   };

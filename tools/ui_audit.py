@@ -13,6 +13,10 @@
 # Safe areas are simulated by overriding the --safe-* CSS variables (Chrome cannot fake the notch).
 import sys, asyncio, os
 from playwright.async_api import async_playwright
+# GAME_LANG=<code> audits in that language, HAND=left|right in one-handed mode, HC=1 in high contrast,
+# MISS=<file> appends every HUD string missing from the i18n catalog (src/i18n/en.json) to <file>
+PREFS = ("try { localStorage.setItem('mobavs_i18n_miss', '1'); } catch (e) {}" if os.environ.get('MISS') else '') + "try { localStorage.setItem('mobavs_lang', %r); localStorage.setItem('mobavs_settings', JSON.stringify(Object.assign(JSON.parse(localStorage.getItem('mobavs_settings') || '{}'), %s))); } catch (e) {}" % (
+    os.environ.get('GAME_LANG') or 'en', '{' + ', '.join(x for x in [("hand: '%s'" % os.environ['HAND']) if os.environ.get('HAND') else '', 'contrast: true' if os.environ.get('HC') == '1' else ''] if x) + '}')
 
 # (name, W, H, side inset (notch / Dynamic Island), bottom inset (home indicator))
 IPHONES = [('SE3', 667, 375, 0, 0), ('mini', 812, 375, 50, 21), ('12/13/14/16e', 844, 390, 47, 21), ('14Pro/15/16', 852, 393, 59, 21),
@@ -96,9 +100,6 @@ DOCK_JS = """async (wide) => {
 }"""
 
 JS = """([panels, overlays]) => {
-  // measure the settled layout: finish entry animations (rise / popIn move panels by ~10px for 0.15s, and a busy
-  // machine can still be mid-animation when we measure); endless ones (blinks, pulses) are left alone
-  for (const a of document.getAnimations()) { try { const t = a.effect && a.effect.getComputedTiming(); if (t && Number.isFinite(t.endTime)) a.finish(); } catch (e) { /* not finishable */ } }
   const vis = (e) => { if (!e) return false; const s = getComputedStyle(e); if (s.display === 'none' || s.visibility === 'hidden' || +s.opacity === 0) return false; const r = e.getBoundingClientRect(); return r.width > 1 && r.height > 1 && (e.offsetParent || s.position === 'fixed'); };
   const box = (sel) => { const union = sel.endsWith('*'); const e = document.querySelector(union ? sel.slice(0, -1) : sel); if (!vis(e)) return null;
     // drop-downs (absolutely positioned children, e.g. the open Menu) are overlays, not part of the panel
@@ -110,6 +111,10 @@ JS = """([panels, overlays]) => {
   const clipped = [...document.querySelectorAll('#hud button, #hud .nm, #hud .st, #hud .tray b, #hud .tray span')].filter((e) => vis(e) && e.scrollWidth > e.clientWidth + 2 && getComputedStyle(e).textOverflow !== 'ellipsis' && getComputedStyle(e).overflow !== 'visible').slice(0, 4).map((e) => (e.className || e.tagName) + ': ' + e.textContent.trim().slice(0, 30));
   return { panels: panels.map(([n, s]) => [n, box(s)]), overlays: overlays.map(([n, s]) => [n, box(s)]), safe: [px('--safe-l'), px('--safe-r'), px('--safe-t'), px('--safe-b')], clipped };
 }"""
+
+# a busy machine can still be mid entrance animation after the fixed wait: let finite animations finish (capped)
+SETTLE = """() => { const left = document.getAnimations().filter((a) => a.playState === 'running').map((a) => { const t = a.effect.getComputedTiming(); return t.endTime - (t.localTime || 0); }).filter((x) => x > 0 && x < 1000);
+  return left.length ? new Promise((r) => setTimeout(r, Math.max(...left) + 30)) : null; }"""
 
 def check(res, w, h):
     issues = []
@@ -213,6 +218,7 @@ async def main():
         b = await p.chromium.launch(executable_path='/usr/bin/google-chrome')
         for (w, h, sl, sr, st, sb, name) in VIEWS:
             ctx = await b.new_context(viewport={'width': w, 'height': h}, has_touch=w < 1000, is_mobile=w < 1000, device_scale_factor=2 if w < 1000 else 1)
+            await ctx.add_init_script(PREFS)  # GAME_LANG=de / HAND=left / HC=1: audit a language or an accessibility layout
             pg = await ctx.new_page()
             errs = []
             pg.on('pageerror', lambda e: errs.append(str(e) + ' ' + str(getattr(e, 'stack', ''))[:300]))
@@ -238,11 +244,15 @@ async def main():
                 await pg.evaluate(RESET); await pg.evaluate(BASE)
                 if js: await pg.evaluate(js)
                 await pg.wait_for_timeout(450)
+                await pg.evaluate(SETTLE)
                 res = await pg.evaluate(JS, [PANELS, OVERLAYS])
                 issues += [f'[{state}] ' + x for x in check(res, w, h)]
                 if OUT and COOPIFY and state == 'tray': await pg.screenshot(path=f"{OUT}/ui_coop_{w}x{h}{'_' + name.split()[-1] if name else ''}_tray.png", timeout=20000, animations='disabled')
                 elif OUT and state in ('tray', 'sheet', 'quickchat', 'halftime', 'ring', 'momentcard', 'tip', 'bar', 'follow', 'analysis'):
                     await pg.screenshot(path=f"{OUT}/ui_{w}x{h}{'_' + name.split()[-1] if name else ''}_{state}.png", timeout=20000, animations='disabled')
+            if os.environ.get('MISS'):
+                miss = await pg.evaluate("[...(window.__i18nMiss || [])]")
+                with open(os.environ['MISS'], 'a') as f: f.write('\n'.join(miss) + '\n')
             issues += [f'JS error: {e}' for e in errs[:3]]
             print(f'{tag}: ' + ('OK' if not issues else f'{len(issues)} issue(s)'), flush=True)
             for s in issues: print('   ', s)

@@ -58,6 +58,7 @@ export class InstantReplay {
     const R = (id) => { const e = document.getElementById(id); const r = e && e.offsetParent !== null ? e.getBoundingClientRect() : null; return r && r.width > 1 && r.height > 1 ? r : null; };
     const mm = R('mm'), brc = R('brcol'), tc = R('topcenter'), cb = R('cmdbar'), W = window.innerWidth, H = window.innerHeight;
     if (!mm || !brc) return { left: W - w - 8, top: 60, w, h: hh };
+    const oneHand = document.documentElement.matches('.oh-left, .oh-right');
     const busy = ['enemyteam', 'killfeed', 'cmdbar', 'topcenter', 'myteam', 'foestrip', 'brcol', 'banner', 'mm', 'ticker', 'objtimers'].map(R).filter(Boolean);
     for (const kid of document.getElementById('cmdbar').children) { const r = kid.getBoundingClientRect(); if (r.width > 1 && r.height > 1) busy.push(r); }
     const free = (x, y, ww, hhh) => x >= 2 && y >= 2 && x + ww <= W - 2 && y + hhh <= H - 2 && !busy.some((r) => x < r.right + 4 && x + ww > r.left - 4 && y < r.bottom + 4 && y + hhh > r.top - 4);
@@ -70,6 +71,8 @@ export class InstantReplay {
       if (tc) spots.push([tc.right + 8, tc.top], [tc.left - 8 - ww, tc.top]);
       // mid-size desktops (1024x768): over the open map, above the command column and beside the minimap column
       if (cb) spots.push([Math.min(brc.left, cb.right) - 8 - ww, cb.top - 8 - h2]);
+      // one-handed layouts stack the dock under the minimap: try beside the dock column instead
+      if (cb && oneHand) spots.push([cb.left - 8 - ww, mm.bottom + 6], [cb.right + 8, mm.bottom + 6], [cb.left - 8 - ww, mm.top], [cb.right + 8, mm.top]);
       for (const [x, y] of spots) if (free(x, y, ww, h2)) return { left: Math.round(x), top: Math.round(y), w: ww, h: h2 };
     }
     return { left: Math.round(mm.right - w), top: Math.round(mm.top < H / 2 ? mm.bottom + 6 : brc.top - 6 - hh), w, h: hh };
