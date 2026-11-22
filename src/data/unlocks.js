@@ -34,6 +34,7 @@ export const ECON = {
   rookieGames: 30, rookieMult: 2, // match pay x2 for the first 30 matches
   ach: 100, // each achievement
   pass: 60, // each season pass level
+  campaign: 5600, campaignGrant: 600, // story campaign stars (5,400 in all) + the Coach Academy (200): a lifetime cap, at most 600 a grant
   pickEvery: 4, pickCap: 10, pickKoban: 1500, // a free General every 4 coach levels (10 by level 40); with every General owned, a pick pays 1,500
   dayMatches: 30, minGap: 90000, maxAge: 7 * 86400000, // sync bounds: paid matches per UTC day, seconds between paid matches, oldest claim
 };
@@ -100,13 +101,13 @@ export const rotationNow = (now) => rotation(weekOf(now));
 const int = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.round(Number(v) || 0)));
 const ACH_RE = /^[a-z0-9_]{1,24}$/, ACH_MAX = 120;
 export function freshLedger(now = 0) {
-  return { bal: 0, own: [], g: 0, fw: -1, day: -1, dg: 0, dk: 0, at: 0, lv: 1, ach: [], ps: 0, pl: 1, pg: 0, picks: 0, earned: 0, spent: 0, t0: now };
+  return { bal: 0, own: [], g: 0, fw: -1, day: -1, dg: 0, dk: 0, at: 0, lv: 1, ach: [], ps: 0, pl: 1, pg: 0, picks: 0, cp: 0, earned: 0, spent: 0, t0: now };
 }
 // Sanitize any stored or received ledger (known ids only, bounded lists and numbers).
 export function cleanLedger(x) {
   const o = freshLedger(), v = x && typeof x === 'object' ? x : {};
   o.bal = int(v.bal, 0, 1e7); o.g = int(v.g, 0, 1e5); o.fw = int(v.fw, -1, 1e6); o.day = int(v.day, -1, 1e6); o.dg = int(v.dg, 0, 999); o.dk = int(v.dk, 0, 7);
-  o.at = int(v.at, 0, 1e14); o.lv = int(v.lv, 1, 40); o.ps = int(v.ps, 0, 999); o.pl = int(v.pl, 1, 99); o.pg = int(v.pg, 0, 1e5); o.picks = int(v.picks, 0, ECON.pickCap);
+  o.at = int(v.at, 0, 1e14); o.lv = int(v.lv, 1, 40); o.ps = int(v.ps, 0, 999); o.pl = int(v.pl, 1, 99); o.pg = int(v.pg, 0, 1e5); o.picks = int(v.picks, 0, ECON.pickCap); o.cp = int(v.cp, 0, ECON.campaign);
   o.earned = int(v.earned, 0, 1e9); o.spent = int(v.spent, 0, 1e9); o.t0 = int(v.t0, 0, 1e14);
   o.own = [...new Set((Array.isArray(v.own) ? v.own : []).filter((id) => isHero(id) && !isStarter(id)))];
   o.ach = [...new Set((Array.isArray(v.ach) ? v.ach : []).filter((id) => typeof id === 'string' && ACH_RE.test(id)))].slice(0, ACH_MAX);
@@ -121,6 +122,7 @@ export const picksLeftIn = (st) => Math.max(0, picksAt(st.lv) - st.picks);
 //   { k: 'lv', lv }      coach level reached (bounded by the paid matches)
 //   { k: 'a', id }       an achievement (each once)
 //   { k: 'p', s, lv }    season pass level reached (at most two levels per paid match that season)
+//   { k: 'c', n, id }    story campaign / Coach Academy reward (src/koban.js grantKoban), within the lifetime cap
 export function applyClaim(st, c, now) {
   const parts = [], add = (label, n) => { if (n > 0) { parts.push([label, n]); st.bal += n; st.earned += n; } };
   if (!c || typeof c !== 'object') return parts;
@@ -144,6 +146,9 @@ export function applyClaim(st, c, now) {
   } else if (c.k === 'a') {
     if (typeof c.id !== 'string' || !ACH_RE.test(c.id) || st.ach.includes(c.id) || st.ach.length >= ACH_MAX) return parts;
     st.ach.push(c.id); add('Achievement', ECON.ach);
+  } else if (c.k === 'c') {
+    const n = Math.min(int(c.n, 0, ECON.campaignGrant), ECON.campaign - st.cp);
+    if (n > 0) { st.cp += n; add(String(c.id || '').startsWith('tutorial') ? 'Coach Academy' : 'Story campaign', n); }
   } else if (c.k === 'p') {
     const s = int(c.s, 1, 999);
     if (s !== st.ps) { st.ps = s; st.pl = 1; st.pg = 0; }

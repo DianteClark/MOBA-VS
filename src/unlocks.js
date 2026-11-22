@@ -25,12 +25,14 @@ const games = (d) => Object.values(d.seasons || {}).reduce((a, s) => a + (s.w ||
 // marked as paid (no retroactive payout).
 export function normalizeKoban(d) {
   const k = d.koban && typeof d.koban === 'object' ? d.koban : null;
+  const banked = typeof d.koban === 'number' ? Math.max(0, Math.min(ECON.campaign, Math.floor(d.koban))) : 0; // the campaign's interim plain total
   let o;
   if (!k) {
     o = freshLedger(Date.now());
     o.g = Math.min(3000, games(d)); o.lv = coachLevelOf((d.meta && d.meta.cxp) || 0).lv;
     o.ach = Object.keys((d.ach && d.ach.got) || {}).slice(0, 120); o.ps = d.lastSeason || 0;
     const s = o.ps && d.seasons && d.seasons[o.ps]; o.pl = s ? 1 + Math.floor((s.xp || 0) / 300) : 1;
+    o.bal = o.earned = o.cp = banked;
   } else o = cleanLedger(k);
   o.tries = [...new Set((k && Array.isArray(k.tries) ? k.tries : []).filter(isHero))].slice(0, TRIES_MAX);
   o.trial = k && isHero(k.trial) && !ownsIn(o, k.trial) && !o.tries.includes(k.trial) ? k.trial : null;
@@ -55,10 +57,12 @@ export const generalsDone = (P) => allGeneralsOwned(kb(P));
 export const canTry = (P, id) => isHero(id) && !owns(P, id) && !kb(P).tries.includes(id);
 
 // Does ownership apply to this session? Every real draft except Franchise (club rosters), pass-and-play and
-// AI-vs-AI; Mirror Match / All Random have no draft at all.
-export const ownershipOn = (s) => !!s && s.myTeam >= 0 && s.mode !== 'watch' && !s.franchise && !s.pnp && !(s.draft && (s.draft.mirror || s.draft.random));
+// AI-vs-AI; Mirror Match / All Random / fixed story squads have no draft at all.
+// The Coach Academy and story missions with a fixed squad ignore ownership (like loaners); story missions with a
+// normal draft respect it.
+export const ownershipOn = (s) => !!s && s.myTeam >= 0 && s.mode !== 'watch' && !s.franchise && !s.pnp && !s.tutorial && !(s.draft && (s.draft.mirror || s.draft.random || s.draft.fixed));
 // Try it works in a plain match against the AI (Play vs AI, Lane Rush vs AI).
-export const trialOn = (s) => !!s && s.mode === 'ai' && !s.cup && !s.franchise && !s.custom && !s.pnp && !s.wasOnline;
+export const trialOn = (s) => !!s && s.mode === 'ai' && !s.cup && !s.franchise && !s.custom && !s.pnp && !s.wasOnline && !s.mission && !s.tutorial;
 function trialHero(P, s) { const t = kb(P).trial; return t && trialOn(s) ? t : null; }
 // May this coach lock this hero in this session? (owned, this week's rotation, the armed trial, a loaner)
 export function usable(P, s, id) {
@@ -148,6 +152,13 @@ export function earnMatch(P, ctx) {
   return { total, parts: merge(parts), bal: K.bal, picks: picksLeft(P), tried, rookie: K.g <= ECON.rookieGames ? Math.max(0, ECON.rookieGames - K.g) : 0 };
 }
 const queue = (K, claims) => { if (K.srv || kobanSignedIn()) { K.pend.push(...claims); K.pend = K.pend.slice(-PEND_MAX); } };
+// A story campaign / Coach Academy reward (src/koban.js grantKoban): credited now (within the lifetime cap) and
+// queued for the server, which applies the same cap. Returns the Koban credited.
+export function earnCampaign(P, n, reason) {
+  const K = kb(P), c = { k: 'c', n: Math.max(0, Math.floor(+n || 0)), id: String(reason || '').slice(0, 24) }, got = applyClaim(K, c, Date.now());
+  queue(K, [c]);
+  return got.reduce((a, p) => a + p[1], 0);
+}
 // An achievement just earned (Profile.grantAch): its Koban, credited now and queued for the server.
 export function earnAch(P, id) {
   const K = kb(P), c = { k: 'a', id }, got = applyClaim(K, c, Date.now());

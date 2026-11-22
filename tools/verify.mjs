@@ -44,6 +44,8 @@ export function validate(doc, heroIds) {
   if (c.perks !== undefined && c.perks !== null) return 'mastery perks in a ranked or cup match';
   // custom-game rule toggles (src/sim/custom.js) are never rated: never in a ranked or cup match
   if (c.custom !== undefined && c.custom !== null) return 'custom rules in a ranked or cup match';
+  // story campaign / tutorial rules (src/sim/mission.js) are vs-AI only: never in a ranked or cup match
+  if (c.mission !== undefined && c.mission !== null) return 'campaign mission rules in a ranked or cup match';
   // coach skill tree Moment variants: a small { slot: variant } map (the sim ignores unknown ones)
   for (const t of c.teams) if (t && t.mv !== undefined && (!t.mv || typeof t.mv !== 'object' || Array.isArray(t.mv) || JSON.stringify(t.mv).length > 120)) return 'bad moment variants';
   if (c.living !== undefined && c.living !== 1) return 'bad living flag'; // Living World (src/sim/living.js)

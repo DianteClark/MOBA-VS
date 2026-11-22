@@ -18,7 +18,7 @@ export const KOBAN_SCHEMA = [
 export const KOBAN_TABLES = ['koban', 'kv'];
 const CLAIMS_MAX = 80;
 
-const view = (st) => ({ bal: st.bal, own: st.own, g: st.g, fw: st.fw, day: st.day, dg: st.dg, dk: st.dk, at: st.at, lv: st.lv, ach: st.ach, ps: st.ps, pl: st.pl, pg: st.pg, picks: st.picks, earned: st.earned, spent: st.spent, t0: st.t0 });
+const view = (st) => ({ bal: st.bal, own: st.own, g: st.g, fw: st.fw, day: st.day, dg: st.dg, dk: st.dk, at: st.at, lv: st.lv, ach: st.ach, ps: st.ps, pl: st.pl, pg: st.pg, picks: st.picks, cp: st.cp, earned: st.earned, spent: st.spent, t0: st.t0 });
 const parse = (row) => { try { return cleanLedger(JSON.parse(row.st)); } catch { return freshLedger(); } };
 
 // Ranked entry (queue/find and private Ranked rooms): owned champions on the server, starters included.

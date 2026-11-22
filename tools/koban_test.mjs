@@ -59,6 +59,8 @@ r = await api('/api/koban/sync', { method: 'POST', who: A, body: { claims: [{ k:
 assert.ok(r.data.state.lv < 10 && r.data.credited === (r.data.state.lv - 1) * ECON.level, 'coach level bounded by paid matches: ' + r.data.state.lv);
 r = await api('/api/koban/sync', { method: 'POST', who: A, body: { claims: [{ k: 'a', id: 'first_win' }, { k: 'a', id: 'first_win' }, { k: 'a', id: 'Bad Id!' }] } });
 assert.equal(r.data.credited, ECON.ach, 'achievements pay once, known-shaped ids only');
+r = await api('/api/koban/sync', { method: 'POST', who: A, body: { claims: Array.from({ length: 12 }, (_, i) => ({ k: 'c', n: i ? 9999 : 200, id: i ? 'campaign:c1m' + i : 'tutorial' })) } });
+assert.equal(r.data.credited, ECON.campaign, 'campaign + academy: at most 600 a grant, lifetime cap'); assert.equal(r.data.state.cp, ECON.campaign);
 r = await api('/api/koban/sync', { method: 'POST', who: A, body: { claims: [{ k: 'p', s: 3, lv: 30 }] } });
 assert.equal(r.data.credited, 0, 'pass: a new season starts at level 1 with no paid matches in it');
 ok('claims: rookie boost, first win once a day, 90 s gap, no future claims, goal tiers once a day, bounded levels and pass, achievements once');
