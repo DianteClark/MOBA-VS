@@ -18,9 +18,12 @@ import { makeCode } from '../net/peer.js';
 import { online, ping, getAccount, ensureAccount, presence, friendAction, playerProfile, createInvite, getInvite, respondInvite,
   cancelInvites, friendCode, inviteUrl } from '../net/online.js';
 import { pushRematch } from './notify.js';
+import { watchFriend, watchAllowed, setWatchAllowed } from './spectate.js';
+import { showClubJoin } from './clubs.js';
+import { profileExtras } from './coachprofile.js';
 
 const POLL = 30000;
-const MODE_NAME = { casual: 'Casual 5v5', ranked: 'Ranked 5v5', rush: 'Lane Rush', coop: 'Co-op' };
+const MODE_NAME = { casual: 'Casual 5v5', ranked: 'Ranked 5v5', rush: 'Lane Rush', coop: 'Co-op', custom: 'Custom game', club: 'their club' };
 const PRES = { online: 'Online', match: 'In a match', offline: 'Offline' };
 const ago = (t) => { const m = Math.max(0, Math.round((Date.now() - t) / 60000)); return m < 1 ? 'just now' : m < 60 ? `${m}m ago` : m < 1440 ? `${Math.round(m / 60)}h ago` : `${Math.round(m / 1440)}d ago`; };
 
@@ -57,7 +60,8 @@ export function startSocial(app) {
 }
 export const refreshSocial = () => beat(true);
 // "In a match" for friends: one ping when a match of your own starts (the heartbeat stays off in matches).
-export function matchPresence() { if (getAccount() && online.ok) presence('match').catch(() => {}); st.last = 0; }
+// watch: the spectate relay's id once it is up (src/ui/spectate.js), so friends see Watch.
+export function matchPresence(watch = null) { st.last = 0; return getAccount() && online.ok ? presence('match', watch).then(() => true, () => false) : Promise.resolve(false); }
 // Profile nav tile dot: pending friend requests.
 export const socialBadge = () => !!(st.data && st.data.requests && st.data.requests.length);
 function badge() { const d = document.querySelector('.h2nav .navprofile'); if (!d) return; const on = socialBadge(); let dot = d.querySelector('.dot'); if (on && !dot) d.append(h('i', { class: 'dot' })); else if (!on && dot) dot.remove(); }
@@ -72,7 +76,7 @@ function showInvitePop() {
   const left = h('span', { class: 'muted' });
   const close = () => { clearInterval(tm); el.remove(); };
   const card = h('div', { class: 'panel invpop', role: 'dialog', 'aria-label': 'Match invite' },
-    h('div', { class: 'invtxt' }, h('small', { class: 'muted' }, 'MATCH INVITE'), h('b', {}, `${inv.from.name} invites you`), h('span', {}, MODE_NAME[inv.mode] || 'Casual 5v5', ' · expires in ', left)),
+    h('div', { class: 'invtxt' }, h('small', { class: 'muted' }, inv.mode === 'club' ? 'CLUB INVITE' : 'MATCH INVITE'), h('b', {}, `${inv.from.name} invites you`), h('span', {}, inv.mode === 'club' ? 'to join their club' : MODE_NAME[inv.mode] || 'Casual 5v5', ' · expires in ', left)),
     inv.mode === 'ranked' ? h('small', { class: 'muted' }, 'Joining agrees to a rated match.') : null,
     h('div', { class: 'row', style: { justifyContent: 'center' } },
       h('button', { class: 'chip', onclick: async () => { close(); try { await respondInvite(inv.id, false); } catch { /* expired anyway */ } } }, 'Decline'),
@@ -87,6 +91,7 @@ async function acceptInvite(app, id) {
   try {
     const r = await respondInvite(id, true);
     if (r.status !== 'accepted' && r.status !== 'open' || !r.room) { toast(r.status === 'expired' ? 'That invite has expired.' : 'That invite is no longer open.'); return; }
+    if (r.mode === 'club') { showClubJoin(app, r.room, r.from); return; } // a club invite: room is the club code (src/ui/clubs.js)
     joinRoom(app, r.room, r.mode);
   } catch (e) { toast(e.message || 'Could not join'); }
 }
@@ -159,7 +164,7 @@ export async function showInviteLink(app, id) {
     const acct = getAccount() || await ensureAccount(app.name);
     if (inv.from.id === acct.id) { mount(body, h('p', {}, 'This is your own invite link: send it to a friend.'), home); return; }
     if (inv.status !== 'open' && inv.status !== 'pending') { mount(body, h('p', {}, `${inv.from.name}'s invite has ${inv.status === 'expired' ? 'expired' : 'closed'}.`), h('small', { class: 'muted' }, 'Ask them for a new link, or add them as a friend.'), h('div', { class: 'row' }, h('button', { class: 'chip', onclick: () => showPlayer(app, inv.from.id, { name: inv.from.name }) }, 'Profile'), home)); return; }
-    mount(body, h('p', {}, h('b', { class: 'gold' }, inv.from.name), ` invites you to ${MODE_NAME[inv.mode] || 'a match'}.`),
+    mount(body, h('p', {}, h('b', { class: 'gold' }, inv.from.name), inv.mode === 'club' ? ' invites you to join their club.' : ` invites you to ${MODE_NAME[inv.mode] || 'a match'}.`),
       inv.mode === 'ranked' ? h('small', { class: 'muted' }, 'Ranked: joining agrees to a rated match. It counts when both games report the same result.') : null,
       h('div', { class: 'row', style: { justifyContent: 'center' } },
         h('button', { class: 'btn big', onclick: () => acceptInvite(app, id) }, 'Join'),
@@ -193,8 +198,11 @@ export function friendsTab(app) {
           h('button', { class: 'chip', onclick: act('decline', f.id) }, 'Ignore'), h('button', { class: 'btn', onclick: act('accept', f.id, `You and ${f.name} are now friends`) }, 'Accept')))) : null,
         h('div', { class: 'panel flist' }, h('div', { class: 'row', style: { justifyContent: 'space-between' } }, h('b', {}, `Friends (${d.friends.length})`), h('small', { class: 'muted' }, `${d.friends.filter((f) => f.presence !== 'offline').length} online`)),
           d.friends.length ? d.friends.map((f) => h('div', { class: 'frow p-' + f.presence }, h('i', { class: 'pdot', title: PRES[f.presence] }), nameBtn(f, h('small', { class: 'muted' }, f.presence === 'offline' ? (f.seen ? `seen ${ago(f.seen)}` : 'offline') : PRES[f.presence])),
-            h('button', { class: 'btn', disabled: f.presence !== 'online', title: f.presence === 'online' ? 'Invite to a private match' : f.presence === 'match' ? 'Playing a match right now' : 'Offline', onclick: () => inviteFriend(app, f) }, 'Invite')))
+            f.presence === 'match' && f.watch ? h('button', { class: 'btn watchbtn', title: `Watch ${f.name}'s match live (10 s delay)`, onclick: () => watchFriend(app, f) }, 'Watch')
+              : h('button', { class: 'btn', disabled: f.presence !== 'online', title: f.presence === 'online' ? 'Invite to a private match' : f.presence === 'match' ? 'Playing a match right now' : 'Offline', onclick: () => inviteFriend(app, f) }, 'Invite')))
             : h('small', { class: 'muted' }, 'No friends yet: add the coaches you just played, or swap friend codes.')),
+        h('label', { class: 'panel frow specallow', title: 'Friends can watch your matches live with a 10 second delay' }, h('input', { type: 'checkbox', checked: watchAllowed(), onchange: (e) => setWatchAllowed(e.target.checked) }),
+          h('span', {}, 'Let friends watch my matches'), h('small', { class: 'muted' }, 'live, 10 s delay')),
         recent.length ? h('div', { class: 'panel flist' }, h('b', {}, 'Recently played'), ...recent.map((r) => h('div', { class: 'frow' }, nameBtn(r, h('small', { class: 'muted' }, `${MODE_LABEL[r.mode] || 'Online'} · ${ago(r.t)}`)),
           h('button', { class: 'btn', onclick: () => add(r.id) }, 'Add')))) : null,
         d.sent.length ? h('div', { class: 'panel flist' }, h('b', {}, 'Waiting for an answer'), ...d.sent.map((f) => h('div', { class: 'frow' }, nameBtn(f), h('button', { class: 'chip', onclick: act('remove', f.id) }, 'Cancel')))) : null,
@@ -242,6 +250,7 @@ export async function showPlayer(app, id, { name = 'Coach' } = {}) {
       r.cups && r.cups.played ? h('span', { class: 'pcups', title: `Weekend Cups: ${r.cups.wins} won, ${r.cups.finals} finals, ${r.cups.played} played` }, h('img', { src: 'assets/img/items/GoldCup.png', alt: '' }),
         ` ${r.cups.wins} Weekend Cup${r.cups.wins === 1 ? '' : 's'}${r.cups.finals ? ` · ${r.cups.finals} final${r.cups.finals === 1 ? '' : 's'}` : ''}`) : null),
     h('div', { class: 'row pact' }, ...actions),
+    profileExtras(app, r, close), // club, trophy cabinet, signature heroes, highlight reel (src/ui/coachprofile.js)
     !pub ? h('p', { class: 'muted center' }, 'This coach has not shared a profile yet.') : [
       pub.top.length ? h('div', { class: 'ptop' }, h('small', { class: 'muted' }, 'Top heroes'), h('div', { class: 'ptopl' }, ...pub.top.map(([hid, pts]) => HERO_BY_ID[hid] ? h('div', { class: 'phero', title: `${HERO_BY_ID[hid].name} · mastery ${masteryLevel(pts)}` },
         h('img', { src: face(hid), alt: '' }), masteryBadge(masteryLevel(pts), { always: true }), h('small', {}, HERO_BY_ID[hid].name)) : null))) : null,

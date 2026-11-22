@@ -101,7 +101,7 @@ export function hostRoom(code, { onStatus, onPeer, onGuest }) {
     if (onPeer) onPeer(peer);
     let up = false;
     peer.on('open', () => { up = true; onStatus && onStatus('waiting'); resolve({ peer }); });
-    peer.on('connection', (conn) => conn.on('open', () => onGuest(new Transport(conn))));
+    peer.on('connection', (conn) => { if (isSpec(conn)) return; conn.on('open', () => onGuest(new Transport(conn))); });
     peer.on('error', (e) => { if (!up) reject(e); });
   }));
 }
@@ -129,6 +129,7 @@ export function host(code, onStatus, onPeer) {
     let done = false;
     peer.on('open', () => onStatus && onStatus('waiting'));
     peer.on('connection', (conn) => {
+      if (isSpec(conn)) return; // a spectator for the relay (src/net/spectate.js), never the opponent
       if (done) { conn.close(); return; }
       conn.on('open', () => { done = true; resolve({ peer, transport: new Transport(conn) }); });
     });
@@ -160,4 +161,43 @@ export function loopbackPair(latencyMs = 40) {
     onMessage(h) { this.handlers.push(h); }, onClose(h) { this.closeHandlers.push(h); },
     close() { if (!this.open) return; this.open = false; const o = this.other; setTimeout(() => { o.open = false; o.closeHandlers.forEach((h) => h()); }, latencyMs * 2); } });
   const a = mk(), b = mk(); a.other = b; b.other = a; return [a, b];
+}
+
+// ── spectators (src/net/spectate.js) ──
+// A coach in a match accepts read-only spectator connections on their own peer id (the room host's id is
+// mobavs-v1-CODE; a guest's or a vs-AI coach's is a random PeerJS id). Spectator connections carry
+// metadata { spec: 1 } so the room's own handlers above ignore them. ?local=1: a BroadcastChannel per relay id.
+const isSpec = (conn) => !!(conn && conn.metadata && conn.metadata.spec);
+export function listenSpectators(peer, onConn) {
+  if (LOCAL) {
+    const id = 'L' + tabId().slice(1);
+    const bc = knocks('spec-' + id, (from) => { const t = new BcTransport('spec-' + id, 'host', from); t.send({ t: 'welcome' }); onConn(t); });
+    return { id, close: () => bc.close() };
+  }
+  const on = (conn) => { if (isSpec(conn)) conn.on('open', () => onConn(new Transport(conn))); };
+  peer.on('connection', on);
+  return { id: peer.id, close: () => { try { peer.off('connection', on); } catch { /* old PeerJS */ } } };
+}
+// A peer of our own for a relay when the match has none (vs AI).
+export function relayPeer() {
+  if (LOCAL) return Promise.resolve({ id: null, destroy() {} });
+  return needPeer().then(() => new Promise((resolve, reject) => {
+    const peer = new window.Peer(undefined, { debug: 0 }), tm = setTimeout(() => reject(new Error('timeout')), 15000);
+    peer.on('open', () => { clearTimeout(tm); resolve(peer); });
+    peer.on('error', (e) => { clearTimeout(tm); reject(e); });
+  }));
+}
+// Spectator: connect to a relay id (from the friends list).
+export function connectSpectator(id) {
+  if (LOCAL) return localJoin('spec-' + id);
+  return needPeer().then(() => new Promise((resolve, reject) => {
+    const peer = new window.Peer(undefined, { debug: 0 });
+    const timer = setTimeout(() => { reject(new Error('Could not reach that match.')); try { peer.destroy(); } catch { /* ignore */ } }, 15000);
+    peer.on('open', () => {
+      const conn = peer.connect(id, { reliable: true, serialization: 'raw', metadata: { spec: 1 } });
+      conn.on('open', () => { clearTimeout(timer); resolve({ peer, transport: new Transport(conn) }); });
+      conn.on('error', (e) => { clearTimeout(timer); reject(e); });
+    });
+    peer.on('error', (e) => { clearTimeout(timer); reject(e); });
+  }));
 }
