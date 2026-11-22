@@ -243,7 +243,7 @@ export function goalText(g) {
   }
 }
 // Did the coach of `my` meet goal g in this finished game? (Read-only: events, call log, team tallies.)
-export function goalMet(goal, g, my) {
+function goalMet(goal, g, my) {
   const won = g.winner === my, T = g.teams[my], E = g.teams[1 - my], ev = g.events;
   const obj = (o, team) => ev.filter((e) => e.type === 'objective' && e.obj === o && e.team === team).length;
   const calls = (pred) => ev.filter((e) => e.type === 'call' && e.team === my && pred(e.call || {})).length;

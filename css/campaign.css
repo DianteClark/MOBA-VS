@@ -147,6 +147,12 @@
 .guide .gdskip { font-size: 9px; color: var(--muted); padding: 2px 4px; min-height: 0; }
 .guide .gdok { min-height: 28px; font-size: 12px; padding: 0 12px; }
 .reduce-motion .guide { animation: none; }
+.guide.tight { padding: 4px 6px; }
+.guide.tight .gdface, .guide.tight .gdn { display: none; }
+.guide.tight .gdbody { flex-direction: row; align-items: center; gap: 6px; }
+.guide.tight .gdtx { font-size: 9px; line-height: 1.3; flex: 1; min-width: 0; }
+.guide.tight .gdbtns { flex-direction: column-reverse; gap: 2px; }
+.guide.tight .gdok { min-height: 24px; font-size: 11px; }
 @media (max-height: 500px) { .guide { padding: 5px 6px; gap: 6px; } .guide .gdface { width: 24px; height: 24px; } .guide .gdtx { font-size: 10px; } .guide .gdok { min-height: 26px; } }
 /* How to Play: the academy link */
 .howacad { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 6px 0; padding: 4px 8px; border: 2px solid #7ad0ff; background: #10283a88; }

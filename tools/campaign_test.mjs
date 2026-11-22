@@ -18,6 +18,7 @@ import { cleanMission } from '../src/sim/mission.js';
 import { sec } from '../src/sim/constants.js';
 import { MISSIONS, CHAPTERS, TUTORIAL, missionOutcome, starKoban, starsOf, goalText, missionDraft } from '../src/data/campaign.js';
 import { PLAN_IDS } from '../src/sim/plans.js';
+import { LocalRunner } from '../src/net/runner.js';
 
 let fails = 0;
 const fail = (m) => { fails++; console.log('FAIL', m); };
@@ -128,6 +129,21 @@ console.log(`missions played in ${((Date.now() - t0) / 1000).toFixed(0)}s`);
   for (const [k, at] of [['dragon', 75], ['herald', 150], ['baron', 320], ['bossSoon', 390]]) if (seen[k] === undefined || Math.abs(seen[k] - at) > 2 && k !== 'baron') fail(`tutorial: ${k} not at ${at}s (${seen[k]})`);
   if (!seen.call) fail('tutorial: the scripted enemy Kami call did not happen');
   if (!g.mission || g.mission.si !== 2) fail('tutorial: script cursor');
+}
+
+// ── replay: a mission recorded with player commands (LocalRunner log) plays back identically from cfg + log ──
+{
+  const cfg = cfgOf({ ...TUTORIAL, rules: { ...TUTORIAL.rules, mods: [[0, 'bot', -0.3, 0.1], [1, 'all', -0.2, -0.2]], gold: [-100, 300] } }, 31337);
+  cfg.coach = [false, true];
+  const calls = [{ type: 'gank', lane: 'mid' }, { type: 'scout', x: 1200, y: 1200 }, { type: 'objective', obj: 'dragon' }, { type: 'ult', mode: 'go' }, { type: 'objective', obj: 'herald' }, { type: 'moment', id: 'rally' }, { type: 'objective', obj: 'boss' }];
+  const g1 = new Game(JSON.parse(JSON.stringify(cfg))), r1 = new LocalRunner(g1, 0, { noHalftime: true });
+  let k = 0;
+  while (g1.time < 480 && !g1.over) { if (g1.tick % 300 === 13) r1.send(calls[k++ % calls.length]); r1.update(0.05); }
+  const log = JSON.parse(JSON.stringify(r1.log));
+  const g2 = new Game(JSON.parse(JSON.stringify(cfg))), r2 = new LocalRunner(g2, -1, { noHalftime: true, script: log });
+  while (g2.tick < g1.tick && !g2.over) r2.update(0.05);
+  if (g1.tick !== g2.tick || g1.checksum() !== g2.checksum()) fail('mission replay diverged');
+  else console.log(`replay: mission match (${log.reduce((a, b) => a + b[1].length, 0)} commands, ${g1.tick} ticks) plays back identically`);
 }
 
 // ── difficulty curve: a Normal AI coach plays your side ──

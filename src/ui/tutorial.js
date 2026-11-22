@@ -41,7 +41,8 @@ class Bubble {
       const rc = (id) => { const e = document.getElementById(id); if (!e || e.offsetParent === null) return null; const r = e.getBoundingClientRect(); return r.width > 1 && r.height > 1 ? r : null; };
       const lc = rc('leftcol'), rr = rc('rightcol'), tc = rc('topcenter'), cmd = document.querySelector('#cmdbar .tray:not(.empty)') || document.querySelector('#cmdbar .handrow') || document.getElementById('cmdbar');
       const cr = cmd ? cmd.getBoundingClientRect() : { top: vh - 80 }, mm = rc('brcol');
-      box = { left: (lc ? lc.right : 0) + 6, right: (rr ? rr.left : mm && mm.top > vh / 2 ? mm.left : vw) - 6, top: (tc ? tc.bottom : 40) + 6, bottom: cr.top - 6 };
+      const bn = document.querySelector('#banner > *') ? rc('banner') : null; // a big moment's banner stays readable
+      box = { left: (lc ? lc.right : 0) + 6, right: (rr ? rr.left : mm && mm.top > vh / 2 ? mm.left : vw) - 6, top: Math.max(tc ? tc.bottom : 40, bn && bn.bottom < cr.top - 60 ? bn.bottom : 0) + 6, bottom: cr.top - 6 };
     } else {
       const b = L.box && document.querySelector(L.box);
       if (b) { const r = b.getBoundingClientRect(); box = { left: r.left, right: r.right, top: r.top, bottom: r.bottom }; }
@@ -51,7 +52,10 @@ class Bubble {
     el.style.width = w + 'px';
     const left = Math.max(pad, Math.min(vw - w - pad, (box.left + box.right) / 2 - w / 2));
     el.style.left = left + 'px';
-    const hgt = el.offsetHeight;
+    // short screens (Safari toolbars, the tray open): a one-row bubble without the portrait
+    el.classList.remove('tight');
+    let hgt = el.offsetHeight;
+    if (hgt > box.bottom - box.top - 8) { el.classList.add('tight'); hgt = el.offsetHeight; }
     const top = L.top ? box.top + 4 : box.bottom - hgt - 4;
     el.style.top = Math.max(pad, Math.min(vh - hgt - pad, top)) + 'px';
   }
