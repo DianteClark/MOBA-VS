@@ -25,6 +25,8 @@ import { planName } from '../data/plans.js';
 import { EVENT_BY_ID } from '../data/events.js';
 import { canCommand, HERO_CMDS } from '../sim/coop.js';
 import { COOP_COL, coachOf } from '../coop-room.js';
+import { livingEvent, livingObjective } from './livinghud.js';
+import { LIVING } from '../sim/living.js';
 
 const LANE_L = { top: 'Top', mid: 'Mid', bot: 'Bot' };
 const OBJ_L = OBJ_NAME;
@@ -133,7 +135,7 @@ export class Hud {
     this.el.ctrl.onclick = (e) => { if (e.target.closest('.seg') && this.el.ctrl.classList.contains('open')) setTimeout(() => this.el.ctrl.classList.remove('open'), 150); };
     this.refreshCtrl();
     this.dock = new Dock(this);
-    this.objTaken = [{ dragon: 0, herald: 0, baron: 0 }, { dragon: 0, herald: 0, baron: 0 }];
+    this.objTaken = [{ dragon: 0, herald: 0, baron: 0, yokai: 0, boss: 0 }, { dragon: 0, herald: 0, baron: 0, yokai: 0, boss: 0 }];
     this.el.score.onclick = () => this.toggleScoreboard();
     this.el.score.title = 'Tap for the scoreboard [Tab]';
     this.buildFoeStrip();
@@ -264,7 +266,7 @@ export class Hud {
     if (!this.sc) this.buildScore();
     const c = this.sc, left = g.timeLeft, wx = g.weatherList[Math.max(0, g.weatherIdx)], ot = this.objTaken || [{}, {}];
     set(c.clock, fmtTime(left)); c.clock.classList.toggle('late', left < 60);
-    set(c.wx, WEATHER[wx].name); if (c.wx.title !== (WEATHER[wx].desc || '')) c.wx.title = WEATHER[wx].desc || '';
+    set(c.wx, (g.living && g.living.nightK > 0.5 ? 'Night · ' : '') + WEATHER[wx].name); if (c.wx.title !== (WEATHER[wx].desc || '')) c.wx.title = WEATHER[wx].desc || '';
     set(c.kk, `${g.teams[0].kills} - ${g.teams[1].kills}`);
     for (let t = 0; t < 2; t++) {
       const sd = c.sides[t], team = g.teams[t];
@@ -275,12 +277,13 @@ export class Hud {
       sd.twV = tw; sd.kV = team.kills;
       // objective marks only change when something is taken: rebuild just this row, and only then
       const sig = team.dragons.join() + '|' + ot[t].herald + '|' + ot[t].baron + '|' + g.shrines.map((x) => x.owner === t ? 1 : 0).join('');
-      if (sig === sd.sig) continue;
-      sd.sig = sig;
+      const ln = g.living ? '|' + ot[t].yokai + '|' + ot[t].boss : '';
+      if (sig + ln === sd.sig) continue;
+      sd.sig = sig + ln;
       mount(sd.pips, team.dragons.map((d) => h('i', { style: { background: DRAGON_INFO[d].color }, title: DRAGON_INFO[d].name })));
       const omi = (k, n, title) => (n ? h('span', { class: 'omi', title }, h('img', { src: bossFace(k) }), n > 1 ? n : null) : null);
       mount(sd.marks, team.dragons.map((d) => h('span', { class: 'omi kami', title: DRAGON_INFO[d].name, style: { color: DRAGON_INFO[d].color } }, h('img', { src: bossFace('dragon', d) }))),
-        omi('herald', ot[t].herald, 'Oni taken'), omi('baron', ot[t].baron, 'Kraken taken'),
+        omi('herald', ot[t].herald, 'Oni taken'), omi('baron', ot[t].baron, 'Kraken taken'), g.living ? [omi('yokai', ot[t].yokai, 'Yokai Parade tamed'), omi('boss', ot[t].boss, 'Tengu slain')] : null,
         g.shrines.filter((x) => x.owner === t).map(() => h('i', { class: 'oms', title: 'Shrine held' })));
     }
     this.updateObjBar();
@@ -331,7 +334,7 @@ export class Hud {
   // Objective / shrine timers: built once, updated in place (no image reloads, no flicker).
   buildObjBar() {
     const g = this.g;
-    this.objCells = ['dragon', 'herald', 'baron'].map((k) => {
+    this.objCells = ['dragon', 'herald', 'baron', ...(g.living ? ['yokai', 'boss'] : [])].map((k) => {
       const img = h('img', { src: bossFace(k, kamiNow(g)) }), lab = h('span', {}), val = h('b', {});
       const el = h('div', { class: 'ot', title: OBJ_L[k], onclick: () => this.my >= 0 && this.dock.open('objective') }, img, lab, val);
       return { k, el, img, lab, val };
@@ -343,11 +346,12 @@ export class Hud {
     const g = this.g, set = setText;
     for (const c of this.objCells) {
       const k = c.k, o = g.objectives[k], tmr = g.objTimers[k];
-      const hide = (k === 'herald' && (g.time > g.T.heraldDespawn || g.objectives.baron)) || (k === 'baron' && g.time < g.T.heraldDespawn - 60 && !o);
+      const hide = (k === 'herald' && (g.time > g.T.heraldDespawn || g.objectives.baron)) || (k === 'baron' && g.time < g.T.heraldDespawn - 60 && !o)
+        || (k === 'yokai' && !o && (!tmr || g.time >= LIVING.bossAt - 120)) || (k === 'boss' && !o && g.time < LIVING.bossAt - 120); // Living World: Tengu from 10:00
       c.el.classList.toggle('hidden', !!hide); if (hide) continue;
       const up = !!(o && o.alive);
       if (k === 'dragon') { const el = kamiNow(g), src = bossFace(k, el); set(c.lab, DRAGON_INFO[el].short); if (c.img.getAttribute('src') !== src) c.img.setAttribute('src', src); }
-      else set(c.lab, OBJ_L[k]);
+      else set(c.lab, k === 'yokai' ? 'Yokai' : OBJ_L[k]);
       set(c.val, up ? 'UP' : tmr ? fmtTime(Math.max(0, (tmr - g.tick) / TICK_RATE)) : '—');
       c.el.classList.toggle('up', up);
       c.el.classList.toggle('soon', !up && !!tmr && tmr - g.tick < 30 * TICK_RATE);
@@ -540,8 +544,8 @@ export class Hud {
           if (e.team === 0 || e.team === 1) this.objTaken[e.team][e.obj]++;
           const nm = e.obj === 'dragon' ? DRAGON_INFO[e.element].name : OBJ_L[e.obj];
           this.ticker(`${TEAM_NAME[e.team]} ${e.steal ? 'STOLE' : 'took'} ${nm}${e.killer ? ' (' + this.name(e.killer) + ')' : ''}`, e.team === 0 ? 'b' : 'r', 3);
-          this.banner(`${e.steal ? 'STOLEN! ' : ''}${nm.toUpperCase()}`, TEAM_COL[e.team], 2200, bossFace(e.obj, e.element));
-          this.cast(e, e.team);
+          if (e.obj !== 'yokai') this.banner(`${e.steal ? 'STOLEN! ' : ''}${nm.toUpperCase()}`, TEAM_COL[e.team], 2200, bossFace(e.obj, e.element));
+          this.cast(e, e.team); livingObjective(this, e);
           if (this.my >= 0 && (e.team === 0 || e.team === 1)) buzz(e.team === this.my ? 'objective' : 'objectiveLost');
           break;
         }
@@ -552,7 +556,7 @@ export class Hud {
         case 'tower': this.ticker(`${TEAM_NAME[e.team]} destroyed a ${LANE_L[e.lane] || 'base'} tower`, e.team === 0 ? 'b' : 'r', 2); break;
         case 'inhib': this.ticker(`${TEAM_NAME[e.team]} broke the ${LANE_L[e.lane]} gate!`, e.team === 0 ? 'b' : 'r', 3); this.banner('GATE DESTROYED', TEAM_COL[e.team]); break;
         case 'inhibRespawn': this.ticker(`${TEAM_NAME[e.team]} ${LANE_L[e.lane]} gate restored`, 'n', 0); break;
-        case 'spawn': this.ticker(`${e.obj === 'dragon' ? DRAGON_INFO[e.element].name : OBJ_L[e.obj]} has awakened`, 'act', 2); break;
+        case 'spawn': this.ticker(`${e.obj === 'dragon' ? DRAGON_INFO[e.element].name : OBJ_L[e.obj]} ${e.obj === 'yokai' ? 'is on the move' : 'has awakened'}`, 'act', 2); if (e.obj === 'boss') this.banner('THE TENGU DESCENDS', '#ff4a5a', 2400, bossFace('boss')); break;
         case 'heraldDrop': this.ticker(`${TEAM_NAME[e.team]} unleashed the Oni ${LANE_L[e.lane]}!`, e.team === 0 ? 'b' : 'r', 2); break;
         case 'call': {
           const c = e.call;
@@ -600,7 +604,8 @@ export class Hud {
         case 'trust': if (e.team === this.view && this.my >= 0) { const x = g.byId(e.hero); this.ticker(e.tier === 2 ? `${x.def.name} is Inspired by your calls!` : e.tier === 0 ? `${x.def.name} is losing faith in your calls` : `${x.def.name} trusts you again`, e.tier === 0 ? 'danger' : 'n', 1); } break;
         case 'tactic': if (e.team === this.view || this.my < 0) { this.banner(TACTICS[e.card].name.toUpperCase(), TEAM_COL[e.team], 1500); } break;
         case 'finalPhase': this.banner('LAST STAND', '#ff8a3a', 2200, null); this.ticker(`Final ${Math.round(g.timeLeft / 60)} minutes: gold ×1.5, longer respawns. Every tower counts!`, 'act', 3); break;
-        case 'stolenCamp': if (e.big && e.team !== this.view) this.ticker('Enemy invaded your jungle!', 'danger', 2); break;
+        case 'stolenCamp': if (e.big && e.team !== this.view) this.ticker(e.camp && e.camp.endsWith(':moon') ? 'Enemy stole your Moon Spirits!' : 'Enemy invaded your jungle!', 'danger', 2); break;
+        default: livingEvent(this, e);
       }
     }
   }
@@ -719,12 +724,12 @@ export class Hud {
     const carding = this.dock.tray.items.some((i) => i.prio >= PRIO.request);
     const jg = mine.find((x) => x.role === 'jungle');
     const deadEnemies = enemy.filter((x) => !x.alive && x.respawnAt - now > 15 * TICK_RATE);
-    for (const k of ['dragon', 'baron', 'herald']) {
+    for (const k of ['dragon', 'baron', 'herald', ...(g.living ? ['boss', 'yokai'] : [])]) {
       const t = g.objTimers[k];
       if (t && t - now > 0 && t - now < 30 * TICK_RATE && ready('spawnwarn' + k + t, 60)) this.ticker(`${k === 'dragon' ? DRAGON_INFO[g.teams.some((x) => x.soul) ? 'elder' : g.nextDragon].name : OBJ_L[k]} awakens in 30s`, 'act', 1);
     }
     if (deadEnemies.length >= 2) {
-      const best = ['baron', 'dragon', 'herald'].find((k) => g.objectives[k] && g.objectives[k].alive);
+      const best = ['boss', 'baron', 'dragon', 'herald'].find((k) => g.objectives[k] && g.objectives[k].alive);
       if (best && ready('numbers', 30)) this.dock.suggest('numbers', `${deadEnemies.length} enemies down`, `Take ${OBJ_L[best]}`, { type: 'objective', obj: best }, { cls: 'good', valid: () => !!(g.objectives[best] && g.objectives[best].alive) });
       else if (!best && ready('numbers2', 30)) this.dock.suggest('numbers2', `${deadEnemies.length} enemies down`, 'Push Mid', { type: 'group', lane: 'mid' }, { cls: 'good' });
     }

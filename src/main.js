@@ -71,7 +71,7 @@ class App {
   // the map (Blood Moon) gets its own canvas, replacing that map's other one (one 2400px canvas per map at most).
   mapCanvas(world, event) {
     this.mapCache = this.mapCache || {};
-    const id = world.def.id, key = id + '|' + eventPaintKey(event);
+    const id = world.def.id, key = id + '|' + eventPaintKey(event) + (world.wallAt ? '|w' : ''); // Living World maps paint the ground under breakable walls
     if (!this.mapCache[key]) {
       for (const k of Object.keys(this.mapCache)) if (k.split('|')[0] === id) delete this.mapCache[k];
       this.mapCache[key] = paintEventMap(paintMap(world), event);
@@ -116,7 +116,7 @@ class App {
     const bar = document.querySelector('#loading .barw i');
     await loadAssets((p) => { bar.style.width = Math.round(p * 100) + '%'; }, true);
     try { await document.fonts.load('12px PixelFont'); } catch { /* ignore */ }
-    this.map = this.mapCanvas(new World(MAPS[0]));
+    this.map = this.mapCanvas(new World(MAPS[0], { walls: true })); // (painted as a Living World match will use it)
     document.getElementById('loading').remove();
     this.startBg();
     const q = new URLSearchParams(location.search), code = q.get('join'), shared = q.get('s'), invite = q.get('i');
@@ -561,7 +561,7 @@ class App {
     if (!assetsDone) { const s0 = this.session; toast('Loading the battlefield…', 1500); assetsAll.then(() => { if (this.session === s0 && !this.match) this.startMatch(); }); return; }
     const s = this.session;
     const cfg = s.replay ? JSON.parse(JSON.stringify(s.replay.cfg)) : {
-      seed: s.seed, map: s.mapId, ...(s.gameMode === 'rush' ? { mode: 'rush' } : {}), ...(s.event ? { event: s.event } : {}),
+      seed: s.seed, map: s.mapId, ...(s.gameMode === 'rush' ? { mode: 'rush' } : { living: 1 }), ...(s.event ? { event: s.event } : {}), // living: Living World (classic maps)
       teams: [0, 1].map((t) => ({ heroes: s.preps[t].heroes, plan: s.preps[t].plan, deck: s.preps[t].deck, name: s.names[t] })),
       coach: s.mode === 'coop' ? s.ai.slice() : s.mode === 'ai' ? [s.myTeam !== 0, s.myTeam !== 1] : s.mode === 'watch' ? [true, true] : [false, false],
       coachLevel: [s.aiLevel ?? this.aiLevel, s.aiLevel ?? this.aiLevel],

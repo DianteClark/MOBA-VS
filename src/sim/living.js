@@ -21,7 +21,7 @@ export const LIVING = {
   nightVision: 0.75, bloodVision: 0.68, minVision: 0.5,
   moonsight: 90, moonGold: [160, 30], moonXp: [200, 40], bloodMoonGold: 1.5,
   yokaiFirst: 240, yokaiRespawn: 150, tameSec: 60, paradeMs: 60,
-  breachFrom: 150, wallHits: { wall: 10, thicket: 5 },
+  breachFrom: 150, wallHits: { wall: 6, thicket: 3 },
   bossAt: 720, bossWarn: 30, bossBuff: 90, bossSiege: 0.4, bossMs: 0.06,
 };
 const NIGHT = { name: 'Moon Spirits', night: true, mobs: [{ k: 'camp_moon', hp: 1900, ad: 50, big: true }, { k: 'camp_wisp', hp: 520, ad: 18, dx: 34, dy: -14 }, { k: 'camp_wisp', hp: 520, ad: 18, dx: -30, dy: 22 }] };
@@ -248,8 +248,9 @@ export class Living {
       for (const e of w.ends) { const d = dist2(h, e); if (d < bd) { bd = d; best = w; } }
     }
     if (!best) return false;
-    const far = dist2(h, best.ends[0]) < dist2(h, best.ends[1]) ? best.ends[1] : best.ends[0];
-    return this.breach(h, far);
+    const e = dist2(h, best.ends[0]) < dist2(h, best.ends[1]) ? 0 : 1;
+    if (dist2(h, best.ends[e]) > 140 * 140) { h.why = 'jungle: go open a shortcut'; this.g.moveToward(h, best.ends[e], true); return true; }
+    return this.breach(h, best.ends[1 - e]);
   }
   hitWall(h, w) {
     const g = this.g, now = g.tick;

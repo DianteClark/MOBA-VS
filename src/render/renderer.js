@@ -10,10 +10,11 @@ import { Chatter } from './chatter.js';
 import { Vfx } from './vfx.js';
 import { Ambient } from './ambient.js';
 import { EventFx } from './eventfx.js';
+import { LivingFx } from './livingfx.js';
 import { settings, textScale, renderDpr } from '../ui/settings.js';
 
 export { TEAM_COL, TEAM_DARK };
-const OBJ_COL = { dragon: '#ff9a3c', herald: '#9fd0ff', baron: '#b56cff' };
+const OBJ_COL = { dragon: '#ff9a3c', herald: '#9fd0ff', baron: '#b56cff', boss: '#ff4a5a', yokai: '#ffb347' };
 // The pixel font's space is very narrow; an en-space falls back to a wider glyph.
 const sp_ = (s) => String(s).replace(/ /g, '\u2002');
 
@@ -53,6 +54,7 @@ export class Renderer {
     this.vfx = new Vfx(this);
     this.amb = new Ambient(this);
     this.evfx = new EventFx(this); // weekly map event veil / motes
+    this.lw = new LivingFx(this); // Living World: night, walls, Tengu, Yokai Parade
     this.detail = 2; // 2 high, 1 medium (Auto, after a slow spell), 0 low
     this.castT = new Map(); this.corpses = []; this.wasAlive = new Map(); this.spawnT = new Map(); this.knock = new Map(); this.bossSeen = new Map();
     this.grad = this.makeGrad();
@@ -100,7 +102,7 @@ export class Renderer {
     this.game = game; this.viewTeam = viewTeam; this.map = map || paintMap(game.world); this.theme = THEMES[game.world.def.theme] || THEMES.spring;
     this.fogSmooth.fill(0); this.prev.clear(); this.effects = []; this.texts = []; this.lines = []; this.fxp.clear(); this.focus = null;
     this.dprCap = 0; this.slowT = 0; this.detail = settings.quality === 'battery' ? 0 : 2;
-    this.vfx.reset(); this.amb.attach(game.world, this.theme); this.evfx.attach(game);
+    this.vfx.reset(); this.amb.attach(game.world, this.theme); this.evfx.attach(game); this.lw.attach(game);
     this.castT.clear(); this.corpses = []; this.wasAlive.clear(); this.spawnT.clear(); this.knock.clear(); this.bossSeen.clear();
     for (const u of game.units) if (u.type === 'hero') this.wasAlive.set(u.id, u.alive);
     this.chatter.reset(); this.hpT.clear(); this.heroPos.clear(); this.callouts = []; this.trauma = 0; this.hitStop = 0; this.tint = null; this.panTo = null; this.visSlow = null;
@@ -219,6 +221,7 @@ export class Renderer {
         case 'flash': if (this.visiblePoint(f.x, f.y)) { this.fxSprite('spark', f.x, f.y - 10, 1.4); this.text(f.x, f.y - 40, 'FLASH', '#fff', 9, 0.8); } break;
         case 'ward': if (f.team === this.viewTeam || this.viewTeam < 0) this.fxSprite('spirit', f.x, f.y, 1); break;
         case 'recall': break;
+        case 'wallHit': this.lw.fxHit(f); break;
         case 'emote': if (u && (u.team === this.viewTeam || this.viewTeam < 0)) emotes.push({ u, e: f.e }); break;
       }
     }
@@ -291,13 +294,14 @@ export class Renderer {
     for (let k = 0; k < 12; k++) { const q = this.fxp.spawn(P_GLOW, f.x + (Math.random() - 0.5) * 120, f.y - 40 - Math.random() * 80, 1.1); q.vy = -40 - Math.random() * 80; q.c = c; q.s = 10 + Math.random() * 8; q.t = -Math.random() * 0.4; }
     this.screenTint(c, 0.22, 0.6); this.impact(0.14, 0.05);
   }
-  pitOf(obj) { const W = this.game.world; return obj === 'dragon' ? W.pits.kami : W.pits.kraken; }
+  pitOf(obj) { return this.game.objPit(obj); }
   consumeEvents(byId) {
     const g = this.game, ev = g.events;
     if (ev.length - this.evIdx > 60) this.evIdx = ev.length - 60; // came back from a hidden tab: skip the backlog
     for (; this.evIdx < ev.length; this.evIdx++) {
       const e = ev[this.evIdx];
       if (g.tick - e.t > 40) continue;
+      if (this.lw.on) this.lw.event(e);
       switch (e.type) {
         case 'kill': {
           const v = byId.get(e.victim), k = e.killer ? byId.get(e.killer) : null;
@@ -324,6 +328,7 @@ export class Renderer {
           break;
         }
         case 'objective': {
+          if (e.obj === 'yokai') break; // (the parade has its own 'tamed' moment)
           const p = this.pitOf(e.obj); if (!this.onScreen(p.x, p.y, 120) || !this.visiblePoint(p.x, p.y)) break;
           this.burst(p.x, p.y - 40, 30, [TEAM_COL[e.team], '#ffffff', '#ffd84a'], 80, 280, 160, 380, 4, 1.2);
           this.ring(p.x, p.y, 20, 200, TEAM_COL[e.team], 0.8, 5); this.shakeBy(0.5); this.freeze(0.1);
@@ -414,6 +419,7 @@ export class Renderer {
     this._alphaNow = alpha;
     // ambient ground layer (water shimmer, flowers, flags) under everything that moves
     this.amb.drawGround(ctx, x0, y0, vw, vh, vdt);
+    this.lw.drawGround(ctx, inView); // breakable walls
     // ground effects: skillshot lanes, telegraphs, zones, ult sigils
     for (const e of this.effects) if (e.kind === 'tele' || e.kind === 'zone' || e.kind === 'lane' || e.kind === 'sigil') this.vfx.drawGround(e);
     // wards
@@ -457,6 +463,7 @@ export class Renderer {
     // fog
     if (this.fogOn && this.viewTeam >= 0) this.drawFog(s, shx, shy);
     this.drawWeather(dt);
+    this.lw.drawNight(dt);
     this.evfx.draw(this.ctx, this.W, this.H, dt);
     // texts (above fog)
     ctx.setTransform(s, 0, 0, s, this.W / 2 - this.cam.x * s + shx, this.H / 2 - this.cam.y * s + shy);
@@ -723,10 +730,12 @@ export class Renderer {
     }
     if (u.type === 'mob') {
       const img = IMG[u.kind]; if (!img) return;
+      if (u.moon || u.parade || u.kind === 'camp_wisp') this.lw.glow(u, x, y);
       this.drawSheetFrame(flashing ? flashOf(u.kind, img) : img, 16, 16, u.facing, d.moving ? walkF : (Math.floor(this.time * 3 + u.id) % 2), x, y + 3 - lift, u.big ? 2.6 : 1.7, false, sx, sy);
       return;
     }
     if (u.type === 'summon') {
+      if (u.kind === 'yokai') { this.lw.drawTamed(u, x, y, d.moving); return; }
       const img = IMG.herald_walk; if (!img) return;
       const f = Math.floor(this.time * 10) % 6;
       this.drawSheetFrame(img, 50, 50, f, 0, x, y + 8, 1.3, u.facing === 2);
@@ -782,6 +791,7 @@ export class Renderer {
 
   drawBoss(u, x, y, flashing, attacking) {
     const ctx = this.ctx;
+    if (this.lw.drawBoss(u, x, y, flashing, attacking)) return; // Tengu, Yokai Parade
     if (u.kind === 'dragon') {
       const skin = VAR['dragon_' + u.element] || VAR.dragon_infernal; if (!skin || !skin.head) return;
       const t = this.time, bob = Math.sin(t * 3) * 4, flap = 0.75 + 0.25 * Math.sin(t * (attacking ? 14 : 6)), sc = 1.5;
@@ -896,15 +906,15 @@ export class Renderer {
       return;
     }
     if (u.type === 'objective') {
-      const w = 70, top = y - (u.kind === 'baron' ? 160 : u.kind === 'dragon' ? 130 : 110);
-      this.bar(x - w / 2, top, w, 5, u, u.kind === 'dragon' ? DRAGON_INFO[u.element].color : u.kind === 'baron' ? '#b56cff' : '#9fd0ff');
+      const w = 70, top = y - (u.kind === 'baron' || u.kind === 'boss' ? 160 : u.kind === 'dragon' ? 130 : u.kind === 'yokai' ? 70 : 110);
+      this.bar(x - w / 2, top, w, 5, u, u.kind === 'dragon' ? DRAGON_INFO[u.element].color : OBJ_COL[u.kind] || '#9fd0ff');
       ctx.font = '8px PixelFont, monospace'; ctx.textAlign = 'center'; ctx.fillStyle = '#000';
       const nm = sp_(u.kind === 'dragon' ? DRAGON_INFO[u.element].name : OBJ_NAME[u.kind]);
       ctx.fillText(nm, x + 0.6, top - 6.4); ctx.fillStyle = '#fff'; ctx.fillText(nm, x, top - 7);
       return;
     }
     if (u.hp < u.maxHp || u.type === 'summon') {
-      const w = u.type === 'summon' ? 44 : u.type === 'mob' && u.big ? 34 : 18, top = y - (u.type === 'summon' ? 66 : u.type === 'mob' && u.big ? 44 : 28);
+      const yk = u.kind === 'yokai', w = u.type === 'summon' ? (yk ? 30 : 44) : u.type === 'mob' && u.big ? 34 : 18, top = y - (u.type === 'summon' ? (yk ? 46 : 66) : u.type === 'mob' && u.big ? 44 : 28);
       if (u.type === 'minion') { ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(x - w / 2 - 1, top - 1, w + 2, 4); ctx.fillStyle = TEAM_COL[u.team]; ctx.fillRect(x - w / 2, top, w * u.hp / u.maxHp, 2); }
       else this.bar(x - w / 2, top, w, u.type === 'summon' ? 3 : 2, u, u.team === 2 ? '#e8c45a' : TEAM_COL[u.team]);
     }

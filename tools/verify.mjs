@@ -39,6 +39,7 @@ export function validate(doc, heroIds) {
   if (!Array.isArray(c.teams) || c.teams.length !== 2) return 'bad teams';
   // weekly map event (src/data/events.js): an id or absent; Mirror Draft lets both teams field the same hero
   if (c.event !== undefined && (typeof c.event !== 'string' || !/^[a-z]{1,16}$/.test(c.event))) return 'bad event';
+  if (c.living !== undefined && c.living !== 1) return 'bad living flag'; // Living World (src/sim/living.js)
   const mirror = c.event === 'mirror';
   let seen = new Set();
   for (const t of c.teams) {
