@@ -1,12 +1,14 @@
 /* Social v2: clubs, Replay Hub / Watch, spectate, Broadcast mode, custom games, pass-and-play, coach profiles */
 
 /* ── Home: the Featured replay card (one small card in the side column) ── */
-.h2feat { flex: 0 0 auto; gap: 4px; padding: 6px 8px; border-color: #8a6ad0; background: linear-gradient(160deg, rgba(42, 26, 74, 0.94), var(--panel) 75%); flex-direction: row; align-items: center; justify-content: space-between; text-align: left; }
-.h2feat .h2h { min-width: 0; } .h2feat .h2h b { color: #d9c8ff; font-size: 12px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.h2feat .kick { color: #efe6ff; background: #8a6ad088; padding: 0 5px; font-size: 9px; }
+/* a single line: never taller than ~30px, so the side column keeps its height on phones */
+.h2feat { flex: 0 0 auto; display: flex; flex-direction: row; align-items: center; gap: 6px; padding: 4px 8px; min-height: 30px; border-color: #8a6ad0; background: linear-gradient(160deg, rgba(42, 26, 74, 0.94), var(--panel) 75%); text-align: left; }
+.h2feat .kick { flex: 0 0 auto; color: #efe6ff; background: #8a6ad088; padding: 0 4px; font-size: 9px; white-space: nowrap; }
+.h2feat > b { flex: 1; min-width: 0; color: #d9c8ff; font-size: 12px; font-weight: normal; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .h2featf { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; } .h2featf small { color: var(--gold); font-size: 11px; }
 .h2featf .hubfaces img { width: 18px; height: 18px; }
-@media (max-height: 420px) { .h2feat .h2featf .hubfaces img:nth-child(n+3) { display: none; } }
+@media (max-height: 500px) { .h2feat { min-height: 26px; padding: 2px 6px; } .h2featf .hubfaces { display: none; }
+  .h2side:has(.h2feat:not(.hidden)) .h2new .h2hl { display: none; } .h2side:has(.h2feat:not(.hidden)) { gap: 5px; } }
 
 /* ── Watch / Replay Hub ── */
 .hub .hubtop { justify-content: center; flex-wrap: wrap; gap: 6px; align-items: center; }
@@ -40,7 +42,7 @@
 /* ── Broadcast mode ── */
 #bcast { position: absolute; inset: 0; pointer-events: none; z-index: 6; }
 #bcast > * { pointer-events: auto; }
-.bccast { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(96px + var(--safe-b)); max-width: min(560px, 70vw); display: flex; align-items: center; gap: 8px;
+.bccast { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(114px + var(--safe-b)); max-width: min(560px, 70vw); display: flex; align-items: center; gap: 8px;
   padding: 5px 12px; background: linear-gradient(90deg, rgba(10, 8, 16, 0.92), rgba(30, 22, 44, 0.92)); border-left: 4px solid var(--gold); color: var(--ink); font-size: 14px; pointer-events: none !important; }
 .bccast span { border-bottom: 2px solid var(--tc, transparent); }
 .bccast .bcmic { color: #2a1608; background: var(--gold); font-size: 9px; padding: 1px 4px; font-weight: normal; }
@@ -65,12 +67,12 @@
 .bcopt span { display: flex; flex-direction: column; } .bcopt b { font-weight: normal; font-size: 12px; } .bcopt small { color: var(--muted); font-size: 10px; }
 .bcopt:disabled { opacity: 0.45; cursor: default; }
 body.bclean #leftcol, body.bclean #rightcol, body.bclean #cmdbar, body.bclean #brcol, body.bclean #foestrip, body.bclean #detail, body.bclean #ticker, body.bclean #objtimers { visibility: hidden; }
-body.bclean .bccast { bottom: calc(52px + var(--safe-b)); } body.bclean .bcstats { bottom: calc(12px + var(--safe-b)); }
+body.bclean .bccast { bottom: calc(62px + var(--safe-b)); } body.bclean .bcstats { bottom: calc(12px + var(--safe-b)); }
 body.bclean .speclive { bottom: auto; top: calc(40px + var(--safe-t)); }
 @media (max-height: 500px) {
-  .bccast { bottom: calc(80px + var(--safe-b)); font-size: 12px; padding: 3px 8px; max-width: 56vw; }
+  .bccast { bottom: calc(92px + var(--safe-b)); font-size: 12px; padding: 3px 8px; max-width: 56vw; }
   .bcstats { bottom: calc(52px + var(--safe-b)); padding: 2px 6px; } .bcgraph { width: 84px; height: 26px; } .bckda { font-size: 10px; gap: 6px; }
-  .bcpipw { width: 160px; top: calc(40px + var(--safe-t)); } .bcpipw canvas { height: 90px; }
+  .bcpipw { width: 168px; right: auto; left: calc(64px + var(--safe-l)); top: calc(8px + var(--safe-t)); } .bcpipw canvas { height: 94px; }
   .bcsheet { bottom: calc(110px + var(--safe-b)); max-height: calc(100vh - 130px); overflow-y: auto; }
   .speclive { bottom: calc(52px + var(--safe-b)); }
   body:not(.bclean) .bcstats ~ .speclive { display: none; }
@@ -148,3 +150,5 @@ body.bclean .speclive { bottom: auto; top: calc(40px + var(--safe-t)); }
 
 /* results: publish */
 .pubbtn { color: #d9c8ff; }
+/* Home: four room chips (Host, Join, Co-op, Custom) fit the Find Match card on small phones */
+@media (max-width: 760px) { .h2online .h2row { gap: 3px; } .h2online .h2row .chip { padding: 4px 0; font-size: 10px; min-width: 0; word-spacing: 0; letter-spacing: -0.3px; } }

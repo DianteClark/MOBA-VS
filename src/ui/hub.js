@@ -67,13 +67,17 @@ export async function showHub(app, kind = 'week') {
 // Home: one small Featured card (nothing at all while there is no featured replay or no connection).
 export function featuredCard(app) {
   const el = h('button', { class: 'h2card h2feat hidden', onclick: () => showHub(app) });
-  if (online.ok) list('week').then((r) => {
+  let tries = 0; // the menu can paint before the first health check: wait for it (no extra requests)
+  const go = () => { if (!el.isConnected) return; if (!online.ok) { if (tries++ < 15) setTimeout(go, 1000); return; } show(); };
+  const show = () => list('week').then((r) => {
     const f = r && r.featured; if (!f || !el.isConnected) return;
     const m = f.meta || {};
-    mount(el, h('span', { class: 'h2h' }, h('small', { class: 'kick' }, 'FEATURED REPLAY'), h('b', {}, m.title || m.potg || `${(m.names || [])[0]} vs ${(m.names || [])[1]}`)),
-      h('span', { class: 'h2featf' }, faces((m.picks || [])[m.winner === 1 ? 1 : 0], ''), h('small', {}, `▲ ${f.votes}`)));
+    el.title = 'Featured replay: the week\'s top-voted match (Watch)';
+    mount(el, h('small', { class: 'kick' }, '▶ FEATURED'), h('b', {}, m.title || m.potg || `${(m.names || [])[0]} vs ${(m.names || [])[1]}`),
+      h('span', { class: 'h2featf' }, faces((m.picks || [])[m.winner === 1 ? 1 : 0].slice(0, 3), ''), h('small', {}, `▲ ${f.votes}`)));
     el.classList.remove('hidden');
   }).catch(() => {});
+  setTimeout(go, 50); // after the home screen is mounted
   return el;
 }
 // Results: publish this match's replay (one tap; a few a day). rep: the stored replay entry (src/ui/replays.js).
