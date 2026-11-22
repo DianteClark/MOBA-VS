@@ -126,7 +126,7 @@ export class Depth {
       : { label: 'Go', sub: 'All-in, ults ready', cmd: { type: 'ult', mode: 'go' } };
     const back = { label: 'Back off', sub: 'Hold at towers', cmd: { type: 'safe' } };
     hud.mm.ping(f.at.x, f.at.y, good ? '#ffd84a' : '#ff5a5a');
-    tray.push({ key: 'fc' + t0, prio: PRIO_FORECAST, ttl: Math.min(8000, f.eta * 1000), cls: 'ccall fcast ' + (good ? 'act' : 'danger'),
+    tray.push({ key: 'fc' + t0, prio: PRIO_FORECAST, at: f.at, ttl: Math.min(8000, f.eta * 1000), cls: 'ccall fcast ' + (good ? 'act' : 'danger'),
       build: (it) => {
         const tt = h('span', {}, title()); it.upd = () => setText(tt, title());
         return [h('div', { class: 'tc-head' }, h('b', {}, 'FIGHT FORECAST'), tt),
