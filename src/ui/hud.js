@@ -21,6 +21,7 @@ import { buzz } from './haptics.js';
 import { QuickChat } from './quickchat.js';
 import { tweenNumber, pop } from './juice.js';
 import { CoachTips, tipsLeft } from './coachtips.js';
+import { MatchGuide } from './tutorial.js';
 import { planReveal, planSwitch } from './plans.js';
 import { planName } from '../data/plans.js';
 import { EVENT_BY_ID } from '../data/events.js';
@@ -70,7 +71,9 @@ export class Hud {
     }
     this.alerts = new Alerts(this);
     // first matches: a few one-time coach tips in the tray (not for spectators or the Play of the Game)
-    if (myTeam >= 0 && mode !== 'watch' && tipsLeft()) this.tips = new CoachTips(this);
+    // the guided first match: Granny Ume's lessons instead (src/ui/tutorial.js)
+    if (myTeam >= 0 && mode !== 'watch' && ses && ses.tutorial && !ses.replay) this.tips = new MatchGuide(this);
+    else if (myTeam >= 0 && mode !== 'watch' && tipsLeft()) this.tips = new CoachTips(this);
     if (runner.online && myTeam >= 0 && this.coop) {
       // co-op quick chat: between partners only (in 2v2 the other side never sees it)
       const s = this.coop;

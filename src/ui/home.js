@@ -40,6 +40,8 @@ import { partyPanel, openInvite } from './party.js';
 import { showClub, clubDot } from './clubs.js';
 import { showHub, featuredCard } from './hub.js';
 import { showCustom } from './custom.js';
+import { campaignCard, tutorialOffer } from './campaign.js';
+import { shouldOffer } from '../campaign.js';
 
 const screen = () => document.getElementById('screen');
 const item = (n) => `assets/img/${n}.png`;
@@ -134,9 +136,10 @@ export function showHome(app) {
           h('button', { class: 'chip partychip net' + (P ? ' on' : ''), title: 'Party: team up with a friend for co-op and 2v2, match after match', onclick: () => { audio.sfx('move', 0.5); if (P && !P.leader) toast('You are in a party: see the panel on the right.', 2000); else openInvite(app); } }, 'Party'),
           h('button', { class: 'chip', title: 'Custom game: private room with rule toggles, or pass-and-play on this device (never ranked)', onclick: () => { audio.sfx('move', 0.5); showCustom(app); } }, 'Custom'))),
       P ? h('div', { class: 'h2side' }, partyPanel(app)) : h('div', { class: 'h2side' },
-        h('button', { class: 'h2card h2rush', onclick: () => app.startVsAI('rush') },
-          h('span', { class: 'h2h' }, h('b', {}, 'Lane Rush'), h('small', {}, `One lane · ~7 min · vs ${nextRival(app).name}`)),
-          h('span', { class: 'h2arrow' }, 'Play ›')),
+        h('div', { class: 'h2pair' }, campaignCard(app), // story campaign + Lane Rush share one row
+          h('button', { class: 'h2card h2rush', title: `Lane Rush: one lane, about 7 minutes, vs ${nextRival(app).name}`, onclick: () => app.startVsAI('rush') },
+            h('span', { class: 'h2h' }, h('b', {}, 'Lane Rush'), h('small', {}, `One lane · ~7 min · vs ${nextRival(app).name}`)),
+            h('span', { class: 'h2arrow' }, 'Play ›'))),
         eventCard(app),
         h('button', { class: 'h2card h2new' + (unseen ? ' unseen' : ''), onclick: () => showPatch(app) },
           h('span', { class: 'h2h' }, h('small', { class: 'kick' }, unseen ? 'NEW' : 'PATCH NOTES'), h('b', {}, `What's new in ${pt.version}`)),
@@ -155,6 +158,7 @@ export function showHome(app) {
       navTile('Help', item('items/Letter'), () => showHowTo(app), { title: 'How to play', cls: newbie ? 'hl' : '' })),
     h('div', { class: 'credits' }, 'Art & audio: ', h('a', { href: 'https://pixel-boy.itch.io/ninja-adventure-asset-pack', target: '_blank' }, 'Ninja Adventure'), ' by Pixel-boy & AAA (CC0)'),
   ));
+  if (shouldOffer() && !P && !document.querySelector('.modal')) tutorialOffer(app); // first launch: the guided match (once)
 }
 
 // Franchise tile: your club's crest (a dot when a match is waiting), or a plain shield before founding.
