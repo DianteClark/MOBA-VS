@@ -1,6 +1,17 @@
 // Patch notes, newest first. tools/season.mjs prepends an entry at each season rollover.
 export const PATCHES = [
   {
+    version: '23.6', season: 1, date: '2026-11-22', title: 'For Everyone',
+    notes: [
+      'MOBA-VS now speaks Spanish, Portuguese, French, German, Japanese, Korean, Chinese and Russian. It picks your phone\'s language automatically, or choose in Settings.',
+      'One-handed mode (left or right) and a high-contrast mode in Settings.',
+      'Screen readers can navigate the menus.',
+      'Controllers and keyboards work everywhere: press ? for shortcuts.',
+      'Play vs AI and Lane Rush work offline after your first visit; your progress syncs when you are back online.',
+    ],
+    heroes: [],
+  },
+  {
     version: '23.5', season: 1, date: '2026-11-22', title: 'Parties',
     notes: [
       'Parties: team up with a friend (invite, link or 5-letter code). Home shows your party with ready status and quick chat.',
