@@ -92,7 +92,7 @@ export class World {
     for (const f of d.flats || []) for (const q of [pt(f), P(pt(f))]) cells(q.x, q.y, f[2], (i) => { if (W[i] && tidal(Ty[i])) Ty[i] = T_SAND; });
     for (const s of d.deep || []) for (const [a, b] of [[pt(s), pt(s.slice(2))], [P(pt(s)), P(pt(s.slice(2)))]]) {
       const r = s[4];
-      cells((a.x + b.x) / 2, (a.y + b.y) / 2, Math.hypot(a.x - b.x, a.y - b.y) / 2 + r, (i, px, py) => {
+      cells((a.x + b.x) / 2, (a.y + b.y) / 2, Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2) / 2 + r, (i, px, py) => {
         if (segDist2({ x: px, y: py }, a, b) <= r * r && Ty[i] !== T_LANE && Ty[i] !== T_BASE && Ty[i] !== T_PIT && Ty[i] !== T_SHRINE) { W[i] = 0; Ty[i] = T_DEEP; }
       });
     }
@@ -187,7 +187,7 @@ export class World {
       for (const pd of d.pads) for (const [a, b] of [[pt(pd), pt(pd.slice(2))], [P(pt(pd)), P(pt(pd.slice(2)))]]) {
         const id = this.pads.length, A = this.nearestOpen(a), B = this.nearestOpen(b), ia = this.idx(A.x, A.y), ib = this.idx(B.x, B.y);
         const dx = Math.abs(ia % N - ib % N), dy = Math.abs(((ia / N) | 0) - ((ib / N) | 0)), cost = 10 * (dx + dy) - 6 * Math.min(dx, dy) + PAD_COST;
-        this.pads.push({ id, a: A, b: B, len: Math.hypot(A.x - B.x, A.y - B.y) });
+        this.pads.push({ id, a: A, b: B, len: Math.sqrt((A.x - B.x) ** 2 + (A.y - B.y) ** 2) }); // (sqrt, never Math.hypot: identical on every engine)
         for (const [from, to, dir] of [[ia, ib, 0], [ib, ia, 1]]) (this.links.get(from) || this.links.set(from, []).get(from)).push({ to, cost, pad: id, dir });
       }
     }

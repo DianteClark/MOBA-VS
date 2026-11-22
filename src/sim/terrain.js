@@ -16,7 +16,7 @@ import { dist2 } from './geom.js';
 export const TERRAIN = {
   tide: { high: [[240, 420], [600, 780]], warn: 20, avoid: 4, slow: 0.22 },
   wind: { period: 50, warn: 6, avoid: 3 },
-  pad: { speed: 620, reach: 44, shield: 0.05, shieldSec: 3 },
+  pad: { speed: 620, reach: 44, shield: 0.05, shieldSec: 3, cd: 4 }, // cd: a hero who just landed walks for 4s (no ping-pong)
   // weekly events on these maps (src/data/events.js `maps`): Blood Moon brings a spring tide, Swift Winds faster flights
   bloodTide: 0.3, swiftPad: 1.3,
 };
@@ -106,6 +106,7 @@ export class Terrain {
   land(h) {
     const g = this.g;
     g.fx.push({ kind: 'padLand', id: h.id, team: h.team, x: h.x, y: h.y });
+    h.padCd = g.tick + sec(TERRAIN.pad.cd); h.path = null;
     if (g.beasts && g.beasts.species === 'nimbus') {
       const p = g.beasts.power(h.team);
       if (p) g.addShield(h, h.maxHp * TERRAIN.pad.shield * p, TERRAIN.pad.shieldSec, h);

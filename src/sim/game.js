@@ -1094,7 +1094,7 @@ export class Game {
         if (W.losWide(last.x, last.y, p.x, p.y)) { pc.pts[pc.pts.length - 1] = { x: p.x, y: p.y }; pc.goal = { x: p.x, y: p.y }; } else pc = null;
       }
       if (!pc || now >= pc.until || pc.i >= pc.pts.length) {
-        pc = u.path = { goal: { x: p.x, y: p.y }, pts: W.findPath(u.x, u.y, p.x, p.y, u.type === 'hero' && !!W.links), i: 0, until: now + 60 + (u.ph % 13) };
+        pc = u.path = { goal: { x: p.x, y: p.y }, pts: W.findPath(u.x, u.y, p.x, p.y, u.type === 'hero' && !!W.links && !(u.padCd > now)), i: 0, until: now + 60 + (u.ph % 13) };
       }
       const pts = pc.pts;
       while (pc.i < pts.length - 1 && dist2(u, pts[pc.i]) < 18 * 18) pc.i++;
@@ -1106,7 +1106,7 @@ export class Game {
       // (walking straight at it would grind on a wall corner, the slide flipping ±3px every tick)
       if (!W.los(u.x, u.y, step.x, step.y) && !(u.rpT > now - 10)) {
         u.rpT = now;
-        pc = u.path = { goal: { x: p.x, y: p.y }, pts: W.findPath(u.x, u.y, p.x, p.y, u.type === 'hero' && !!W.links), i: 0, until: now + 60 + (u.ph % 13) };
+        pc = u.path = { goal: { x: p.x, y: p.y }, pts: W.findPath(u.x, u.y, p.x, p.y, u.type === 'hero' && !!W.links && !(u.padCd > now)), i: 0, until: now + 60 + (u.ph % 13) };
         while (pc.i < pc.pts.length - 1 && dist2(u, pc.pts[pc.i]) < 18 * 18) pc.i++;
         step = pc.pts[pc.i];
       }
