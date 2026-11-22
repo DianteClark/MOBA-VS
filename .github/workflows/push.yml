@@ -1,0 +1,32 @@
+# Weekly push broadcasts (tools/push.mjs): every Monday morning, "This week: <event>" to devices opted into
+# weekly events, and each Ranked coach's week (tier, division, rating change) to those opted into division
+# results. Event-driven pushes (invites, rematch, cup check-ins) are sent by the Worker itself.
+# Needs the repository secrets MOBAVS_ADMIN, VAPID_PUBLIC, VAPID_PRIVATE and VAPID_SUBJECT (the same values as
+# the Worker secrets); without them the job skips.
+name: Weekly push
+on:
+  schedule:
+    - cron: '37 8 * * 1'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency: weekly-push
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Broadcast
+        env:
+          MOBAVS_API: https://moba-vs.chesscomplex.workers.dev
+          MOBAVS_ADMIN: ${{ secrets.MOBAVS_ADMIN }}
+          VAPID_PUBLIC: ${{ secrets.VAPID_PUBLIC }}
+          VAPID_PRIVATE: ${{ secrets.VAPID_PRIVATE }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
+        run: |
+          if [ -z "$MOBAVS_ADMIN" ] || [ -z "$VAPID_PRIVATE" ]; then echo "::notice::MOBAVS_ADMIN / VAPID secrets not set: weekly push is off."; exit 0; fi
+          node tools/push.mjs --event --division

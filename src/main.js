@@ -54,9 +54,14 @@ import { RIVAL_BY_ID } from './data/rivals.js';
 import { hostCoop, onCoopNet, enterAsGuest, myDraftTurn, applyDraft, draftAuto, aiDraftTurn, coopPrep, myHeroIds, sendPrep, seatReady, flushPendingPreps,
   coopCfg, runnerOpts, startedRunner, soloFallback, historyCoop } from './coop-room.js';
 import { coopResults } from './ui/coop.js';
+import { installCrashReporter, reportDesync, opsHello, track, modeKey } from './net/ops.js';
+import { openFeedback } from './ui/feedback.js';
+import { pushPromptCard, onPushOpen } from './ui/notify.js';
+import { openAdminReplay } from './ui/adminreplay.js';
 
 const VERSION = 24; // bump whenever the sim or balance changes (peers must match)
 const PREP_SECONDS = 60;
+installCrashReporter(VERSION); // window errors, unhandled rejections and lockstep desyncs → the owner dashboard (src/net/ops.js)
 
 class App {
   constructor() {
@@ -122,7 +127,10 @@ class App {
     document.getElementById('loading').remove();
     this.startBg();
     const q = new URLSearchParams(location.search), code = q.get('join'), shared = q.get('s'), invite = q.get('i');
-    if (code) this.joinScreen(code); else if (shared) showShared(this, shared); else if (invite) showInviteLink(this, invite); else this.menu();
+    if (code) this.joinScreen(code); else if (shared) showShared(this, shared); else if (invite) showInviteLink(this, invite); else if (q.get('ar')) openAdminReplay(this, q.get('ar'), VERSION);
+    else if (q.get('go') === 'cup') { try { history.replaceState(null, '', location.pathname); } catch { /* ignore */ } this.menu(); showWeekendCup(this); } else this.menu();
+    // a tapped notification while the game is open: follow its link from the menu, never mid-match
+    onPushOpen((u) => { if (this.match || this.session) return; const i = u.searchParams.get('i'); if (i) showInviteLink(this, i); else if (u.searchParams.get('go') === 'cup') showWeekendCup(this); });
     this.connectOnline();
     setTimeout(warmNet, 3000); // PeerJS off the first-paint path, ready before anyone taps Host / Join
   }
@@ -131,6 +139,7 @@ class App {
     if (!(await ping())) return;
     try {
       await ensureAccount(this.name);
+      opsHello(VERSION); // activity + A/B flag assignments
       startSocial(this); // friends' presence + invites, polled only while the menu is open
       const me = await fetchMe();
       if (me && me.profile && (me.profileAt || 0) > (profile.d.savedAt || 0)) {
@@ -607,7 +616,7 @@ class App {
     if (!pre && s.mode === 'coop' && runner.online) startedRunner(this, runner);
     runner.onHalftime = (ht) => showHalftime(this, game, s.myTeam, runner, ht);
     runner.onHalftimeEnd = () => hideHalftime();
-    if (runner.online) runner.onDesync = (k) => { console.warn('desync at', k); toast('Warning: games out of sync (tick ' + k + ')', 4000); };
+    if (runner.online) runner.onDesync = (k) => { console.warn('desync at', k); if (!s.desynced) { s.desynced = true; reportDesync({ tick: k, mode: modeKey(s), map: cfg.map, event: cfg.event }); } toast('Warning: games out of sync (tick ' + k + ')', 4000); };
     const hud = new Hud(this, game, runner, this.renderer, this.minimap, s.myTeam, s.mode);
     hud.toggleDirector(); // the auto-camera follows the action until the player drags, pans or picks a hero
     if (s.potg) {
@@ -620,6 +629,7 @@ class App {
     if (!s.replay && !pre) this.match.rec = new MatchRecorder(game);
     if (s.replay && !s.potg) this.match.theater = new Theater(this, this.match, s.replay, { back: s.theaterBack });
     if (!pre && !s.replay && s.myTeam >= 0) matchPresence(); // friends see 'In a match'
+    if (!pre && !s.replay && s.mode !== 'watch') track('match_start', { mode: modeKey(s), map: cfg.map, event: cfg.event || null });
     this.lastFrame = performance.now();
     requestAnimationFrame((t) => this.frame(t));
     // Hidden tabs stop requestAnimationFrame: keep the lockstep sim ticking so the opponent never stalls.
@@ -711,6 +721,7 @@ class App {
         if (sum && sum.ach) { sum.ach.push(...profile.checkState()); if (sum.ach.length) profile.save(); } // e.g. the Cup trophy just won
       } catch (e) { console.error(e); }
       if (s.rival && !s.replay) rivalPlayed(this, s.rival);
+      if (!s.replay && m.cfg && s.mode !== 'watch') track('match_done', { mode: modeKey(s), map: m.cfg.map, event: m.cfg.event || null, len: Math.round(m.game.time) });
       if (sum && sum.meta && !s.replay) reportDivision(won, sum.meta.calls).then((r) => r && adoptDivision(profile, r)); // Weekly Divisions (signed in)
       if (!s.replay && m.cfg) this.saveReplay(m, s, analytics, sum && profile.d.history[0] ? profile.d.history[0].t : Date.now());
       if (sum && (sum.promoted || sum.unlocks.length) && !sum.demoted) setTimeout(() => audio.sfx('powerup', 0.8), 700);
@@ -724,7 +735,7 @@ class App {
         () => this.menu(), { progress: progressPanel(sum, cupOut), rival: s.myTeam >= 0 && !s.wasOnline ? rivalPanel(sum, s, won) : null, ladder, social: s.wcup ? null : s.mode === 'coop' ? coopResults(this, s, m.game) : socialPanel(this, s), againLabel: s.cup || s.wcup ? 'Back to bracket' : s.rival && RIVAL_BY_ID[s.rival] && !s.wasOnline ? `Rematch ${RIVAL_BY_ID[s.rival].name}` : null, potg: this.potgReel ? potg : null, report,
           onPOTG: () => this.playPOTG(), onClip: potg && src && clipSupport() ? () => saveClip(src, potg, s.names, this.mapCanvas(m.game.world, m.game.event)) : null,
           analytics, onAnalysis: analytics ? () => showAnalysis(analytics, { title: 'Match analysis', onTheater: this.lastReplay() ? () => this.watchReplay(null, { back: () => this.backToResults() }) : null }) : null,
-          emotes: resultEmotes(s), onReplay: () => this.watchReplay(null, { back: () => this.backToResults() }), share: sum ? () => shareMatch(profile.d.history[0], { name: this.name, rank: profile.rank.label, border: profile.border }, this.lastReplay()) : null }];
+          emotes: resultEmotes(s), foot: this.resultsFoot(s), onReplay: () => this.watchReplay(null, { back: () => this.backToResults() }), share: sum ? () => shareMatch(profile.d.history[0], { name: this.name, rank: profile.rank.label, border: profile.border }, this.lastReplay()) : null }];
       this.lastResults = { args, session: s, src, potg };
       showResults(...args);
       if (s.mode === 'coop') this.cleanupNet(); // no rematch in co-op: the room closes with the results
@@ -733,6 +744,12 @@ class App {
       // confetti only for a real win of your own (a promotion brings its own with the rank card)
       if (won && s.myTeam >= 0 && !s.replay && !(sum && sum.promoted)) setTimeout(() => confetti(), 350);
     });
+  }
+  // Under the results: "Send feedback", and (now and then, never early) the notifications opt-in card.
+  resultsFoot(s) {
+    const foot = h('div', { class: 'rfoot' }, h('button', { class: 'linkbtn', onclick: () => openFeedback(this, { from: 'results' }) }, 'Send feedback'));
+    if (s.myTeam >= 0 && !s.replay) pushPromptCard().then((card) => { if (card) foot.prepend(card); }).catch(() => {});
+    return foot;
   }
   // ───────────── Play of the Game ─────────────
   // A fresh Game is fast-forwarded headlessly to the highlight in small background slices while the
@@ -814,7 +831,8 @@ class App {
   async reportOnline(m, s) {
     const g = m.game, season = profile.season.id;
     const body = { match: s.matchId, season, side: s.myTeam, opponent: s.oppId, winner: g.winner, checksum: String(g.checksum()), mode: s.wcup ? 'cup' : s.queue === 'ranked' && s.ranked ? 'ranked' : s.gameMode === 'rush' ? 'rush' : 'casual',
-      summary: { picks: [0, 1].map((t) => g.teams[t].heroes.map((x) => x.heroId)), kills: [g.teams[0].kills, g.teams[1].kills], len: Math.round(g.time) } };
+      summary: { picks: [0, 1].map((t) => g.teams[t].heroes.map((x) => x.heroId)), kills: [g.teams[0].kills, g.teams[1].kills], len: Math.round(g.time),
+        bans: s.draft ? s.draft.bans : undefined, plans: [0, 1].map((t) => g.teams[t].planFrom || g.teams[t].plan || null), map: s.mapId } }; // bans / plans / map: live-ops counters
     try {
       // ranked and cup results carry the command log for server-side replay verification
       if (m.cfg && (body.mode === 'ranked' || body.mode === 'cup')) body.replay = await packReplay(VERSION, m.cfg, m.runner.log, s.aiTakeover);
