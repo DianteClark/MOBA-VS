@@ -1,5 +1,7 @@
 // Pre/post-match screens: menu, lobby, how-to, draft, prep, results.
 import { h, mount, face, icon, fmtTime } from './dom.js';
+import { talentPicker } from './talentui.js';
+import { cleanPrefs } from '../data/talents.js';
 import { HEROES, HERO_BY_ID, ROLES, ROLE_LABEL, matchupScore, PERSONALITIES } from '../data/heroes.js';
 import { TACTICS, TACTIC_IDS } from '../data/tactics.js';
 import { PLAN_IDS, PLAN_INFO, planLine, EDGE_TEXT } from '../data/plans.js';
@@ -73,6 +75,8 @@ export function showHowTo(app) {
     h('p', {}, 'Arrows on the screen edge point at fights, towers under attack and contested objectives: tap one to jump there. The camera follows the action on its own until you drag it, tap the minimap or follow a hero (Cam turns it back on).'),
     h('h3', {}, '4. Big moments'), h('p', {}, 'Coach\'s Calls pop up above the buttons when something big is about to happen: pick one of the 2-3 options before the bar runs out. Fill Momentum with calls that pay off, then tap the meter for a Kami Surge.'),
     h('p', {}, 'Moments (M) are three once-per-match calls that open at 1:15: Timeout (reset cooldowns and heal), Rally (+15% damage and speed) and All-Out Push (super minions). The Ults button switches between Auto, Hold (save them for a fight) and ALL-IN. At halftime you can change the game plan, swap a card and adjust builds.'),
+    h('h3', {}, '5. Hero growth'), h('p', {}, 'At levels 4, 8 and 12 every hero takes 1 of 2 talents. Set your defaults per hero in the Dojo (hero page or Lineups) or in Prep; on Auto the hero picks for the game it is having, and a quick prompt above the buttons lets you swap it for a few seconds. Tap a portrait to see its talents and, for experts, to swap the next item it buys (Auto stays the default).'),
+    h('p', {}, 'A 3-kill streak or an objective taken nearby empowers a hero\'s next ultimate (gold ring at its feet): bigger, harder, longer. Heroes hold a grudge against whoever killed them last (a little more damage, bonus gold for the payback), rivals trade words, and when both heroes of a duo fire their ultimates within 2 seconds they combine into a duo ult. The Fight Forecast warns you about a fight coming in the next few seconds ("4v3 at Kraken in 8s") from what your team can see: Go or back off with one tap.'),
     h('h3', {}, 'Winning'), h('p', {}, 'Destroy the enemy Shrine Crystal, or have more towers standing when the clock runs out (15:00; Lane Rush: 8:00).'),
     h('h3', {}, 'Modes'), h('p', {}, 'Play vs AI pits you against rival coaches: four per difficulty, each with signature plans, favourite heroes and draft habits. Tap the rival on the Play vs AI card to see them all, pick one, and track your record (beware your nemesis). Play vs AI and the Season Cup move your rating (Bronze to Kami). Find Match pairs you with real players: Ranked climbs the ladder while Casual and Rush never change it. Lane Rush is a quick one-lane game. Host and Join are private games with a friend. Co-op puts two coaches on one team (vs the AI, or 2v2): each runs their own heroes, and the lead makes the team-wide calls (and picks the game plan) while the partner suggests them. Settings has sound, colour-blind colours, text size, reduced effects, graphics quality and a button to replay the first-match coach tips.'),
     h('h3', {}, 'Controls'), h('p', {}, 'Drag to pan, scroll or pinch to zoom, tap the minimap to jump. Keys: G O R K X B for calls, Q E T for cards, M for Moments, C to cancel, 1-5 follow heroes, Tab for the scoreboard, Space for the auto-camera.'),
@@ -132,7 +136,8 @@ export function showPrep(app, prep, enemyIds, left, onChange, onReady, ready) {
           // co-op: lanes swap only among this coach's own heroes
           ...ROLES.filter((r) => !coop || prep.heroes.some((o) => o.role === r && mine.has(o.id))).map((r) => h('option', { value: r, selected: r === hp.role }, ROLE_LABEL[r] + (x.roles.includes(r) ? '' : ' (off-role)'))))),
       h('div', { class: 'bchips' }, ...x.builds.map((bb) => h('button', { class: 'bchip' + (hp.build === bb ? ' on' : ''), style: { '--bc': BUILDS[bb].color }, 'data-build': bb, onclick: () => { hp.build = bb; audio.sfx('move', 0.4); onChange(); } }, BUILDS[bb].name, bb === x.rec ? h('i', { class: 'star', title: 'Recommended' }) : null))),
-      h('div', { class: 'bsel' }, h('div', { class: 'bd' }, b.desc), h('div', { class: 'items' }, ...b.items.map((it) => h('img', { src: icon(it.icon), title: `${it.name} (${it.cost}g)` })))));
+      h('div', { class: 'bsel' }, h('div', { class: 'bd' }, b.desc), h('div', { class: 'items' }, ...b.items.map((it) => h('img', { src: icon(it.icon), title: `${it.name} (${it.cost}g)` })))),
+      rush ? null : talentPicker(hp.id, cleanPrefs(hp.tal), (i, k) => { hp.tal = cleanPrefs(hp.tal); hp.tal[i] = k; onChange(); }, ready)); // v23 talents (Lane Rush has none)
   };
   const clans = (() => {
     const c = {}; for (const p of prep.heroes) { const k = HERO_BY_ID[p.id].clan; c[k] = (c[k] || 0) + 1; }

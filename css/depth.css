@@ -1,0 +1,69 @@
+/* v23 match depth: talents, item override, empowered ults, fight forecast */
+:root { --emp: #ffcf4a; --tal: #c9a7ff; }
+
+/* Dojo hero page: full talent list */
+.tal-list { display: flex; flex-direction: column; gap: 6px; }
+.tal-tier { display: flex; gap: 6px; align-items: stretch; }
+.tal-lv { flex: 0 0 34px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 12px; color: var(--tal); border: 2px solid #3a2f4a; background: #1a1424; }
+.tal-lv small { font-size: 8px; color: var(--muted); }
+.tal-opt { flex: 1 1 0; min-width: 0; display: flex; gap: 6px; align-items: center; text-align: left; padding: 5px 7px; background: #1d1728; border: 2px solid var(--line); color: var(--ink); cursor: pointer; font-family: inherit; }
+.tal-opt img { width: 24px; height: 24px; flex: 0 0 24px; }
+.tal-opt div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.tal-opt b { font-weight: normal; font-size: 12px; }
+.tal-opt small { font-size: 10px; color: var(--muted); line-height: 1.25; }
+.tal-opt.on { border-color: var(--tal); background: #261d36; box-shadow: inset 0 0 0 1px #000; }
+.tal-opt.on b { color: var(--tal); }
+.tal-opt:hover { border-color: var(--tal); }
+
+/* compact picker: prep cards, lineup modal */
+.tal-pick { display: flex; flex-direction: column; gap: 3px; margin-top: 4px; }
+.tal-seg { display: flex; gap: 3px; align-items: center; min-width: 0; }
+.tal-seg .tal-lv { flex: 0 0 26px; font-size: 10px; border-width: 1px; padding: 2px 0; }
+.tal-b { flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 3px; padding: 2px 4px; min-height: 26px; font-family: inherit; font-size: 10px; background: #1d1728; border: 1px solid var(--line); color: var(--ink); cursor: pointer; }
+.tal-b.auto { flex: 0 0 auto; color: var(--muted); }
+.tal-b img { width: 14px; height: 14px; flex: 0 0 14px; }
+.tal-b span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tal-b.on { border-color: var(--tal); color: var(--tal); background: #261d36; }
+.tal-b:disabled { opacity: 0.55; cursor: default; }
+.ltal { display: block; width: 100%; margin-top: 3px; min-height: 18px; font-family: inherit; font-size: 9px; color: var(--tal); background: none; border: 1px dashed #4a3f58; padding: 2px 4px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+
+/* taken talents on the hero card (popover) and the follow panel */
+.tal-ic { display: inline-flex; gap: 2px; align-items: center; }
+.tal-ic img { width: 16px; height: 16px; background: #0006; outline: 1px solid var(--tal); }
+.tal-dot { width: 6px; height: 6px; border: 1px solid #4a3f58; transform: rotate(45deg); margin: 0 3px; display: inline-block; }
+.hpop .ptal { display: flex; gap: 5px; align-items: center; }
+.hpop .pemp { font-weight: normal; color: var(--emp); margin-left: auto; }
+#detail .dtal { display: flex; align-items: center; margin-left: 2px; }
+#detail .dtal .tal-ic img { width: 14px; height: 14px; }
+#detail .abl.emp { border-color: var(--emp); box-shadow: 0 0 6px var(--emp); }
+.hrow .pf .ultdot.emp { border-color: #fff3c0; background: #6a4a08; box-shadow: 0 0 10px var(--emp), 0 0 3px #fff; }
+
+/* hero sheet: next item + talents */
+.sh-row.dp-items, .sh-row.dp-tal { flex-wrap: nowrap; min-width: 0; }
+.sh-row.dp-items > .muted, .sh-row.dp-tal > .muted { flex: 0 0 54px; }
+.dp-chips { display: flex; gap: 4px; flex: 1 1 auto; min-width: 0; }
+.chip.dp-it, .chip.dp-t { flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 4px; padding: 2px 6px; min-height: 30px; font-size: 10px; }
+.chip.dp-it img, .chip.dp-t img { width: 16px; height: 16px; flex: 0 0 16px; }
+.chip.dp-it span, .chip.dp-t span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.chip.dp-it small { font-size: 8px; color: var(--muted); margin-left: auto; }
+.chip.dp-it.on { border-color: var(--gold); color: var(--gold); }
+.chip.dp-t.taken { border-color: var(--tal); color: var(--tal); }
+.chip.dp-t.open { animation: talOpen 0.8s ease-in-out infinite alternate; }
+.chip.dp-it:disabled, .chip.dp-t:disabled { cursor: default; opacity: 0.8; }
+@keyframes talOpen { to { box-shadow: 0 0 8px var(--tal); } }
+
+/* tray: live talent prompt and fight forecast */
+.titem.talq { border-color: var(--tal); border-left-color: var(--tal); }
+.titem.talq .ttl { color: var(--tal); }
+.titem.talq .tch.tal { flex-direction: row; gap: 4px; padding: 3px 7px; max-width: 34%; background: #2a2038; color: var(--ink); border-color: #000; }
+.titem.talq .tch.tal img { width: 16px; height: 16px; flex: 0 0 16px; }
+.titem.talq .tch.tal .tl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.titem.talq .tch.tal small { font-size: 8px; }
+.titem.talq .tch.tal.on { background: var(--tal); color: #1a0f28; }
+.titem.fcast .tc-head b { color: #ffe9a0; }
+@media (prefers-reduced-motion: reduce) { .chip.dp-t.open { animation: none; box-shadow: 0 0 6px var(--tal); } }
+.reduce-motion .chip.dp-t.open { animation: none; box-shadow: 0 0 6px var(--tal); }
+/* lineups: the talent summary sits on its own line under the build chips */
+.lbuilds:has(.ltal) { flex-wrap: wrap; row-gap: 2px; }
+.lbuilds .ltal { flex: 1 0 100%; margin-top: 0; }
+.lbuilds:has(.ltal) .bchip { min-height: 30px; }

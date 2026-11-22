@@ -25,6 +25,8 @@ import { planName } from '../data/plans.js';
 import { EVENT_BY_ID } from '../data/events.js';
 import { canCommand, HERO_CMDS } from '../sim/coop.js';
 import { COOP_COL, coachOf } from '../coop-room.js';
+import { Depth } from './depth.js';
+import { talentIcons, talentKey } from './talentui.js';
 
 const LANE_L = { top: 'Top', mid: 'Mid', bot: 'Bot' };
 const OBJ_L = OBJ_NAME;
@@ -51,6 +53,7 @@ export class Hud {
     if (Hud.current && Hud.current !== this) Hud.current.destroy();
     Hud.current = this;
     if (!runner.online && mode !== 'watch') runner.speed = settings.speed || 1;
+    this.depth = game.depth ? new Depth(this) : null; // v23 match depth: talents, item override, forecasts
     this.build();
     // joining a game already in progress (Play of the Game): skip its history, keep its tallies
     if (game.tick > 0) {
@@ -410,7 +413,7 @@ export class Hud {
       if (q.mia) { row.classList.toggle('mia', !vis && x.alive); q.mia.classList.toggle('hidden', vis || !x.alive); }
       const ultUp = mine && x.alive && x.level >= 5 && g.abilityReady(x, 2);
       if (ultUp && q.ult.classList.contains('hidden')) { row.classList.remove('ultpop'); void row.offsetWidth; row.classList.add('ultpop'); }
-      q.ult.classList.toggle('hidden', !ultUp);
+      q.ult.classList.toggle('hidden', !ultUp); q.ult.classList.toggle('emp', !!(ultUp && x.ultUp));
       // mood badge (your heroes only): tilted > inspired > doubtful
       const mood = !mine || this.my < 0 || !x.alive ? null : x.tiltUntil > g.tick ? 'tilt' : x.trust >= 70 ? 'up' : x.trust <= 30 ? 'doubt' : null;
       if (mood !== q.mood) {
@@ -426,7 +429,7 @@ export class Hud {
     this.closePop();
     const g = this.g, pers = PERSONALITIES[x.def.pers], mine = x.team === this.view && this.my >= 0;
     const abl = x.def.abilities.map((ab, i) => h('div', { class: 'abl', title: ab.name }, h('img', { src: icon(ab.icon) }), h('div', { class: 'cd' }), h('span', { class: 'k' }, ab.ult ? 'R' : ['Q', 'W'][i])));
-    const els = { hp: h('i'), trust: h('i'), trustL: h('small', {}), stats: h('div', { class: 'pstats' }), task: h('div', { class: 'ptask' }), why: h('div', { class: 'pwhy' }), items: h('div', { class: 'its' }) };
+    const els = { hp: h('i'), trust: h('i'), trustL: h('small', {}), stats: h('div', { class: 'pstats' }), task: h('div', { class: 'ptask' }), why: h('div', { class: 'pwhy' }), items: h('div', { class: 'its' }), tal: h('div', { class: 'ptal' }) };
     const el = h('div', { id: 'hpop', class: 'hpop' },
       h('div', { class: 'phead' }, h('img', { class: 'pface', src: face(x.heroId), style: { borderColor: `var(--team${x.team})` } }),
         h('div', { class: 'pcol' }, h('b', { style: { color: `var(--team${x.team})` } }, x.def.name), h('small', { class: 'muted' }, x.def.title),
@@ -437,7 +440,7 @@ export class Hud {
       h('div', { class: 'pdesc' }, pers.desc),
       h('div', { class: 'pbarrow' }, h('span', {}, 'HP'), h('div', { class: 'pbar hp' }, els.hp)),
       mine ? h('div', { class: 'pbarrow' }, h('span', {}, 'Trust'), h('div', { class: 'pbar tr' }, els.trust), els.trustL) : null,
-      h('div', { class: 'ablrow' }, ...abl, els.items), els.stats, els.task, els.why);
+      h('div', { class: 'ablrow' }, ...abl, els.items), x.tal ? els.tal : null, els.stats, els.task, els.why);
     document.body.append(el);
     const upd = () => {
       const vis = mine || this.my < 0 || !this.r.fogOn || g.vision[this.view].has(x.id);
@@ -452,6 +455,7 @@ export class Hud {
         if (c.textContent !== t) c.textContent = t; abl[i].classList.toggle('cool', mine || this.my < 0 ? (locked || left > 0) : false);
       });
       if (els.items.childElementCount !== x.items.length) mount(els.items, ...x.items.map((it) => h('img', { src: icon(it.icon), title: it.name })));
+      if (x.tal && els.tal._k !== talentKey(x) + x.ultUp) { els.tal._k = talentKey(x) + x.ultUp; mount(els.tal, h('span', { class: 'muted' }, 'Talents'), talentIcons(x), x.ultUp ? h('b', { class: 'pemp' }, 'Ult empowered') : null); }
       els.stats.textContent = `Lv ${x.level}  ·  ${x.kills}/${x.deaths}/${x.assists}  ·  ${x.cs} CS  ·  ${Math.round(x.goldEarned / 100) / 10}k gold`;
       els.task.textContent = !x.alive ? this.taskLabel(x) : mine ? this.taskLabel(x) : vis ? this.taskLabelEnemy(x) : this.missingText(x);
       setText(els.why, this.whyText(x));
@@ -493,14 +497,14 @@ export class Hud {
     if (force || !this._det || this._det.id !== x.id) {
       const pers = PERSONALITIES[x.def.pers];
       const abl = x.def.abilities.map((ab, i) => h('div', { class: 'abl', title: `${ab.name}${ab.ult ? ' (ultimate)' : ''}` }, h('img', { src: icon(ab.icon) }), h('div', { class: 'cd' }), h('span', { class: 'k' }, ['Q', 'W', 'R'][i])));
-      this._det = { id: x.id, abl, xp: h('i'), hp: h('i'), stats: h('div', { class: 'stats' }), info: h('div', { class: 'dinfo' }), why: h('div', { class: 'dwhy' }), items: h('div', { class: 'its' }) };
+      this._det = { id: x.id, abl, xp: h('i'), hp: h('i'), stats: h('div', { class: 'stats' }), info: h('div', { class: 'dinfo' }), why: h('div', { class: 'dwhy' }), items: h('div', { class: 'its' }), tal: h('div', { class: 'dtal' }) };
       mount(this.el.detail,
         h('div', { class: 'dhead' }, h('img', { class: 'dface', src: face(x.heroId) }),
           h('div', { class: 'dcol' },
             h('div', { class: 'dname' }, h('span', { style: { color: TEAM_COL[x.team] } }, x.def.name), h('span', { class: 'muted' }, ` ${x.def.title}`)),
             h('div', { class: 'dtags' }, h('span', { style: { color: CLANS[x.def.clan].color } }, CLANS[x.def.clan].name), h('span', { style: { color: pers.color } }, pers.name), h('span', { style: { color: BUILDS[x.build].color } }, BUILDS[x.build].name)),
             h('div', { class: 'dbar hp' }, this._det.hp), h('div', { class: 'dbar xp' }, this._det.xp))),
-        h('div', { class: 'ablrow' }, ...abl, this._det.items), this._det.stats, this._det.info, this._det.why);
+        h('div', { class: 'ablrow' }, ...abl, this._det.items, x.tal ? this._det.tal : null), this._det.stats, this._det.info, this._det.why);
     }
     const d = this._det;
     setCss(d.hp, 'width', Math.round(x.alive ? x.hp / x.maxHp * 200 : 0) / 2 + '%');
@@ -513,6 +517,8 @@ export class Hud {
       d.abl[i].classList.toggle('cool', locked || left > 0);
     });
     if (d.items.childElementCount !== x.items.length) mount(d.items, ...x.items.map((it) => h('img', { src: icon(it.icon), title: it.name })));
+    if (x.tal && d.tal._k !== talentKey(x)) { d.tal._k = talentKey(x); mount(d.tal, talentIcons(x)); }
+    d.abl[2].classList.toggle('emp', !!x.ultUp);
     setText(d.stats, `AD ${Math.round(s.ad)}  AP ${Math.round(s.ap)}  AR ${Math.round(s.armor)}  MR ${Math.round(s.mr)}  AS ${s.as.toFixed(2)}  MS ${Math.round(g.moveSpeed(x))}`);
     setText(d.info, `Lv ${x.level} · ${x.kills}/${x.deaths}/${x.assists} · ${x.cs} CS · ${Math.round(x.goldEarned / 100) / 10}k` + (x.team === this.my ? ` · Trust ${Math.round(x.trust)}${x.tiltUntil > g.tick ? ' (tilted)' : ''}` : '') + ` · ${this.taskLabel(x)}`);
     const why = this.whyText(x); setText(d.why, why); d.why.classList.toggle('hidden', !why);
@@ -602,6 +608,7 @@ export class Hud {
         case 'finalPhase': this.banner('LAST STAND', '#ff8a3a', 2200, null); this.ticker(`Final ${Math.round(g.timeLeft / 60)} minutes: gold ×1.5, longer respawns. Every tower counts!`, 'act', 3); break;
         case 'stolenCamp': if (e.big && e.team !== this.view) this.ticker('Enemy invaded your jungle!', 'danger', 2); break;
       }
+      if (this.depth) this.depth.event(e);
     }
   }
   // A call in words (spectator ticker, a co-op partner's calls and suggestions).
@@ -609,7 +616,7 @@ export class Hud {
     return c.type === 'gank' ? `${c.hero ? this.name(c.hero) : 'Jungler'} gank ${LANE_L[c.lane]}` : c.type === 'objective' ? `Take ${OBJ_L[c.obj]}` : c.type === 'group' ? `Group ${LANE_L[c.lane]}` :
       c.type === 'split' ? `${this.name(c.hero)} split ${LANE_L[c.lane]}` : c.type === 'focus' ? `Focus ${this.name(c.target)}` : c.type === 'build' ? `${this.name(c.hero)} → ${(BUILDS[c.build] || {}).name || 'new build'}` :
       c.type === 'herald' ? `Oni ${LANE_L[c.lane]}` : c.type === 'shrine' ? 'Capture shrine' : c.type === 'safe' ? 'Play safe' : c.type === 'reset' ? 'Reset' : c.type === 'invade' ? 'Invade' :
-      c.type === 'permit' ? `${this.name(c.hero)} green-lit` : c.type === 'surge' ? 'Kami Surge' : c.type === 'moment' ? (MOMENTS[c.id] || {}).name || 'Coach Moment' :
+      c.type === 'permit' ? `${this.name(c.hero)} green-lit` : c.type === 'talent' ? `${this.name(c.hero)} talent` : c.type === 'item' ? `${this.name(c.hero)} item swap` : c.type === 'surge' ? 'Kami Surge' : c.type === 'moment' ? (MOMENTS[c.id] || {}).name || 'Coach Moment' :
       c.type === 'tactic' ? `${(TACTICS[c.card] || {}).name || 'Tactic card'}${c.lane ? ' ' + LANE_L[c.lane] : c.hero ? ' on ' + this.name(c.hero) : ''}` :
       c.type === 'ult' ? ({ go: 'ALL-IN, ultimates fire next fight!', save: 'Hold ultimates', free: 'Ults: heroes choose' })[c.mode] || 'Ult stance' : c.type === 'plan' ? `Plan: ${planName(c.plan)}` : c.type === 'redraw' ? 'Swapped a tactic card' : 'Cancel calls';
   }
@@ -716,6 +723,7 @@ export class Hud {
     if (g.teams[me].charges >= CMD.maxCharges) this.stats.fullCharge += Math.max(0, now - this.stats.lastTick) / TICK_RATE;
     this.stats.lastTick = now;
     this.moments();
+    if (this.depth) this.depth.tick(); // fight forecast
     const carding = this.dock.tray.items.some((i) => i.prio >= PRIO.request);
     const jg = mine.find((x) => x.role === 'jungle');
     const deadEnemies = enemy.filter((x) => !x.alive && x.respawnAt - now > 15 * TICK_RATE);

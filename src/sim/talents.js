@@ -134,10 +134,11 @@ export function talentLevel(g, h) {
 }
 
 // ── commands ──
-// talent { hero, tier, pick }: before the level, set the preference; within the window, swap the pick.
+// talent { hero, tier, pick }: before the level, set the preference (-1 = the hero decides); within the
+// window, swap the pick.
 export function cmdTalent(g, c) {
   const h = g.teams[c.team].heroes.find((x) => x.id === c.hero), tier = c.tier, pick = c.pick;
-  if (!h || !h.tal || !(tier === 0 || tier === 1 || tier === 2) || !(pick === 0 || pick === 1)) return false;
+  if (!h || !h.tal || !(tier === 0 || tier === 1 || tier === 2) || !(pick === 0 || pick === 1 || (pick === -1 && h.tal[tier] < 0))) return false;
   if (h.tal[tier] < 0) { if (h.talPref[tier] === pick) return false; h.talPref[tier] = pick; return true; }
   if (h.tal[tier] === pick || g.tick > h.talAt[tier] + sec(TALENT_WINDOW)) return false;
   h.tal[tier] = pick; rebuild(g, h);
