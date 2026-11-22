@@ -17,6 +17,7 @@ import { drawEmbers, hearthPop } from './hearthfx.js';
 import { feudLine } from '../data/feuds.js';
 import { LivingFx } from './livingfx.js';
 import { BeastsFx } from './beastsfx.js';
+import { TerrainFx } from './terrainfx.js';
 import { settings, textScale, renderDpr } from '../ui/settings.js';
 
 export { TEAM_COL, TEAM_DARK };
@@ -61,6 +62,7 @@ export class Renderer {
     this.amb = new Ambient(this);
     this.evfx = new EventFx(this); // weekly map event veil / motes
     this.lw = new LivingFx(this); // Living World: night, walls, Yokai Parade
+    this.tf = new TerrainFx(this); // v25 maps: the tide, wind bridges, jump pads
     this.bf = new BeastsFx(this); // Bosses & Beasts: Kami, rare bosses, minion families, themed camps, scout pets
     this.detail = 2; // 2 high, 1 medium (Auto, after a slow spell), 0 low
     this.castT = new Map(); this.corpses = []; this.wasAlive = new Map(); this.spawnT = new Map(); this.knock = new Map(); this.bossSeen = new Map();
@@ -109,7 +111,7 @@ export class Renderer {
     this.game = game; this.viewTeam = viewTeam; this.map = map || paintMap(game.world); this.theme = THEMES[game.world.def.theme] || THEMES.spring;
     this.fogSmooth.fill(0); this.prev.clear(); this.effects = []; this.texts = []; this.lines = []; this.fxp.clear(); this.focus = null;
     this.dprCap = 0; this.slowT = 0; this.detail = settings.quality === 'battery' ? 0 : 2;
-    this.vfx.reset(); this.amb.attach(game.world, this.theme); this.evfx.attach(game); this.lw.attach(game); this.bf.attach(game);
+    this.vfx.reset(); this.amb.attach(game.world, this.theme); this.evfx.attach(game); this.lw.attach(game); this.bf.attach(game); this.tf.attach(game);
     this.castT.clear(); this.corpses = []; this.wasAlive.clear(); this.spawnT.clear(); this.knock.clear(); this.bossSeen.clear();
     for (const u of game.units) if (u.type === 'hero') this.wasAlive.set(u.id, u.alive);
     this.chatter.reset(); this.hpT.clear(); this.heroPos.clear(); this.callouts = []; this.trauma = 0; this.hitStop = 0; this.tint = null; this.panTo = null; this.visSlow = null;
@@ -231,6 +233,7 @@ export class Renderer {
         case 'hearth': hearthPop(this, f); break; // v24 Hearthfire
         case 'recall': break;
         case 'wallHit': this.lw.fxHit(f); break;
+        case 'pad': case 'padLand': this.tf.fx(f); break;
         case 'emote': if (u && (u.team === this.viewTeam || this.viewTeam < 0)) emotes.push({ u, e: f.e }); break;
       }
     }
@@ -430,6 +433,7 @@ export class Renderer {
     // ambient ground layer (water shimmer, flowers, flags) under everything that moves
     this.amb.drawGround(ctx, x0, y0, vw, vh, vdt);
     this.lw.drawGround(ctx, inView); // breakable walls
+    this.tf.drawGround(ctx, inView, x0, y0, vw, vh); // floodwater, rafts, wind bridges, jump pads
     // ground effects: skillshot lanes, telegraphs, zones, ult sigils
     for (const e of this.effects) if (e.kind === 'tele' || e.kind === 'zone' || e.kind === 'lane' || e.kind === 'sigil') this.vfx.drawGround(e);
     // wards
@@ -696,7 +700,7 @@ export class Renderer {
       const big = u.type === 'objective' ? 2.4 : u.type === 'mob' && u.big ? 1.6 : 0.8;
       ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(x, y + 2, 9 * big, 4 * big, 0, 0, Math.PI * 2); ctx.fill();
     }
-    const tk = g.tick + (this._alphaNow || 0), lift = this.motion ? this.liftOf(u, tk) : 0;
+    const tk = g.tick + (this._alphaNow || 0), lift = u.dash && u.dash.pad ? this.tf.lift(u, tk) : this.motion ? this.liftOf(u, tk) : 0; // (a jump pad flight arcs even with Reduced effects: it is information)
     const walkF = Math.floor(this.time * 8 + u.id) % 4;
     const attacking = g.tick - u.animAttack < 6;
     // squash on hit, stretch on spawn, bob on the walk, breathe at rest, lunge on attacks
@@ -897,7 +901,7 @@ export class Renderer {
   drawBars(d) {
     const { u } = d, ctx = this.ctx, g = this.game;
     if (!u.alive) return;
-    const x = d.x, y = d.y;
+    const x = d.x, y = d.y - (u.dash && u.dash.pad ? this.tf.lift(u, g.tick + (this._alphaNow || 0)) : 0); // (a jump pad flight carries its bars along)
     if (u.type === 'hero') {
       const w = 40, h = 5, top = y - 46, pct = u.hp / u.maxHp;
       this.bar(x - w / 2, top, w, h, u, TEAM_COL[u.team], TEAM_DARK[u.team]);

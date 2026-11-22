@@ -34,6 +34,8 @@ export const KAMI = {
   racoon: { name: 'Racoon Kami', elder: 'Golden Racoon', short: 'Racoon', color: '#ffc94a', blessing: 'Racoon\'s Purse', desc: 'Takedowns pay 12% more, and the team shares a 25 gold bounty per blessing' },
   tengu: { name: 'Tengu Kami', elder: 'Elder Tengu', short: 'Tengu', color: '#bfe3ff', blessing: 'Mountain Gale', desc: '+2.5% move speed, +3% more out of combat, per blessing' },
   samurai: { name: 'Samurai Kami', elder: 'Blue Samurai', short: 'Samurai', color: '#ff7a5a', blessing: 'Samurai\'s Edge', desc: '+6% attack speed and +3% armor pen per blessing' },
+  ryujin: { name: 'Ryujin', elder: 'Jade Ryujin', short: 'Ryujin', color: '#5ec8e8', blessing: 'Ryujin\'s Tide', desc: '+6 ability haste per blessing, and your heroes wade through floodwater at full speed' },
+  nimbus: { name: 'Cloud Spirit', elder: 'Sun Spirit', short: 'Spirit', color: '#cfe8ff', blessing: 'Updraft', desc: '+3% omnivamp per blessing, and a jump pad lands you with a shield of 5% max HP per blessing' },
 };
 export const KAMI_IDS = Object.keys(KAMI);
 // A base Kami's element is its species: the shared Kami info (names, colours) knows them all.
@@ -41,7 +43,7 @@ for (const [k, v] of Object.entries(KAMI)) DRAGON_INFO[k] = { name: v.name, shor
 // The world boss's name: the map's Elder Kami.
 export const elderName = (sp) => (KAMI[sp] ? KAMI[sp].elder : 'Elder Kami');
 // What a coach should know about a blessing (AI value per stack, roughly "gold-equivalent per hero").
-export const KAMI_VALUE = { frog: 0.8, slime: 1, bamboo: 1.1, racoon: 0.9, tengu: 0.9, samurai: 1.1 };
+export const KAMI_VALUE = { frog: 0.8, slime: 1, bamboo: 1.1, racoon: 0.9, tengu: 0.9, samurai: 1.1, ryujin: 1, nimbus: 1 };
 
 export class Beasts {
   constructor(g) {
@@ -142,6 +144,8 @@ export class Beasts {
       case 'tengu': s.msPct += 0.025 * p + (now - h.lastCombat > sec(4) ? 0.03 * p : 0); break;
       case 'samurai': s.asPct += 0.06 * p; s.pen += 0.03 * p; break;
       case 'bamboo': if (g.grid.query(h.x, h.y, 600).some((a) => a !== h && a.type === 'hero' && a.alive && a.team === h.team)) s.resPct += 0.05 * p; break;
+      case 'ryujin': s.haste += 6 * p; break; // (+ floodwater: src/sim/terrain.js)
+      case 'nimbus': s.omnivamp += 0.03 * p; break; // (+ pad shields: src/sim/terrain.js)
     }
   }
   // game.dealDamage: Bamboo Grove (structures of a blessed team take less).

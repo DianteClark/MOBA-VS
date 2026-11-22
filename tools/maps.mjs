@@ -3,7 +3,8 @@
 //   node tools/maps.mjs [outDir]
 import { writeFileSync } from 'node:fs';
 import { MAPS, RUSH_MAPS } from '../src/maps/defs.js';
-import { World, N, C, S, T_LANE, T_BASE, T_RIVER, T_PIT, T_SHRINE } from '../src/sim/world.js';
+import { World, N, C, S, T_LANE, T_BASE, T_RIVER, T_PIT, T_SHRINE, T_DEEP } from '../src/sim/world.js';
+import { Terrain } from '../src/sim/terrain.js';
 import { segDist2 } from '../src/sim/geom.js';
 import { RANGE } from '../src/sim/constants.js';
 // A tower acquires heroes whose centre is within RANGE.tower + 14 (see Game.updateTower).
@@ -36,6 +37,7 @@ for (const def of [...MAPS, ...RUSH_MAPS]) {
   const t0 = Date.now(); let plen = 0; for (let k = 0; k < 50; k++) { const p = w.findPath(w.fountain[0].x, w.fountain[0].y, goals[k % goals.length].x, goals[k % goals.length].y); plen += p.length; } const ms = (Date.now() - t0) / 50;
   console.log(`${def.name}: open ${(open / N / N * 100).toFixed(0)}%, brush cells ${brush}, structures ${w.structures.length}, A* ${ms.toFixed(2)}ms avg, tower clearance pit ${Math.round(minPit)}/${PIT_CLEAR} camp ${minCamp < 1e9 ? Math.round(minCamp) : '-'}/${CAMP_CLEAR}, ${miss ? 'ISSUES' : 'all reachable ✔'}`);
   if (def.walls && !def.single) miss += livingCheck(def, towers);
+  if (def.gates || def.pads) bad += terrainCheck(def);
   bad += towerCheck(def);
   if (out) {
     const px = 4, Wd = N * px; const buf = Buffer.alloc(Wd * Wd * 3);
@@ -95,7 +97,7 @@ function towerCheck(def) {
       n++;
       if (!w.walk[i] && !footOf(p)) blocked++;
       if (w.brush[i]) dirty.push('brush');
-      if ([T_RIVER, T_PIT, T_SHRINE].includes(w.type[i])) dirty.push(['', '', '', 'water', '', 'pit', 'shrine'][w.type[i]]);
+      if ([T_RIVER, T_PIT, T_SHRINE, T_DEEP].includes(w.type[i])) dirty.push(['', '', '', 'water', '', 'pit', 'shrine', '', 'deep water'][w.type[i]]);
       if (w.wallAt && w.wallAt[i] >= 0) dirty.push('breakable wall');
     }
     if (dirty.length) say(`${nm} plaza has ${[...new Set(dirty)].join(', ')} in it`);
@@ -113,5 +115,45 @@ function towerCheck(def) {
     const at = lane.filter((s) => s.lane === ln && s.team === t).map((s) => w.laneProgress(ln, s) * len).sort((a, b) => a - b);
     for (let i = 1; i < at.length; i++) if (at[i] - at[i - 1] < 150) say(`${ln} t${t}: two structures only ${Math.round(at[i] - at[i - 1])}px apart along the lane`);
   }
+  return miss;
+}
+
+// v25 maps (src/sim/terrain.js): in every tide / wind state the whole map stays connected (pads not counted); each
+// crossing is a real shortcut when it opens; jump pads land on open ground across real void or water (no straight
+// walk between the ends) and save a real detour; deep water is never walkable ground; crossings stay off walls.
+function terrainCheck(def) {
+  let miss = 0; const say = (m) => { console.log(`  ✘ ${def.id}: ${m}`); miss++; };
+  const w = new World(def, { walls: true }), all = (1 << w.gates.length) - 1;
+  const g = { world: w, time: 0, tick: 0 }, T = new Terrain(g);
+  const states = def.tide ? [['low tide', T.maskAt(0)], ['high tide', T.maskAt(300)]] : def.wind ? [['wind A', T.maskAt(0)], ['wind B', T.maskAt(60)]] : [['plain', 0]];
+  const keys = [['red fountain', w.fountain[1]], ['kraken', w.pits.kraken], ['kami', w.pits.kami], ...w.shrines.map((p, i) => ['shrine' + i, p]), ...w.camps.map((c) => ['camp ' + c.id + c.side, c])];
+  for (const [n, m] of [['all closed', 0], ...states]) {
+    w.setGates(m);
+    const seen = new Uint8Array(N * N), q = []; const s0 = w.nearestOpen(w.fountain[0]), i0 = w.idx(s0.x, s0.y); seen[i0] = 1; q.push(i0);
+    while (q.length) { const c = q.pop(), x = c % N, y = (c / N) | 0; for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nx = x + dx, ny = y + dy, i = ny * N + nx; if (nx >= 0 && ny >= 0 && nx < N && ny < N && w.walk[i] && !seen[i]) { seen[i] = 1; q.push(i); } } }
+    for (const [k, p] of keys) { const o = w.nearestOpen(p); if (!seen[w.idx(o.x, o.y)]) say(`${k} unreachable at ${n}`); }
+    for (const pd of w.pads) for (const e of [pd.a, pd.b]) if (!seen[w.idx(e.x, e.y)]) say(`pad ${pd.id} end unreachable at ${n}`);
+  }
+  const plen = (a, b, links) => { const p = w.findPath(a.x, a.y, b.x, b.y, links); let d = 0, q = a; for (const r of p) { d += r.land !== undefined ? 0 : Math.hypot(r.x - q.x, r.y - q.y); q = r; } return d; };
+  const rep = [];
+  for (const x of w.gates) {
+    w.setGates(0); const e = [w.nearestOpen(x.a), w.nearestOpen(x.b)], before = plen(e[0], e[1]);
+    w.setGates(1 << x.id); const after = plen(e[0], e[1]);
+    if (!(after < before - 120)) say(`crossing ${x.id} (${x.kind}) is no shortcut: ${Math.round(before)} -> ${Math.round(after)}px`);
+    if (w.wallAt) for (const i of x.cells) if (w.wallAt[i] >= 0) { say(`crossing ${x.id} overlaps a breakable wall`); break; }
+    rep.push(`${x.kind} ${Math.round(before)}->${Math.round(after)}`);
+  }
+  w.setGates(0);
+  for (const pd of w.pads) {
+    for (const e of [pd.a, pd.b]) if (!w.isWalk(e.x, e.y)) say(`pad ${pd.id} end not on open ground`);
+    if (w.los(pd.a.x, pd.a.y, pd.b.x, pd.b.y)) say(`pad ${pd.id}: its ends see each other (a walk, not a jump)`);
+    const walk = plen(pd.a, pd.b, false);
+    if (walk < pd.len * 1.5) say(`pad ${pd.id} saves too little: walk ${Math.round(walk)} vs flight ${Math.round(pd.len)}`);
+    const route = w.findPath(pd.a.x, pd.a.y, pd.b.x, pd.b.y, true);
+    if (!route.some((r) => r.land === pd.id)) say(`pad ${pd.id}: A* does not take it`);
+    rep.push(`pad ${Math.round(walk)}->${Math.round(pd.len)}`);
+  }
+  for (let i = 0; i < N * N; i++) if (w.type[i] === T_DEEP && w.walk[i] && !(w.gateAt && w.gateAt[i] >= 0)) { say(`deep water walkable at cell ${i}`); break; }
+  console.log(`  ${def.id} terrain: ${rep.join(', ')}${miss ? '' : ' ✔'}`);
   return miss;
 }

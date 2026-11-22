@@ -4,8 +4,9 @@ import { HEROES } from '../src/data/heroes.js';
 import { EVENTS } from '../src/data/events.js';
 const pick = (ids) => ids.map((id) => { const h = HEROES.find((x) => x.id === id); return { id, role: h.role, build: h.rec }; });
 // 'event': a weekly map event on a v22 map (Kami Storm on Mossgate Ruins); every other event gets a short run below
+// 'tide' / 'sky': Tidebreak Harbor and Skyreach Isles as the app plays them (Living World, Bosses & Beasts, depth)
 // 'living': Living World + Bosses & Beasts (night, Moon Spirits, Yokai Parade, walls, Slime Kami + Elder, scout pets) on Moonlit Marsh during Blood Moon week, with v23 match depth as the app plays it
-const cfg = (mode, ev) => ({ seed: 777, coach: [false, true], ...(mode === 'rush' ? { mode: 'rush', map: 'rush_ember' } : mode === 'event' ? { map: 'ruins', event: 'kamistorm' } : mode === 'living' ? { map: 'marsh', living: 1, beasts: 1, depth: true, event: 'bloodmoon' } : ev ? { map: 'oasis', event: ev } : {}), teams: [
+const cfg = (mode, ev) => ({ seed: 777, coach: [false, true], ...(mode === 'rush' ? { mode: 'rush', map: 'rush_ember' } : mode === 'event' ? { map: 'ruins', event: 'kamistorm' } : mode === 'living' ? { map: 'marsh', living: 1, beasts: 1, depth: true, event: 'bloodmoon' } : mode === 'tide' || mode === 'sky' ? { map: mode, living: 1, beasts: 1, depth: true } : ev ? { map: 'oasis', event: ev } : {}), teams: [
   { heroes: pick(['grok', 'umbra', 'totem', 'bolt', 'bonehook']), plan: 'aggro', deck: ['smoke', 'ambush', 'rally'] },
   { heroes: pick(['varro', 'gama', 'hex', 'sling', 'aurelia']), plan: 'scale' } ] });
 // A scripted "human" for blue.
@@ -16,7 +17,7 @@ const livingScript = { 3700: { type: 'scout', x: 1500, y: 1400 }, 5000: { type: 
 function run(mode, ev, maxTick = 20 * 60 * 25) {
   const g = new Game(cfg(mode, ev)); const sums = [];
   while (!g.over && g.tick < maxTick) {
-    const s = script[g.tick] || (mode === 'living' && livingScript[g.tick]); const cmds = [];
+    const s = script[g.tick] || ((mode === 'living' || mode === 'tide' || mode === 'sky') && livingScript[g.tick]); const cmds = [];
     if (s) {
       const c = { ...s, team: 0, seq: 1 };
       if (s.targetIdx !== undefined) c.target = g.teams[1].heroes[s.targetIdx].id;
@@ -30,7 +31,7 @@ function run(mode, ev, maxTick = 20 * 60 * 25) {
 }
 // Classic 5v5 and Lane Rush (single lane, rush rules), each with Coach Moments from both sides.
 let ok = true;
-for (const mode of ['classic', 'rush', 'event', 'living']) {
+for (const mode of ['classic', 'rush', 'event', 'living', 'tide', 'sky']) { // tide / sky: the v25 maps (the tide, wind bridges, jump pads)
   const a = run(mode), b = run(mode);
   const same = a.sums.length === b.sums.length && a.sums.every((v, i) => v === b.sums[i]);
   console.log(`${mode} run A: ${a.sums.length} checkpoints, winner ${a.winner} @${(a.tick / 1200).toFixed(1)}m, ${a.moments} moments`);

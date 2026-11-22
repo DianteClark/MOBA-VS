@@ -1,6 +1,6 @@
 // Paints a World into an offscreen canvas: themed ground (half-res chunky pixels) with
 // organic edges, then forest, rocks, tall grass and decor from TilesetNature.
-import { S, C, N, T_FOREST, T_GRASS, T_LANE, T_RIVER, T_BASE, T_PIT, T_SHRINE, T_PATH } from '../sim/world.js';
+import { S, C, N, T_FOREST, T_GRASS, T_LANE, T_RIVER, T_BASE, T_PIT, T_SHRINE, T_PATH, T_DEEP, T_SAND } from '../sim/world.js';
 import { IMG } from './assets.js';
 import { Rng } from '../sim/rng.js';
 
@@ -95,6 +95,29 @@ export const THEMES = {
     edge: ['vBush', 'vBush2', 'urn', 'fernG', 'stoneBits'],
     sky: '#18200f', fog: [10, 16, 8], cobble: true, wood: ['#7d6a4c', '#8e7a58', '#6c5a40'],
   },
+  // Tidebreak Harbor: a pine coast around a deep sea channel, sand flats that flood, boardwalk lanes (src/sim/terrain.js)
+  coast: {
+    ground: pal(['#79a54a', '#84ae52', '#6f9a45', '#8bb65a']), accent: pal(['#a1c262', '#aec86c', '#95b65a']), forestFloor: pal(['#2c4a38', '#31503d']),
+    lane: pal(['#a59d8b', '#9b9381', '#afa795', '#958d7b']), laneEdge: hex('#6f6858'), path: pal(['#b3bf78', '#bac682', '#a8b670']), pathEdge: hex('#7c8c4c'),
+    water: pal(['#4fb4c9', '#5fc0d3', '#56bacd']), waterHi: hex('#c4f3f7'), deep: hex('#3797b4'), shore: hex('#f1e3b8'), beach: 1,
+    sea: pal(['#1f6493', '#226a99', '#1c5d8b']), seaHi: hex('#5fa8cf'), sand: pal(['#e9d7a6', '#e2cf9b', '#efddb0']), wetSand: hex('#c9b685'),
+    base: [pal(['#7d8ea6', '#8394ab', '#7889a1']), pal(['#a88480', '#ad8985', '#a37f7b'])], pit: pal(['#6f6a62', '#79736a', '#837d73']), shrine: pal(['#e8d79c', '#f2e1a8', '#dccb90']),
+    trees: ['pine', 'roots', 'pine', 'g1', 'pine', 'palm1', 'pine', 'palm2'], big: ['tPine', 'palmG', 'tPine', 'palmG2', 'tPine', 'tG2'],
+    rocks: ['rockBig', 'rockTall', 'rockTri', 'blueRock'], tall: ['grass1', 'grass2', 'reed'], decor: ['pebble', 'pebble2', 'bush2', 'fernB', 'clover', 'flowerW', 'sprout', 'shrubD', 'pebbleS'],
+    edge: ['bush2', 'fernB', 'pebble2', 'mossRock', 'shrubD2'],
+    sky: '#13263a', fog: [8, 18, 30], cobble: true, wood: ['#8c6a46', '#a07a50', '#76583a'],
+  },
+  // Skyreach Isles: grass islands over an open sky (non-walkable ground is the void, not forest), cloud river, blossom groves
+  sky: {
+    ground: pal(['#8cc767', '#96cf71', '#83bf60', '#a0d57a']), accent: pal(['#b6e18a', '#c3e797', '#abd983']), forestFloor: pal(['#6f9fd8', '#77a6dc']),
+    lane: pal(['#c7c2d4', '#bdb8cb', '#d0cbdd', '#b5b0c4']), laneEdge: hex('#8b86a0'), path: pal(['#a7d688', '#b0dc90', '#9ed080']), pathEdge: hex('#7db565'),
+    water: pal(['#e4f0ff', '#f0f7ff', '#d9e8fd']), waterHi: hex('#ffffff'), deep: hex('#c4d8f2'), shore: hex('#f6faff'),
+    base: [pal(['#8a9cc0', '#91a3c6', '#8697ba']), pal(['#c09aa4', '#c6a1aa', '#b9939d'])], pit: pal(['#9ea6c4', '#a7afcc', '#b0b8d4']), shrine: pal(['#f3e5a8', '#fbedb6', '#e7d89b']),
+    trees: ['pink', 'g0', 'white', 'pink'], big: ['tPink', 'tWhite', 'bigPink', 'bigWhite'],
+    rocks: ['tPink', 'bigPink', 'tWhite', 'bigWhite'], rockScale: 1.5, tall: ['grass1', 'grass2', 'grass3'], decor: ['flowerW', 'flowerY', 'clover', 'flowerR', 'bush1', 'sprout', 'pebbleS'],
+    edge: ['flowerW', 'clover', 'bush1', 'berryBush', 'flowerY', 'bush3'],
+    sky: '#6f9fd8', fog: [30, 50, 90], void: true, cliff: pal(['#9b8a78', '#8a7969', '#7a6a5c', '#6a5b4f']), wood: ['#9a7a5a', '#b08a64', '#866a4c'],
+  },
 };
 
 function makeNoise(seed) {
@@ -119,7 +142,8 @@ export function paintMap(world) {
   const rng = new Rng(4242 + world.def.id.length);
   const typeAt = (x, y) => {
     const cx = Math.max(0, Math.min(N - 1, Math.floor(x / C))), cy = Math.max(0, Math.min(N - 1, Math.floor(y / C)));
-    return world.walk[cy * N + cx] || (world.wallAt && world.wallAt[cy * N + cx] >= 0) ? world.type[cy * N + cx] : T_FOREST; // breakable walls: ground under them (drawn live)
+    const i = cy * N + cx; // breakable walls and tide crossings: ground under them (drawn live); deep water is painted as sea
+    return world.walk[i] || (world.wallAt && world.wallAt[i] >= 0) || (world.gateAt && world.gateAt[i] >= 0) || world.type[i] === T_DEEP ? world.type[i] : T_FOREST;
   };
   const b0 = world.baseCenter[0], b1 = world.baseCenter[1];
   // Bridges: lane cells that cross a (liquid) river get wooden planks laid along the river's flow.
@@ -149,6 +173,21 @@ export function paintMap(world) {
     const a = bridge[cy * N + cx]; return a === a && waterDepth(x, y) > -2 ? a : NaN;
   };
   const wood = (th.wood || ['#9a6a3e', '#b07a48', '#875c35']).map(hex);
+  // tide maps: the deep water's exact capsules (the grid's T_DEEP cells, but with smooth round shores) and the beach band
+  const caps = [];
+  for (const q of world.def.deep || []) for (const m of [0, 1]) { const f = (v) => (m ? S - v : v); caps.push([f(q[0]), f(q[1]), f(q[2]), f(q[3]), q[4]]); }
+  const seaCol = (px, py, dn, nz, j) => {
+    let c = th.sea ? th.sea[Math.floor(nz * 3) % 3] : th.deep;
+    const crest = Math.sin((px + py * 0.6) / 13 + n2(px / 50, py / 50) * 6);
+    if (crest > 0.93 && j < 0.7) c = th.seaHi || th.waterHi; else if (crest < -0.9) c = mul(c, 0.9);
+    if (dn < 7 && j < 0.45) c = th.waterHi; // foam on the drop-off
+    return c;
+  };
+  const deepness = (px, py) => {
+    let best = -1e9;
+    for (const [ax, ay, bx, by, r] of caps) { const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy || 1, t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / l2)), ex = ax + dx * t - px, ey = ay + dy * t - py; best = Math.max(best, r - Math.sqrt(ex * ex + ey * ey)); }
+    return best;
+  };
   const mul = (c, k) => [c[0] * k, c[1] * k, c[2] * k];
   for (let y = 0; y < Wd; y++) for (let x = 0; x < Wd; x++) {
     const px = x * HALF + 1, py = y * HALF + 1;
@@ -181,13 +220,15 @@ export function paintMap(world) {
       }
       case T_PATH: col = th.path[Math.floor(nz * 3 + j * 0.6) % th.path.length]; if (j < 0.03) col = th.pathEdge; break;
       case T_RIVER: {
-        const shoreNear = typeAt(px + 16, py) !== T_RIVER || typeAt(px - 16, py) !== T_RIVER || typeAt(px, py + 16) !== T_RIVER || typeAt(px, py - 16) !== T_RIVER;
+        if (caps.length && deepness(px, py) > 0) { col = seaCol(px, py, deepness(px, py), nz, j); break; } // smooth deep shores
+        const dry = (q) => q !== T_RIVER && q !== T_DEEP; // (the sea channel's deep middle is water too)
+        const shoreNear = dry(typeAt(px + 16, py)) || dry(typeAt(px - 16, py)) || dry(typeAt(px, py + 16)) || dry(typeAt(px, py - 16));
         col = shoreNear ? (j < 0.8 ? th.shore : th.water[0]) : (n3(px / 14 + py / 50, py / 14) > 0.8 && j < 0.6 ? th.waterHi : th.water[Math.floor(nz * 3) % 3]);
         if (!shoreNear && j < 0.08) col = th.deep;
         if (th.ice && !shoreNear && ((px * 7 + py * 3) % 97 < 2)) col = th.deep;
         if (!shoreNear) {
           // foam just off the shore, deeper colour toward the middle
-          const near2 = typeAt(px + 26, py) !== T_RIVER || typeAt(px - 26, py) !== T_RIVER || typeAt(px, py + 26) !== T_RIVER || typeAt(px, py - 26) !== T_RIVER;
+          const near2 = dry(typeAt(px + 26, py)) || dry(typeAt(px - 26, py)) || dry(typeAt(px, py + 26)) || dry(typeAt(px, py - 26));
           if (near2) { if (j < 0.35) col = th.waterHi; }
           else if (typeAt(px + 44, py) === T_RIVER && typeAt(px - 44, py) === T_RIVER && typeAt(px, py + 44) === T_RIVER && typeAt(px, py - 44) === T_RIVER) col = mul(col, 0.92);
         }
@@ -208,17 +249,44 @@ export function paintMap(world) {
         break;
       }
       case T_SHRINE: { const tx = Math.floor(px / 16), ty = Math.floor(py / 16); col = th.shrine[(tx + ty * 2) % 3]; if (px % 16 < 2 || py % 16 < 2) col = col.map((v) => v * 0.82); break; }
-      case T_FOREST: col = th.forestFloor[j < 0.5 ? 0 : 1]; break;
+      case T_FOREST: col = th.void ? voidCol(px, py) : th.forestFloor[j < 0.5 ? 0 : 1]; break;
+      case T_DEEP: {
+        // the open sea: deep blue, long wave crests, foam where it meets the shallows (exact round shores)
+        const dn = deepness(px, py);
+        if (dn < 0) { col = th.water[Math.floor(nz * 3) % 3]; if (dn > -6 && j < 0.5) col = th.waterHi; break; }
+        col = seaCol(px, py, dn, nz, j);
+        break;
+      }
+      case T_SAND: {
+        // tidal flats: pale sand with ripples, darker (wet) toward the water
+        const wet = typeAt(px + 30, py) === T_RIVER || typeAt(px - 30, py) === T_RIVER || typeAt(px, py + 30) === T_RIVER || typeAt(px, py - 30) === T_RIVER || typeAt(px, py + 30) === T_DEEP || typeAt(px, py - 30) === T_DEEP;
+        col = (th.sand || th.ground)[Math.floor(nz * 3 + j * 0.5) % 3];
+        if (Math.sin((px * 0.8 + py) / 7 + n1(px / 40, py / 40) * 5) > 0.82) col = mul(col, 0.93);
+        if (wet) col = mul(th.wetSand || col, 1 + (j - 0.5) * 0.05);
+        if (j > 0.993) col = th.waterHi; // a shell
+        break;
+      }
       default: {
         const gi = Math.min(th.ground.length - 1, Math.floor(nz * th.ground.length));
         col = th.ground[gi];
+        if (th.beach && t === T_GRASS && waterDepth(px, py) > -34 + n2(px / 30, py / 30) * 14) { col = th.sand[Math.floor(nz * 3 + j * 0.5) % 3]; if (j > 0.994) col = th.waterHi; break; }
         if (n3(px / 40, py / 40) > 0.72 && j < 0.5) col = th.accent[Math.floor(j * 6) % th.accent.length];
         if (th.dunes) { const r = Math.sin((px * 0.55 + py) / 15 + n2(px / 60, py / 60) * 7); if (r > 0.9) col = mul(col, 0.9); else if (r < -0.96) col = mul(col, 1.05); }
       }
     }
     if (world.brush[world.idx(px, py)] && tc !== T_FOREST) col = col.map((v) => v * 0.8);
+    // floating islands: a rock cliff hangs under every south edge, fading into the sky below
+    if (th.void && t === T_FOREST) {
+      const depth = 26 + n2(px / 34, 3.7) * 46;
+      for (let k = 4; k <= depth; k += 6) if (typeAt(px, py - k) !== T_FOREST) {
+        const band = th.cliff[Math.min(th.cliff.length - 1, Math.floor((py - k + n1(px / 9, py / 9) * 10) / 9) % 2 + Math.floor(k / depth * 2.5))];
+        const f = k / depth; col = band.map((v, q) => v * (1 - f * 0.55) + col[q] * f * 0.55);
+        if (k <= 6) col = mul(col, 1.18); // the rim catches the light
+        break;
+      }
+    }
     // soft shade on open ground just south of the forest (canopy shadow), for depth
-    if (t !== T_FOREST && t !== T_RIVER && !(t === T_LANE && onBridge)) {
+    if (!th.void && t !== T_FOREST && t !== T_RIVER && t !== T_DEEP && !(t === T_LANE && onBridge)) {
       if (typeAt(px, py - 16) === T_FOREST) col = mul(col, 0.8); else if (typeAt(px, py - 30) === T_FOREST) col = mul(col, 0.9);
     }
     if (t === T_GRASS && j > 0.985) col = mul(col, 1.14); // grass glints
@@ -232,7 +300,7 @@ export function paintMap(world) {
   const items = [];
   const open = (x, y) => world.isWalk(x, y) || !!(world.wallAt && world.wallAt[world.idx(x, y)] >= 0);
   for (let cy = 0; cy < N; cy++) for (let cx = 0; cx < N; cx++) {
-    const i = cy * N + cx; if (world.walk[i] || (world.wallAt && world.wallAt[i] >= 0)) continue;
+    const i = cy * N + cx; if (th.void || world.walk[i] || (world.wallAt && world.wallAt[i] >= 0) || (world.gateAt && world.gateAt[i] >= 0) || world.type[i] === T_DEEP) continue;
     const x = cx * C + C / 2, y = cy * C + C / 2;
     let skip = false;
     for (const s of world.structures) if ((s.x - x) ** 2 + (s.y - y) ** 2 < 48 * 48) skip = true;
@@ -313,7 +381,34 @@ export function paintMap(world) {
     ctx.drawImage(tw, 192, 64, 32, 32, f.x - 40, f.y - 52, 80, 80);
   }
   if (th.night) paintNight(ctx, world, canvas.width);
+  if (th.void) paintIslets(ctx, world, th);
   return canvas;
+}
+// The open sky under the islands: a soft vertical gradient with drifting cloud banks (pixel noise, painted once).
+const SKY_TOP = hex('#9ccdf5'), SKY_BOT = hex('#5d92d8'), CLOUD = hex('#f4f9ff');
+const skyN1 = makeNoise(31), skyN2 = makeNoise(77);
+function voidCol(px, py) {
+  const k = py / S, c = SKY_TOP.map((v, i) => v + (SKY_BOT[i] - v) * k);
+  const n = skyN1(px / 160, py / 90) * 0.65 + skyN2(px / 45, py / 30) * 0.35;
+  const m = Math.max(0, Math.min(1, (n - 0.55) / 0.2));
+  return m > 0 ? c.map((v, i) => v + (CLOUD[i] - v) * m * 0.85) : c;
+}
+// Little islets floating in the void (decor only, away from the real ground): a grass cap, a rock cone, the odd tree.
+function paintIslets(ctx, world, th) {
+  const r = new Rng(0x5c1e5), nat = IMG.TilesetNature;
+  const clearOf = (x, y, d) => { for (let a = 0; a < 8; a++) if (world.isWalk(x + Math.cos(a * 0.785) * d, y + Math.sin(a * 0.785) * d)) return false; return !world.isWalk(x, y); };
+  for (let n = 0, tries = 0; n < 34 && tries < 900; tries++) {
+    const x = r.range(60, S - 60), y = r.range(60, S - 60), w = r.range(16, 40);
+    if (!clearOf(x, y, w + 50)) continue;
+    n++;
+    const h = w * r.range(0.9, 1.5);
+    ctx.fillStyle = 'rgba(40,70,120,0.18)'; ctx.beginPath(); ctx.ellipse(x + 6, y + h + 18, w * 0.8, w * 0.22, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#7a6a5c'; ctx.beginPath(); ctx.moveTo(x - w, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w * 0.2, y + h); ctx.lineTo(x - w * 0.15, y + h * 0.8); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#9b8a78'; ctx.beginPath(); ctx.moveTo(x - w, y); ctx.lineTo(x + w * 0.1, y); ctx.lineTo(x - w * 0.15, y + h * 0.8); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#86bf62'; ctx.beginPath(); ctx.ellipse(x, y, w, w * 0.36, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#a3d47c'; ctx.beginPath(); ctx.ellipse(x - w * 0.2, y - w * 0.08, w * 0.6, w * 0.2, 0, 0, Math.PI * 2); ctx.fill();
+    if (nat && w > 26 && r.next() < 0.6) { const sp = SPR[th.trees[r.int(th.trees.length)]]; ctx.drawImage(nat, sp[0], sp[1], sp[2], sp[3], Math.round(x - 24 + r.range(-6, 6)), Math.round(y - 52), 48, 48); }
+  }
 }
 // Night maps: cool moonlight tint, soft glow pools at shrines/pits/bases, and scattered glowing moss.
 function paintNight(ctx, world, S) {

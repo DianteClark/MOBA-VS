@@ -7,6 +7,7 @@ export const C = 24;            // grid cell size
 export const N = S / C;         // 100 x 100 cells
 
 export const T_FOREST = 0, T_GRASS = 1, T_LANE = 2, T_RIVER = 3, T_BASE = 4, T_PIT = 5, T_SHRINE = 6, T_PATH = 7;
+export const T_DEEP = 8, T_SAND = 9; // tide maps: deep water (blocked, painted as sea) and tidal flats (walkable sand that floods)
 
 const P = (p) => ({ x: S - p.x, y: S - p.y });
 const pt = (a) => ({ x: a[0], y: a[1] });
@@ -85,6 +86,16 @@ export class World {
     for (const s of this.shrines) circ(s, 96, T_SHRINE, notLane);
     for (const ln of this.laneNames) poly(this.lanes[ln], d.laneW || 64, T_LANE);
     for (let t = 0; t < 2; t++) { circ(this.baseCenter[t], d.baseR || 360, T_BASE); circ(this.fountain[t], 150, T_BASE); }
+    // tide maps (src/sim/terrain.js): tidal flats (sand that floods at high tide) and deep water (the sea channel's
+    // middle, impassable but for the lanes' bridges, the pits and the tide's own crossings)
+    const tidal = (t) => t === T_GRASS || t === T_PATH;
+    for (const f of d.flats || []) for (const q of [pt(f), P(pt(f))]) cells(q.x, q.y, f[2], (i) => { if (W[i] && tidal(Ty[i])) Ty[i] = T_SAND; });
+    for (const s of d.deep || []) for (const [a, b] of [[pt(s), pt(s.slice(2))], [P(pt(s)), P(pt(s.slice(2)))]]) {
+      const r = s[4];
+      cells((a.x + b.x) / 2, (a.y + b.y) / 2, Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2) / 2 + r, (i, px, py) => {
+        if (segDist2({ x: px, y: py }, a, b) <= r * r && Ty[i] !== T_LANE && Ty[i] !== T_BASE && Ty[i] !== T_PIT && Ty[i] !== T_SHRINE) { W[i] = 0; Ty[i] = T_DEEP; }
+      });
+    }
     // ── structures: towers sit BESIDE the lane (positions depend only on the lane lines) ──
     this.structures = [];
     const place = (team) => {
@@ -122,12 +133,12 @@ export class World {
     for (let t = 0; t < 2; t++) for (const s of place(t)) this.structures.push({ ...s, team: t });
     // tower plazas: every lane tower and gate stands on a widened patch of lane ground (no forest, brush or
     // rocks); water, pits, shrines and bases keep their own ground (tools/maps.mjs keeps plazas clear of them)
-    for (const s of this.structures) if (s.plaza) seg(s.plaza.a, s.plaza.b, s.plaza.r, T_LANE, (t) => t !== T_BASE && t !== T_RIVER && t !== T_PIT && t !== T_SHRINE);
+    for (const s of this.structures) if (s.plaza) seg(s.plaza.a, s.plaza.b, s.plaza.r, T_LANE, (t) => t !== T_BASE && t !== T_RIVER && t !== T_PIT && t !== T_SHRINE && t !== T_SAND);
     // ── brush (only on open, non-lane ground) ──
     const addBrush = (b) => cells(b[0], b[1], b[2], (i) => { if (W[i] && Ty[i] !== T_LANE && Ty[i] !== T_BASE && Ty[i] !== T_PIT && Ty[i] !== T_SHRINE) this.brush[i] = 1; });
     for (const b of d.brush) { addBrush(b); const m = P(pt(b)); addBrush([m.x, m.y, b[2]]); }
     // ── rocks re-block (never on lanes/bases) ──
-    const addRock = (r) => cells(r[0], r[1], r[2], (i) => { if (Ty[i] !== T_LANE && Ty[i] !== T_BASE) { W[i] = 0; Ty[i] = T_FOREST; this.brush[i] = 0; } });
+    const addRock = (r) => cells(r[0], r[1], r[2], (i) => { if (Ty[i] !== T_LANE && Ty[i] !== T_BASE && Ty[i] !== T_DEEP) { W[i] = 0; Ty[i] = T_FOREST; this.brush[i] = 0; } });
     this.rocks = [];
     for (const r of d.rocks) { addRock(r); const m = P(pt(r)); addRock([m.x, m.y, r[2]]); for (const q of [{ x: r[0], y: r[1], r: r[2] }, { x: m.x, y: m.y, r: r[2] }]) if (!W[this.idx(q.x, q.y)]) this.rocks.push(q); }
     // border
@@ -149,6 +160,35 @@ export class World {
             Ty[i] = T_PATH; this.wallAt[i] = id; list.push(i);
           }
         this.walls.push({ id, kind: w[4] || 'wall', x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, a, b, cells: Int32Array.from(list) });
+      }
+    }
+    // ── tide / wind crossings (src/sim/terrain.js): corridors over water or the void, closed until the tide or the
+    // wind opens them (point-mirrored pairs: gate 2k is Blue's half, 2k + 1 its mirror) ──
+    this.gates = []; this.gateAt = null; this.gateMask = 0; this.avoid = null;
+    if (d.gates) {
+      this.gateAt = new Int8Array(N * N).fill(-1);
+      for (const w of d.gates) for (const [a, b] of [[pt(w), pt(w.slice(2))], [P(pt(w)), P(pt(w.slice(2)))]]) {
+        const id = this.gates.length, list = [], r = w[5] || GATE_R;
+        const minx = Math.min(a.x, b.x) - r, maxx = Math.max(a.x, b.x) + r, miny = Math.min(a.y, b.y) - r, maxy = Math.max(a.y, b.y) + r;
+        for (let cy = Math.max(2, Math.floor(miny / C)); cy <= Math.min(N - 3, Math.floor(maxy / C)); cy++)
+          for (let cx = Math.max(2, Math.floor(minx / C)); cx <= Math.min(N - 3, Math.floor(maxx / C)); cx++) {
+            const i = cy * N + cx;
+            if (W[i] || this.gateAt[i] >= 0 || segDist2({ x: cx * C + C / 2, y: cy * C + C / 2 }, a, b) > r * r) continue;
+            if (w[4] === 'bar') Ty[i] = T_SAND; else if (w[4] === 'raft') Ty[i] = T_DEEP;
+            this.gateAt[i] = id; list.push(i);
+          }
+        this.gates.push({ id, kind: w[4], x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, a, b, cells: Int32Array.from(list) });
+      }
+    }
+    // jump pads: two-way launch links over the void (heroes only; A* treats a flight like walking its straight line)
+    this.pads = []; this.links = null;
+    if (d.pads) {
+      this.links = new Map();
+      for (const pd of d.pads) for (const [a, b] of [[pt(pd), pt(pd.slice(2))], [P(pt(pd)), P(pt(pd.slice(2)))]]) {
+        const id = this.pads.length, A = this.nearestOpen(a), B = this.nearestOpen(b), ia = this.idx(A.x, A.y), ib = this.idx(B.x, B.y);
+        const dx = Math.abs(ia % N - ib % N), dy = Math.abs(((ia / N) | 0) - ((ib / N) | 0)), cost = 10 * (dx + dy) - 6 * Math.min(dx, dy) + PAD_COST;
+        this.pads.push({ id, a: A, b: B, len: Math.sqrt((A.x - B.x) ** 2 + (A.y - B.y) ** 2) }); // (sqrt, never Math.hypot: identical on every engine)
+        for (const [from, to, dir] of [[ia, ib, 0], [ib, ia, 1]]) (this.links.get(from) || this.links.set(from, []).get(from)).push({ to, cost, pad: id, dir });
       }
     }
     // ward spots (Blue view; mirrored for Red)
@@ -195,6 +235,28 @@ export class World {
       this.dropVision(x0, y0, x1, y1);
     }
     return true;
+  }
+  // Open / close the tide and wind crossings to match `mask` (bit i = gate i open), like setWalls.
+  setGates(mask) {
+    if (mask === this.gateMask) return false;
+    const diff = mask ^ this.gateMask; this.gateMask = mask;
+    for (const w of this.gates) {
+      if (!(diff & (1 << w.id))) continue;
+      const open = (mask >> w.id) & 1;
+      for (const i of w.cells) this.walk[i] = open;
+      let x0 = N, y0 = N, x1 = 0, y1 = 0;
+      for (const i of w.cells) { const x = i % N, y = (i / N) | 0; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+      this.updateClearance(x0, y0, x1, y1);
+      this.dropVision(x0, y0, x1, y1);
+    }
+    return true;
+  }
+  // Crossings about to close: new routes stay off them (bit i = gate i), units already on one may walk off it.
+  setAvoid(mask) {
+    if (mask === (this.avoidMask || 0)) return;
+    this.avoidMask = mask;
+    if (!this.avoid) this.avoid = new Uint8Array(N * N);
+    for (const w of this.gates) { const v = (mask >> w.id) & 1; for (const i of w.cells) this.avoid[i] = v; }
   }
   // Clearance (Chebyshev steps to the nearest blocked cell, capped: 1-4, else 5) for the cells within 5 of a box.
   updateClearance(x0, y0, x1, y1) {
@@ -283,7 +345,8 @@ export class World {
   }
 
   // ───────────── A* (8-dir, no corner cutting) ─────────────
-  findPath(sx, sy, tx, ty) {
+  // links: heroes may take jump pads (this.links); the route then holds the landing as a waypoint { x, y, land: pad, dir }.
+  findPath(sx, sy, tx, ty, links = false) {
     const s0 = this.nearestOpen({ x: sx, y: sy }), t0 = this.nearestOpen({ x: tx, y: ty });
     const start = this.idx(s0.x, s0.y), goal = this.idx(t0.x, t0.y);
     if (start === goal) return [{ x: tx, y: ty }];
@@ -297,7 +360,7 @@ export class World {
     const less = (a, b) => a[0] < b[0] || (a[0] === b[0] && a[1] < b[1]);
     const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let k = 0; for (;;) { const l = 2 * k + 1, r = l + 1; let m = k; if (l < heap.length && less(heap[l], heap[m])) m = l; if (r < heap.length && less(heap[r], heap[m])) m = r; if (m === k) break; [heap[k], heap[m]] = [heap[m], heap[k]]; k = m; } } return top; };
     St[start] = run; G[start] = 0; F[start] = -1; push(h(start), start);
-    const W = this.walk;
+    const W = this.walk, Av = this.avoidMask ? this.avoid : null, Lk = links ? this.links : null;
     let found = false, iter = 0, best = start, bestH = h(start);
     while (heap.length && iter++ < 40000) {
       const [, , cur] = pop();
@@ -308,10 +371,16 @@ export class World {
       for (let k = 0; k < 8; k++) {
         const dx = DX[k], dy = DY[k], nx = cx + dx, ny = cy + dy;
         if (nx < 1 || ny < 1 || nx >= N - 1 || ny >= N - 1) continue;
-        const ni = ny * N + nx; if (!W[ni] || Cl[ni] === run) continue;
+        const ni = ny * N + nx; if (!W[ni] || Cl[ni] === run || (Av && Av[ni] && !Av[cur])) continue;
         if (dx && dy && (!W[cy * N + nx] || !W[ny * N + cx])) continue;
         // prefer cells away from walls (keeps bodies off tree trunks)
         const ng = G[cur] + (dx && dy ? 14 : 10) + CLR_COST[this.clearance[ni]];
+        if (St[ni] !== run || ng < G[ni]) { St[ni] = run; G[ni] = ng; F[ni] = cur; push(ng + h(ni), ni); }
+      }
+      const ls = Lk && Lk.get(cur);
+      if (ls) for (const l of ls) {
+        const ni = l.to; if (!W[ni] || Cl[ni] === run) continue;
+        const ng = G[cur] + l.cost;
         if (St[ni] !== run || ng < G[ni]) { St[ni] = run; G[ni] = ng; F[ni] = cur; push(ng + h(ni), ni); }
       }
     }
@@ -321,7 +390,28 @@ export class World {
     const raw = cellsPath.map((c) => ({ x: (c % N) * C + C / 2, y: ((c / N) | 0) * C + C / 2 }));
     if (found && this.isWalk(tx, ty)) raw[raw.length - 1] = { x: tx, y: ty };
     if (!raw.length) return [{ x: tx, y: ty }];
+    if (Lk) for (let k = 1; k < cellsPath.length; k++) {
+      const a = cellsPath[k - 1], b = cellsPath[k];
+      if (Math.abs(a % N - b % N) > 1 || Math.abs(((a / N) | 0) - ((b / N) | 0)) > 1) return this.padRoute(sx, sy, raw, cellsPath);
+    }
     return this.stringPull(sx, sy, raw);
+  }
+  // A route with jump pads: smooth each walked stretch on its own, the pad and its landing kept as exact waypoints.
+  padRoute(sx, sy, raw, cellsPath) {
+    const out = []; let ax = sx, ay = sy, from = 0;
+    for (let k = 1; k <= cellsPath.length; k++) {
+      const a = cellsPath[k - 1], b = cellsPath[k];
+      if (k < cellsPath.length && Math.abs(a % N - b % N) <= 1 && Math.abs(((a / N) | 0) - ((b / N) | 0)) <= 1) continue;
+      const part = raw.slice(from, k);
+      if (from === 0) out.push(...this.stringPull(ax, ay, part)); else if (part.length > 1) out.push(...this.stringPull(ax, ay, part));
+      if (k < cellsPath.length) {
+        const l = this.links.get(a).find((q) => q.to === b), pd = this.pads[l.pad], to = l.dir ? pd.a : pd.b, at = l.dir ? pd.b : pd.a;
+        if (!out.length || out[out.length - 1].x !== at.x || out[out.length - 1].y !== at.y) out.push({ x: at.x, y: at.y });
+        out.push({ x: to.x, y: to.y, land: l.pad, dir: l.dir });
+        ax = to.x; ay = to.y; from = k;
+      }
+    }
+    return out;
   }
   // Any-angle smoothing: from each anchor keep the furthest waypoint reachable in a straight,
   // body-wide line. Turns the 8-direction staircase into a few clean segments.
@@ -404,6 +494,8 @@ export class World {
 }
 const DX = [1, -1, 0, 0, 1, 1, -1, -1], DY = [0, 0, 1, -1, 1, -1, 1, -1];
 const WALL_R = 34; // half-width of a breakable wall's corridor (px)
+const GATE_R = 40; // half-width of a tide / wind crossing (px; a map may set its own per crossing)
+const PAD_COST = 30; // A*: the extra cost of a jump (a flight otherwise costs what walking its straight line would)
 // 5v5 tower spots: distance along the lane from the owner's end, [T1, T2, T3, gate] (towerLayout.sideD / midD override)
 export const TOWER_D = { side: [1220, 805, 475, 265], mid: [925, 620, 360, 185] };
 const TOWER_OFF = 92, PLAZA_R = 132, PLAZA_L = 84; // tower offset from the lane centre line; plaza: a capsule along the lane (half-width, half-length)

@@ -38,6 +38,11 @@ const okC = run('classic', { seed: 4242, map: 'frost', coach: [false, true], coa
 // Living World + Bosses & Beasts (night, Yokai Parade, walls, scout pets, the Elder Kami): the calls that only exist there replay too
 const okL = run('living', { seed: 4245, map: 'ember', living: 1, beasts: 1, coach: [false, true], teams }, 760,
   [{ type: 'objective', obj: 'yokai' }, { type: 'scout', x: 1250, y: 900 }, { type: 'gank', lane: 'top' }, { type: 'invade', camp: '1:moon' }, { type: 'objective', obj: 'boss' }, { type: 'scout', x: 1200, y: 1200 }, { type: 'group', lane: 'mid' }, { type: 'objective', obj: 'boss' }]);
+// v25 maps: Tidebreak Harbor through two tides (the sandbars, rafts and floodwater) and Skyreach Isles (wind bridges, jump pads)
+const okT = run('tide', { seed: 4246, map: 'tide', living: 1, beasts: 1, coach: [false, true], teams }, 800,
+  [{ type: 'objective', obj: 'dragon' }, { type: 'scout', x: 930, y: 930 }, { type: 'gank', lane: 'bot' }, { type: 'objective', obj: 'yokai' }, { type: 'group', lane: 'mid' }, { type: 'objective', obj: 'boss' }])
+  && run('sky', { seed: 4247, map: 'sky', living: 1, beasts: 1, coach: [false, true], teams }, 600,
+  [{ type: 'gank', lane: 'top' }, { type: 'objective', obj: 'baron' }, { type: 'scout', x: 980, y: 1030 }, { type: 'invade', camp: '1:moon' }, { type: 'group', lane: 'bot' }]);
 const okR = run('rush', { seed: 4243, map: 'rush_sakura', mode: 'rush', beasts: 1, coach: [false, true], teams }, 480, // (Bosses & Beasts in Lane Rush: rare Kraken, scout pets)
   [{ type: 'moment', id: 'rally' }, { type: 'scout', x: 1300, y: 1100 }, { type: 'group', lane: 'mid' }, { type: 'objective', obj: 'dragon' }, { type: 'moment', id: 'push' }, { type: 'ult', mode: 'go' }, { type: 'objective', obj: 'baron' }, { type: 'moment', id: 'timeout' }]);
 // Co-op vs AI: two coaches' seat-stamped commands in one log (some rejected by the ownership rules),
@@ -77,5 +82,5 @@ const okD = run('depth', { seed: 4245, map: 'marsh', depth: true, coach: [false,
     for (const x of g.teams[0].heroes) { const k = x.tal.findIndex((p, i) => p >= 0 && g.tick - x.talAt[i] < 80); if (k >= 0) { r.send({ type: 'talent', hero: x.id, tier: k, pick: 1 - x.tal[k] }); return; } }
     if (g.tick % 600 === 13) { const x = g.teams[0].heroes[g.tick / 600 % 5 | 0], o = itemOptions(x); if (o.length > 1) r.send({ type: 'item', hero: x.id, item: o[o.length - 1].name }); }
   });
-console.log(okC && okR && okCo && okE && okD && okL ? 'REPLAY MATCHES ✔' : 'REPLAY DIVERGED ✘');
-process.exit(okC && okR && okCo && okE && okD && okL ? 0 : 1);
+console.log(okC && okR && okCo && okE && okD && okL && okT ? 'REPLAY MATCHES ✔' : 'REPLAY DIVERGED ✘');
+process.exit(okC && okR && okCo && okE && okD && okL && okT ? 0 : 1);

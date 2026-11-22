@@ -25,12 +25,16 @@ export const PLACE_R = {
   tower: 300,   // "by X tower": within this many units of it along the lane
   laneExtra: 60, // a hero this far beyond the lane's carved half-width is still "in lane"
   bank: 34,     // river banks count as river
+  crossing: 56, // a tide / wind crossing (sandbar, raft, wind bridge): within this of its span
+  pad: 90,      // a jump pad
 };
+const CROSS_W = { bar: 'sandbar', raft: 'rafts', windA: 'wind bridge', windB: 'wind bridge' };
 const TIER_W = { 1: 'outer tower', 2: 'inner tower', 3: 'base tower', 4: 'gate' };
 const CAMP_W = { bluebuff: 'Sentinel', redbuff: 'Brambleback', wolf: 'Wolves', raptor: 'Raptors', gromp: 'Gromp', krug: 'Krugs' };
 const LANE_W = { top: 'top', mid: 'mid', bot: 'bot' };
 const TEAM_W = ['Blue', 'Red'];
 const d2 = (a, b) => (a.x - b.x) ** 2 + (a.y - b.y) ** 2;
+const segD2 = (p, a, b) => { const abx = b.x - a.x, aby = b.y - a.y, l2 = abx * abx + aby * aby || 1; let t = ((p.x - a.x) * abx + (p.y - a.y) * aby) / l2; t = t < 0 ? 0 : t > 1 ? 1 : t; return (p.x - a.x - abx * t) ** 2 + (p.y - a.y - aby * t) ** 2; };
 
 // Per-world cache of the static bits (structure progress along each lane).
 const CACHE = new WeakMap();
@@ -105,6 +109,9 @@ export function placeAt(W, p, g) {
     const one = d.single ? { single: true } : {}; // Lane Rush: the one lane is just "the lane"
     return tw ? { key: `${lane}.${tw.team}.${tw.tier}`, area: 'lane', lane, team: tw.team, tier: tw.tier, at: { x: tw.x, y: tw.y }, ...one } : { key: lane, area: 'lane', lane, ...one };
   }
+  // 5b) v25 maps: the tide's and the wind's crossings, the jump pads (after lanes: a lane always names itself)
+  if (W.gates && W.gates.length) for (const w of W.gates) if (segD2(p, w.a, w.b) <= PLACE_R.crossing ** 2) return { key: `cross.${w.kind}.${halfOf(W, w)}`, area: 'crossing', kind: w.kind, side: halfOf(W, w) };
+  if (W.pads && W.pads.length) for (const pd of W.pads) for (const q of [pd.a, pd.b]) if (d2(q, p) <= PLACE_R.pad ** 2) return { key: `pad.${halfOf(W, q)}`, area: 'pad', side: halfOf(W, q) };
   // 6) the river (and its banks; a central lake counts too)
   const t = W.type[W.idx(p.x, p.y)];
   const riverW = d.riverW || 60;
@@ -139,6 +146,8 @@ export function placeFromKey(key) {
   if ((m = /^river(?:\.(top|bot))?$/.exec(key))) return { key, area: 'river', side: m[1] || null };
   if ((m = /^jungle([01])(?:\.(top|bot))?(?:\.(\w+))?$/.exec(key))) return { key, area: 'jungle', team: +m[1], side: m[2] || null, camp: m[3] || null };
   if (key === 'jungle') return { key, area: 'jungle', team: -1, side: null }; // records from before v24
+  if ((m = /^cross\.(bar|raft|windA|windB)\.(top|bot)$/.exec(key))) return { key, area: 'crossing', kind: m[1], side: m[2] };
+  if ((m = /^pad\.(top|bot)$/.exec(key))) return { key, area: 'pad', side: m[1] };
   return null;
 }
 
@@ -171,6 +180,8 @@ export function placeText(pl, opts = {}) {
       return mk(`${ln} lane`, ln[0].toUpperCase() + ln.slice(1), detail, `in ${ln} lane${detail ? ' ' + detail : ''}`);
     }
     case 'river': return mk(pl.side ? `${pl.side} river` : 'river', 'River', '', pl.side ? `in the ${pl.side} river` : 'in the river');
+    case 'crossing': { const n = CROSS_W[pl.kind] || 'crossing'; return mk(`${pl.side} ${n}`, n === 'rafts' ? 'Rafts' : n === 'sandbar' ? 'Sandbar' : 'Bridge', '', `on the ${pl.side} ${n}`); }
+    case 'pad': return mk(`${pl.side} jump pad`, 'Pad', '', `at the ${pl.side} jump pad`);
     case 'jungle': {
       if (!(pl.team >= 0)) return mk('jungle', 'Jungle', '', 'in the jungle');
       const camp = pl.camp ? (g && g.world ? campName(g.world.def.id, pl.camp) : CAMP_W[pl.camp] || pl.camp) : ''; // (each map's themed camps)

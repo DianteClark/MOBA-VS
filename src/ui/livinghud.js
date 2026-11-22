@@ -7,6 +7,7 @@ import { BEASTS, KAMI } from '../sim/beasts.js';
 import { PETS } from '../data/beasts.js';
 import { TEAM_COL } from '../render/renderer.js';
 import { bossFace } from './dom.js';
+import { terrainEvent } from './terrainhud.js';
 
 const LANE_L = { top: 'Top', mid: 'Mid', bot: 'Bot' };
 const side = (t) => (t === 0 ? 'b' : 'r');
@@ -41,6 +42,7 @@ export function livingEvent(hud, e) {
       if (e.team === 0 || e.team === 1) hud.ticker(`${TEAM_NAME[e.team]} broke ${e.kind === 'thicket' ? 'a thicket' : 'a wall'}: a new shortcut is open`, side(e.team), 1);
       else if (e.kind === 'wall' && !hud._quake) { hud._quake = true; hud.ticker('The landing shook every wall down: new routes are open', 'act', 2); }
       break;
+    default: terrainEvent(hud, e); // v25 maps: the tide, the wind
   }
 }
 // Extra words for an objective taken (after the shared banner / ticker).

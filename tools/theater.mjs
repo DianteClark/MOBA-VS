@@ -66,5 +66,9 @@ run('depth', { seed: 780, map: 'frost', depth: true, coach: [false, true], teams
 // Living World: walls live on the World that snapshots share; every copy puts its own walls back before it steps
 // (thickets open at 6:00, every wall at 12:00), and a restored copy must still match the original.
 run('living', { seed: 780, map: 'marsh', living: 1, beasts: 1, coach: [false, true], teams }, 750, [{ type: 'objective', obj: 'yokai' }, { type: 'scout', x: 1300, y: 1000 }, { type: 'invade', camp: '1:moon' }, { type: 'objective', obj: 'boss' }]);
+// v25 maps: the tide's and the wind's crossings live on the shared World too (each copy syncs its own before it steps);
+// copies restored across a tide turn and mid-flight on a jump pad must match the original
+run('tide', { seed: 781, map: 'tide', living: 1, beasts: 1, coach: [false, true], teams }, 470, [{ type: 'objective', obj: 'yokai' }, { type: 'scout', x: 930, y: 930 }]);
+run('sky', { seed: 782, map: 'sky', living: 1, beasts: 1, coach: [false, true], teams }, 330, [{ type: 'scout', x: 980, y: 1030 }]);
 console.log(ok ? 'THEATER SNAPSHOTS OK ✔' : 'THEATER SNAPSHOTS FAILED ✘');
 process.exit(ok ? 0 : 1);

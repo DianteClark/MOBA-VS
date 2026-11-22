@@ -3,12 +3,13 @@
 // (rulesFor(mode, event)); the event id travels in the match cfg (cfg.event), so lockstep peers and
 // replays always agree. A cfg without `event` is the unchanged Classic. `draft` changes the draft only
 // (src/sim/draft.js). `look` is render-only (tint/ambience, see src/render/eventfx.js).
+//   maps: { mapId: text } = what the event changes on that map (the v25 maps' tide and jump pads, src/sim/terrain.js)
 //   ranked: true = balance-neutral (symmetric and no hero class favoured): online Ranked plays it too.
 //           false = Ranked plays Classic that week; vs AI, Casual, private rooms and Watch use the event.
 export const EVENTS = [
   { id: 'bloodmoon', name: 'Blood Moon', icon: 'icons/OrbDarkness', color: '#ff5a6a', ranked: false,
     short: '+25% kill gold', blurb: 'A red moon hangs over the map. Kills and assists pay 25% more gold: fights snowball.',
-    rules: { killGold: 1.25 }, look: { night: [150, 104, 124], motes: 'ember' } },
+    rules: { killGold: 1.25 }, look: { night: [150, 104, 124], motes: 'ember' }, maps: { tide: 'Tidebreak Harbor: a spring tide, the floodwater slows 30% (not 22%).' } },
   { id: 'fog', name: 'Fog Week', icon: 'icons/Mist', color: '#c9d4e4', ranked: false,
     short: 'Vision -20%', blurb: 'Thick mist: heroes, minions and wards see 20% less. Wards and brush control win fights.',
     rules: { vision: 0.8 }, look: { veil: 'rgba(205,214,228,0.13)', motes: 'mist' } },
@@ -20,7 +21,7 @@ export const EVENTS = [
     rules: { minionGold: 1.25 }, look: { motes: 'gold' } },
   { id: 'swift', name: 'Swift Winds', icon: 'icons/BookWind', color: '#9fe6c8', ranked: true,
     short: '+10% move speed', blurb: 'A tailwind everywhere: heroes move 10% faster. Faster rotations, faster ganks.',
-    rules: { heroMs: 1.1 }, look: { motes: 'wind' } },
+    rules: { heroMs: 1.1 }, look: { motes: 'wind' }, maps: { sky: 'Skyreach Isles: jump pads fly 30% faster.' } },
   { id: 'iron', name: 'Iron Towers', icon: 'icons/DefenseUpgrade', color: '#c8ccd8', ranked: false,
     short: 'Structures +30% HP', blurb: 'Towers, gates and Crystals have 30% more HP. Sieges take longer: plan your pushes.',
     rules: { towerHp: 1.3 }, look: { veil: 'rgba(120,130,150,0.06)' } },

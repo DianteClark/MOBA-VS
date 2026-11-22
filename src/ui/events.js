@@ -37,6 +37,7 @@ function showEventInfo(app) {
       h('li', {}, 'On in Play vs AI, Casual, private rooms and Watch (5v5 Classic only; Lane Rush and the Cup stay as they are).'),
       h('li', {}, ev.ranked ? 'Ranked plays it too: it is balance-neutral.' : 'Ranked plays Classic this week: the event changes the balance.'),
       EVENT_FAMILY[ev.id] && FAMILIES[EVENT_FAMILY[ev.id]] ? h('li', {}, `Featured minions: ${FAMILIES[EVENT_FAMILY[ev.id]].name}. Everyone may wear them this week (Profile → Collection → Minions).`) : null,
+      ...Object.values(ev.maps || {}).map((t) => h('li', {}, t)), // what it changes on a v25 map
       next ? h('li', { class: 'muted' }, `Next week: ${next.name} (${next.short}).`) : null),
     h('div', { class: 'seg3 evseg', role: 'radiogroup', 'aria-label': 'Weekly event' },
       ...[[false, `Play ${ev.name}`], [true, 'Classic (no event)']].map(([off, label]) => h('button', { class: 'chip' + (app.eventOff === off ? ' on' : ''), role: 'radio', 'aria-checked': String(app.eventOff === off),

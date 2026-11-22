@@ -5,11 +5,11 @@
 // Detail: Low quality draws only the flags; Auto-medium and Reduced effects halve the counts.
 import { IMG, AMB, recolor } from './assets.js';
 import { glowSprite } from './particles.js';
-import { S, C, N, T_RIVER, T_GRASS } from '../sim/world.js';
+import { S, C, N, T_RIVER, T_GRASS, T_DEEP } from '../sim/world.js';
 import { settings } from '../ui/settings.js';
 
 const B = 240, NB = Math.ceil(S / B); // bucket size for static spots
-const LEAVES = { spring: ['leafpink', 'leafpink', 'leaf'], autumn: ['leafgold', 'leafgold', 'leaf'], winter: ['snow'], marsh: [], desert: [], ruins: ['leaf', 'leaf', 'leafgold'] };
+const LEAVES = { spring: ['leafpink', 'leafpink', 'leaf'], autumn: ['leafgold', 'leafgold', 'leaf'], winter: ['snow'], marsh: [], desert: [], ruins: ['leaf', 'leaf', 'leafgold'], coast: ['leaf'], sky: ['leafpink', 'leafpink'] };
 
 export class Ambient {
   constructor(r) { this.r = r; this.world = null; }
@@ -18,14 +18,14 @@ export class Ambient {
     this.water = Array.from({ length: NB * NB }, () => []); this.flowers = Array.from({ length: NB * NB }, () => []); this.frogs = [];
     this.waterAll = [];
     let seed = 1234 + world.def.id.length * 97; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-    const isRiver = (cx, cy) => cx >= 0 && cy >= 0 && cx < N && cy < N && world.type[cy * N + cx] === T_RIVER;
+    const isRiver = (cx, cy) => cx >= 0 && cy >= 0 && cx < N && cy < N && (world.type[cy * N + cx] === T_RIVER || world.type[cy * N + cx] === T_DEEP); // (tide maps: the deep channel shimmers too)
     for (let cy = 0; cy < N; cy++) for (let cx = 0; cx < N; cx++) {
       const i = cy * N + cx, t = world.type[i], x = cx * C, y = cy * C;
-      if (t === T_RIVER) {
+      if (t === T_RIVER || t === T_DEEP) {
         const inner = isRiver(cx + 1, cy) && isRiver(cx - 1, cy) && isRiver(cx, cy + 1) && isRiver(cx, cy - 1);
         if (inner) for (let k = 0; k < 2; k++) { const p = { x: x + rnd() * C, y: y + rnd() * C, ph: rnd() * 6.28, sp: 0.8 + rnd() }; this.water[((p.y / B) | 0) * NB + ((p.x / B) | 0)].push(p); this.waterAll.push(p); }
         else if (this.key === 'marsh' && rnd() < 0.05 && world.walk[i]) this.frogs.push({ x: x + C / 2, y: y + C / 2, ph: rnd() * 10 });
-      } else if (t === T_GRASS && world.walk[i] && !world.brush[i] && (this.key === 'spring' || this.key === 'marsh' || this.key === 'autumn' || this.key === 'ruins') && rnd() < 0.02) {
+      } else if (t === T_GRASS && world.walk[i] && !world.brush[i] && (this.key === 'spring' || this.key === 'marsh' || this.key === 'autumn' || this.key === 'ruins' || this.key === 'coast' || this.key === 'sky') && rnd() < 0.02) {
         const p = { x: x + rnd() * C, y: y + rnd() * C, ph: rnd() * 4 }; this.flowers[((p.y / B) | 0) * NB + ((p.x / B) | 0)].push(p);
       }
     }

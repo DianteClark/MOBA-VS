@@ -15,7 +15,8 @@ import { settings } from './ui/settings.js';
 const CLAN = { iron: ['iron1', 'iron2'], beast: ['beast1', 'beast2'], shinobi: ['shin1', 'shin2'], spirit: ['spir1', 'spir2'], wild: ['wild1', 'wild2'], hearth: ['hearth1', 'hearth2'] };
 // v24 map music packs: [laning theme, fight theme]. Other maps (Lane Rush) keep the classic calm/calm2 + tension.
 const MAP_MUSIC = { sakura: ['map_sakura', 'fight_bright'], frost: ['map_frost', 'fight_cold'], ember: ['map_ember', 'fight_cold'],
-  marsh: ['map_marsh', 'fight_dark'], oasis: ['map_oasis', 'fight_bright'], ruins: ['map_ruins', 'fight_dark'] };
+  marsh: ['map_marsh', 'fight_dark'], oasis: ['map_oasis', 'fight_bright'], ruins: ['map_ruins', 'fight_dark'],
+  tide: ['map_tide', 'fight_cold'], sky: ['map_sky', 'fight_bright'] };
 export const mapMusic = (mapId) => MAP_MUSIC[mapId] || null;
 // Victory theme: the clan with the most heroes on the winning team (2+, ties to the earlier pick), else the classic one.
 export function victoryTheme(game, team) {
