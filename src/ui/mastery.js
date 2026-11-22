@@ -41,7 +41,7 @@ function rewardsList(id, lv) {
 // Mastery perk picker: one small perk per hero, active only against the AI (never online, in Ranked queues or Cups).
 function perkRow(id, redraw) {
   const cur = profile.d.meta.perks[id] || null;
-  return h('div', { class: 'perks' }, h('div', { class: 'row', style: { justifyContent: 'space-between', gap: '6px' } }, h('b', {}, 'Mastery perk'), h('small', { class: 'vsai' }, 'vs AI only')),
+  return h('div', { class: 'perks' }, h('div', { class: 'row', style: { justifyContent: 'space-between', gap: '6px' } }, h('b', {}, 'Mastery perk'), h('small', { class: 'vsai' }, 'Franchise & Lane Rush vs AI')),
     h('div', { class: 'perkrow' }, ...PERK_IDS.map((k) => {
       const P = PERKS[k], ok = perkUnlocked(profile, id, k), on = cur === k;
       return h('button', { class: 'perk' + (on ? ' on' : '') + (ok ? '' : ' locked'), title: ok ? `${P.name}: ${P.short}` : `Mastery ${P.lv}`, 'aria-pressed': String(on),

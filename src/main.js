@@ -63,7 +63,7 @@ import { openAdminReplay } from './ui/adminreplay.js';
 import { frPrep, frRecord } from './franchise/play.js';
 import { showFranchise, franchiseResults } from './ui/franchise.js';
 
-const VERSION = 27; // bump whenever the sim or balance changes (peers must match)
+const VERSION = 28; // bump whenever the sim or balance changes (peers must match)
 const PREP_SECONDS = 60;
 installCrashReporter(VERSION); // window errors, unhandled rejections and lockstep desyncs → the owner dashboard (src/net/ops.js)
 
@@ -603,8 +603,8 @@ class App {
       ...(s.rival && RIVAL_BY_ID[s.rival] ? { coachStyle: [0, 1].map((t) => (t === s.myTeam ? null : rivalStyle(RIVAL_BY_ID[s.rival]))) } : {}),
       ...(s.mode === 'coop' ? { coop: coopCfg(s) } : {}),
     };
-    // hero mastery perks: only in matches against the AI that are not online or a cup (src/meta.js perksFor)
-    const perks = !s.replay && s.myTeam >= 0 && s.mode === 'ai' ? perksFor(profile, s.preps[s.myTeam].heroes.map((x) => x.id), { online: !!s.wasOnline, cup: !!s.cup }) : null;
+    // hero mastery perks: only in unrated matches against the AI (Franchise, Lane Rush vs AI); never where a rating moves (src/meta.js perksFor)
+    const perks = !s.replay && s.myTeam >= 0 && s.mode === 'ai' && (s.franchise || s.gameMode === 'rush') ? perksFor(profile, s.preps[s.myTeam].heroes.map((x) => x.id), { online: !!s.wasOnline, cup: !!s.cup }) : null;
     if (perks) cfg.perks = [0, 1].map((t) => (t === s.myTeam ? perks : null));
     const cfgSaved = JSON.parse(JSON.stringify(cfg));
     const pre = s.prebuilt; s.prebuilt = null; // Play of the Game: a game already fast-forwarded to the highlight
