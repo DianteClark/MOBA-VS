@@ -7,9 +7,10 @@ import { TICK_RATE } from '../sim/constants.js';
 import { settings } from './settings.js';
 import { placeName } from './moments.js';
 import { onViewport } from '../render/viewport.js';
+import { laneOpenSend } from './feasible.js';
 
 const PANEL_IDS = ['banner', 'myteam', 'topcenter', 'rightcol', 'foestrip', 'brcol', 'cmdbar', 'detail', 'qfeed'];
-const SIZE = 46, EDGE = 8;
+const SIZE = 46, EDGE = 8, DEF_IMG = 'assets/img/icons/DefenseUpgrade.png';
 
 export class Alerts {
   constructor(hud) {
@@ -56,12 +57,14 @@ export class Alerts {
     }
     // a lane left open: an enemy wave is hitting our structure and nobody is there (sim: team.laneOpen).
     // Tap: send the hero the lane brain suggests (a split call to that lane), and look there.
+    // The send action only appears when it would work: a charge to pay for it and a hero free to go in time.
     if (my >= 0) for (const [lane, o] of Object.entries(g.teams[my].laneOpen || {})) {
-      const tw = o && g.byId(o.tower), x = o && g.byId(o.hero);
+      const tw = o && g.byId(o.tower);
       if (!tw || !tw.alive) continue;
+      const s = laneOpenSend(g, my, lane, o), x = s && this.hud.mayCommand(s.cmd) ? s.hero : null;
       const L = lane[0].toUpperCase() + lane.slice(1);
-      out.push({ key: 'open' + lane, kind: 'laneopen', x: tw.x, y: tw.y - 30, img: x ? face(x.heroId) : null, label: `${L} lane open: wave hitting tower`, sub: x && x.alive ? `tap: send ${x.def.name}` : 'tap to look',
-        cmd: x && x.alive ? { type: 'split', hero: x.id, lane } : null, who: x && x.alive ? x.def.name : null });
+      out.push({ key: 'open' + lane, kind: 'laneopen', x: tw.x, y: tw.y - 30, img: x ? face(x.heroId) : null, label: `${L} lane open: wave hitting tower`, sub: x ? `tap: send ${x.def.name}` : 'tap to look',
+        cmd: x ? s.cmd : null, who: x ? x.def.name : null });
     }
     const rank = { bigfight: 0, laneopen: 1, fight: 2, tower: 3, obj: 4 };
     for (const a of out.slice()) if (a.kind === 'laneopen') { const i = out.findIndex((b) => b.kind === 'tower' && b.x === a.x); if (i >= 0) out.splice(i, 1); }
@@ -74,17 +77,23 @@ export class Alerts {
       keep.add(a.key);
       let it = this.items.get(a.key);
       if (!it) {
-        const img = h('img', { src: a.img || 'assets/img/icons/DefenseUpgrade.png' }), lab = h('b', {});
+        const img = h('img', { src: a.img || DEF_IMG }), lab = h('b', {}), sub = h('small', {}, a.sub || 'tap to watch');
         const big = a.kind === 'bigfight' || a.kind === 'laneopen';
         const el = h('button', { class: 'alert fresh ' + a.kind, title: big ? 'Big fight! Tap to watch' : a.kind === 'fight' ? 'Fight! Tap to look' : a.kind === 'tower' ? 'Tower under attack' : 'Objective under attack',
-          onclick: (e) => { e.stopPropagation(); this.go(it); } }, h('i', { class: 'arw' }), h('span', { class: 'ic' }, img), big ? h('span', { class: 'bl' }, lab, h('small', {}, a.sub || 'tap to watch')) : lab);
+          onclick: (e) => { e.stopPropagation(); this.go(it); } }, h('i', { class: 'arw' }), h('span', { class: 'ic' }, img), big ? h('span', { class: 'bl' }, lab, sub) : lab);
         if (a.kind === 'laneopen') { el.classList.add('bigfight'); el.style.setProperty('--ac', '#ff3b3b'); el.style.borderColor = '#ff3b3b'; el.title = a.label; }
         this.el.append(el);
-        it = { el, lab, img, born: performance.now(), w: 0, hh: 0 };
+        it = { el, lab, img, sub, born: performance.now(), w: 0, hh: 0 };
         this.items.set(a.key, it);
       }
       it.x = a.x; it.y = a.y; it.kind = a.kind; it.cmd = a.cmd; it.key = a.key; it.label = a.label; it.who = a.who;
       if (it.lab.textContent !== a.label) it.lab.textContent = a.label;
+      if (a.kind === 'laneopen') { // the send option comes and goes with charges / the hero's state
+        const t = a.sub || 'tap to watch', src = a.img || DEF_IMG;
+        if (it.sub.textContent !== t) it.sub.textContent = t;
+        if (it.img.getAttribute('src') !== src) it.img.setAttribute('src', src);
+        if (!a.cmd) it.offered = false; // offer the tray card again once a send is possible
+      }
     }
     for (const [k, it] of this.items) if (!keep.has(k)) { it.el.remove(); this.items.delete(k); }
   }
@@ -100,7 +109,7 @@ export class Alerts {
     const d = this.hud.dock;
     if (it.kind !== 'laneopen' || !it.cmd || !d || !d.tray || this.hud.my < 0 || it.offered) return;
     it.offered = true; // once per open lane (a dismissed card stays dismissed until the lane opens again)
-    d.suggest('lo:' + it.key, it.label, `Send ${it.who}`, it.cmd, { cls: 'bad', valid: () => this.items.has(it.key) });
+    d.suggest('lo:' + it.key, it.label, `Send ${it.who}`, it.cmd, { cls: 'bad', valid: () => this.items.has(it.key) && !!it.cmd });
   }
   panelRects() {
     const now = performance.now(); if (now - this.rectsAt < 250) return this.rects;
