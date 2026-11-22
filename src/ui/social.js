@@ -110,7 +110,7 @@ function joinRoom(app, room, mode) {
 // ───────────── hosting an invite ─────────────
 // One dialog for every invite: Team up (a party that stays together), Play one match now (a hosted room with the
 // invite attached), and where club and custom-game invites live (their own pages, the same invite cards).
-const INV_DESC = { party: 'Stay together: co-op vs AI and 2v2, match after match', casual: 'No rating change', rush: 'One lane, ~7 min', ranked: 'Climbs the ladder (both must accept)', coop: 'One team, two coaches, one match' };
+const INV_DESC = { party: 'Stay together: co-op vs AI and 2v2, match after match', casual: 'No rating change', rush: 'One lane, ~7 min', ranked: 'Climbs the ladder', coop: 'One team, two coaches, one match' };
 export function inviteFriend(app, friend) {
   const btn = (m) => h('button', { class: 'btn' + (m === 'ranked' ? ' ranked' : '') + (m === 'party' ? ' party' : ''), onclick: () => { close(); hostInvite(app, { to: friend, mode: m }); } },
     h('b', {}, m === 'party' ? 'Party' : MODE_NAME[m]), h('small', {}, INV_DESC[m]));

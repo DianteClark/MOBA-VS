@@ -138,7 +138,7 @@ function removeMember(p, mem, why) {
 function onMember(app, p, id, m) {
   const mem = p.members.find((x) => x.id === id); if (!mem) return;
   switch (m.t) {
-    case 'pready': mem.ready = !!m.on && !mem.busy; sync(); if (mem.ready && p.want) partyStart(app, p.mode); return;
+    case 'pready': if (typeof m.busy === 'boolean') mem.busy = m.busy; mem.ready = !!m.on && !mem.busy; sync(); if (mem.ready && p.want) partyStart(app, p.mode); return; // (busy rides along: the 1.5 s loop may not have told us yet)
     case 'pst': mem.busy = !!m.busy; if (mem.busy) mem.ready = false; sync(); return;
     case 'pchat': gotChat(mem, m); return;
     case 'pleave': mem.left = true; detach(mem.link); try { mem.link.close(); } catch { /* ignore */ } removeMember(p, mem, `${mem.name} left the party`); return;
@@ -228,8 +228,8 @@ function follow(app, p, m) {
 // ───────────── both ─────────────
 export function setReady(on) {
   const m = me(); if (!P || P.leader || !m) return;
-  m.ready = !!on; audio.sfx(on ? 'accept' : 'move', 0.5);
-  if (P.link) P.link.send({ t: 'pready', on: !!on });
+  m.busy = busy(appRef); m.ready = !!on && !m.busy; audio.sfx(on ? 'accept' : 'move', 0.5);
+  if (P.link) P.link.send({ t: 'pready', on: m.ready, busy: m.busy });
   changed();
 }
 export function setMode(mode, ai) {
