@@ -19,5 +19,5 @@
 @keyframes callSent { 0% { filter: brightness(1.8); } 100% { filter: none; } }
 .reduce-motion #cmdbar .call.sent { animation: none; }
 /* the active-call pill names the call ("✕ Take Ember Kami"): one tap cancels it */
-#cmdbar .cancelpill { display: flex; align-items: center; gap: 2px; max-width: min(60vw, 320px); white-space: nowrap; }
+#cmdbar .cancelpill { display: flex; align-items: center; gap: 5px; max-width: min(60vw, 320px); white-space: nowrap; }
 #cmdbar .cancelpill span { overflow: hidden; text-overflow: ellipsis; }

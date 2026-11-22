@@ -53,7 +53,7 @@ export class Dock {
     this.trayEl = h('div', { class: 'tray empty' });
     this.tray = new Tray(this.trayEl);
     this.sheetEl = h('div', { class: 'sheet hidden' });
-    this.cancelEl = h('button', { class: 'cancelpill hidden', title: 'Cancel your calls (free) [C]', onclick: () => this.send({ type: 'cancel' }) }, h('b', {}, '✕ '), this.cancelPill = h('span', {}, 'Cancel calls'));
+    this.cancelEl = h('button', { class: 'cancelpill hidden', title: 'Cancel your calls (free) [C]', onclick: () => this.send({ type: 'cancel' }) }, h('b', {}, '✕'), this.cancelPill = h('span', {}, 'Cancel calls'));
     this.pips = Array.from({ length: CMD.maxCharges }, () => h('div', { class: 'pip' }, h('i')));
     this.chargeTxt = h('span', { class: 'ctxt' }, '');
     this.momFill = h('i');
