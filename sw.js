@@ -7,7 +7,9 @@
 //   background. If any file changed (a deploy that did not bump VERSION), the whole cached set is
 //   re-downloaded into a staging cache and swapped in together, then the page is told an update is
 //   ready (it reloads on the menu). So the cache always holds one consistent build.
-// * Audio (range requests) and the online API are left to the network / HTTP cache.
+// * Audio (range requests), the online API and the owner dashboard (admin.html, src/ui/admin.js) are left to
+//   the network: the dashboard is never cached.
+// * Push notifications (worker/push.js): show the message; a tap focuses the game (or opens it) at its url.
 const V = new URL(self.location.href).searchParams.get('v') || '0';
 const CACHE = `mobavs-v${V}`, STAGE = CACHE + '-next';
 const SHELL = ['./', './index.html', './css/style.css', './src/main.js', './manifest.webmanifest', './favicon.ico', './apple-touch-icon.png',
@@ -24,8 +26,9 @@ self.addEventListener('activate', (e) => {
     .then(() => self.clients.claim()));
 });
 
+const PRIVATE = /\/(admin\.html|src\/ui\/admin\.js|css\/admin\.css)$/;
 const cacheable = (req, url) => req.method === 'GET' && !req.headers.has('range') &&
-  ((url.origin === self.location.origin && !url.pathname.includes('/assets/audio/')) || url.href.startsWith(PEERJS));
+  ((url.origin === self.location.origin && !url.pathname.includes('/assets/audio/') && !PRIVATE.test(url.pathname)) || url.href.startsWith(PEERJS));
 
 self.addEventListener('fetch', (e) => {
   const req = e.request, url = new URL(req.url);
@@ -80,3 +83,23 @@ function scheduleRefresh() {
   })();
   return refreshing;
 }
+
+// ── push notifications ──
+self.addEventListener('push', (e) => {
+  let m = {}; try { m = e.data ? e.data.json() : {}; } catch { m = { title: 'MOBA-VS', body: e.data ? e.data.text() : '' }; }
+  const url = typeof m.url === 'string' && /^\.?\/(?!\/)/.test(m.url) ? m.url : './';
+  e.waitUntil(self.registration.showNotification(String(m.title || 'MOBA-VS').slice(0, 80), {
+    body: String(m.body || '').slice(0, 200), tag: m.tag || 'mobavs', renotify: true, icon: 'assets/img/app/icon-192.png', badge: 'assets/img/app/icon-192.png', data: { url },
+  }));
+});
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const target = new URL((e.notification.data && e.notification.data.url) || './', self.registration.scope).href;
+  e.waitUntil((async () => {
+    const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const game = wins.find((w) => new URL(w.url).origin === self.location.origin && !PRIVATE.test(new URL(w.url).pathname));
+    // an open game handles the link itself (an invite or the cup screen) without a reload mid-match
+    if (game) { game.postMessage({ t: 'push-open', url: target }); return game.focus(); }
+    return self.clients.openWindow(target);
+  })());
+});

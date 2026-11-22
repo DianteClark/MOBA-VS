@@ -13,8 +13,13 @@
 // Weekend Cups (worker/cups.js): 8-coach brackets between real players. Anti-cheat (worker/anticheat.js):
 // ranked and cup reports carry the command log; a scheduled GitHub Action re-simulates it (tools/verify.mjs)
 // through the token-protected /api/admin/* endpoints and flags (and rolls back) results that do not hold up.
+// Live-ops (worker/ops.js): activity, match / queue / hero counters, crash reports, feedback, A/B flags and
+// the owner dashboard API (/admin.html). Web Push (worker/push.js): opt-in notifications, queued in D1 and
+// sent within the request budget. A cron (wrangler.jsonc triggers) drains the push queue and rolls up stats.
 import { CUP_SCHEMA, CUP_TABLES, cupApi, cupMatchFor, trophiesStmt, trophyRow } from './cups.js';
-import { REPLAY_SCHEMA, REPLAY_TABLES, REPLAY_MIGRATIONS, replayStmt, pruneStmts, adminApi } from './anticheat.js';
+import { REPLAY_SCHEMA, REPLAY_TABLES, REPLAY_MIGRATIONS, replayStmt, pruneStmts, adminApi, tokenOk } from './anticheat.js';
+import { OPS_SCHEMA, OPS_TABLES, OPS_MIGRATIONS, opsApi, bumpStmts, matchCounters, dayOf } from './ops.js';
+import { PUSH_SCHEMA, PUSH_TABLES, pushApi, enqueueStmt, drainOutbox } from './push.js';
 
 const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS players (id TEXT PRIMARY KEY, name TEXT NOT NULL, secret_hash TEXT NOT NULL, created INTEGER, updated INTEGER, profile TEXT, profile_at INTEGER DEFAULT 0)`,
@@ -33,9 +38,9 @@ const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS invites (id TEXT PRIMARY KEY, sender TEXT, target TEXT, room TEXT, mode TEXT, status TEXT, created INTEGER)`,
   `CREATE INDEX IF NOT EXISTS invites_to ON invites (target, status, created)`,
   `CREATE INDEX IF NOT EXISTS invites_from ON invites (sender, created)`,
-  ...CUP_SCHEMA, ...REPLAY_SCHEMA,
+  ...CUP_SCHEMA, ...REPLAY_SCHEMA, ...OPS_SCHEMA, ...PUSH_SCHEMA,
 ];
-const TABLES = ['players', 'ladder', 'reports', 'matches', 'hero_results', 'queue', 'shares', 'friends', 'invites', ...CUP_TABLES, ...REPLAY_TABLES];
+const TABLES = ['players', 'ladder', 'reports', 'matches', 'hero_results', 'queue', 'shares', 'friends', 'invites', ...CUP_TABLES, ...REPLAY_TABLES, ...OPS_TABLES, ...PUSH_TABLES];
 // Columns added after launch: tables created by older deploys get them here. ALTER fails harmlessly
 // ("duplicate column") once the column exists, so each one is tried on its own.
 const MIGRATIONS = [
@@ -48,7 +53,7 @@ const MIGRATIONS = [
   `ALTER TABLE players ADD COLUMN elo INTEGER`,
   // leaderboard pages walk (rating DESC, player) with a keyset cursor
   `CREATE INDEX IF NOT EXISTS ladder_page ON ladder (season, rating DESC, player)`,
-  ...REPLAY_MIGRATIONS,
+  ...REPLAY_MIGRATIONS, ...OPS_MIGRATIONS,
 ];
 async function migrate(db) { for (const q of MIGRATIONS) { try { await db.prepare(q).run(); } catch { /* already migrated */ } } }
 let ready = null;
@@ -99,8 +104,12 @@ function limited(key, max, win = 60000) {
 }
 const ip = (req) => req.headers.get('cf-connecting-ip') || 'local';
 const slow = () => bad('Too many requests: try again in a minute', 429);
-const CUPS = cupApi({ json, bad, body, auth, rand, limited, slow });
+// Weekend Cup check-ins: a push to both coaches of every match that opens (always sent: a no-show loses).
+const checkin = (db, pairs, now) => (pairs.length ? db.batch(pairs.flatMap(({ a, b, round }) => [a, b].map((pl) => enqueueStmt(db, pl, 'cup', { round }, now, false)))) : null);
+const CUPS = cupApi({ json, bad, body, auth, rand, limited, slow, checkin });
 const admin = adminApi({ json, bad, body, sha });
+const OPS = opsApi({ json, bad, body, auth, limited, slow, tokenOk, sha, ip });
+const PUSH = pushApi({ json, bad, body, auth, limited, slow, tokenOk, sha });
 
 // ── public profile ──
 // The read-only summary other coaches can see, cut from the uploaded cloud save: rank, title, banner, newest
@@ -235,6 +244,7 @@ async function social(req, db, url, p, M, now) {
     const stmts = [db.prepare('INSERT INTO invites (id, sender, target, room, mode, status, created) VALUES (?,?,?,?,?,?,?)').bind(id, me.id, to, room, mode, to ? 'pending' : 'open', now)];
     if (to) stmts.unshift(db.prepare("UPDATE invites SET status = 'cancelled' WHERE sender = ? AND target = ? AND status = 'pending'").bind(me.id, to)); // one live invite per friend
     if (id.charCodeAt(0) % 16 === 0) stmts.push(db.prepare('DELETE FROM invites WHERE created < ?').bind(now - 86400000)); // occasional sweep
+    if (to) stmts.push(enqueueStmt(db, to, 'invite', { from: me.name, mode, id }, now)); // a push when they are not in the app
     await db.batch(stmts);
     return json({ id, url: `${url.origin}/i/${id}`, ttl: to ? INVITE_TTL : LINK_TTL });
   }
@@ -271,6 +281,10 @@ async function social(req, db, url, p, M, now) {
   }
   return null;
 }
+
+// Queue health for the dashboard: searches (qs), matched pairs (qm), the host's wait in seconds (qw), and
+// cancels (qc). A searcher who is matched at once also counts as a search.
+const queueStats = (db, mode, now, created, search = false) => bumpStmts(db, dayOf(now), { ['qm:' + mode]: 1, ['qw:' + mode]: Math.max(0, Math.round((now - (created || now)) / 1000)), ...(search ? { ['qs:' + mode]: 1 } : {}) });
 
 async function route(req, env, url) {
   const db = env.DB; if (!db) return bad('database not connected', 503);
@@ -339,6 +353,7 @@ async function route(req, env, url) {
     const heroStmts = [];
     try {
       const sm = JSON.parse(a.summary || '{}');
+      heroStmts.push(...bumpStmts(db, dayOf(now), matchCounters(sm, a.winner, queueOf(a.mode)))); // live-ops counters (worker/ops.js)
       (sm.picks || []).forEach((ids, t) => (ids || []).slice(0, 5).forEach((h) => heroStmts.push(db.prepare(`INSERT INTO hero_results (season, hero, games, wins) VALUES (?,?,1,?)
         ON CONFLICT(season, hero) DO UPDATE SET games = games + 1, wins = wins + excluded.wins`).bind(season, String(h).slice(0, 16), t === a.winner ? 1 : 0))));
     } catch { /* summary optional */ }
@@ -423,22 +438,24 @@ async function route(req, env, url) {
       if (!mine) return json({ status: 'expired' });
       if (mine.status === 'claimed') return json({ status: 'matched', role: 'host', code: mine.code });
       await db.prepare('UPDATE queue SET seen = ? WHERE id = ?').bind(now, ticket).run();
-      const older = await db.prepare(`UPDATE queue SET status = 'claimed', claimed_by = ? WHERE id = (SELECT id FROM queue WHERE status = 'waiting' AND version = ? AND COALESCE(mode, 'ranked') = ? AND player != ? AND created < ? AND seen >= ? ORDER BY created LIMIT 1) RETURNING code`)
+      const older = await db.prepare(`UPDATE queue SET status = 'claimed', claimed_by = ? WHERE id = (SELECT id FROM queue WHERE status = 'waiting' AND version = ? AND COALESCE(mode, 'ranked') = ? AND player != ? AND created < ? AND seen >= ? ORDER BY created LIMIT 1) RETURNING code, created`)
         .bind(me.id, version, queueOf(mine.mode), me.id, mine.created, stale).first();
-      if (older) { await db.prepare('DELETE FROM queue WHERE id = ?').bind(ticket).run(); return json({ status: 'matched', role: 'join', code: older.code }); }
+      if (older) { await db.batch([db.prepare('DELETE FROM queue WHERE id = ?').bind(ticket), ...queueStats(db, queueOf(mine.mode), now, older.created)]); return json({ status: 'matched', role: 'join', code: older.code }); }
       return json({ status: 'waiting', ticket, code: mine.code });
     }
-    const got = await db.prepare(`UPDATE queue SET status = 'claimed', claimed_by = ? WHERE id = (SELECT id FROM queue WHERE status = 'waiting' AND version = ? AND COALESCE(mode, 'ranked') = ? AND player != ? AND seen >= ? ORDER BY created LIMIT 1) RETURNING code`)
+    const got = await db.prepare(`UPDATE queue SET status = 'claimed', claimed_by = ? WHERE id = (SELECT id FROM queue WHERE status = 'waiting' AND version = ? AND COALESCE(mode, 'ranked') = ? AND player != ? AND seen >= ? ORDER BY created LIMIT 1) RETURNING code, created`)
       .bind(me.id, version, mode, me.id, stale).first();
-    if (got) return json({ status: 'matched', role: 'join', code: got.code });
+    if (got) { await db.batch(queueStats(db, mode, now, got.created, true)); return json({ status: 'matched', role: 'join', code: got.code }); }
     const id = rand(12), code = rand(5).replace(/[^A-Z]/g, 'Q');
-    await db.prepare(`INSERT INTO queue (id, player, name, version, rating, code, status, created, seen, mode) VALUES (?,?,?,?,?,?, 'waiting', ?, ?, ?)`).bind(id, me.id, me.name, version, Number(b.rating) | 0, code, now, now, mode).run();
+    await db.batch([db.prepare(`INSERT INTO queue (id, player, name, version, rating, code, status, created, seen, mode) VALUES (?,?,?,?,?,?, 'waiting', ?, ?, ?)`).bind(id, me.id, me.name, version, Number(b.rating) | 0, code, now, now, mode),
+      ...bumpStmts(db, dayOf(now), { ['qs:' + mode]: 1 })]);
     return json({ status: 'waiting', ticket: id, code, role: 'host', mode });
   }
   if (p === '/api/queue/cancel' && M === 'POST') {
     const me = await auth(req, db); if (!me) return bad('unauthorized', 401);
     const b = await body(req);
-    await db.prepare('DELETE FROM queue WHERE id = ? AND player = ?').bind(String(b.ticket || ''), me.id).run();
+    const gone = await db.prepare(`DELETE FROM queue WHERE id = ? AND player = ? RETURNING COALESCE(mode, 'ranked') AS mode, status`).bind(String(b.ticket || ''), me.id).first();
+    if (gone && gone.status === 'waiting') await db.batch(bumpStmts(db, dayOf(now), { ['qc:' + queueOf(gone.mode)]: 1 })); // gave up (cancel or the 60 s limit)
     return json({ ok: true });
   }
   if (p === '/api/queue/count' && M === 'GET') {
@@ -449,6 +466,8 @@ async function route(req, env, url) {
 
   const soc = await social(req, db, url, p, M, now); if (soc) return soc;
   const cup = await CUPS.route(req, env, db, url, p, M, now); if (cup) return cup;
+  const ops = await OPS.route(req, env, db, url, p, M, now); if (ops) return ops;
+  const psh = await PUSH(req, env, db, url, p, M, now); if (psh) return psh;
   const adm = await admin(req, env, db, url, p, M, now); if (adm) return adm;
 
   // ── share links ──
@@ -471,8 +490,18 @@ async function route(req, env, url) {
   return bad('not found', 404);
 }
 
+// Pushes queued by this request go out after the response (ctx.waitUntil), within the request's CPU budget.
+const QUEUES_PUSH = /^\/api\/(invite$|cup\b|push\/rematch$)/;
 export default {
-  async fetch(req, env) {
+  async scheduled(event, env, ctx) {
+    if (!env.DB) return;
+    await ensure(env.DB);
+    const now = Date.now();
+    // every 5 minutes: drain queued pushes; once a day (03:07 UTC): stats rollup + pruning
+    if (event.cron === '7 3 * * *') ctx.waitUntil(OPS.rollup(env.DB, now));
+    else ctx.waitUntil(drainOutbox(env.DB, env, now, 3));
+  },
+  async fetch(req, env, ctx) {
     const url = new URL(req.url);
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
     if (url.pathname === '/api/health') {
@@ -493,7 +522,11 @@ export default {
     const i = url.pathname.match(/^\/i\/([A-Z0-9]{8})$/);
     if (i) return Response.redirect(`${url.origin}/?i=${i[1]}`, 302);
     if (url.pathname.startsWith('/api/')) {
-      try { return await route(req, env, url); } catch (e) {
+      try {
+        const res = await route(req, env, url);
+        if (ctx && env.DB && (req.method === 'POST' || url.pathname === '/api/cup') && QUEUES_PUSH.test(url.pathname)) ctx.waitUntil(drainOutbox(env.DB, env).catch(() => 0));
+        return res;
+      } catch (e) {
         const m = String(e && e.message || e).slice(0, 120);
         return bad(m, m === 'too large' ? 413 : m === 'bad json' ? 400 : 500);
       }

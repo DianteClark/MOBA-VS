@@ -50,6 +50,7 @@ export function cupWindow(env, now) {
 
 export function cupApi(H) {
   const { json, bad, body, auth, rand, limited, slow } = H;
+  const checkin = (db, pairs, now) => (H.checkin ? H.checkin(db, pairs, now) : null); // push both coaches (worker/push.js)
   const room = () => rand(5).replace(/[^A-Z]/g, 'Q');
   const matchId = () => 'C' + rand(15);
 
@@ -80,12 +81,21 @@ export function cupApi(H) {
       const ms = (await db.prepare('SELECT * FROM cup_matches WHERE cup = ?').bind(cupId).all()).results || [];
       const at = (r, s) => ms.find((m) => m.round === r && m.slot === s);
       const decided = (m) => m && (m.status === 'done' || m.status === 'void');
-      const stmts = [];
+      const stmts = [], pairs = [];
       for (let r = 0; r < ROUNDS - 1; r++) for (let s = 0; s < (4 >> r) / 2; s++) {
         const m1 = at(r, 2 * s), m2 = at(r, 2 * s + 1);
-        if (decided(m1) && decided(m2) && !at(r + 1, s)) stmts.push(newMatch(db, cupId, r + 1, s, m1.status === 'done' ? m1.winner : null, m2.status === 'done' ? m2.winner : null, now, T));
+        if (decided(m1) && decided(m2) && !at(r + 1, s)) {
+          const a = m1.status === 'done' ? m1.winner : null, b = m2.status === 'done' ? m2.winner : null;
+          stmts.push(newMatch(db, cupId, r + 1, s, a, b, now, T));
+          if (a && b) pairs.push({ a, b, round: r + 1, i: stmts.length - 1 });
+        }
       }
-      if (stmts.length) { await db.batch(stmts); continue; }
+      if (stmts.length) {
+        const res = await db.batch(stmts);
+        // only the matches this call created (INSERT OR IGNORE: a concurrent poll may have made them first)
+        await checkin(db, pairs.filter((x) => res[x.i] && res[x.i].meta && res[x.i].meta.changes), now);
+        continue;
+      }
       const fin = at(ROUNDS - 1, 0);
       if (decided(fin)) {
         const w = fin.status === 'done' ? fin.winner : null;
@@ -180,6 +190,7 @@ export function cupApi(H) {
     }
     SEEDS.forEach(([x, y], slot) => stmts.push(newMatch(db, cupId, 0, slot, seeded[x - 1].player, seeded[y - 1].player, now, T)));
     await db.batch(stmts);
+    await checkin(db, SEEDS.map(([x, y]) => ({ a: seeded[x - 1].player, b: seeded[y - 1].player, round: 0 })), now);
   }
 
   // The cup a coach is in now (or just finished, for an hour), else the open sign-up list for their version.
