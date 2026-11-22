@@ -9,7 +9,7 @@ import { DATA_VERSION } from './data/unlocks.js';
 const KEY = 'mobavs_dv';
 const KEEP = new Set(['mobavs_settings', 'mobavs_lang', 'mobavs_muted', 'mobavs_name', 'mobavs_queue', 'mobavs_qsize', 'mobavs_ai', 'mobavs_noevent',
   'mobavs_push_types', 'mobavs_push_prompt', 'mobavs_offline_ready', 'mobavs_api', 'mobavs_admin', 'mobavs_i18n_miss', 'mobavs_crash_rate', 'mobavs_spec', 'mobavs_bcast', KEY]);
-export function resetIfNeeded(ls = globalThis.localStorage) {
+function resetIfNeeded(ls = globalThis.localStorage) {
   try {
     if (!ls) return false;
     const have = Number(ls.getItem(KEY)) || 1;

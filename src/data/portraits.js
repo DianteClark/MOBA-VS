@@ -7,7 +7,7 @@ import { KAMI, KAMI_IDS } from '../sim/beasts.js';
 import { HERO_BY_ID } from './heroes.js';
 import { ownsIn } from './unlocks.js';
 
-export const PFP_N = 10; // tallies needed for a Kami / Elder / Oni / Kraken portrait
+const PFP_N = 10; // tallies needed for a Kami / Elder / Oni / Kraken portrait
 const boss = (k) => `assets/img/boss/${k}_faceset.png`;
 // unlock: { tally: key, n } (a counter in d.pfp.c), { win: key } (a flag), or a beasts.js unlock ({ pass }, { ach }, { mastery }, { club })
 export const PORTRAITS = {
@@ -24,7 +24,7 @@ export const PORTRAITS = {
   racoon: { name: 'Golden Racoon', src: monFace('GoldRacoon'), unlock: { achN: 15 }, how: 'Earn 15 achievements' },
 };
 export const PORTRAIT_IDS = Object.keys(PORTRAITS);
-export const DEFAULT_PFP = 'h:upa';
+const DEFAULT_PFP = 'h:upa';
 const TALLY_KEYS = new Set(PORTRAIT_IDS.map((k) => PORTRAITS[k].unlock.tally).filter(Boolean)), WIN_KEYS = new Set(PORTRAIT_IDS.map((k) => PORTRAITS[k].unlock.win).filter(Boolean));
 
 // Sanitize d.pfp and the equipped picture (it must still be owned / earned).
@@ -45,7 +45,7 @@ export function portraitProgress(P, id) {
   if (u.achN) return { have: Math.min(u.achN, Object.keys((P.d.ach && P.d.ach.got) || {}).length), n: u.achN };
   return { have: unlocked(P, u) ? 1 : 0, n: 1 };
 }
-export const hasPortrait = (P, id) => { const g = portraitProgress(P, id); return g.have >= g.n; };
+const hasPortrait = (P, id) => { const g = portraitProgress(P, id); return g.have >= g.n; };
 // Can this coach wear the picture? Champions they own; monster portraits they earned.
 export function canWear(P, pfp) {
   if (!validPfp(pfp)) return false;

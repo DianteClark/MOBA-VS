@@ -17,7 +17,6 @@ export const TIERS = {
 };
 export const TIER_ORDER = ['G', 'S', 'E', 'L'];
 export const tierOf = (id) => (HERO_TIER[id] ? HERO_TIER[id][0] : 'S');
-export const roleOfTier = (id) => (HERO_TIER[id] ? HERO_TIER[id][1] : null);
 export const priceOf = (id) => TIERS[tierOf(id)].price;
 export const ALL_IDS = Object.keys(HERO_TIER);
 export const isHero = (id) => typeof id === 'string' && Object.prototype.hasOwnProperty.call(HERO_TIER, id);
@@ -39,21 +38,21 @@ export const ECON = {
   dayMatches: 30, minGap: 90000, maxAge: 7 * 86400000, // sync bounds: paid matches per UTC day, seconds between paid matches, oldest claim
 };
 // Pay for one match (no daily bonus): { base, rookie } with the rookie boost applied.
-export function matchPay(won, gamesBefore) {
+function matchPay(won, gamesBefore) {
   const base = won ? ECON.win : ECON.loss, rookie = gamesBefore < ECON.rookieGames;
   return { base, rookie, total: rookie ? base * ECON.rookieMult : base };
 }
 // Free General picks earned at coach level lv (capped).
-export const picksAt = (lv) => Math.min(ECON.pickCap, Math.floor(Math.max(0, lv) / ECON.pickEvery));
+const picksAt = (lv) => Math.min(ECON.pickCap, Math.floor(Math.max(0, lv) / ECON.pickEvery));
 // The coach level the server accepts for g paid matches: at most ~260 coach XP a match (a win with every call,
 // goal and story bonus), walked through the same level curve as src/data/meta.js (150 + 25 L per level).
-export function maxLevelFor(g) {
+function maxLevelFor(g) {
   let xp = Math.max(0, g) * 260, lv = 1;
   while (lv < 40 && xp >= 150 + 25 * lv) { xp -= 150 + 25 * lv; lv++; }
   return lv;
 }
 // Ownership value bound for a first sync that seeds the server from an offline (never signed in) profile.
-export const SEED_CAP = 30000;
+const SEED_CAP = 30000;
 
 // ── weekly free rotation ──
 // ISO weeks (Monday 00:00 UTC). 1970-01-05 was a Monday: day 4.

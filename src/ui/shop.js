@@ -2,12 +2,12 @@
 // champion with its tier, price and state (owned / free this week / starter), filters by role and tier, buy
 // with a confirm, a free General pick, and "Try it" (one vs-AI match with a champion you don't own).
 // Also: the small Koban chip on Home, the Koban row on the results, the Ranked gate and draft access badges.
-import { h, mount, face, toast, emptyState } from './dom.js';
+import { h, face, toast, emptyState } from './dom.js';
 import { HEROES, HERO_BY_ID, ROLES, ROLE_LABEL } from '../data/heroes.js';
 import { CLANS } from '../sim/constants.js';
 import { TIERS, TIER_ORDER, tierOf, priceOf, isStarter, ECON, RANKED_OWNED } from '../data/unlocks.js';
 import { profile } from '../profile.js';
-import { kb, owns, ownedCount, inRotation, freeRotation, rotationEnds, picksLeft, nextPickLevel, generalsDone, canTry, buyChampion, useFreePick, armTrial, syncKoban, roleCoverage } from '../unlocks.js';
+import { kb, owns, ownedCount, inRotation, freeRotation, rotationEnds, picksLeft, nextPickLevel, generalsDone, canTry, buyChampion, useFreePick, armTrial, roleCoverage } from '../unlocks.js';
 import { kobanSignedIn } from '../net/koban.js';
 import { heroRatings } from '../data/herostats.js';
 import { audio } from '../audio.js';
@@ -142,4 +142,3 @@ async function pickKoban(app, rerender) {
   if (err) { toast(err, 2600); return; }
   audio.sfx('powerup', 0.7); toast(`Every General is yours: the free pick paid ${fmt(ECON.pickKoban)} Koban.`, 2600); rerender();
 }
-export { syncKoban };

@@ -3,11 +3,11 @@
 // draft where each peer filters by its own ownership, and the sim staying identical).
 //   node tools/unlocks_test.mjs [--econ]      (--econ: print the full economy table only)
 import assert from 'node:assert/strict';
-import { ECON, STARTERS, ALL_IDS, TIERS, tierOf, priceOf, rotation, weekOf, freshLedger, applyClaim, buyIn, pickIn, ownedCountIn, picksLeftIn, RANKED_OWNED, LOANER_UNTIL } from '../src/data/unlocks.js';
+import { STARTERS, ALL_IDS, TIERS, tierOf, priceOf, rotation, weekOf, freshLedger, applyClaim, buyIn, pickIn, ownedCountIn, picksLeftIn, RANKED_OWNED, LOANER_UNTIL } from '../src/data/unlocks.js';
 import { coachLevelOf, COACH_XP } from '../src/data/meta.js';
 import { XP_PER_LEVEL, MATCH_XP } from '../src/data/seasons.js';
 import { HEROES, HERO_BY_ID, ROLES } from '../src/data/heroes.js';
-import { newDraft, apply as draftApply, currentTurn, legal, autoChoice, DRAFT_ORDER, assignRoles } from '../src/sim/draft.js';
+import { newDraft, apply as draftApply, currentTurn, legal, autoChoice, DRAFT_ORDER } from '../src/sim/draft.js';
 import { coopLegal, DEFAULT_OWN, coopRoles } from '../src/sim/coop.js';
 import { teamRoles } from '../src/presets.js';
 import { Rng } from '../src/sim/rng.js';

@@ -2,7 +2,8 @@
 //   node tools/scan.mjs [pairs=40] [workers=2] [--seed N] [--log games.jsonl] [--duos P] [--quiet] [--noliving]
 //   node tools/scan.mjs --from a.jsonl[,b.jsonl] [--json out.json]        (re-aggregate saved games)
 //   --focus a,b,c  a focused re-check: every matchup seats the listed heroes in their main role (one per team and
-//                  role, rotating through the list); every other seat is a control drawn from the shuffled decks.
+//                  role, rotating through the list, each role on a random side); every other seat is a control
+//                  drawn from the shuffled decks.
 //   The summary flags any hero whose SHRUNK sharp win rate is >= 90% or passive win rate <= 12% (--focus: those only).
 // Test-only (no gameplay change): every matchup is played TWICE with the same seed, map and heroes,
 // once with team A sharp / team B passive and once the other way round, so each hero's coaching gap is a
@@ -70,7 +71,8 @@ if (!isMainThread) {
     const fRole = Object.fromEntries(ROLES.map((r) => [r, focus.filter((id) => HERO_BY_ID[id].role === r)]));
     for (let i = 0; i < N; i++) {
       const used = new Set(), fixed = [{}, {}];
-      for (const r of ROLES) { const L = fRole[r]; if (!L.length) continue; const x = L[(2 * i) % L.length], y = L[(2 * i + 1) % L.length]; fixed[i % 2][r] = x; used.add(x); if (y !== x) { fixed[1 - i % 2][r] = y; used.add(y); } }
+      // each role picks its own side at random, so focus heroes of different roles are not always teammates
+      for (const r of ROLES) { const L = fRole[r]; if (!L.length) continue; const x = L[(2 * i) % L.length], y = L[(2 * i + 1) % L.length], side = rng.int(2); fixed[side][r] = x; used.add(x); if (y !== x) { fixed[1 - side][r] = y; used.add(y); } }
       const a = ROLES.map((r) => fixed[0][r] || draw(r, used)), b = ROLES.map((r) => fixed[1][r] || draw(r, used));
       if (!focus.length && rng.next() < +opt('duos', 0.4)) {
         const d = crossDuos[rng.int(crossDuos.length)], [mine, other] = rng.next() < 0.5 ? [a, b] : [b, a];

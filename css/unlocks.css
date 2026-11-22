@@ -92,3 +92,5 @@
   .srh { width: 28px; height: 28px; }
   .pfpgrid { grid-template-columns: repeat(auto-fill, minmax(56px, 1fr)); }
 }
+.ppfphead { justify-self: end; }
+@media (max-width: 720px) { .shead:has(> .ppfphead) { grid-template-columns: 70px 1fr 40px; } }

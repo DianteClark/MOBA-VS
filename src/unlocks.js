@@ -9,7 +9,7 @@
 //
 // Ownership touches the DRAFT only (which heroes a coach may lock in): the match sim never reads it, so
 // lockstep and replays are unaffected beyond the picks themselves.
-import { STARTERS, ECON, RANKED_OWNED, LOANER_UNTIL, isStarter, isHero, tierOf, priceOf, rotationNow, weekOf, weekEnds, picksAt,
+import { ECON, RANKED_OWNED, LOANER_UNTIL, isHero, rotationNow, weekOf, weekEnds,
   freshLedger, cleanLedger, applyClaim, buyIn, pickIn, ownsIn, ownedCountIn, picksLeftIn, allGeneralsOwned } from './data/unlocks.js';
 import { HEROES, HERO_BY_ID, ROLES } from './data/heroes.js';
 import { coachLevelOf } from './data/meta.js';
@@ -44,7 +44,6 @@ export const kb = (P) => P.d.koban;
 // ── ownership ──
 export const owns = (P, id) => ownsIn(kb(P), id);
 export const ownedCount = (P) => ownedCountIn(kb(P));
-export const ownedIds = (P) => [...STARTERS, ...kb(P).own];
 export const rankedReady = (P) => ownedCount(P) >= RANKED_OWNED;
 export const freeRotation = (now = Date.now()) => rotationNow(now);
 export const inRotation = (id, now = Date.now()) => rotationNow(now).includes(id);
@@ -60,7 +59,7 @@ export const canTry = (P, id) => isHero(id) && !owns(P, id) && !kb(P).tries.incl
 export const ownershipOn = (s) => !!s && s.myTeam >= 0 && s.mode !== 'watch' && !s.franchise && !s.pnp && !(s.draft && (s.draft.mirror || s.draft.random));
 // Try it works in a plain match against the AI (Play vs AI, Lane Rush vs AI).
 export const trialOn = (s) => !!s && s.mode === 'ai' && !s.cup && !s.franchise && !s.custom && !s.pnp && !s.wasOnline;
-export function trialHero(P, s) { const t = kb(P).trial; return t && trialOn(s) ? t : null; }
+function trialHero(P, s) { const t = kb(P).trial; return t && trialOn(s) ? t : null; }
 // May this coach lock this hero in this session? (owned, this week's rotation, the armed trial, a loaner)
 export function usable(P, s, id) {
   if (!ownershipOn(s)) return true;
@@ -75,7 +74,7 @@ export function access(P, s, id) {
   return null;
 }
 // The draft pool for one role step: usable heroes that can play it (flex included) and pass `legal`, main role first.
-export function rolePool(P, s, role, legal) {
+function rolePool(P, s, role, legal) {
   return HEROES.filter((x) => x.roles.includes(role) && usable(P, s, x.id) && legal(x.id))
     .sort((a, b) => (a.role === role ? 0 : 1) - (b.role === role ? 0 : 1)).map((x) => x.id);
 }
@@ -159,7 +158,7 @@ const merge = (parts) => { const o = new Map(); for (const [l, n] of parts) o.se
 
 // ── server sync ──
 // Adopt the server's ledger (keeps the local-only fields: tries, trial).
-export function adoptServer(P, st, keepPend = []) {
+function adoptServer(P, st, keepPend = []) {
   const K = kb(P), c = cleanLedger(st);
   P.d.koban = { ...c, tries: K.tries, trial: K.trial && !ownsIn(c, K.trial) ? K.trial : null, pend: keepPend, srv: true };
   P.save();
@@ -182,7 +181,8 @@ export function syncKoban(P) {
   })();
   return syncing;
 }
-const ledgerOf = (K) => { const { tries, trial, pend, srv, ...l } = K; return l; };
+const LOCAL_ONLY = new Set(['tries', 'trial', 'pend', 'srv']);
+const ledgerOf = (K) => Object.fromEntries(Object.entries(K).filter(([k]) => !LOCAL_ONLY.has(k)));
 // Fetch the server ledger (after sign-in on a new device); adopts it when the server has one.
 export async function refreshKoban(P) {
   if (!kobanSignedIn()) return false;
@@ -211,10 +211,6 @@ export async function useFreePick(P, id) {
 export function armTrial(P, id) { const K = kb(P); K.trial = id && canTry(P, id) ? id : null; P.save({ local: true }); return K.trial; }
 
 // ── shop summaries ──
-export const priceLabel = (id) => priceOf(id).toLocaleString('en-US');
-export const tierLetter = (id) => tierOf(id);
-export const isFreeStarter = (id) => isStarter(id);
 // Owned / total for each role (flex counts): the Ranked progress card shows the thinnest roles.
 export function roleCoverage(P) { return Object.fromEntries(ROLES.map((r) => [r, HEROES.filter((x) => x.roles.includes(r) && owns(P, x.id)).length])); }
-export const heroName = (id) => (HERO_BY_ID[id] ? HERO_BY_ID[id].name : id);
-export { RANKED_OWNED, LOANER_UNTIL, ECON, picksAt };
+export { RANKED_OWNED };

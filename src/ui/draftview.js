@@ -116,7 +116,7 @@ export class DraftView {
     const hadFocus = this.searchEl && document.activeElement === this.searchEl.input;
     this.searchEl = searchBox(this.query, (q) => { this.query = q; this.filterGrid(); });
     const tabRoles = steps ? need : ['all', ...ROLES];
-    const tabs = h('div', { class: 'rtabs' + (steps ? ' steps' : ''), role: 'tablist' }, ...tabRoles.map((r, i) => h('button', { class: 'rtab' + (this.filter === r ? ' on' : ''), role: 'tab',
+    const tabs = h('div', { class: 'rtabs' + (steps ? ' steps' : ''), role: 'tablist' }, ...tabRoles.map((r) => h('button', { class: 'rtab' + (this.filter === r ? ' on' : ''), role: 'tab',
       title: steps ? `Pick your ${ROLE_LABEL[r]}` : null, onclick: () => { this.filter = r; if (steps) this.step = r; this.scroll = 0; this.render(); } }, r === 'all' ? 'All' : (steps ? `${ROLES.indexOf(r) + 1} ` : '') + ROLE_LABEL[r], h('small', {}, counts[r]))),
       clanChip(this.clan, (c) => { this.clan = c; this.scroll = 0; this.render(); }), this.searchEl);
     const banChips = myTurn && ban && recs.length ? h('div', { class: 'sugbans' }, h('span', { class: 'lab' }, 'Suggested bans'),
