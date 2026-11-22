@@ -1,6 +1,39 @@
 // Patch notes, newest first. tools/season.mjs prepends an entry at each season rollover.
 export const PATCHES = [
   {
+    version: '23.4', season: 1, date: '2026-11-22', title: 'Clubs',
+    notes: [
+      'Clubs: create or join a club of up to 30 coaches, climb the weekly club ladder, chase club goals and fight Weekend Club Wars.',
+      'Spectate friends live (10 seconds behind, friends only, with an on/off setting).',
+      'Cast mode for streamers: an AI caster, a picture-in-picture fight cam, a stats overlay and a clean HUD.',
+      'Custom games: All Random, Single lane, Double gold, Fast respawns and more. Host a room, practise vs AI, or play Pass & Play on one device.',
+      'Replay Hub: publish your best matches, upvote others, and watch the week\'s featured replay.',
+      'Coach profiles show your club, trophy cabinet, top heroes and highlight reel.',
+    ],
+    heroes: [],
+  },
+  {
+    version: '23.3', season: 1, date: '2026-11-22', title: 'Living World',
+    notes: [
+      'Night falls from 6:00 to 9:00: shorter sight for heroes and minions, and Moon Spirit camps in the river that grant Moonsight.',
+      'The Yokai Parade wanders the jungle from 4:00. Kill its leader and it pushes for your team.',
+      'Breakable walls and thickets open new shortcuts. The Tengu lands at 12:00 to break stalemates.',
+      'Instant Replay: after a big fight, tap the Replay chip to watch the last 15 seconds in slow motion while the match goes on.',
+      'Cleaner matches: one message per event, one card per fight or objective, steady arrows, and fewer repeats (prompts per minute down about 40%).',
+      'Every greyed button tells you why, costs look the same everywhere, and common actions take one tap.',
+    ],
+    heroes: [],
+  },
+  {
+    version: '23.2', season: 1, date: '2026-11-21', title: 'Full Screen',
+    notes: [
+      'Fixed: a black band at the bottom of the screen on iPhone. The match now always fills the whole screen, even after the Safari toolbar hides or you rotate.',
+      'Fixed: the Moments button covering a tactic card on iPhone. Every card and button has its own fixed slot.',
+      'Updates now arrive while the app stays open: a new build is picked up when you come back to the app, and an "Update ready" chip appears on the menus.',
+    ],
+    heroes: [],
+  },
+  {
     version: '23.1', season: 1, date: '2026-11-21', title: 'Hotfix',
     notes: [
       'Fixed: the app failing to open on iPhone ("Response served by service worker has redirections").',

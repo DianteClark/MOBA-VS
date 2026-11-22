@@ -41,6 +41,11 @@ SEED = """if (!window.__seeded) { window.__seeded = 1; try {
 } catch (e) { /* offline */ } }"""
 SCREENS = [
     ('home', 'app.menu()'),
+    # social v2: custom game, clubs (with API=: a club of your own), the Watch / Replay Hub screen
+    ('custom', "(await import('./src/ui/custom.js')).showCustom(app)"),
+    ('club', "(await import('./src/ui/clubs.js')).showClub(app); await new Promise((r) => setTimeout(r, 1500))"),
+    ('club-mine', "{ const n = await import('./src/net/social2.js'); try { await n.createClub('Audit Club', 'AUD', '1.1.2.3'); await n.clubChat(0); } catch { /* offline */ } (await import('./src/ui/clubs.js')).showClub(app); await new Promise((r) => setTimeout(r, 1500)); }"),
+    ('hub', "(await import('./src/ui/hub.js')).showHub(app); await new Promise((r) => setTimeout(r, 1500))"),
     ('season', 'H.showSeason(app)'),
     ('today', "(await import('./src/ui/today.js')).showToday(app)"),
     ('profile-coach', "H.showProfile(app, 'coach', 't1')"),

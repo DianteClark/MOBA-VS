@@ -42,8 +42,11 @@ export function validate(doc, heroIds) {
   if (c.event !== undefined && (typeof c.event !== 'string' || !/^[a-z]{1,16}$/.test(c.event))) return 'bad event';
   // hero mastery perks are vs-AI only (src/meta.js perksFor): never in a ranked or cup match
   if (c.perks !== undefined && c.perks !== null) return 'mastery perks in a ranked or cup match';
+  // custom-game rule toggles (src/sim/custom.js) are never rated: never in a ranked or cup match
+  if (c.custom !== undefined && c.custom !== null) return 'custom rules in a ranked or cup match';
   // coach skill tree Moment variants: a small { slot: variant } map (the sim ignores unknown ones)
   for (const t of c.teams) if (t && t.mv !== undefined && (!t.mv || typeof t.mv !== 'object' || Array.isArray(t.mv) || JSON.stringify(t.mv).length > 120)) return 'bad moment variants';
+  if (c.living !== undefined && c.living !== 1) return 'bad living flag'; // Living World (src/sim/living.js)
   for (const t of c.teams) {
     if (!t || !Array.isArray(t.heroes) || t.heroes.length !== 5) return 'a team does not have 5 heroes';
     for (const x of t.heroes) if (!x || !heroIds.has(x.id)) return `unknown hero ${x && x.id}`;
@@ -180,7 +183,7 @@ async function main() {
     return;
   }
   const base = String(arg('api', process.env.MOBAVS_API || 'https://moba-vs.chesscomplex.workers.dev')).replace(/\/$/, '');
-  const token = process.env.MOBAVS_ADMIN;
+  const token = (process.env.MOBAVS_ADMIN || "").trim();
   if (!token) { console.error('MOBAVS_ADMIN is not set (the admin token, also set as a Worker secret).'); process.exit(2); }
   const workers = Math.max(1, Number(arg('workers', 2)) | 0), limit = Math.max(1, Math.min(50, Number(arg('limit', workers * 4)) | 0));
   const until = Date.now() + Number(arg('budget', 40)) * 60000, dry = !!arg('dry', false);

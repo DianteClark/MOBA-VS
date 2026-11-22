@@ -8,7 +8,7 @@ const HALF = 2;
 const hex = (c) => [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)];
 const pal = (a) => a.map(hex);
 
-export const SPR = { // exported for the Dojo lore panels (src/ui/lore.js)
+export const SPR = { // (exported: Living World walls reuse the rock / bush art; Dojo lore panels draw props)
   g0: [0, 0, 32, 32], pine: [32, 0, 32, 32], dead: [64, 0, 32, 32], roots: [96, 0, 32, 32], snowpine: [128, 0, 32, 32], snowpine2: [160, 0, 32, 32],
   white: [192, 0, 32, 32], pink: [224, 0, 32, 32], g1: [256, 0, 32, 32], yel: [288, 0, 32, 32],
   tPine: [0, 32, 64, 48], tGreen: [64, 32, 64, 48], tWhite: [128, 32, 64, 48], tPink: [192, 32, 64, 48], tG2: [256, 32, 64, 48], tYel: [320, 32, 64, 48],
@@ -119,7 +119,7 @@ export function paintMap(world) {
   const rng = new Rng(4242 + world.def.id.length);
   const typeAt = (x, y) => {
     const cx = Math.max(0, Math.min(N - 1, Math.floor(x / C))), cy = Math.max(0, Math.min(N - 1, Math.floor(y / C)));
-    return world.walk[cy * N + cx] ? world.type[cy * N + cx] : T_FOREST;
+    return world.walk[cy * N + cx] || (world.wallAt && world.wallAt[cy * N + cx] >= 0) ? world.type[cy * N + cx] : T_FOREST; // breakable walls: ground under them (drawn live)
   };
   const b0 = world.baseCenter[0], b1 = world.baseCenter[1];
   // Bridges: lane cells that cross a (liquid) river get wooden planks laid along the river's flow.
@@ -230,9 +230,9 @@ export function paintMap(world) {
 
   const nat = IMG.TilesetNature; if (!nat) return canvas;
   const items = [];
-  const open = (x, y) => world.isWalk(x, y);
+  const open = (x, y) => world.isWalk(x, y) || !!(world.wallAt && world.wallAt[world.idx(x, y)] >= 0);
   for (let cy = 0; cy < N; cy++) for (let cx = 0; cx < N; cx++) {
-    const i = cy * N + cx; if (world.walk[i]) continue;
+    const i = cy * N + cx; if (world.walk[i] || (world.wallAt && world.wallAt[i] >= 0)) continue;
     const x = cx * C + C / 2, y = cy * C + C / 2;
     let skip = false;
     for (const s of world.structures) if ((s.x - x) ** 2 + (s.y - y) ** 2 < 48 * 48) skip = true;

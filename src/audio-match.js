@@ -138,6 +138,10 @@ export const matchAudio = {
         break;
       }
       case 'spawn': { const o = this.objPos(e.obj); this.at('roar', o.x, o.y, 0.6, { throttle: 0, rate: 1.08 }); audio.play('alert', { vol: 0.5 }); break; }
+      // Living World: a wall coming down, a parade tamed, the Tengu's warning
+      case 'wall': this.at('boom', e.x, e.y, e.kind === 'thicket' ? 0.35 : 0.6, { throttle: 0 }); break;
+      case 'tamed': this.at('roar', e.x, e.y, 0.7, { throttle: 0, rate: 1.35 }); break;
+      case 'bossSoon': audio.play('alert', { vol: 0.6 }); break;
       case 'tower': case 'inhib':
         this.at('boom', e.x, e.y, e.type === 'inhib' ? 1 : 0.85, { prio: 3, throttle: 0 }); this.at('explosion', e.x, e.y, 0.7, { prio: 3, throttle: 0, delay: 0.08 });
         audio.duck(0.55, e.type === 'inhib' ? 1100 : 700); this.heat = Math.min(1, this.heat + 0.2);

@@ -10,7 +10,7 @@ const ROLE_L = { top: 'top', mid: 'mid', bot: 'carry', support: 'support', jungl
 const d2 = (a, b) => (a.x - b.x) ** 2 + (a.y - b.y) ** 2;
 const CARRY = (h) => h.def.cls === 'marksman' || h.def.cls === 'mage';
 const objName = (g, k) => (k === 'dragon' ? DRAGON_INFO[g.objectives.dragon ? g.objectives.dragon.element : g.teams.some((t) => t.soul) ? 'elder' : g.nextDragon].short + ' Kami' : OBJ_NAME[k]);
-const pitOf = (g, k) => (k === 'dragon' ? g.world.pits.kami : g.world.pits.kraken);
+const pitOf = (g, k) => g.objPit(k); // (Living World: the Tengu's spot, the parade's current spot)
 
 // "KAMI", "TOP", "ENEMY JUNGLE"… for a world point, from `my` team's point of view.
 export function placeName(g, p, my) {
@@ -83,7 +83,7 @@ export function coachMoment(g, my, own) {
   let m;
 
   // 1) an objective under enemy attack
-  for (const k of ['baron', 'dragon', 'herald']) {
+  for (const k of g.living ? ['boss', 'baron', 'dragon', 'herald', 'yokai'] : ['baron', 'dragon', 'herald']) {
     const o = g.objectives[k];
     if (!o || !o.alive || !vis.has(o.id) || o.hp > o.maxHp * 0.95 || callOn(k)) continue;
     objTimeLeft(g, o);
@@ -101,7 +101,7 @@ export function coachMoment(g, my, own) {
     if (near.length < 2) continue;
     // the ganker is whoever can really get there before the carry walks off (jungler first), or no gank option
     const lane = g.world.closestLane(e), gk = bestGanker(g, my, e, lane, WINDOW.caught, own), x = gk && gk.hero;
-    if ((m = finish(g, my, { key: 'caught' + e.id + Math.floor(now / (TICK_RATE * 40)), kind: 'caught', title: `${e.def.name} caught out`, text: `Their ${ROLE_L[e.role]} is alone at ${placeName(g, e, my).toLowerCase()}.`, at: e, still: sees(e),
+    if ((m = finish(g, my, { key: 'caught' + e.id + Math.floor(now / (TICK_RATE * 40)), kind: 'caught', topic: 'pick:' + e.id, title: `${e.def.name} caught out`, text: `Their ${ROLE_L[e.role]} is alone at ${placeName(g, e, my).toLowerCase()}.`, at: e, still: sees(e),
       opts: [x ? opt(`${x.def.name}: gank ${LANE_L[lane]}`, { type: 'gank', lane, hero: x.id }, `${Math.max(1, Math.round(gk.t))}s away`, () => seen(g, my, e) && !busy(g, x) && eta(g, x, e) <= WINDOW.caught) : null,
         opt(`Focus ${e.def.name}`, { type: 'focus', target: e.id }, null, sees(e)), opt('Leave it', null, 'no call')].filter(Boolean) }))) return m;
   }
@@ -145,8 +145,22 @@ export function coachMoment(g, my, own) {
         opts: [opt(`Take ${OBJ_NAME[k]}`, { type: 'objective', obj: k }, null, () => teamEta(g, my, pit, 3) <= Math.max(WINDOW.objective, wakeIn() + 10)), invade ? opt('Invade', { type: 'invade' }, null, () => !busy(g, jg)) : wait(), opt('Ignore', null, 'no call')] }))) return m;
     }
   }
+  // 5b) Living World: the Yokai Parade wanders through our half, or night falls with the enemy's Moon Spirits up
+  if (g.living) {
+    const y = g.objectives.yokai;
+    if (y && y.alive && vis.has(y.id) && !callOn('yokai') && d2(y, g.world.fountain[my]) < d2(y, g.world.fountain[1 - my]) && mine.length >= 3) {
+      const lane = weakestLane(g, my);
+      return { key: 'yokai' + y.id, kind: 'yokai', title: 'Yokai Parade in your half', text: `Tame it: the band marches down their ${LANE_L[lane]} lane for 60s.`, at: y,
+        opts: [opt('Tame it', { type: 'objective', obj: 'yokai' }), opt(`Push ${LANE_L[lane]}`, { type: 'group', lane }), opt('Leave it', null, 'no call')] };
+    }
+    const moon = g.living.night && g.camps.find((c) => c.night && c.side !== my && c.mobs.some((m) => m.alive && m.big));
+    if (moon && jg && jg.alive && g.living.nightK >= 1 && g.time < 400) { // (the first 20s of full dark)
+      return { key: 'moon' + Math.floor(g.time / 120), kind: 'moon', title: 'Night falls', text: 'Their Moon Spirits grant Moonsight: steal them, or ward up and wait?', at: moon,
+        opts: [opt('Steal Moon Spirits', { type: 'invade', camp: moon.key }), wait('Ward & wait'), opt('Ignore', null, 'no call')] };
+    }
+  }
   // 6) an objective about to wake
-  for (const k of ['dragon', 'herald', 'baron']) {
+  for (const k of g.living ? ['dragon', 'herald', 'baron', 'boss'] : ['dragon', 'herald', 'baron']) {
     const tm = g.objTimers[k];
     if (!tm || tm - now > TICK_RATE * 20 || tm - now < TICK_RATE * 6 || !g.objAvailable(k) || callOn(k)) continue;
     const lane = weakestLane(g, my), pit = pitOf(g, k);
