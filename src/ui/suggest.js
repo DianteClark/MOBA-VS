@@ -64,7 +64,7 @@ export function analystSuggestions(g, me, st) {
   for (const sh of g.shrines) {
     if (sh.owner === me || g.time <= g.T.shrineUnlock || enemy.some((e) => seen(g, me, e) && (e.x - sh.x) ** 2 + (e.y - sh.y) ** 2 < 800 * 800)) continue;
     offer({ key: 'shr' + sh.id, text: `${sh.id === me ? 'Home' : 'Far'} shrine is open`, label: 'Capture', cmd: { type: 'shrine', shrine: sh.id }, shrine: true },
-      () => sh.owner !== me && teamEta(g, me, sh, 1) <= WINDOW.shrine, 70);
+      () => sh.owner !== me && teamEta(g, me, sh, 1) <= WINDOW.shrine, 120); // (the Shrine button glows too: a reminder, not a nag)
   }
   return out;
 }
