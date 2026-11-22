@@ -2,7 +2,8 @@
 // how to earn the locked ones), Profile → Achievements, unlock toasts, and the results emotes.
 import { h, mount, toast } from './dom.js';
 import { HERO_BY_ID } from '../data/heroes.js';
-import { SKINS, BANNERS, TITLES, TRACK, rewardName } from '../data/seasons.js';
+import { SKINS, BANNERS, TITLES, passSource, rewardName } from '../data/seasons.js';
+import { metaSource } from './coach.js';
 import { SEASON_REWARDS, tierById, rankOf, TIERS } from '../data/ranks.js';
 import { THEMES, ACC_NAMES, sigKey, legKey, SIG_MASTERY } from '../data/skins.js';
 import { EMOTES, EMOTE_IDS, BORDERS, emoteSrc, borderStyle } from '../data/cosmetics.js';
@@ -26,8 +27,10 @@ function howToEarn(kind, id) {
   const same = (r) => r && ((r.kind === kind && r.id === id) || (r.also && r.also.kind === kind && r.also.id === id));
   const a = ACH.find((x) => same(x.reward));
   if (a) return `Achievement: ${a.name}`;
-  const l = Object.entries(TRACK).find(([, r]) => same(r));
-  if (l) return `Season Pass level ${l[0]}`;
+  const l = passSource(same);
+  if (l) return l;
+  const mt = metaSource(same);
+  if (mt) return mt;
   const rk = Object.entries(SEASON_REWARDS).find(([, list]) => list.some(same));
   if (rk) return `Season end at ${tierById(rk[0]).name}`;
   if (kind === 'skin' && SKINS[id] && SKINS[id].mastery) return `${SKINS[id].hero ? HERO_BY_ID[SKINS[id].hero].name : 'Hero'} Mastery ${SKINS[id].mastery}`;
@@ -37,7 +40,7 @@ function howToEarn(kind, id) {
   if (id === 'tripleChamp') return 'Win 3 Season Cups';
   return 'Locked';
 }
-const shortHow = (kind, id) => howToEarn(kind, id).replace('Season Pass level ', 'Pass Lv ').replace('Achievement: ', '★ ').replace('Season end at ', 'Rank: ').replace('Finish a season at ', 'Season: ');
+const shortHow = (kind, id) => howToEarn(kind, id).replace(/Season (\d+) Pass level /, 'S$1 Pass Lv ').replace('Achievement: ', '★ ').replace('Season end at ', 'Rank: ').replace('Finish a season at ', 'Season: ');
 
 // Skins that fit a hero, unique ones first: base, Signature, Legendary, then the account-wide tints.
 export function heroSkinKeys(id) {

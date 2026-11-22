@@ -8,7 +8,7 @@ const hex = (c) => { const n = parseInt(c.slice(1), 16); return [n >> 16 & 255, 
 const mix = (a, b, t) => { const A = hex(a), B = hex(b); return `rgb(${A.map((v, i) => Math.round(v + (B[i] - v) * t)).join(',')})`; };
 
 // Draws one badge. idx = tier index, d = division 0..2 (III..I).
-function draw(idx, d) {
+function draw(idx, d, pr = 0) {
   const t = TIERS[idx], c = document.createElement('canvas'); c.width = c.height = 32;
   const x = c.getContext('2d');
   const px = (X, Y, col, w = 1, hh = 1) => { x.fillStyle = col; x.fillRect(X, Y, w, hh); };
@@ -16,7 +16,7 @@ function draw(idx, d) {
   const dark = t.dark, base = t.color, light = mix(t.color, '#ffffff', 0.45), deep = mix(t.dark, '#000000', 0.35);
   // halo + rays (Master, Kami)
   if (idx >= 5) {
-    const halo = idx === 6 ? '#ffe08a' : mix(t.color, '#ffffff', 0.3);
+    const halo = pr ? '#fff6dc' : idx === 6 ? '#ffe08a' : mix(t.color, '#ffffff', 0.3);
     for (let a = 0; a < 12; a++) { const ang = a / 12 * Math.PI * 2; for (let r = 12; r < (idx === 6 ? 16 : 14); r++) px(Math.round(16 + Math.cos(ang) * r), Math.round(14 + Math.sin(ang) * r), halo); }
   }
   // wings (Platinum+)
@@ -48,17 +48,21 @@ function draw(idx, d) {
   const gr = 3 + Math.min(3, Math.floor(idx / 2)), gy = 14;
   for (let k = -gr; k <= gr; k++) { const w = gr - Math.abs(k); row(gy + k, 16 - w - 1, 15 + w + 1, deep); if (w > 0) row(gy + k, 16 - w, 15 + w, k < 0 ? t.gem : base); }
   px(15, gy - gr + 2, '#ffffff', 1, 2); px(14, gy - gr + 3, '#ffffff');
-  // division pips (III = 1, II = 2, I = 3)
-  const n = d + 1, py = 24;
-  for (let k = 0; k < n; k++) { const X = 16 - n * 2 + k * 4 + 1; px(X - 1, py - 1, deep, 4, 4); px(X, py, light, 2, 2); }
+  // division pips (III = 1, II = 2, I = 3); Prestige ranks: one star pip per rank (two rows of five)
+  if (pr) {
+    for (let k = 0; k < pr; k++) { const row = k < 5 ? 0 : 1, n = row ? pr - 5 : Math.min(5, pr), j = row ? k - 5 : k, X = 16 - n * 2 + j * 4 + 1, Y = 23 + row * 4; px(X - 1, Y - 1, deep, 4, 4); px(X, Y, '#fff6dc', 2, 2); }
+  } else {
+    const n = d + 1, py = 24;
+    for (let k = 0; k < n; k++) { const X = 16 - n * 2 + k * 4 + 1; px(X - 1, py - 1, deep, 4, 4); px(X, py, light, 2, 2); }
+  }
   return c.toDataURL('image/png');
 }
-function badgeUrl(idx, d) { const k = idx * 3 + d; return cache[k] || (cache[k] = draw(idx, d)); }
+function badgeUrl(idx, d, pr = 0) { const k = pr ? 100 + pr : idx * 3 + d; return cache[k] || (cache[k] = draw(idx, d, pr)); }
 
 // <img> badge for a rank (from rankOf) or a raw Elo number.
 export function tierBadge(rk, size = 40, cls = '') {
   const r = typeof rk === 'number' ? rankOf(rk) : rk;
-  return h('img', { class: 'tbadge ' + cls, src: badgeUrl(r.idx, r.d), alt: r.label, title: r.label, style: { width: size + 'px', height: size + 'px', '--tc': r.tier.color } });
+  return h('img', { class: 'tbadge ' + cls, src: badgeUrl(r.idx, r.d, r.prestige || 0), alt: r.label, title: r.label, style: { width: size + 'px', height: size + 'px', '--tc': r.tier.color } });
 }
 
 // Small CSS mastery badge (a diamond with the level). lv 1 = none unless `always`.

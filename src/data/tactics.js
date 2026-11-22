@@ -15,6 +15,12 @@ export const TACTICS = {
   council: { short: 'Refill all charges', name: 'War Council', icon: 'BookLight', target: 'none', desc: 'Instantly refill your command charges to full.' },
   barrier: { short: 'Team shield 4s', name: 'Kami Barrier', icon: 'DefenseUpgrade', target: 'none', desc: 'Every hero gains a shield worth 20% of max HP for 4s. Turn a losing fight.' },
   gate: { short: 'Team to base, healed', name: 'Spirit Gate', icon: 'Permutation', target: 'none', desc: 'After a 1.5s channel, every living hero returns to base fully healed. A free, instant reset.' },
+  // Coach skill tree sidegrades (src/data/meta.js TREE, effects in src/sim/sidegrades.js): `alt` is the card each mirrors.
+  drums: { short: '+10% dmg 10s', name: 'War Drums', icon: 'AttackUpgrade', target: 'none', alt: 'rally', desc: 'Team gains +10% damage and +5% move speed for 10s. Rally Cry\'s twin: hit harder instead of faster.' },
+  stone: { short: '-15% dmg taken 6s', name: 'Stone Skin', icon: 'DefenseUpgrade', target: 'none', alt: 'barrier', desc: 'Every hero takes 15% less damage for 6s. Kami Barrier\'s twin: longer, and it never breaks.' },
+  foxfire: { short: 'Reveal enemies 9s', name: 'Foxfire', icon: 'Vision', target: 'none', alt: 'sweep', desc: 'Foxfire marks every enemy hero for 9s (wards stay). Ward Sweep\'s twin: longer sight, no ward clear.' },
 };
+// Cards unlocked in the coach skill tree (every other card is owned from the start; src/meta.js ownsTactic).
+export const SKILL_TACTICS = Object.keys(TACTICS).filter((k) => TACTICS[k].alt);
 export const TACTIC_IDS = Object.keys(TACTICS);
 export const DEFAULT_DECK = ['rally', 'smoke', 'wind'];

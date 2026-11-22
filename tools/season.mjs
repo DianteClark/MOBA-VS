@@ -4,6 +4,8 @@
 //   2. moves each hero's power multiplier toward a 50% win rate, capped at ±5% per season
 //   3. writes src/data/tuning.js, prepends patch notes, bumps the netcode VERSION
 //   node tools/season.mjs [--force] [--rounds 2] [--games 150] [--workers 4]
+//   node tools/season.mjs --check [--at 2027-02-01]   (print the rollover's patch-note entry, no self-play, no writes)
+// A season's `highlights` (its pass, story weeks, new skins: src/data/seasons.js) lead its patch notes.
 // Real-player results (future shared backend) can be dropped in data/matches/*.json; each
 // record { picks: [[5 ids],[5 ids]], winner } counts 3x a self-play game.
 import { execFileSync } from 'node:child_process';
@@ -20,8 +22,12 @@ const { PATCHES } = await import(P('src/data/patchnotes.js'));
 const { TUNE: OLD } = await import(P('src/data/tuning.js') + '?old');
 const { HEROES, HERO_BY_ID } = await import(P('src/data/heroes.js'));
 
-const season = seasonAt();
+const atDay = arg('at', null), check = process.argv.includes('--check');
+const season = seasonAt(atDay ? Date.parse(atDay + 'T12:00:00Z') : Date.now());
 const lastBalanced = PATCHES[0].season;
+// The season's patch-note entry (balance changes are appended below).
+const seasonNotes = () => [`Season ${season.id} begins: ${season.blurb}`, ...(season.highlights || []).map((x) => `Season ${season.id}: ${x}.`)];
+if (check) { console.log(JSON.stringify({ season: season.id, title: `Season ${season.id}: ${season.name}`, highlights: season.highlights || null, notes: seasonNotes() }, null, 2)); process.exit(0); }
 if (!force && season.id <= lastBalanced) { console.log(`Season ${season.id} already balanced (last patch for season ${lastBalanced}). Nothing to do.`); process.exit(0); }
 
 const rounds = +arg('rounds', 2), games = +arg('games', 150), workers = +arg('workers', Math.max(1, Math.min(4, cpus().length)));
@@ -75,8 +81,8 @@ writeFileSync(P('src/data/tuning.js'), `// Per-hero power multipliers produced b
 // Patch notes
 const [maj, min] = PATCHES[0].version.split('.').map(Number);
 const version = `${maj}.${min + 1}`;
-const entry = { version, season: season.id, date: new Date().toISOString().slice(0, 10), title: `Season ${season.id}: ${season.name}`,
-  notes: [`Season ${season.id} begins: ${season.blurb}`, `Automatic balance pass from ${rounds * games} self-play matches${existsSync(dir) ? ' and real match reports' : ''}; each legend moves at most 5%.`],
+const entry = { version, season: season.id, date: new Date().toISOString().slice(0, 10), title: `Season ${season.id}: ${season.name}`, ...(season.highlights ? { highlights: season.highlights.slice(0, 4) } : {}),
+  notes: [...seasonNotes(), `Automatic balance pass from ${rounds * games} self-play matches${existsSync(dir) ? ' and real match reports' : ''}; each legend moves at most 5%.`],
   heroes: changes.map((c) => ({ ...c, text: c.text })) };
 const pn = readFileSync(P('src/data/patchnotes.js'), 'utf8');
 const at = pn.indexOf('export const PATCHES = [') + 'export const PATCHES = ['.length;

@@ -7,6 +7,8 @@ import { profile, titleName } from '../profile.js';
 import { MASTERY_MAX, MASTERY_AT, MASTERY_TITLES, MASTERY_TINTS, MASTERY_PTS, masteryColor, masteryTitleKey } from '../mastery.js';
 import { masteryBadge } from './badges.js';
 import { audio } from '../audio.js';
+import { PERKS, PERK_IDS } from '../data/meta.js';
+import { perkUnlocked, setPerk, PERK_MODES } from '../meta.js';
 
 const bar = (frac, color) => h('div', { class: 'pbar' }, h('i', { style: { width: Math.round(Math.max(0, Math.min(1, frac)) * 100) + '%', background: color } }));
 
@@ -36,9 +38,25 @@ function rewardsList(id, lv) {
   return rows;
 }
 
+// Mastery perk picker: one small perk per hero, active only against the AI (never online, in Ranked queues or Cups).
+function perkRow(id, redraw) {
+  const cur = profile.d.meta.perks[id] || null;
+  return h('div', { class: 'perks' }, h('div', { class: 'row', style: { justifyContent: 'space-between', gap: '6px' } }, h('b', {}, 'Mastery perk'), h('small', { class: 'vsai' }, 'Franchise & Lane Rush vs AI')),
+    h('div', { class: 'perkrow' }, ...PERK_IDS.map((k) => {
+      const P = PERKS[k], ok = perkUnlocked(profile, id, k), on = cur === k;
+      return h('button', { class: 'perk' + (on ? ' on' : '') + (ok ? '' : ' locked'), title: ok ? `${P.name}: ${P.short}` : `Mastery ${P.lv}`, 'aria-pressed': String(on),
+        onclick: () => { if (!ok) { toast(`${P.name} unlocks at Mastery ${P.lv} with this hero.`); return; } setPerk(profile, id, on ? null : k); audio.sfx('accept', 0.4); redraw(); } },
+        h('img', { src: `assets/img/icons/${P.icon}.png`, alt: '' }), h('b', {}, P.name), h('small', {}, ok ? P.short : `Mastery ${P.lv}`));
+    })),
+    h('small', { class: 'muted' }, `Applies in ${PERK_MODES}. Never online, in Ranked queues or in Cups.`));
+}
+
 // Dojo hero page section.
 export function masteryPanel(id) {
   const m = profile.mastery(id);
+  const wrap = h('div', {});
+  const redraw = () => wrap.replaceChildren(perkRow(id, redraw));
+  redraw();
   return h('div', { class: 'dsec mpanel2' },
     h('div', { class: 'dsh' }, 'Mastery'),
     h('div', { class: 'mhead2' }, masteryBadge(m.lv, { always: true, cls: 'big' }),
@@ -47,6 +65,7 @@ export function masteryPanel(id) {
         bar(m.into, masteryColor(m.lv)),
         h('small', { class: 'muted' }, m.max ? `${m.pts} points` : `${m.pts} / ${MASTERY_AT[m.lv + 1]} points to Mastery ${m.lv + 1}`))),
     h('small', { class: 'muted' }, `Earn points coaching this hero: played +${MASTERY_PTS.play}, win +${MASTERY_PTS.win}, MVP +${MASTERY_PTS.mvp}, Play of the Game +${MASTERY_PTS.potg}, +${MASTERY_PTS.call} per call it answered that paid off.`),
+    wrap,
     h('div', { class: 'mrws' }, ...rewardsList(id, m.lv)));
 }
 

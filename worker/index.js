@@ -13,6 +13,7 @@
 // Weekend Cups (worker/cups.js): 8-coach brackets between real players. Anti-cheat (worker/anticheat.js):
 // ranked and cup reports carry the command log; a scheduled GitHub Action re-simulates it (tools/verify.mjs)
 // through the token-protected /api/admin/* endpoints and flags (and rolls back) results that do not hold up.
+// Weekly Divisions (worker/divisions.js): 30-coach league groups formed lazily from the first match of each week.
 // Live-ops (worker/ops.js): activity, match / queue / hero counters, crash reports, feedback, A/B flags and
 // the owner dashboard API (/admin.html). Web Push (worker/push.js): opt-in notifications, queued in D1 and
 // sent within the request budget. A cron (wrangler.jsonc triggers) drains the push queue and rolls up stats.
@@ -21,6 +22,7 @@ import { REPLAY_SCHEMA, REPLAY_TABLES, REPLAY_MIGRATIONS, replayStmt, pruneStmts
 import { OPS_SCHEMA, OPS_TABLES, OPS_MIGRATIONS, opsApi, bumpStmts, matchCounters, dayOf } from './ops.js';
 import { PUSH_SCHEMA, PUSH_TABLES, pushApi, enqueueStmt, drainOutbox } from './push.js';
 import { PRO_SCHEMA, PRO_TABLES, proApi } from './pro.js';
+import { DIV_SCHEMA, DIV_TABLES, divApi } from './divisions.js';
 
 const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS players (id TEXT PRIMARY KEY, name TEXT NOT NULL, secret_hash TEXT NOT NULL, created INTEGER, updated INTEGER, profile TEXT, profile_at INTEGER DEFAULT 0)`,
@@ -39,9 +41,9 @@ const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS invites (id TEXT PRIMARY KEY, sender TEXT, target TEXT, room TEXT, mode TEXT, status TEXT, created INTEGER)`,
   `CREATE INDEX IF NOT EXISTS invites_to ON invites (target, status, created)`,
   `CREATE INDEX IF NOT EXISTS invites_from ON invites (sender, created)`,
-  ...CUP_SCHEMA, ...REPLAY_SCHEMA, ...OPS_SCHEMA, ...PUSH_SCHEMA, ...PRO_SCHEMA,
+  ...CUP_SCHEMA, ...REPLAY_SCHEMA, ...OPS_SCHEMA, ...PUSH_SCHEMA, ...PRO_SCHEMA, ...DIV_SCHEMA,
 ];
-const TABLES = ['players', 'ladder', 'reports', 'matches', 'hero_results', 'queue', 'shares', 'friends', 'invites', ...CUP_TABLES, ...REPLAY_TABLES, ...OPS_TABLES, ...PUSH_TABLES, ...PRO_TABLES];
+const TABLES = ['players', 'ladder', 'reports', 'matches', 'hero_results', 'queue', 'shares', 'friends', 'invites', ...CUP_TABLES, ...REPLAY_TABLES, ...OPS_TABLES, ...PUSH_TABLES, ...PRO_TABLES, ...DIV_TABLES];
 // Columns added after launch: tables created by older deploys get them here. ALTER fails harmlessly
 // ("duplicate column") once the column exists, so each one is tried on its own.
 const MIGRATIONS = [
@@ -112,6 +114,7 @@ const admin = adminApi({ json, bad, body, sha });
 const OPS = opsApi({ json, bad, body, auth, limited, slow, tokenOk, sha, ip });
 const PUSH = pushApi({ json, bad, body, auth, limited, slow, tokenOk, sha });
 const PRO = proApi({ json, bad, body, auth, limited, slow });
+const DIVS = divApi({ json, bad, body, auth, limited, slow }); // Weekly Divisions (worker/divisions.js)
 
 // ── public profile ──
 // The read-only summary other coaches can see, cut from the uploaded cloud save: rank, title, banner, newest
@@ -472,6 +475,7 @@ async function route(req, env, url) {
   const psh = await PUSH(req, env, db, url, p, M, now); if (psh) return psh;
   const pro = await PRO.route(req, env, db, url, p, M, now); if (pro) return pro;
   const adm = await admin(req, env, db, url, p, M, now); if (adm) return adm;
+  const div = await DIVS(req, env, db, url, p, M, now); if (div) return div;
 
   // ── share links ──
   if (p === '/api/share' && M === 'POST') {

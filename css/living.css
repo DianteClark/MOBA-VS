@@ -1,0 +1,24 @@
+/* Living World: the Instant Replay chip and its picture-in-picture panel (src/ui/instant.js). Placed by JS next to the minimap. */
+.irchip { position: absolute; z-index: 6; display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px 0 8px; border: 2px solid #ffd84a;
+  background: rgba(20, 16, 30, 0.88); color: #ffe9a0; font: 11px PixelFont, monospace; letter-spacing: 1px; border-radius: 4px; cursor: pointer;
+  box-shadow: 0 2px 0 #000a; animation: irin 0.25s ease-out; }
+.irchip:active { transform: translateY(1px); }
+.irplay { width: 0; height: 0; border-left: 9px solid #ffd84a; border-top: 6px solid transparent; border-bottom: 6px solid transparent; }
+.irpip { position: absolute; z-index: 6; border: 2px solid #ffd84a; background: #000; box-shadow: 0 3px 0 #000a, 0 0 16px rgba(0, 0, 0, 0.5);
+  overflow: hidden; border-radius: 4px; animation: irin 0.25s ease-out; cursor: pointer; transition: opacity 0.25s; }
+.irpip.out { opacity: 0; }
+.ircv { width: 100%; height: 100%; display: block; image-rendering: pixelated; }
+.irbar { position: absolute; left: 0; right: 0; top: 0; height: 18px; display: flex; align-items: center; gap: 5px; padding: 0 2px 0 6px;
+  background: linear-gradient(rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0)); color: #fff; font: 8px PixelFont, monospace; letter-spacing: 1px; pointer-events: none; }
+.irdot { width: 6px; height: 6px; border-radius: 50%; background: #ff4a5a; animation: irblink 1s steps(2) infinite; }
+.irlab { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.irx { pointer-events: auto; width: 24px; height: 18px; border: 0; background: transparent; color: #fff; font: 10px PixelFont, monospace; cursor: pointer; }
+@keyframes irin { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: none; } }
+@keyframes irblink { 50% { opacity: 0.2; } }
+@media (prefers-reduced-motion: reduce) { .irchip, .irpip { animation: none; } .irdot { animation: none; } }
+.reduce-motion .irchip, .reduce-motion .irpip, .reduce-motion .irdot { animation: none; }
+/* Living World objective timers: on compact screens (one row, three cells at most) the Yokai Parade lives on the minimap only,
+   and the Tengu shows from 30s before it lands */
+@media (max-width: 999px), (max-height: 599px) {
+  #objtimers .ot.lw-yokai, #objtimers .ot.lw-boss:not(.up):not(.soon) { display: none; }
+}

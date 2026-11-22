@@ -40,6 +40,11 @@ export function validate(doc, heroIds) {
   if (!Array.isArray(c.teams) || c.teams.length !== 2) return 'bad teams';
   // weekly map event (src/data/events.js): an id or absent
   if (c.event !== undefined && (typeof c.event !== 'string' || !/^[a-z]{1,16}$/.test(c.event))) return 'bad event';
+  // hero mastery perks are vs-AI only (src/meta.js perksFor): never in a ranked or cup match
+  if (c.perks !== undefined && c.perks !== null) return 'mastery perks in a ranked or cup match';
+  // coach skill tree Moment variants: a small { slot: variant } map (the sim ignores unknown ones)
+  for (const t of c.teams) if (t && t.mv !== undefined && (!t.mv || typeof t.mv !== 'object' || Array.isArray(t.mv) || JSON.stringify(t.mv).length > 120)) return 'bad moment variants';
+  if (c.living !== undefined && c.living !== 1) return 'bad living flag'; // Living World (src/sim/living.js)
   for (const t of c.teams) {
     if (!t || !Array.isArray(t.heroes) || t.heroes.length !== 5) return 'a team does not have 5 heroes';
     for (const x of t.heroes) if (!x || !heroIds.has(x.id)) return `unknown hero ${x && x.id}`;

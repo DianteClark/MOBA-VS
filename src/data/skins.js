@@ -1,6 +1,6 @@
 // Unique hero skins (render only: sprite sheet + portrait; hitboxes, effects and the sim never see them).
 // Every hero has a Signature skin (Mastery 5 with that hero): a themed gradient map of its own sprite plus a
-// pixel accessory baked onto the head. Eighteen heroes also have a Legendary skin: a different character
+// pixel accessory baked onto the head. Twenty-two heroes also have a Legendary skin: a different character
 // body from the Ninja Adventure pack (same 4x7 sheet of 16px frames), earned from achievements, the season
 // pass or season rank rewards. Built and cached by src/render/skins.js.
 
@@ -55,6 +55,9 @@ const LEG = [
   ['kenshi', 'SamuraiRed', 'Red Ronin Kenshi'], ['leonin', 'LionYellow', 'Sunmane Leonin', 'crown', '#fff2a8'], ['ruga', 'LionOrange', 'Ember Mane Ruga', 'feather', '#ff9a4a'],
   ['kaen', 'Flam', 'Living Flame Kaen'], ['gorath', 'Pig', 'Boar Lord Gorath', 'crown', '#e8b84a'], ['wu', 'OldMan', 'Hermit Wu'],
   ['hoshi', 'OldMan2', 'Wandering Star Hoshi', 'star', '#ffe69a'], ['shuri', 'FighterWhite', 'White Lotus Shuri'], ['hachi', 'FighterRed', 'Red Hornet Hachi', 'antenna', '#ffd84a'],
+  // Season 2: Yokai Moon (pass and story events)
+  ['gama', 'ManGreen', 'Kappa Gama'], ['shiro', 'LionBoy', 'Komainu Shiro', 'wisp', '#8af0ff'], ['ponta', 'Villager5', 'Leaf Trick Ponta', 'leaf', '#9be36f'],
+  ['raiden', 'Villager2', 'Raijin Raiden', 'bolt', '#fff07a'],
 ];
 export const SIG_MASTERY = 5;
 export const sigKey = (hero) => `sig_${hero}`;

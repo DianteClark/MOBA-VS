@@ -2,12 +2,13 @@
 // a sound sting, and a ticker line for the other side. Purely cosmetic (reads the 'moment' event).
 import { h } from './dom.js';
 import { MOMENTS } from '../sim/moments-coach.js';
+import { MOMENT_VARIANTS } from '../sim/sidegrades.js';
 import { TEAM_NAME } from '../sim/constants.js';
 import { audio } from '../audio.js';
 
 const SFX = { timeout: ['heal', 'levelup'], rally: ['wings', 'powerup'], push: ['tower', 'explosion'] };
 export function momentFx(hud, e) {
-  const m = MOMENTS[e.id]; if (!m) return;
+  const m = e.v ? MOMENT_VARIANTS[e.v] : MOMENTS[e.id]; if (!m) return; // e.v: a coach skill tree variant
   const mine = e.team === hud.view || hud.my < 0;
   if (!mine) {
     hud.ticker(`Enemy ${m.name}! ${m.short}`, 'danger', 3);
@@ -20,5 +21,5 @@ export function momentFx(hud, e) {
   const [a, b] = SFX[e.id] || ['powerup', 'objective'];
   audio.sfx(a, 0.9); setTimeout(() => audio.sfx(b, 0.7), 180);
   const r = hud.r; if (r) { r.screenTint(m.color, 0.22, 0.7); r.shakeBy(e.id === 'push' ? 0.6 : 0.35); r.punchBy(0.06); }
-  if (hud.my >= 0) hud.ticker(e.id === 'push' ? 'All-Out Push: the next wave marches with super minions!' : `${m.name}: ${m.short}`, 'act', 2);
+  if (hud.my >= 0) hud.ticker(e.id === 'push' && !e.v ? 'All-Out Push: the next wave marches with super minions!' : `${m.name}: ${m.short}`, 'act', 2);
 }
