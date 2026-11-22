@@ -5,6 +5,7 @@ import { dist2 } from './geom.js';
 import { aiMoment } from './moments-coach.js';
 import { aiSkillTactic } from './sidegrades.js';
 import { coachWeights, PLAN_IDS, PLAN_BEATS } from './plans.js';
+import { openCrystal } from './endgame.js';
 
 export class Coach {
   // style (rival coaches, part of the match cfg): { moment: 'early'|'late', backup: plan id for halftime }
@@ -132,7 +133,8 @@ export class Coach {
     // Mid/late: group to push where the enemy is missing
     // Late game: close it out. Group on the lane where the enemy base is most open.
     // (Split Push groups mid, Protect the Carry groups where the carry is; both start earlier.)
-    const late = g.time > W.lateAt * k || (LANE_NAMES.length === 1 && deadEnemies >= 2); // one lane: every won fight is a push
+    // (an open enemy Crystal counts as late: group up and finish it, src/sim/endgame.js)
+    const late = g.time > W.lateAt * k || (LANE_NAMES.length === 1 && deadEnemies >= 2) || !!openCrystal(g, this.team); // one lane: every won fight is a push
     if (ready('group') && late && charges >= 1 && alive.length >= 3 && (deadEnemies >= 1 || alive.length >= enemyAlive.length || g.time > 780 * k)) {
       const lane = W.groupLane && LANE_NAMES.includes(W.groupLane) && g.time < 780 * k ? W.groupLane : this.weakestLane();
       if (this.issue({ type: 'group', lane })) { cd('group', g.time > 780 * k ? 25 : W.groupCd); return; }

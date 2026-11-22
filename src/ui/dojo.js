@@ -31,10 +31,11 @@ export function showDojo(app, patch = {}) {
   if (patch.tab === 'lineups' && patch.slot === undefined) state.slot = Math.max(0, profile.d.presets.active);
   const prevScroll = screen().scrollTop;
   const body = state.tab === 'lineups' ? lineups(app) : state.tab === 'builds' ? buildGuide((id) => { tap(); showDojo(app, { tab: 'heroes', hero: id }); }) : state.hero ? heroPage(app, state.hero) : heroList(app);
-  const head = h('div', { class: 'shead dojohead' },
+  const head = h('div', { class: 'shead dojohead' + (app.dojoReturn ? ' ret' : '') },
     h('button', { class: 'btn backbtn', onclick: () => { tap(); if (state.hero && state.tab === 'heroes') showDojo(app, { hero: null }); else app.menu(); } }, state.hero && state.tab === 'heroes' ? '‹ Heroes' : '‹ Back'),
+    // opened from the ready check (src/ui/readycheck.js): straight back into the match start
     h('div', { class: 'dojotabs' }, ...[['heroes', 'Heroes'], ['builds', 'Builds'], ['lineups', 'Lineups']].map(([k, l]) => h('button', { class: 'chip' + (state.tab === k ? ' on' : ''), onclick: () => { tap(); showDojo(app, { tab: k }); } }, l))),
-    h('h2', {}, 'Dojo'));
+    app.dojoReturn ? h('button', { class: 'btn dojoret', onclick: () => { const r = app.dojoReturn; app.dojoReturn = null; audio.sfx('accept', 0.6); r.go(); } }, `${app.dojoReturn.label} ›`) : h('h2', {}, 'Dojo'));
   mount(screen(), h('div', { class: 'subscreen dojo', 'data-view': 'dojo:' + state.tab + ':' + (state.tab === 'heroes' && state.hero ? 'hero' : '') }, head, body));
   if (patch.keepScroll) screen().scrollTop = prevScroll; else screen().scrollTop = 0;
 }

@@ -27,9 +27,9 @@ export const EVENTS = [
   { id: 'shrine', name: 'Shrine Rush', icon: 'icons/OrbLight', color: '#7fe9d6', ranked: true,
     short: 'Shrines worth more', blurb: 'Shrines open at 0:30, capture faster, pay 60 gold to each hero and give +8% damage (not 5%).',
     rules: { shrine: { dmg: 0.08, gold: 60, speed: 1.5, momentum: 2 }, T: { shrineUnlock: 30 } }, look: { motes: 'spirit' } },
-  { id: 'mirror', name: 'Mirror Draft', icon: 'icons/Counter', color: '#ff9ed2', ranked: true,
-    short: 'Shared 40-hero pool', blurb: 'Both teams draft from the same 40 heroes, and a pick does not lock the hero for the other side: mirror matches are on.',
-    draft: { mirror: true, pool: 40 }, look: {} },
+  { id: 'mirror', name: 'Mirror Match', icon: 'icons/Counter', color: '#ff9ed2', ranked: true,
+    short: 'Same 5 heroes, same cards', blurb: 'No draft: both teams get the same five heroes and the same three tactic cards, a balanced lineup picked for the match. Builds, plan and calls are yours: the better coach wins.',
+    mirror: true, look: {} },
 ];
 export const EVENT_BY_ID = Object.fromEntries(EVENTS.map((e) => [e.id, e]));
 
@@ -47,16 +47,15 @@ export function weekEvent(ms) {
   const w = isoWeek(ms);
   return { ev: EVENTS[w.week % EVENTS.length], next: EVENTS[(w.week + 1) % EVENTS.length], week: w.week, ends: w.ends };
 }
-// Mirror Draft pool: `size` heroes, the same number per primary role, picked from the match seed
-// (both peers share the seed, so both drafts see the same pool). Pure + deterministic.
-export function mirrorPool(heroes, roles, seed, size) {
-  let s = (seed ^ 0x5bd1e995) >>> 0;
-  const rnd = () => { s = (Math.imul(s, 1103515245) + 12345) >>> 0; return s / 4294967296; };
-  const per = Math.floor(size / roles.length), out = [];
-  for (const r of roles) {
-    const list = heroes.filter((h) => h.role === r).map((h) => h.id);
-    for (let i = list.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [list[i], list[j]] = [list[j], list[i]]; }
-    out.push(...list.slice(0, per));
-  }
-  return out;
-}
+// Mirror Match lineups: curated, balanced comps (one hero per role, in ROLES order: top, jungle, mid, bot,
+// support) with a tactic deck that suits them. Both teams field the same one, chosen by the match seed.
+const MIRROR_LINEUPS = [
+  { name: 'Classic', heroes: ['bastion', 'kaze', 'ember', 'fletch', 'oak'], deck: ['rally', 'smoke', 'wind'] },
+  { name: 'Brawlers', heroes: ['kenshi', 'leonin', 'raiden', 'sling', 'ruga'], deck: ['ambush', 'rally', 'smoke'] },
+  { name: 'Late Game', heroes: ['monolith', 'umbra', 'totem', 'tomoe', 'wu'], deck: ['fortify', 'wind', 'pact'] },
+  { name: 'Control', heroes: ['valka', 'gama', 'mori', 'shuri', 'aurelia'], deck: ['eyes', 'pact', 'smoke'] },
+  { name: 'Siege', heroes: ['varro', 'karasu', 'hex', 'bolt', 'hoshi'], deck: ['siege', 'fortify', 'rally'] },
+  { name: 'Skirmish', heroes: ['yuki', 'kumo', 'kurai', 'wren', 'gizmo'], deck: ['barrier', 'wind', 'rally'] },
+];
+// This match's mirror lineup (pure: both peers share the seed, so both see the same one).
+export function mirrorLineup(seed) { return MIRROR_LINEUPS[((seed ^ 0x5bd1e995) >>> 0) % MIRROR_LINEUPS.length]; }
