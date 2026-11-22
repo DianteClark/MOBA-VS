@@ -69,7 +69,7 @@ export const MAPS = [
       { id: 'bb', at: [732, 1140], kind: 'bluebuff' }, { id: 'gromp', at: [516, 1044], kind: 'gromp' }, { id: 'wolf', at: [564, 1236], kind: 'wolf' },
       { id: 'rb', at: [1236, 1884], kind: 'redbuff' }, { id: 'rap', at: [1180, 1700], kind: 'raptor' }, { id: 'krug', at: [948, 1836], kind: 'krug' },
     ],
-    towerLayout: { outer: true, midFlip: true },
+    towerLayout: { outer: true, midFlip: true, midD: [840, 580, 350, 185] }, // mid towers stay off the frozen lake
     kraken: [781, 755], shrine: [1460, 1440],
     brush: [[470, 1180, 56], [880, 1640, 54], [1300, 1720, 52], [1650, 2010, 50], [420, 600, 56], [1050, 980, 56], [620, 380, 46], [1040, 2080, 46]],
     rocks: [[600, 1240, 40], [820, 1460, 34], [1060, 1700, 36], [460, 1000, 30], [1500, 1800, 32], [880, 1200, 30]],
@@ -78,7 +78,7 @@ export const MAPS = [
   },
   {
     id: 'ember', name: 'Ember Canyon', theme: 'autumn', weather: ['clear', 'wind', 'heat', 'clear', 'dust', 'wind'],
-    blurb: 'Tight canyon lanes and a split mid around the Sunstone mesa. Brawly and fast.',
+    blurb: 'Tight canyon lanes and the Sunstone mesa guarding the mid river crossing. Brawly and fast.',
     top: [[330, 2070], [240, 1780], [300, 1450], [230, 1100], [280, 760], [250, 470], [420, 300], [760, 270], [1100, 220], [1450, 290], [1780, 230], [2070, 330]],
     midHalf: [[330, 2070], [640, 1780], [880, 1560], [960, 1300], [1200, 1200]],
     river: [[330, 330], [560, 600], [840, 800], [1040, 1060], [1200, 1200]], riverW: 58,
@@ -99,7 +99,7 @@ export const MAPS = [
     towerLayout: { outer: true },
     kraken: [683, 701], shrine: [1500, 1460],
     brush: [[400, 1180, 50], [760, 1420, 52], [1060, 1760, 50], [1460, 1720, 50], [360, 560, 50], [960, 900, 54], [1700, 2040, 46], [700, 1640, 44]],
-    rocks: [[1080, 1380, 70], [540, 1160, 32], [1220, 1820, 32], [800, 1700, 28], [940, 1160, 30]],
+    rocks: [[1160, 1490, 62], [540, 1160, 32], [1220, 1820, 32], [800, 1700, 28], [940, 1160, 30]],
     clear: [[1200, 1200, 140]],
     walls: [[612, 828, 612, 900, 'wall'], [1404, 1812, 1548, 1668, 'thicket']], moon: [461, 529], yokai: [662, 1054],
   },
@@ -119,13 +119,13 @@ export const MAPS = [
       [[880, 1760], [860, 1980], [940, 2150]],
       [[480, 1060], [420, 840], [560, 700]],
       // spurs to camps moved out of tower range
-      [[1060, 1700], [1092, 1860]], [[1420, 2000], [1452, 1908]],
+      [[1060, 1700], [1140, 1840]], [[1420, 2000], [1452, 1884]],
     ],
     camps: [
       { id: 'bb', at: [640, 1220], kind: 'bluebuff' }, { id: 'gromp', at: [480, 1060], kind: 'gromp' }, { id: 'wolf', at: [540, 1428], kind: 'wolf' },
-      { id: 'rb', at: [1284, 1788], kind: 'redbuff' }, { id: 'rap', at: [1092, 1860], kind: 'raptor' }, { id: 'krug', at: [1452, 1908], kind: 'krug' },
+      { id: 'rb', at: [1284, 1788], kind: 'redbuff' }, { id: 'rap', at: [1140, 1840], kind: 'raptor' }, { id: 'krug', at: [1452, 1884], kind: 'krug' },
     ],
-    towerLayout: { outer: true, side: [0.76, 0.5, 0.27, 0.15], mid: [0.75, 0.44, 0.29, 0.15] },
+    towerLayout: { outer: true },
     kraken: [656, 688], shrine: [1400, 1560],
     brush: [[400, 1300, 62], [820, 1580, 58], [1160, 1400, 56], [1520, 1900, 54], [380, 600, 58], [1700, 2140, 50], [960, 820, 60], [780, 380, 52], [1000, 2020, 50], [580, 1720, 50], [300, 860, 44], [1300, 1640, 44]],
     rocks: [[560, 1340, 32], [920, 1340, 28], [1160, 1900, 32], [780, 1120, 28], [1340, 1700, 26]],
@@ -150,8 +150,8 @@ export const MAPS = [
       { id: 'bb', at: [700, 1180], kind: 'bluebuff' }, { id: 'gromp', at: [520, 1100], kind: 'gromp' }, { id: 'wolf', at: [560, 1460], kind: 'wolf' },
       { id: 'rb', at: [1300, 1760], kind: 'redbuff' }, { id: 'rap', at: [1200, 1840], kind: 'raptor' }, { id: 'krug', at: [1560, 1660], kind: 'krug' },
     ],
-    towerLayout: { outer: true, side: [0.62, 0.42, 0.25, 0.15] },
     kraken: [470, 470], shrine: [1380, 1500],
+    towerLayout: { outer: true, sideD: [1000, 720, 460, 265], midD: [850, 590, 355, 185] }, // the corner roads pass the lairs: side-lane towers stay below the bends; mid ones off the oasis
     brush: [[400, 1700, 62], [380, 1250, 58], [760, 860, 58], [1060, 1620, 56], [1640, 1880, 58], [1240, 2010, 52], [880, 1320, 50], [300, 640, 44]],
     rocks: [[760, 1400, 34], [600, 1300, 26], [1180, 1660, 34], [960, 1940, 30], [400, 1000, 26]],
     clear: [[1200, 1200, 150], [470, 470, 220], [540, 684, 26], [156, 1764, 26], [1452, 1644, 26], [1476, 1596, 26], [1716, 1860, 26], [636, 2244, 26]], // + single-cell pockets

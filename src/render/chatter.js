@@ -1,5 +1,6 @@
 // Hero chatter: short pixel speech bubbles reacting to calls, kills, deaths, trust and ults.
 // Flavoured by personality, rate-limited, only for heroes on screen. Render-only (Math.random ok).
+import { tr } from '../i18n/i18n.js';
 import { TEAM_COL } from './palette.js';
 import { settings, textScale } from '../ui/settings.js';
 
@@ -62,7 +63,7 @@ export class Chatter {
     const line = extra || pick(set[pers] || set.any || set.calm || Object.values(set)[0]); // (the ult's name is on its callout card: never repeated here)
     this.bubbles = this.bubbles.filter((b) => b.id !== u.id);
     if (this.bubbles.length >= 4) this.bubbles.shift();
-    this.bubbles.push({ id: u.id, team: u.team, text: line, born: now, dur: 2.1 + line.length * 0.03, at: dead ? { x: u.x, y: u.y } : null });
+    this.bubbles.push({ id: u.id, team: u.team, text: tr(line), born: now, dur: 2.1 + line.length * 0.03, at: dead ? { x: u.x, y: u.y } : null });
     this.heroCd.set(u.id, now + (prio >= 2 ? 4 : 8));
     this.lastAny = now;
     return true;

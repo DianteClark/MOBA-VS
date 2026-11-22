@@ -5,6 +5,7 @@
 //  * analyze(rec): fights, aces, the turning point (with a plain-language reason), call stats and payoffs,
 //    missed chances and a key-event timeline.
 //  * analysisCard / showAnalysis: the results-screen card and the full Analysis sheet (Story, Damage, Calls).
+import { tr } from '../i18n/i18n.js';
 import { TEAM_NAME, OBJ_NAME, DRAGON_INFO } from '../sim/constants.js';
 import { MOMENTS } from '../sim/moments-coach.js';
 import { HERO_BY_ID, ROLE_LABEL } from '../data/heroes.js';
@@ -12,10 +13,13 @@ import { BUILDS } from '../data/items.js';
 import { h } from './dom.js';
 import { normPlan } from '../sim/plans.js';
 import { planLines } from './plans.js';
+import { placeAt, placeFromKey, placeText } from '../world/places.js';
 
 const D = typeof document !== 'undefined'; // node (tools) has no DOM: only the recorder and analyze() run there
 const LANE = { top: 'Top', mid: 'Mid', bot: 'Bot' };
-const PLACE = { top: 'Top lane', mid: 'Mid lane', bot: 'Bot lane', kami: 'the Kami pit', kraken: 'the Kraken pit', base0: 'the Blue base', base1: 'the Red base', jungle: 'the jungle' };
+// "in top lane by your outer tower", "at the Kami pit"… for a stored place key, from the record's point of view
+const where = (A, key) => { const pl = placeFromKey(key); return pl ? placeText(pl, { my: A.my }).where : 'on the map'; };
+const coarse = (key) => String(key).split('.')[0]; // 'top.0.1' → 'top', 'jungle0.bot.wolf' → 'jungle0'
 // calls that count as acting on an advantage (not play-safe, cancel, plan or build changes)
 const ACTS = new Set(['gank', 'objective', 'group', 'invade', 'permit', 'surge', 'moment', 'herald', 'focus', 'split', 'tactic', 'shrine']);
 const SAMPLE = 100; // gold-lead sample every 5s (100 ticks)
@@ -42,15 +46,7 @@ export class MatchRecorder {
     if (g.tick % SAMPLE === 0) this.sampleGold();
   }
   sampleGold() { const g = this.g, tot = (t) => g.teams[t].heroes.reduce((a, x) => a + x.goldEarned, 0); this.gold.push(r10(tot(0) - tot(1))); }
-  place(x, y) {
-    const W = this.g.world, d2 = (p) => (p.x - x) ** 2 + (p.y - y) ** 2;
-    if (W.pits.kami && d2(W.pits.kami) < 450 ** 2) return 'kami';
-    if (W.pits.kraken && d2(W.pits.kraken) < 450 ** 2) return 'kraken';
-    for (let t = 0; t < 2; t++) if (W.baseCenter[t] && d2(W.baseCenter[t]) < 900 ** 2) return 'base' + t;
-    let best = 'jungle', bd = 320;
-    for (const ln of W.laneNames) { const d = W.distToLane(ln, { x, y }); if (d < bd) { bd = d; best = ln; } }
-    return best;
-  }
+  place(x, y) { return placeAt(this.g.world, { x, y }, this.g).key; } // src/world/places.js keys ('top.0.1', 'kami', 'jungle1.bot'…)
   onEvent(e) {
     const g = this.g, t = r1(e.t / 20), win = (team) => { const w = this.win[team]; if (w) w.got = true; };
     switch (e.type) {
@@ -141,7 +137,10 @@ export function analyze(A) {
     if (!f || k[0] - f.t1 > 10) fights.push(f = { t0: k[0], t1: k[0], n: [0, 0], places: {}, ace: -1 });
     f.t1 = k[0]; f.n[k[2]]++; f.places[k[5]] = (f.places[k[5]] || 0) + 1; if (k[6]) f.ace = k[2];
   }
-  for (const f of fights) { f.place = Object.entries(f.places).sort((a, b) => b[1] - a[1])[0][0]; f.total = f.n[0] + f.n[1]; f.won = f.n[0] === f.n[1] ? -1 : f.n[0] > f.n[1] ? 0 : 1; }
+  // a fight's place: the area most of its kills were in (then the most common exact spot inside it)
+  const top = (o) => Object.entries(o).sort((a, b) => b[1] - a[1])[0][0];
+  for (const f of fights) { const by = {}; for (const [k, n] of Object.entries(f.places)) by[coarse(k)] = (by[coarse(k)] || 0) + n; const c = top(by);
+    f.place = top(Object.fromEntries(Object.entries(f.places).filter(([k]) => coarse(k) === c))); f.total = f.n[0] + f.n[1]; f.won = f.n[0] === f.n[1] ? -1 : f.n[0] > f.n[1] ? 0 : 1; }
   const big = fights.filter((f) => f.total >= 2);
   // calls: stats + payoff = gold-lead swing over the next 30s, from the caller's side
   const calls = A.calls.map((c) => { const sg = c[1] === 0 ? 1 : -1; return { c, t: c[0], team: c[1], label: callLabel(c), result: c[4], why: c[5], swing: r10((goldAt(A, Math.min(A.len, c[0] + 30)) - goldAt(A, c[0])) * sg) }; });
@@ -165,8 +164,8 @@ export function analyze(A) {
     else if (ty === 'mo') add(t, tm, 'mo', `${A.my >= 0 ? (tm === A.my ? 'Your' : 'Their') : TEAM_NAME[tm]} Coach Moment: ${(MOMENTS[e[3]] || {}).name || e[3]}`);
   }
   for (const f of big) {
-    if (f.ace >= 0) add(f.t1, f.ace, 'ace', `${teamWord(A, f.ace)} aced ${teamWord(A, 1 - f.ace, false)} at ${PLACE[f.place] || f.place}`);
-    else if (f.total >= 3) add(f.t0, f.won, 'fight', `Fight at ${PLACE[f.place] || f.place}: ${f.won < 0 ? `even ${f.n[0]}-${f.n[1]}` : `${teamWord(A, f.won)} won ${Math.max(...f.n)}-${Math.min(...f.n)}`}`);
+    if (f.ace >= 0) add(f.t1, f.ace, 'ace', `${teamWord(A, f.ace)} aced ${teamWord(A, 1 - f.ace, false)} ${where(A, f.place)}`);
+    else if (f.total >= 3) add(f.t0, f.won, 'fight', `Fight ${where(A, f.place)}: ${f.won < 0 ? `even ${f.n[0]}-${f.n[1]}` : `${teamWord(A, f.won)} won ${Math.max(...f.n)}-${Math.min(...f.n)}`}`);
   }
   for (const c of calls) if (A.my < 0 || c.team === A.my) {
     const ok = c.result === 'success';
@@ -217,8 +216,8 @@ function turningPoint(A, fights, calls) {
   const parts = [];
   // fights in the window, merged per place ("won fights at the Kraken pit 5-1")
   const byPlace = {};
-  for (const f of fights) if (inW(f.t0)) { const q = byPlace[f.place] || (byPlace[f.place] = { n: [0, 0], k: 0, ace: false }); q.n[0] += f.n[0]; q.n[1] += f.n[1]; q.k++; q.ace = q.ace || f.ace === w; }
-  for (const [pl, q] of Object.entries(byPlace)) if (q.n[w] > q.n[1 - w]) parts.push(`won ${q.k > 1 ? 'fights' : 'a fight'} at ${PLACE[pl] || pl} ${q.n[w]}-${q.n[1 - w]}${q.ace ? ' and aced ' + them : ''}`);
+  for (const f of fights) if (inW(f.t0)) { const pk = coarse(f.place), q = byPlace[pk] || (byPlace[pk] = { n: [0, 0], k: 0, ace: false }); q.n[0] += f.n[0]; q.n[1] += f.n[1]; q.k++; q.ace = q.ace || f.ace === w; }
+  for (const [pl, q] of Object.entries(byPlace)) if (q.n[w] > q.n[1 - w]) parts.push(`won ${q.k > 1 ? 'fights' : 'a fight'} ${where(A, pl)} ${q.n[w]}-${q.n[1 - w]}${q.ace ? ' and aced ' + them : ''}`);
   for (const e of A.ev) if (inW(e[0]) && e[2] === w) {
     if (e[1] === 'ob') parts.push(`${took(e[3], e[5])} the ${objName(e[3], e[4])}`);
     if (e[1] === 'in') parts.push(`broke the ${LANE[e[3]] || ''} gate`);
@@ -258,7 +257,7 @@ export function markerList(A, d) {
     else if (e[1] === 'tw' || e[1] === 'in') out.push({ t: e[0], team: e[2], kind: e[1], label: `${fmt(e[0])} ${teamWord(A, e[2])} ${e[1] === 'in' ? 'broke the ' + (LANE[e[3]] || '') + ' gate' : 'took a ' + (LANE[e[3]] || 'base') + ' tower'}` });
     else if (e[1] === 'mo') out.push({ t: e[0], team: e[2], kind: 'mo', label: `${fmt(e[0])} ${TEAM_NAME[e[2]]} Coach Moment: ${(MOMENTS[e[3]] || {}).name || e[3]}` });
   }
-  for (const f of d.fights) out.push({ t: f.t0, t1: f.t1, team: f.won < 0 ? -1 : f.won, kind: f.ace >= 0 ? 'ace' : 'fight', n: f.total, label: `${fmt(f.t0)} ${f.ace >= 0 ? 'Ace' : 'Fight'} at ${PLACE[f.place] || f.place}: Blue ${f.n[0]} - Red ${f.n[1]}` });
+  for (const f of d.fights) out.push({ t: f.t0, t1: f.t1, team: f.won < 0 ? -1 : f.won, kind: f.ace >= 0 ? 'ace' : 'fight', n: f.total, label: `${fmt(f.t0)} ${f.ace >= 0 ? 'Ace' : 'Fight'} ${where({ my: -1 }, f.place)}: Blue ${f.n[0]} - Red ${f.n[1]}` });
   return out.sort((a, b) => a.t - b.t);
 }
 // One marker glyph at (x, y). Shared by the gold graph and the Theater bar.
@@ -311,7 +310,7 @@ function drawGraph(c, A, d, opts = {}) {
     }
   }
   // direct labels (identity is never colour alone)
-  ctx.fillStyle = ink; ctx.fillText(`Blue +${kGold(mx)}`, padL + 2, top + 10); ctx.fillText(`Red +${kGold(mx)}`, padL + 2, plotB - 3);
+  ctx.fillStyle = ink; ctx.fillText(tr(`Blue +${kGold(mx)}`), padL + 2, top + 10); ctx.fillText(tr(`Red +${kGold(mx)}`), padL + 2, plotB - 3);
   // event lanes: Blue's row, then Red's
   const ms = markerList(A, d), hits = [];
   const rowY = (t) => plotB + 4 + lane * (t === 1 ? 1 : 0) + lane / 2;

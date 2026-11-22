@@ -39,9 +39,9 @@ const TEMPLATES = {
   // ── hero-wide ──
   armor: { name: () => 'Iron Skin', text: () => '+12 armor and +12 magic resist.', stat: { armor: 12, mr: 12 }, tags: ['safe', 'vsBurst'] },
   vital: { name: () => 'Vitality', text: () => '+10% max HP.', stat: { hpPct: 0.1 }, tags: ['safe', 'vsBurst'] },
-  vamp: { name: () => 'Bloodthirst', text: () => '+10% omnivamp (heal from all damage) and +4% max HP.', stat: { omnivamp: 0.1, hpPct: 0.04 }, tags: ['safe'] },
-  swift: { name: () => 'Fleet Foot', text: () => '+8% move speed and +6% attack speed.', stat: { msPct: 0.08, asPct: 0.06 }, tags: [] },
-  fury: { name: () => 'Fury', text: () => '+14% attack speed.', stat: { asPct: 0.14 }, tags: [] },
+  vamp: { name: () => 'Bloodthirst', text: () => '+12% omnivamp (heal from all damage) and +4% max HP.', stat: { omnivamp: 0.12, hpPct: 0.04 }, tags: ['safe'] },
+  swift: { name: () => 'Fleet Foot', text: () => '+8% move speed and +8% attack speed.', stat: { msPct: 0.08, asPct: 0.08 }, tags: [] },
+  fury: { name: () => 'Fury', text: () => '+16% attack speed.', stat: { asPct: 0.16 }, tags: [] },
   focus: { name: () => 'Focus', text: () => '+14 ability haste (faster cooldowns).', stat: { haste: 14 }, tags: [] },
   crit: { name: () => 'Precision', text: () => '+12% critical strike chance.', stat: { crit: 0.12 }, tags: [] },
   pierce: { name: () => 'Armor Breaker', text: () => '+10% armor and magic penetration.', stat: { pen: 0.1 }, tags: ['vsTank'] },
@@ -58,11 +58,11 @@ const TEMPLATES = {
   lone: { name: () => 'Lone Wolf', text: () => 'No ally within 800: +18 armor and magic resist.', stat: { lone: 18 }, tags: ['split', 'safe'] },
   bully: { name: () => 'Bully', text: () => '+10% damage to stunned, rooted, feared or slowed heroes.', vs: { when: 'cc', pct: 0.1 }, tags: [] },
   ambush: { name: () => 'Opening Strike', text: () => 'The first hit on a hero after 5s out of combat deals +20%.', vs: { when: 'first', pct: 0.2 }, tags: ['snowball'] },
-  rampage: { name: () => 'Rampage', text: () => 'Takedowns heal 6% max HP and give +20% move speed for 3s.', kill: { heal: 0.06, ms: 0.2, dur: 3 }, tags: ['snowball'] },
+  rampage: { name: () => 'Rampage', text: () => 'Takedowns heal 5% max HP and give +20% move speed for 3s.', kill: { heal: 0.05, ms: 0.2, dur: 3 }, tags: ['snowball'] },
   reset: { name: () => 'Momentum', text: () => 'Takedowns cut your basic ability cooldowns by 3s.', kill: { cdr: 3 }, tags: ['snowball'] },
   // ── ultimate specials (tier 3) ──
-  overdrive: { name: () => 'Overdrive', text: () => 'Your ultimate empowers after a 2-kill streak (not 3), and empowered ults hit 5% harder.', ult: { streak: 2, extra: 0.05 }, tags: ['snowball'] },
-  aftershock: { name: () => 'Aftershock', text: () => 'Casting your ultimate grants a shield of 12% max HP for 3s.', ult: { shield: 0.12 }, tags: ['safe', 'vsBurst'] },
+  overdrive: { name: () => 'Overdrive', text: () => 'Your ultimate empowers after a 2-kill streak (not 3), and empowered ults hit 3% harder.', ult: { streak: 2, extra: 0.03 }, tags: ['snowball'] },
+  aftershock: { name: () => 'Aftershock', text: () => 'Casting your ultimate grants a shield of 10% max HP for 3s.', ult: { shield: 0.1 }, tags: ['safe', 'vsBurst'] },
 };
 
 // Per-hero tiers. Ability names fill in the template text (q/w/r = the hero's 1st, 2nd and ultimate ability).

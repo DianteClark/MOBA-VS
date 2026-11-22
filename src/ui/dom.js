@@ -1,4 +1,6 @@
 // Tiny DOM helpers.
+import { tr } from '../i18n/i18n.js';
+const TR_ATTR = { title: 1, 'aria-label': 1, placeholder: 1, alt: 1 };
 export function h(tag, attrs = {}, ...kids) {
   const el = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs || {})) {
@@ -7,15 +9,28 @@ export function h(tag, attrs = {}, ...kids) {
     else if (k === 'style' && typeof v === 'object') { for (const [sk, sv] of Object.entries(v)) { if (sk.startsWith('--')) el.style.setProperty(sk, sv); else el.style[sk] = sv; } }
     else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
     else if (k === 'html') el.innerHTML = v;
-    else el.setAttribute(k, v === true ? '' : v);
+    else el.setAttribute(k, v === true ? '' : TR_ATTR[k] ? tr(v) : v);
   }
-  for (const c of kids.flat(Infinity)) if (c !== null && c !== undefined && c !== false) el.append(c instanceof Node ? c : document.createTextNode(String(c)));
+  for (const c of kids.flat(Infinity)) if (c !== null && c !== undefined && c !== false) el.append(c instanceof Node ? c : document.createTextNode(attrs && attrs.translate === 'no' ? String(c) : tr(String(c))));
+  a11y(el, tag, attrs || {});
   return el;
+}
+// Screen readers / keys: clickable non-buttons act as buttons, icon-only buttons get a name, images are decorative
+// unless given an alt.
+const NATIVE = /^(button|a|input|select|textarea|label|option|summary)$/;
+function a11y(el, tag, attrs) {
+  if (tag === 'img') { if (attrs.alt === undefined) el.alt = ''; return; }
+  if (attrs.onclick && !NATIVE.test(tag) && !attrs.role && !/\b(modal|overlay|backdrop)\b/.test(attrs.class || '') && !attrs.id) { el.setAttribute('role', 'button'); if (attrs.tabindex === undefined) el.tabIndex = 0; }
+  if (tag === 'button' && attrs['aria-label'] === undefined) {
+    const tx = el.textContent.trim();
+    if (/^(✕|×|X)$/.test(tx)) el.setAttribute('aria-label', tr('Close'));
+    else if (!tx && attrs.title) el.setAttribute('aria-label', el.getAttribute('title'));
+  }
 }
 export const $ = (s, r = document) => r.querySelector(s);
 export function mount(el, ...kids) { el.replaceChildren(...kids.flat(Infinity).filter(Boolean)); return el; }
 export function toast(msg, ms = 2200) {
-  const t = h('div', { class: 'toast' }, msg); document.body.append(t); setTimeout(() => t.remove(), ms);
+  const t = h('div', { class: 'toast', role: 'status', 'aria-live': 'polite' }, msg); document.body.append(t); setTimeout(() => t.remove(), ms);
 }
 // Empty state: an icon, a short headline, one line of help and (optionally) the next step.
 export function emptyState(img, title, text, action) {
@@ -33,8 +48,23 @@ export const bossFace = (k, el) => `assets/img/boss/${k === 'dragon' ? KAMI_FACE
 export const kamiNow = (g) => (g.objectives.dragon ? g.objectives.dragon.element : g.teams.some((t) => t.soul) ? 'elder' : g.nextDragon);
 export const icon = (name) => `assets/img/icons/${name}.png`;
 // Per-tick HUD writes: touch the DOM only when a value really changes (no style recalc / mutations for nothing).
-export const setText = (el, v) => { v = String(v); if (el.textContent !== v) el.textContent = v; };
+export const setText = (el, v) => { v = tr(String(v)); if (el.textContent !== v) el.textContent = v; };
 export const setCss = (el, k, v) => { const c = el._css || (el._css = {}); if (c[k] !== v) { c[k] = v; if (k.startsWith('--')) el.style.setProperty(k, v); else el.style[k] = v; } };
+// Shrink one-line labels until they fit their box (long translations, narrow phones). Re-fits on resize.
+const FIT = new Set(); let fitHooked = false;
+function fitOne(e) {
+  e.style.fontSize = ''; const box = e.parentElement; if (!box || !e.isConnected) return;
+  let fs = parseFloat(getComputedStyle(e).fontSize); const w = box.clientWidth - 4;
+  while (e.scrollWidth > w && fs > 6) { fs -= 0.5; e.style.fontSize = fs + 'px'; }
+}
+export function fitText(els) {
+  if (!fitHooked) {
+    fitHooked = true;
+    addEventListener('resize', () => requestAnimationFrame(() => { for (const e of FIT) if (e.isConnected) fitOne(e); else FIT.delete(e); }));
+  }
+  for (const e of els) if (e) FIT.add(e);
+  requestAnimationFrame(() => { for (const e of els) if (e) fitOne(e); });
+}
 export const setOff = (el, off) => { if (el.disabled !== off) el.disabled = off; };
 // History / share-card label for a profile history `mode` key.
 export const MODE_LABEL = { ai0: 'vs Easy AI', ai1: 'vs Normal AI', ai2: 'vs Hard AI', online: 'Online Ranked', casual: 'Online Casual', rush: 'Lane Rush vs AI', rushOnline: 'Lane Rush Online', cup: 'Season Cup', coop: 'Co-op vs AI', coop2: 'Co-op 2v2', fr: 'Franchise' };

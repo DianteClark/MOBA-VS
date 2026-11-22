@@ -3,7 +3,8 @@
 //   node tools/maps.mjs [outDir]
 import { writeFileSync } from 'node:fs';
 import { MAPS, RUSH_MAPS } from '../src/maps/defs.js';
-import { World, N, C } from '../src/sim/world.js';
+import { World, N, C, S, T_LANE, T_BASE, T_RIVER, T_PIT, T_SHRINE } from '../src/sim/world.js';
+import { segDist2 } from '../src/sim/geom.js';
 import { RANGE } from '../src/sim/constants.js';
 // A tower acquires heroes whose centre is within RANGE.tower + 14 (see Game.updateTower).
 const REACH = RANGE.tower + 14;
@@ -35,6 +36,7 @@ for (const def of [...MAPS, ...RUSH_MAPS]) {
   const t0 = Date.now(); let plen = 0; for (let k = 0; k < 50; k++) { const p = w.findPath(w.fountain[0].x, w.fountain[0].y, goals[k % goals.length].x, goals[k % goals.length].y); plen += p.length; } const ms = (Date.now() - t0) / 50;
   console.log(`${def.name}: open ${(open / N / N * 100).toFixed(0)}%, brush cells ${brush}, structures ${w.structures.length}, A* ${ms.toFixed(2)}ms avg, tower clearance pit ${Math.round(minPit)}/${PIT_CLEAR} camp ${minCamp < 1e9 ? Math.round(minCamp) : '-'}/${CAMP_CLEAR}, ${miss ? 'ISSUES' : 'all reachable ✔'}`);
   if (def.walls && !def.single) miss += livingCheck(def, towers);
+  bad += towerCheck(def);
   if (out) {
     const px = 4, Wd = N * px; const buf = Buffer.alloc(Wd * Wd * 3);
     const col = { 0: [30, 60, 30], 1: [110, 170, 70], 2: [170, 120, 80], 3: [80, 150, 200], 4: [140, 140, 170], 5: [110, 100, 90], 6: [230, 200, 90], 7: [130, 180, 90] };
@@ -74,3 +76,42 @@ function livingCheck(def, towers) {
   return miss;
 }
 process.exit(bad ? 1 : 0);
+
+// Tower ground: every lane tower and gate stands on lane ground, inside a clean plaza (no forest, rocks, brush,
+// water, pit, shrine or breakable wall in it), with open ground all around it to fight in; tiers are evenly
+// spaced along the lane, and the layout is point-mirrored (fair).
+function towerCheck(def) {
+  const w = new World(def, { walls: !def.single }); let miss = 0;
+  const say = (m) => { console.log(`  ✘ ${def.id}: ${m}`); miss++; };
+  const lane = w.structures.filter((s) => s.plaza);
+  const footOf = (q) => w.structures.some((o) => Math.hypot(o.x - q.x, o.y - q.y) <= (o.kind === 'nexus' ? 40 : 22) + C); // a structure's own footprint
+  for (const s of lane) {
+    const nm = `${s.kind}${s.tier || ''} ${s.lane} t${s.team}`, ti = w.type[w.idx(s.x, s.y)];
+    if (ti !== T_LANE && ti !== T_BASE) say(`${nm} is not on lane ground`);
+    const pz = s.plaza, foot = s.kind === 'nexus' ? 40 : 22; let n = 0, blocked = 0, dirty = [];
+    for (let cy = 0; cy < N; cy++) for (let cx = 0; cx < N; cx++) {
+      const p = { x: cx * C + C / 2, y: cy * C + C / 2 }, i = cy * N + cx;
+      if (segDist2(p, pz.a, pz.b) > (pz.r - C / 2) ** 2 || Math.hypot(p.x - s.x, p.y - s.y) <= foot + C) continue;
+      n++;
+      if (!w.walk[i] && !footOf(p)) blocked++;
+      if (w.brush[i]) dirty.push('brush');
+      if ([T_RIVER, T_PIT, T_SHRINE].includes(w.type[i])) dirty.push(['', '', '', 'water', '', 'pit', 'shrine'][w.type[i]]);
+      if (w.wallAt && w.wallAt[i] >= 0) dirty.push('breakable wall');
+    }
+    if (dirty.length) say(`${nm} plaza has ${[...new Set(dirty)].join(', ')} in it`);
+    // the map border may cut a plaza on an outer-edge lane; anything else blocked is a bug
+    const border = (q) => q.x < 2 * C || q.y < 2 * C || q.x > S - 2 * C || q.y > S - 2 * C;
+    if (blocked > n * 0.08 && !border({ x: s.x + (s.x - pz.x) * 2.4, y: s.y + (s.y - pz.y) * 2.4 })) say(`${nm} plaza only ${Math.round((1 - blocked / n) * 100)}% open`);
+    let ring = 0, open = 0;
+    for (let a = 0; a < 32; a++) { const q = { x: s.x + Math.cos(a / 32 * 2 * Math.PI) * 70, y: s.y + Math.sin(a / 32 * 2 * Math.PI) * 70 }; if (border(q) || footOf(q)) continue; ring++; if (w.isWalk(q.x, q.y)) open++; }
+    if (open < ring) say(`${nm} has blocked ground ${70}px from it (${ring - open}/${ring})`);
+    const m = w.structures.find((o) => o.team === 1 - s.team && o.kind === s.kind && o.x === S - s.x && o.y === S - s.y);
+    if (!m) say(`${nm} has no mirrored twin`);
+  }
+  for (const ln of w.laneNames) for (let t = 0; t < 2; t++) {
+    const len = w.laneLen[ln][w.laneLen[ln].length - 1];
+    const at = lane.filter((s) => s.lane === ln && s.team === t).map((s) => w.laneProgress(ln, s) * len).sort((a, b) => a - b);
+    for (let i = 1; i < at.length; i++) if (at[i] - at[i - 1] < 150) say(`${ln} t${t}: two structures only ${Math.round(at[i] - at[i - 1])}px apart along the lane`);
+  }
+  return miss;
+}
