@@ -4,7 +4,7 @@
 #banner .big .bsub { font-size: 12px; color: #fff3c4; text-shadow: 0 1px 0 #000; margin-top: 4px; max-width: min(520px, 70vw); line-height: 1.2; letter-spacing: 0; text-align: center; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 @media (max-height: 500px) { #banner .big .bsub { font-size: 9px; margin-top: 2px; max-width: 52vw; } }
 /* a decision is up: the rest of the HUD steps back (no motion, so Reduced effects needs nothing extra) */
-#hud.deciding #ticker, #hud.deciding #killfeed, #hud.deciding #alerts .alert:not(.bigfight) { opacity: 0.4; }
+#hud.deciding #ticker, #hud.deciding #killfeed, #hud.deciding #alerts .alert:not(.bigfight):not(.laneopen) { opacity: 0.4; }
 /* charge pips (src/ui/cost.js): gold = a charge you have, hollow = one you are short. Same on every control. */
 #cmdbar .cost i.short, #ring .cost i.short { background: transparent !important; border: 1px solid #c9a85a; box-shadow: inset 0 0 0 1px #000; }
 #cmdbar .tile { position: relative; }
@@ -21,3 +21,4 @@
 /* the active-call pill names the call ("✕ Take Ember Kami"): one tap cancels it */
 #cmdbar .cancelpill { display: flex; align-items: center; gap: 5px; max-width: min(60vw, 320px); white-space: nowrap; }
 #cmdbar .cancelpill span { overflow: hidden; text-overflow: ellipsis; }
+#hud.deciding .irchip { opacity: 0.4; }
