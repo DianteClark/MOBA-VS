@@ -470,11 +470,15 @@ export class Hud {
       setText(els.why, this.whyText(x));
     };
     upd();
-    // place beside the card, clamped to the viewport
-    const rb = row.getBoundingClientRect(), pw = el.offsetWidth, ph = el.offsetHeight, W = window.innerWidth, H = window.innerHeight;
+    // place beside the card, clamped to the safe area (short Safari heights: the card scrolls instead)
+    const cs = getComputedStyle(document.documentElement), inset = (k) => parseFloat(cs.getPropertyValue('--safe-' + k)) || 0;
+    const sl = inset('l') + 6, sr = inset('r') + 6, st = inset('t') + 6, sb = inset('b') + 6;
+    const rb = row.getBoundingClientRect(), pw = el.offsetWidth, W = window.innerWidth, H = window.innerHeight;
+    if (el.offsetHeight > H - st - sb) Object.assign(el.style, { maxHeight: (H - st - sb) + 'px', overflowY: 'auto' });
+    const ph = el.offsetHeight;
     let left = rb.left + rb.width / 2 < W / 2 ? rb.right + 6 : rb.left - pw - 6;
-    left = Math.max(6, Math.min(W - pw - 6, left));
-    const top = Math.max(6, Math.min(H - ph - 6, rb.top));
+    left = Math.max(sl, Math.min(W - pw - sr, left));
+    const top = Math.max(st, Math.min(H - ph - sb, rb.top));
     el.style.left = left + 'px'; el.style.top = top + 'px';
     this.pop = { id: x.id, el, upd };
   }
