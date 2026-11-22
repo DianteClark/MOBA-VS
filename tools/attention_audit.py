@@ -72,13 +72,18 @@ INSTR = r"""async (passive) => {
   // ── events: which sim event a message answers ──
   const pe = H.processEvents.bind(H); H.processEvents = () => { H.__inEv = true; try { pe(); } finally { H.__inEv = false; } };
   // ── ticker ──
-  const tk = H.ticker.bind(H); H.ticker = (text, cls = 'n', prio = 1) => { const r = rec({ home: 'ticker', act: 'req', text, cls, prio, topic: evTopic(), ev: evType() }); H.__tkReq = r; return tk(text, cls, prio); };
-  const stk = H.showTicker.bind(H); H.showTicker = (it) => { rec({ home: 'ticker', act: 'show', text: it.text, prio: it.prio }); return stk(it); };
+  // shown lines and banners carry the sim event they answer (queued ones are tagged when queued)
+  const tag = () => { const t = evTopic(); if (!t) return; for (const it of [...(H.tkq || []), H.tk, ...(H.bq || [])]) if (it && !it.__topic) it.__topic = t; };
+  const tk = H.ticker.bind(H); H.ticker = (text, cls = 'n', prio = 1) => { rec({ home: 'ticker', act: 'req', text, cls, prio, topic: evTopic(), ev: evType() }); const r = tk(text, cls, prio); tag(); return r; };
+  if (H.tickerNow) { const tn = H.tickerNow.bind(H); H.tickerNow = (...a) => { const r = tn(...a); tag(); return r; }; }
+  if (H.showBannerItem) { const sb = H.showBannerItem.bind(H); H.showBannerItem = (it) => { it.__topic = it.__topic || evTopic(); return sb(it); }; }
+  const stk = H.showTicker.bind(H); H.showTicker = (it) => { rec({ home: 'ticker', act: 'show', text: it.text, prio: it.prio, topic: it.__topic || evTopic() }); return stk(it); };
   // ── banner ──
   const bn = H.banner.bind(H); H.banner = (text, color, ms, img, urgent, node) => {
     const t = text || (node ? [].concat(node).map((n) => (n && n.textContent) || '').join(' ').trim() : '');
-    rec({ home: 'banner', act: 'req', text: t, topic: evTopic(), ev: evType() }); return bn(text, color, ms, img, urgent, node); };
-  const nb = H.nextBanner.bind(H); H.nextBanner = () => { const n = H.bq && H.bq[0]; nb(); if (n) rec({ home: 'banner', act: 'show', text: n.text || (n.node ? [].concat(n.node).map((x) => (x && x.textContent) || '').join(' ').trim() : '') }); };
+    rec({ home: 'banner', act: 'req', text: t, topic: evTopic(), ev: evType() }); const r = bn(text, color, ms, img, urgent, node); tag(); return r; };
+  const nb = H.nextBanner.bind(H); H.nextBanner = () => { const q = (H.bq || []).slice(); nb(); const n = q.find((x) => !(H.bq || []).includes(x)) && q.filter((x) => !(H.bq || []).includes(x)).pop();
+    if (n) rec({ home: 'banner', act: 'show', text: (n.text || (n.node ? [].concat(n.node).map((x) => (x && x.textContent) || '').join(' ').trim() : '')) + (n.sub ? ' / ' + n.sub : ''), topic: n.__topic || evTopic() }); };
   // ── decision tray ──
   const tp = T.push.bind(T); T.push = (item) => {
     const r = tp(item);
@@ -98,7 +103,7 @@ INSTR = r"""async (passive) => {
     for (const [k, r] of live) if (!A.items.has(k)) { rec({ home: 'edge', act: 'end', key: k, kind: r.kind, ms: Math.round(now() - r.w) }); live.delete(k); }
     return res; };
   // ── kill feed, toasts, chatter ──
-  const kf = H.killfeed.bind(H); H.killfeed = (k, v, a) => { rec({ home: 'feed', act: 'show', text: (k ? k.def.name : 'Tower') + ' > ' + v.def.name, topic: evTopic() }); return kf(k, v, a); };
+  const kf = H.killfeed.bind(H); H.killfeed = (k, v, a) => { if (H.el.kf.offsetParent) rec({ home: 'feed', act: 'show', text: (k ? k.def.name : 'Tower') + ' > ' + v.def.name, topic: evTopic() }); return kf(k, v, a); };
   new MutationObserver((ms) => { for (const m of ms) for (const n of m.addedNodes) if (n.classList && n.classList.contains('toast')) rec({ home: 'toast', act: 'show', text: n.textContent }); }).observe(document.body, { childList: true });
   const say = R.chatter.say.bind(R.chatter); R.chatter.say = (u, kind, prio, extra) => { const ok = say(u, kind, prio, extra); if (ok) rec({ home: 'world', act: 'show', kind, text: R.chatter.bubbles[R.chatter.bubbles.length - 1].text, topic: evTopic() }); return ok; };
   // ── samples: what is on screen at once (every 500ms) ──
@@ -208,9 +213,7 @@ def analyse(ms):
     for m in ms:
         groups = {}
         for r in m['log']:
-            if r['act'] in ('req', 'show') and r.get('topic') and r['home'] in ('ticker', 'banner', 'feed'):
-                if r['home'] == 'ticker' and r['act'] == 'show': continue
-                if r['home'] == 'banner' and r['act'] == 'show': continue
+            if r['act'] == 'show' and r.get('topic') and r['home'] in ('ticker', 'banner', 'feed'):
                 groups.setdefault(r['topic'], []).append(r)
         for k, g in groups.items():
             if len(g) > 1: dup_ev += len(g) - 1; ev_multi += 1

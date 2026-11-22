@@ -61,6 +61,8 @@ export class Attention {
     const d = this.hud.dock, c = d && d.tray && d.tray.cur;
     return !!(c && c.topic === 'fight' && c.at && (c.at.x - p.x) ** 2 + (c.at.y - p.y) ** 2 < 1100 * 1100);
   }
+  // The objective's decision card is up (contest it / take it): its "under attack" arrow would repeat it.
+  coversObj(k) { const d = this.hud.dock, c = d && d.tray && d.tray.cur; return !!(c && c.topic === 'obj:' + k); }
   // per HUD tick: the focus class dims the map-side chatter of the HUD while a decision is up
   tick() {
     const on = this.deciding(), el = document.getElementById('hud');

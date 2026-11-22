@@ -411,7 +411,7 @@ export class Dock {
         title = OBJ_NAME[kk];
         opts.push({ ico: 'OrbFire', label: 'Take it', type: 'objective', cmd: { type: 'objective', obj: kk }, off: !g.objAvailable(kk), sub: this.objStatus(kk) });
       }
-      for (const s of g.shrines) if (d2(s, w) < 220 * 220) { title = 'Shrine'; opts.push({ ico: 'OrbLight', label: 'Capture', type: 'shrine', cmd: { type: 'shrine', shrine: s.id }, off: s.owner === me || g.time < g.T.shrineUnlock }); }
+      for (const s of g.shrines) if (d2(s, w) < 220 * 220) { title = 'Shrine'; opts.push({ ico: 'OrbLight', label: 'Capture', type: 'shrine', cmd: { type: 'shrine', shrine: s.id }, off: s.owner === me || g.time < g.T.shrineUnlock, sub: s.owner === me ? 'Ours' : g.time < g.T.shrineUnlock ? `Opens ${fmtTime(g.T.shrineUnlock)}` : null }); }
       if (!opts.length) {
         const lane = W.closestLane(w);
         if (W.distToLane(lane, w) < 320) {
