@@ -621,7 +621,7 @@ export class Renderer {
   // Team ring under heroes (and the Herald summon): ally = solid ring, enemy = ring with side notches;
   // the followed hero gets a turning dashed halo; under 30% HP the ring pulses red, faster as HP drops.
   drawRing(d) {
-    const { u, x, y } = d, ctx = this.ctx, col = TEAM_COL[u.team], rx = u.type === 'summon' ? 22 : 16, ry = rx * 0.45, yy = y + 2;
+    const { u, x, y } = d, ctx = this.ctx, col = TEAM_COL[u.team], rx = u.type === 'summon' ? (u.kind === 'yokai' ? 15 : 22) : 16, ry = rx * 0.45, yy = y + 2;
     const el = () => { ctx.beginPath(); ctx.ellipse(x, yy, rx, ry, 0, 0, Math.PI * 2); };
     ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(x, yy + 1, rx + 1, ry + 1, 0, 0, Math.PI * 2); ctx.fill();
     ctx.globalAlpha = 0.24; ctx.fillStyle = col; el(); ctx.fill();
