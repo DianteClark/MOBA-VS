@@ -22,8 +22,8 @@ await loadAssets();
 await document.fonts.load('10px PixelFont');
 const pick = (ids) => ids.map((id) => { const h = HEROES.find((x) => x.id === id); return { id, role: h.role, build: h.rec }; });
 const g = new Game({ seed: +(q.get('seed') || 3), map: q.get('map') || 'sakura', ...(q.get('mode') ? { mode: q.get('mode') } : (q.get('map') || '').startsWith('rush') ? { mode: 'rush' } : {}), coach: [true, true], teams: [
-  { heroes: pick(['bastion', 'kaze', 'ember', 'fletch', 'oak']), plan: 'balanced' },
-  { heroes: pick(['kenshi', 'leonin', 'raiden', 'marlowe', 'wu']), plan: 'balanced' } ] });
+  { heroes: pick(q.get('a') ? q.get('a').split(',') : ['bastion', 'kaze', 'ember', 'fletch', 'oak']), plan: 'balanced' },
+  { heroes: pick(q.get('b') ? q.get('b').split(',') : ['kenshi', 'leonin', 'raiden', 'marlowe', 'wu']), plan: 'balanced' } ] }); // ?a=&b= hero ids (top..support)
 const r = new Renderer(document.getElementById('c'));
 r.attach(g, +(q.get('team') ?? 0)); r.fogOn = q.get('fog') !== '0';
 const mm = new Minimap(document.getElementById('mm'), r);
