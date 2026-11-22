@@ -50,8 +50,12 @@ export class QuickChat {
         settings.chatMute ? 'Muted: tap to unmute' : `Mute ${this.opts.mute || 'opponent'}`));
     document.getElementById('hud').append(this.panel);
     // beside the button: below it if there is room, else above; clamped inside the safe area
-    const b = this.btn.getBoundingClientRect(), pw = this.panel.offsetWidth, ph = this.panel.offsetHeight, W = innerWidth, H = innerHeight;
-    const top = b.bottom + 6 + ph <= H - 8 ? b.bottom + 6 : Math.max(8, b.top - ph - 6);
+    // (short Safari landscape: the panel scrolls rather than run under the home indicator)
+    const cs = getComputedStyle(document.documentElement), sb = parseFloat(cs.getPropertyValue('--safe-b')) || 0, st = parseFloat(cs.getPropertyValue('--safe-t')) || 0;
+    const W = innerWidth, H = innerHeight - sb, room = H - st - 16;
+    if (this.panel.offsetHeight > room) { this.panel.style.maxHeight = room + 'px'; this.panel.style.overflowY = 'auto'; }
+    const b = this.btn.getBoundingClientRect(), pw = this.panel.offsetWidth, ph = this.panel.offsetHeight;
+    const top = b.bottom + 6 + ph <= H - 8 ? b.bottom + 6 : Math.max(st + 8, Math.min(b.top - ph - 6, H - 8 - ph));
     this.panel.style.left = Math.max(8, Math.min(W - pw - 8, b.right - pw)) + 'px'; this.panel.style.top = top + 'px';
   }
   close() { if (this.panel) { this.panel.remove(); this.panel = null; } }

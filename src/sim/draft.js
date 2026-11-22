@@ -12,19 +12,15 @@ export const DRAFT_ORDER = [
 ];
 export const TURN_SECONDS = 30;
 
-// opts.mirror (Mirror Draft event): both teams draft from opts.pool, and a pick only locks the hero for the
-// team that picked it (bans still lock it for both), so mirror matches can happen.
-export function newDraft(opts) {
-  const d = { turn: 0, bans: [[], []], picks: [[], []], done: false };
-  if (opts && opts.mirror) { d.mirror = true; d.pool = opts.pool.slice(); }
-  return d;
-}
+// Every hero can be picked only ONCE per match across both teams (a pick or ban locks it for everyone).
+// The Mirror Match event has no draft at all (see mirrorDraft).
+export function newDraft() { return { turn: 0, bans: [[], []], picks: [[], []], done: false }; }
+// Mirror Match (src/data/events.js): a finished draft where both teams field the same curated lineup.
+export function mirrorDraft(lineup) { return { turn: DRAFT_ORDER.length, bans: [[], []], picks: [lineup.heroes.slice(), lineup.heroes.slice()], done: true, mirror: lineup }; }
 export function currentTurn(d) { return DRAFT_ORDER[d.turn] || null; }
-// Heroes `team` can no longer pick (no team: anyone; a spectator's view).
+// Heroes `team` can no longer pick (bans and picks of both teams: no hero is ever picked twice per match).
 export function taken(d, team) {
-  const s = new Set([...d.bans[0], ...d.bans[1], ...(d.mirror && team >= 0 ? d.picks[team] : [...d.picks[0], ...d.picks[1]])]);
-  if (d.pool) { const p = new Set(d.pool); for (const h of HEROES) if (!p.has(h.id)) s.add(h.id); }
-  return s;
+  return new Set([...d.bans[0], ...d.bans[1], ...d.picks[0], ...d.picks[1]]);
 }
 
 // Can `ids` be assigned to 5 distinct roles (partial teams: each hero to a distinct role)?
@@ -79,8 +75,7 @@ export function autoChoice(d, team, rng, skill = 1, pref = null) {
       const roles = assignRoles(mine) || [];
       if (!roles.includes(h.role)) s += 3;
     } else {
-      // ban: strong into my picks / popular (Mirror Draft: a hero they already have is not worth a ban)
-      if (d.mirror && d.picks[1 - team].includes(h.id)) return -Infinity;
+      // ban: strong into my picks / popular
       const myHeroes = mine.map((id) => HERO_BY_ID[id]);
       s = matchupScore(h, myHeroes).score * 2 + (h.tags.includes('scaling') ? 1 : 0) + (h.tags.includes('burst') ? 0.5 : 0);
       if (!assignRoles([...d.picks[1 - team], h.id])) s -= 4; // they can't use it anyway
@@ -91,6 +86,35 @@ export function autoChoice(d, team, rng, skill = 1, pref = null) {
   let best = null, bs = -Infinity;
   for (const h of avail) { const s = score(h); if (s > bs) { bs = s; best = h; } }
   return best ? best.id : null;
+}
+
+// No hero twice per match: why a match config's lineups are not allowed, or null. Each team: 5 distinct heroes.
+// Across teams no hero twice, with ONE exception: the Mirror Match event, where both lineups are identical
+// (same heroes in the same roles). Pure; tools/verify.mjs uses it for anti-cheat.
+export function lineupError(cfg) {
+  const teams = cfg && cfg.teams, key = (t) => t.heroes.map((x) => `${x.id}:${x.role || ''}`).sort().join(',');
+  for (const t of teams) { const ids = t.heroes.map((x) => x.id); if (new Set(ids).size !== ids.length) return `hero picked twice by one team`; }
+  if (cfg.event === 'mirror') return key(teams[0]) === key(teams[1]) ? null : 'Mirror Match lineups differ';
+  const a = new Set(teams[0].heroes.map((x) => x.id)), dup = teams[1].heroes.find((x) => a.has(x.id));
+  return dup ? `hero ${dup.id} picked twice` : null;
+}
+// A prep must field exactly the team's drafted heroes (a peer's prep is not trusted to): otherwise its heroes
+// are rebuilt from the picks, keeping the prep's builds, plan and deck. Pure + deterministic (both peers agree).
+export function fitPrep(prep, picks) {
+  const ids = ((prep && prep.heroes) || []).map((x) => x && x.id);
+  if (ids.length === picks.length && picks.every((id) => ids.includes(id)) && new Set(ids).size === ids.length) return prep;
+  const base = defaultPrep(picks), old = Object.fromEntries(((prep && prep.heroes) || []).filter((x) => x && HERO_BY_ID[x.id]).map((x) => [x.id, x.build]));
+  for (const x of base.heroes) if (HERO_BY_ID[x.id].builds.includes(old[x.id])) x.build = old[x.id];
+  return { ...base, ...(prep && prep.plan ? { plan: prep.plan } : {}), ...(prep && Array.isArray(prep.deck) ? { deck: prep.deck } : {}) };
+}
+
+// Mirror Match: a prep fields exactly the shared lineup in its roles, with the shared deck. The coach keeps
+// their builds and plan (that is where the coaching happens).
+export function fitMirror(prep, lineup) {
+  const old = Object.fromEntries(((prep && prep.heroes) || []).filter((x) => x && HERO_BY_ID[x.id]).map((x) => [x.id, x.build]));
+  const tal = Object.fromEntries(((prep && prep.heroes) || []).filter((x) => x && x.tal).map((x) => [x.id, x.tal])); // v23 talent defaults
+  const heroes = lineup.heroes.map((id, i) => ({ id, role: ROLES[i], build: HERO_BY_ID[id].builds.includes(old[id]) ? old[id] : HERO_BY_ID[id].rec, ...(tal[id] ? { tal: tal[id] } : {}) }));
+  return { ...(prep || {}), plan: (prep && prep.plan) || 'balanced', heroes, deck: lineup.deck.slice() };
 }
 
 // Default prep for a team (roles + recommended builds).

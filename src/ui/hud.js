@@ -14,6 +14,7 @@ import { TEAM_COL } from '../render/renderer.js';
 import { audio } from '../audio.js';
 import { Dock } from './commands.js';
 import { Alerts } from './alerts.js';
+import { analystSuggestions } from './suggest.js';
 import { settings, openSettingsModal, isTouch } from './settings.js';
 import { Caster } from './caster.js';
 import { buzz } from './haptics.js';
@@ -719,54 +720,25 @@ export class Hud {
     if (this.my < 0) return;
     const g = this.g, me = this.my, vis = g.vision[me], now = g.tick;
     const ready = (k, s) => { if ((this.cool[k] || 0) > now) return false; this.cool[k] = now + s * TICK_RATE; return true; };
-    const mine = g.teams[me].heroes, enemy = g.teams[1 - me].heroes;
+    const enemy = g.teams[1 - me].heroes;
     if (g.teams[me].charges >= CMD.maxCharges) this.stats.fullCharge += Math.max(0, now - this.stats.lastTick) / TICK_RATE;
     this.stats.lastTick = now;
     this.moments();
     if (this.depth) this.depth.tick(); // fight forecast
     const carding = this.dock.tray.items.some((i) => i.prio >= PRIO.request);
-    const jg = mine.find((x) => x.role === 'jungle');
-    const deadEnemies = enemy.filter((x) => !x.alive && x.respawnAt - now > 15 * TICK_RATE);
     for (const k of ['dragon', 'baron', 'herald']) {
       const t = g.objTimers[k];
       if (t && t - now > 0 && t - now < 30 * TICK_RATE && ready('spawnwarn' + k + t, 60)) this.ticker(`${k === 'dragon' ? DRAGON_INFO[g.teams.some((x) => x.soul) ? 'elder' : g.nextDragon].name : OBJ_L[k]} awakens in 30s`, 'act', 1);
     }
-    if (deadEnemies.length >= 2) {
-      const best = ['baron', 'dragon', 'herald'].find((k) => g.objectives[k] && g.objectives[k].alive);
-      if (best && ready('numbers', 30)) this.dock.suggest('numbers', `${deadEnemies.length} enemies down`, `Take ${OBJ_L[best]}`, { type: 'objective', obj: best }, { cls: 'good', valid: () => !!(g.objectives[best] && g.objectives[best].alive) });
-      else if (!best && ready('numbers2', 30)) this.dock.suggest('numbers2', `${deadEnemies.length} enemies down`, 'Push Mid', { type: 'group', lane: 'mid' }, { cls: 'good' });
-    }
-    const ej = enemy.find((x) => x.role === 'jungle');
-    if (ej && ej.alive && vis.has(ej.id)) {
-      const W = g.world, nearKraken = (ej.x - W.pits.kraken.x) ** 2 + (ej.y - W.pits.kraken.y) ** 2 < (ej.x - W.pits.kami.x) ** 2 + (ej.y - W.pits.kami.y) ** 2;
-      const o = nearKraken ? g.objectives.dragon : (g.objectives.baron || g.objectives.herald);
-      if (o && o.alive && !carding && ready('ejspot', 40)) this.dock.suggest('ejspot', `Their jungler is far from ${OBJ_L[o.kind]}`, `Take ${OBJ_L[o.kind]}`, { type: 'objective', obj: o.kind }, { valid: () => o.alive });
-    }
-    if (jg && jg.alive && jg.task.kind === 'jungle') {
-      for (const e of enemy) {
-        if (!e.alive || !vis.has(e.id) || e.role === 'jungle') continue;
-        for (const lane of g.world.laneNames) {
-          if (g.world.distToLane(lane, e) > 260) continue;
-          const pr = g.world.laneProgress(lane, e), deep = me === 0 ? pr : 1 - pr;
-          if (deep < 0.47 && ready('gank' + lane, 30)) this.dock.suggest('gank' + lane, `${e.def.name} overextended ${LANE_L[lane]}`, 'Gank', { type: 'gank', lane, hero: jg.id }, { valid: () => e.alive && jg.alive });
-        }
-      }
+    for (const s of analystSuggestions(g, me, { cool: this.cool, carding, own: (x) => this.ownHero(x) })) {
+      if (s.shrine) this.stats.shrineOpen++;
+      this.dock.suggest(s.key, s.text, s.label, s.cmd, { cls: s.cls, valid: s.valid });
     }
     for (const e of enemy) {
       if (!e.alive || e.role === 'jungle' || vis.has(e.id)) { this.missing[e.id] = 0; continue; }
       const ls = g.lastSeen[me][e.id]; if (!ls) continue;
       const gone = (now - ls.t) / TICK_RATE;
       if (gone > 8 && gone < 30 && g.time > 100 && !this.missing[e.id]) { this.missing[e.id] = 1; this.ticker(`${e.def.name} is missing!`, 'danger', 2); }
-    }
-    for (const k of ['dragon', 'baron', 'herald']) {
-      const o = g.objectives[k];
-      if (!o || !o.alive || o.hp > o.maxHp * 0.95 || !vis.has(o.id)) continue;
-      const on = enemy.filter((e) => e.alive && vis.has(e.id) && (e.x - o.x) ** 2 + (e.y - o.y) ** 2 < 500 * 500);
-      if (on.length && !carding && ready('contest' + k, 25)) this.dock.suggest('contest' + k, `Enemy is taking ${OBJ_L[k]}!`, 'Contest', { type: 'objective', obj: k }, { cls: 'bad', valid: () => o.alive });
-    }
-    for (const sh of g.shrines) if (sh.owner !== me && g.time > g.T.shrineUnlock && !enemy.some((e) => e.alive && vis.has(e.id) && (e.x - sh.x) ** 2 + (e.y - sh.y) ** 2 < 800 * 800) && ready('shr' + sh.id, 70)) {
-      this.stats.shrineOpen++;
-      this.dock.suggest('shr' + sh.id, `${sh.id === me ? 'Home' : 'Far'} shrine is open`, 'Capture', { type: 'shrine', shrine: sh.id }, { valid: () => sh.owner !== me });
     }
   }
   // Coach's Call moments and hero requests (rate-limited; never around halftime or with a sheet open).
@@ -775,7 +747,7 @@ export class Hud {
     if (g.over || this.holding() || this.dock.sheetId || g.time < 75) return;
     const cc = this.cc;
     if (cc.n < 8 && now - cc.last >= 45 * TICK_RATE && this.isLead() && !tray.items.some((i) => i.prio >= PRIO.call)) {
-      const m = coachMoment(g, me);
+      const m = coachMoment(g, me, (x) => this.ownHero(x));
       if (m && !cc.keys.has(m.key)) {
         cc.keys.add(m.key); cc.last = now; cc.n++; this.stats.coachCalls++;
         this.dock.coachCall(m, {

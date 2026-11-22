@@ -11,7 +11,7 @@
 # COOP=1 audits a co-op HUD (you run bot side, your partner leads): lead badge, ownership marks, a partner
 # suggestion in the tray and a partner call on the ticker.
 # Safe areas are simulated by overriding the --safe-* CSS variables (Chrome cannot fake the notch).
-import sys, asyncio
+import sys, asyncio, os
 from playwright.async_api import async_playwright
 
 # (name, W, H, side inset (notch / Dynamic Island), bottom inset (home indicator))
@@ -54,7 +54,40 @@ PANELS = [('myteam', '#myteam'), ('scorebar', '#scorebar'), ('objtimers', '#objt
 # overlays that may cover the HUD on purpose: they only have to fit the safe area
 OVERLAYS = [('menu', '#ctrl.open .seg:last-child'), ('qchat', '#qchat'), ('scoreboard', '#scoreboard .sbcard'), ('hpop', '#hpop'), ('modal', '.modal .mpanel'), ('halftime', '#halftime .ht-card'), ('follow', '#thfollow'), ('analysis', '#anasheet')]
 # pairs that are allowed to touch (one lives inside the other's column / is drawn over the map on purpose)
-SKIP = {frozenset(p) for p in [('meter', 'hand'), ('hand', 'stance'), ('meter', 'stance'), ('hand', 'moments'), ('moments', 'stance'), ('ctrl', 'qchatbtn')]}
+# (dock children - meter, hand, Moments, stance - are siblings in one grid row: they must never overlap)
+SKIP = {frozenset(p) for p in [('ctrl', 'qchatbtn')]}
+
+# Dock row stress: every child of the hand row (meter, EACH tactic card, Moments, stance) must not overlap any
+# other, in every button state (Moments ready / locked / spent, stances Auto / Hold / ALL-IN, a 4th card), with
+# normal fonts and with a wide-glyph override that simulates iOS font metrics and a larger text size.
+WIDE_CSS = "#hud, #hud * { letter-spacing: 0.09em !important; font-stretch: expanded !important; } #cmdbar .momentbtn .ml, #cmdbar .ultbtn b, #cmdbar .call .l { font-size: 115% !important; }"
+DOCK_JS = """async (wide) => {
+  const D = app.match.hud.dock, out = [], st = document.createElement('style'); st.textContent = wide;
+  const vis = (e) => e && e.offsetParent && e.getBoundingClientRect().width > 1;
+  const kids = () => { const row = document.querySelector('#cmdbar .handrow'); if (!row) return [];
+    return [...row.children].flatMap((e) => (e.classList.contains('hand') ? [...e.children].map((c, i) => ['card' + (i + 1), c]) : [[e.className.split(' ')[0], e]])).filter(([, e]) => vis(e)); };
+  const measure = (tag) => { const ks = kids(), rs = ks.map(([n, e]) => [n, e.getBoundingClientRect()]);
+    for (let i = 0; i < rs.length; i++) for (let j = i + 1; j < rs.length; j++) { const [a, A] = rs[i], [c, C] = rs[j];
+      const ox = Math.min(A.right, C.right) - Math.max(A.left, C.left), oy = Math.min(A.bottom, C.bottom) - Math.max(A.top, C.top);
+      if (ox > 1 && oy > 1) out.push(`${tag}: ${a} x ${c} overlap ${Math.round(ox)}x${Math.round(oy)}`); }
+    const cb = document.getElementById('cmdbar').getBoundingClientRect();
+    for (const [n, R] of rs) if (R.left < cb.left - 1 || R.right > cb.right + 1) out.push(`${tag}: ${n} leaves the command bar`); };
+  const states = [['ready', 3], ['lock', 2], ['spent', 0]], ults = ['auto', 'save', 'go'];
+  const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  for (const font of ['', 'wide']) {
+    if (font) document.head.appendChild(st);
+    for (let k = 0; k < states.length; k++) {
+      const [cls, n] = states[k], b = D.momentBtn; b.classList.remove('ready', 'lock', 'spent'); b.classList.add(cls); D.momentN.textContent = String(n);
+      D.ultBtn.className = 'ultbtn ' + ults[k]; D.ultBtn.lastChild.textContent = { auto: 'Auto', save: 'Hold', go: 'ALL-IN' }[ults[k]];
+      await frame(); measure(`${font || 'normal'} ${cls}/${ults[k]}`);
+    }
+    const hand = document.querySelector('#cmdbar .hand'), extra = hand && hand.lastElementChild.cloneNode(true);
+    if (extra) { hand.appendChild(extra); await frame(); measure(`${font || 'normal'} 4 cards`); extra.remove(); }
+    st.remove();
+  }
+  D.ultBtn._m = null; D.tick();
+  return out;
+}"""
 
 JS = """([panels, overlays]) => {
   const vis = (e) => { if (!e) return false; const s = getComputedStyle(e); if (s.display === 'none' || s.visibility === 'hidden' || +s.opacity === 0) return false; const r = e.getBoundingClientRect(); return r.width > 1 && r.height > 1 && (e.offsetParent || s.position === 'fixed'); };
@@ -88,10 +121,9 @@ def check(res, w, h):
     return issues
 
 # MAP=rush audits a Lane Rush match instead of the classic 5v5 map
-import os
 MAPPREF = 'rush' if os.environ.get('MAP') == 'rush' else 'classic'
 SETUP = """async () => {
-  app.startVsAI('%s');
+  app.startVsAI('%s', true);
   const m = await import('./src/sim/draft.js'); const s = app.session;
   while (!s.draft.done) { const t = m.currentTurn(s.draft); m.apply(s.draft, t.team, m.autoChoice(s.draft, t.team, s.rng, 1)); }
   app.afterDraftAct();
@@ -187,7 +219,7 @@ async def main():
                 await pg.evaluate("app.match.runner.speed = 0.0001")
             await pg.evaluate(BASE)
             await pg.wait_for_timeout(600)
-            issues = []
+            issues = [] if os.environ.get('THEATER') == '1' else ['[dock] ' + x for x in await pg.evaluate(DOCK_JS, WIDE_CSS)]
             tag = f'{w}x{h}' + (f' {name}' if name else '') + (f' safe {sl}/{sr}/{sb}' if sl or sb else '')
             for state, js in STATES:
                 await pg.evaluate(RESET); await pg.evaluate(BASE)
