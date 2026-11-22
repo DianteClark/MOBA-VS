@@ -19,6 +19,7 @@ export const PLACE_R = {
   pit: 185,     // the pit floor is carved at 150: a hero standing on its rim still counts
   shrine: 130,  // shrine pad 96
   camp: 175,    // camp clearing 104
+  arena: 220,   // the World Boss (Tengu) landing spot in the map centre
   tower: 300,   // "by X tower": within this many units of it along the lane
   laneExtra: 60, // a hero this far beyond the lane's carved half-width is still "in lane"
   bank: 34,     // river banks count as river
@@ -78,12 +79,14 @@ function halfOf(W, p) {
 }
 
 // The named area a world point is in.
-export function placeAt(W, p) {
+// g (optional, the live game): the World Boss arena only counts while the boss is up or about to land.
+export function placeAt(W, p, g) {
   const d = W.def;
   // 1) objective pits, only inside the pit itself
   for (const k of ['kami', 'kraken']) if (W.pits[k] && d2(W.pits[k], p) <= PLACE_R.pit ** 2) return { key: k, area: 'pit', pit: k };
-  // 2) a World Boss arena, when the map has one
-  if (W.arena && d2(W.arena, p) <= (W.arena.r || 200) ** 2) return { key: 'arena', area: 'arena' };
+  // 2) the World Boss arena (Living World: the Tengu's landing spot), while the boss is up or due
+  const ar = g && g.living && g.living.bossSpot, bo = g && g.objectives.boss, wake = g && g.objTimers.boss;
+  if (ar && ((bo && bo.alive) || (wake && wake - g.tick < 30 * TICK_RATE)) && d2(ar, p) <= PLACE_R.arena ** 2) return { key: 'arena', area: 'arena' };
   // 3) bases (the carved base disc around the Crystal, plus the fountain)
   const baseR = d.baseR || 360;
   for (let t = 0; t < 2; t++) if (d2(W.baseCenter[t], p) <= baseR ** 2 || d2(W.fountain[t], p) <= 150 ** 2) return { key: 'base' + t, area: 'base', team: t };
@@ -157,7 +160,7 @@ export function placeText(pl, opts = {}) {
       const n = pl.pit === 'kami' ? 'Kami' : oni ? 'Oni' : 'Kraken';
       return mk(n, n, 'pit', `at the ${n} pit`);
     }
-    case 'arena': return mk('World Boss', 'Boss', 'arena', 'at the World Boss arena');
+    case 'arena': return mk('Tengu', 'Tengu', 'World Boss', 'at the Tengu');
     case 'base': return mk(`${own(pl.team)} base`, 'Base', '', `in ${the(pl.team, 'base')}`);
     case 'shrine': return mk(`${own(pl.team)} shrine`, 'Shrine', '', `at ${the(pl.team, 'shrine')}`);
     case 'lane': {
@@ -176,7 +179,7 @@ export function placeText(pl, opts = {}) {
   }
   return mk('map', 'Map', '', 'on the map');
 }
-export const placeName = (W, p, opts) => placeText(placeAt(W, p), opts);
+export const placeName = (W, p, opts = {}) => placeText(placeAt(W, p, opts.g), opts);
 
 // ───────────── live fights ─────────────
 // A fight: heroes that traded hero damage in the last `sec` seconds, linked when within LINK of each

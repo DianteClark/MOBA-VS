@@ -45,7 +45,7 @@ export class MatchRecorder {
     if (g.tick % SAMPLE === 0) this.sampleGold();
   }
   sampleGold() { const g = this.g, tot = (t) => g.teams[t].heroes.reduce((a, x) => a + x.goldEarned, 0); this.gold.push(r10(tot(0) - tot(1))); }
-  place(x, y) { return placeAt(this.g.world, { x, y }).key; } // src/world/places.js keys ('top.0.1', 'kami', 'jungle1.bot'…)
+  place(x, y) { return placeAt(this.g.world, { x, y }, this.g).key; } // src/world/places.js keys ('top.0.1', 'kami', 'jungle1.bot'…)
   onEvent(e) {
     const g = this.g, t = r1(e.t / 20), win = (team) => { const w = this.win[team]; if (w) w.got = true; };
     switch (e.type) {

@@ -6,7 +6,7 @@
 //   * the fight cam (followFight, the code the HUD runs) stays within the fight's radius for 7s after the cut
 //     while the fight moves,
 //   * the same map point always gets the same name for both teams' coaches, mirrored (fair words).
-//   node tools/places.mjs [mins=6] [--map=id] [--v]
+//   node tools/places.mjs [mins=6] [--map=id] [--v]    (classic maps run with the Living World on; 13+ mins reaches the Tengu)
 import { Game } from '../src/sim/game.js';
 import { HEROES, ROLES } from '../src/data/heroes.js';
 import { defaultPrep } from '../src/sim/draft.js';
@@ -36,7 +36,7 @@ for (const def of maps) {
   const rush = def.mode === 'rush';
   const rng = new Rng(777 + def.id.length), used = new Set();
   const team = () => ROLES.map((r) => { const c = HEROES.filter((x) => x.role === r && !used.has(x.id)); const x = c[rng.int(c.length)]; used.add(x.id); return x.id; });
-  const g = new Game({ seed: 31337 + def.id.charCodeAt(0), map: def.id, ...(rush ? { mode: 'rush' } : {}), coach: [true, true], teams: [defaultPrep(team()), defaultPrep(team())] });
+  const g = new Game({ seed: 31337 + def.id.charCodeAt(0), map: def.id, ...(rush ? { mode: 'rush' } : { living: 1 }), coach: [true, true], teams: [defaultPrep(team()), defaultPrep(team())] });
   const W = g.world;
   // 1) mirror fairness of the words: a point and its mirror read the same from the two sides
   for (let k = 0; k < 400; k++) {
@@ -70,11 +70,12 @@ for (const def of maps) {
     for (const f of fightClusters(g)) {
       if (f.n < 3) continue;
       fights++; total++;
-      const pl = placeAt(W, f), tr = truth(W, f), txt = placeText(pl, { my: 0, g });
+      const pl = placeAt(W, f, g), tr = truth(W, f), txt = placeText(pl, { my: 0, g });
       names[txt.short] = (names[txt.short] || 0) + 1;
       // the named area must be the true one at the centroid, with the same precedence (pit > base > lane)
       const want = [...tr].find((x) => x.startsWith('pit:')) || [...tr].find((x) => x.startsWith('base:')) || [...tr].find((x) => x.startsWith('lane:'));
       const got = pl.area === 'pit' ? 'pit:' + pl.pit : pl.area === 'base' ? 'base:' + pl.team : pl.area === 'lane' ? 'lane:' + pl.lane : null;
+      if (pl.area === 'arena' && !(g.objectives.boss && g.objectives.boss.alive || g.objTimers.boss)) fail(`${def.id}: named the Tengu arena with no Tengu`);
       if (pl.area !== 'shrine' && pl.area !== 'arena' && (want || null) !== got && !(got && got.startsWith('lane:') && tr.has(got))) fail(`${def.id} ${(g.time / 60).toFixed(1)}m: fight at (${Math.round(f.x)},${Math.round(f.y)}) named "${txt.short} ${txt.detail}" but it is ${want || 'off-lane'}`);
       if (pl.area === 'pit' && hyp(W.pits[pl.pit], f) > PLACE_R.pit) fail(`${def.id}: named ${pl.pit} outside the pit`);
       if (pl.area === 'jungle' || pl.area === 'river') {

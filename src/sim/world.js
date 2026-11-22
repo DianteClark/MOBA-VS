@@ -85,28 +85,19 @@ export class World {
     for (const s of this.shrines) circ(s, 96, T_SHRINE, notLane);
     for (const ln of this.laneNames) poly(this.lanes[ln], d.laneW || 64, T_LANE);
     for (let t = 0; t < 2; t++) { circ(this.baseCenter[t], d.baseR || 360, T_BASE); circ(this.fountain[t], 150, T_BASE); }
-    // ── brush (only on open, non-lane ground) ──
-    const addBrush = (b) => cells(b[0], b[1], b[2], (i) => { if (W[i] && Ty[i] !== T_LANE && Ty[i] !== T_BASE && Ty[i] !== T_PIT && Ty[i] !== T_SHRINE) this.brush[i] = 1; });
-    for (const b of d.brush) { addBrush(b); const m = P(pt(b)); addBrush([m.x, m.y, b[2]]); }
-    // ── rocks re-block (never on lanes/bases) ──
-    const addRock = (r) => cells(r[0], r[1], r[2], (i) => { if (Ty[i] !== T_LANE && Ty[i] !== T_BASE) { W[i] = 0; Ty[i] = T_FOREST; this.brush[i] = 0; } });
-    this.rocks = [];
-    for (const r of d.rocks) { addRock(r); const m = P(pt(r)); addRock([m.x, m.y, r[2]]); this.rocks.push({ x: r[0], y: r[1], r: r[2] }, { x: m.x, y: m.y, r: r[2] }); }
-    // border
-    for (let i = 0; i < N; i++) for (const k of [0, 1, N - 2, N - 1]) { W[k * N + i] = 0; W[i * N + k] = 0; }
-
-    // ── structures: towers sit BESIDE the lane, on the inner side ──
+    // ── structures: towers sit BESIDE the lane (positions depend only on the lane lines) ──
     this.structures = [];
     const place = (team) => {
       const list = [];
       for (const ln of this.laneNames) {
         const tw = d.towerLayout || {}; // 5v5 maps: outer / midFlip / side / mid (see maps/defs.js)
-        const fr = d.towers ? d.towers.map((x) => x[0]) : (ln === 'mid' ? tw.mid : tw.side) || (ln === 'mid' ? [0.75, 0.5, 0.29, 0.15] : [0.7, 0.46, 0.27, 0.15]);
-        const half = this.laneLen[ln][this.laneLen[ln].length - 1] / 2;
-        fr.forEach((f, k0) => {
-          const k = d.towers ? d.towers[k0][1] - 1 : k0; // d.towers: [[fraction, tier]], tier 4 = the gate
-          const dist = half * f;
-          const prog = team === 0 ? dist / (half * 2) : 1 - dist / (half * 2);
+        // 5v5: distances along the lane from the owner's end (T1, T2, T3, gate), the same spacing on every map
+        // unless a map overrides it; Lane Rush: d.towers [[fraction of the half-lane, tier]] (tier 4 = the gate)
+        const len = this.laneLen[ln][this.laneLen[ln].length - 1];
+        const ds = d.towers ? d.towers.map((x) => x[0] * len / 2) : (ln === 'mid' ? tw.midD : tw.sideD) || (ln === 'mid' ? TOWER_D.mid : TOWER_D.side);
+        ds.forEach((dist, k0) => {
+          const k = d.towers ? d.towers[k0][1] - 1 : k0;
+          const prog = team === 0 ? dist / len : 1 - dist / len;
           const at = this.lanePoint(ln, prog), dir = this.laneDir(ln, prog);
           let nx = -dir.y, ny = dir.x;  // a normal
           // side lanes: the side facing the map interior (or the outer edge with towerLayout.outer);
@@ -114,9 +105,12 @@ export class World {
           const toC = { x: S / 2 - at.x, y: S / 2 - at.y };
           if (ln === 'mid') { if (((nx + ny) * (team === 0 ? 1 : -1) < 0) !== !!tw.midFlip) { nx = -nx; ny = -ny; } }
           else if ((nx * toC.x + ny * toC.y < 0) !== !!tw.outer) { nx = -nx; ny = -ny; }
-          const off = k === 3 ? 0 : 92;
+          const off = k === 3 ? 0 : TOWER_OFF;
           const p = { x: Math.round(at.x + nx * off), y: Math.round(at.y + ny * off) };
-          list.push(k === 3 ? { kind: 'inhib', lane: ln, ...p } : { kind: 'tower', tier: k + 1, lane: ln, ...p });
+          // its plaza: a capsule of clean lane ground along the lane, shifted toward the tower (room to fight on all sides)
+          const cx = at.x + nx * off * 0.5, cy = at.y + ny * off * 0.5, L = PLAZA_L;
+          const plaza = { x: Math.round(cx), y: Math.round(cy), r: PLAZA_R, a: { x: Math.round(cx - dir.x * L), y: Math.round(cy - dir.y * L) }, b: { x: Math.round(cx + dir.x * L), y: Math.round(cy + dir.y * L) } };
+          list.push(k === 3 ? { kind: 'inhib', lane: ln, ...p, plaza } : { kind: 'tower', tier: k + 1, lane: ln, ...p, plaza });
         });
       }
       const nx = this.nexus[team];
@@ -126,6 +120,18 @@ export class World {
       return list;
     };
     for (let t = 0; t < 2; t++) for (const s of place(t)) this.structures.push({ ...s, team: t });
+    // tower plazas: every lane tower and gate stands on a widened patch of lane ground (no forest, brush or
+    // rocks); water, pits, shrines and bases keep their own ground (tools/maps.mjs keeps plazas clear of them)
+    for (const s of this.structures) if (s.plaza) seg(s.plaza.a, s.plaza.b, s.plaza.r, T_LANE, (t) => t !== T_BASE && t !== T_RIVER && t !== T_PIT && t !== T_SHRINE);
+    // ── brush (only on open, non-lane ground) ──
+    const addBrush = (b) => cells(b[0], b[1], b[2], (i) => { if (W[i] && Ty[i] !== T_LANE && Ty[i] !== T_BASE && Ty[i] !== T_PIT && Ty[i] !== T_SHRINE) this.brush[i] = 1; });
+    for (const b of d.brush) { addBrush(b); const m = P(pt(b)); addBrush([m.x, m.y, b[2]]); }
+    // ── rocks re-block (never on lanes/bases) ──
+    const addRock = (r) => cells(r[0], r[1], r[2], (i) => { if (Ty[i] !== T_LANE && Ty[i] !== T_BASE) { W[i] = 0; Ty[i] = T_FOREST; this.brush[i] = 0; } });
+    this.rocks = [];
+    for (const r of d.rocks) { addRock(r); const m = P(pt(r)); addRock([m.x, m.y, r[2]]); for (const q of [{ x: r[0], y: r[1], r: r[2] }, { x: m.x, y: m.y, r: r[2] }]) if (!W[this.idx(q.x, q.y)]) this.rocks.push(q); }
+    // border
+    for (let i = 0; i < N; i++) for (const k of [0, 1, N - 2, N - 1]) { W[k * N + i] = 0; W[i * N + k] = 0; }
     // carve around structures so they're reachable, then block their footprint
     for (const s of this.structures) circ(s, s.kind === 'nexus' ? 120 : 70, Ty[this.idx(s.x, s.y)] === T_LANE ? T_LANE : T_BASE, (t) => t === T_FOREST || t === T_GRASS || t === T_PATH);
     for (const s of this.structures) cells(s.x, s.y, s.kind === 'nexus' ? 40 : 22, (i) => { W[i] = 0; });
@@ -398,6 +404,9 @@ export class World {
 }
 const DX = [1, -1, 0, 0, 1, 1, -1, -1], DY = [0, 0, 1, -1, 1, -1, 1, -1];
 const WALL_R = 34; // half-width of a breakable wall's corridor (px)
+// 5v5 tower spots: distance along the lane from the owner's end, [T1, T2, T3, gate] (towerLayout.sideD / midD override)
+export const TOWER_D = { side: [1220, 805, 475, 265], mid: [925, 620, 360, 185] };
+const TOWER_OFF = 92, PLAZA_R = 132, PLAZA_L = 84; // tower offset from the lane centre line; plaza: a capsule along the lane (half-width, half-length)
 const CLR_COST = [0, 9, 4, 1, 0, 0];
 // Ray endpoints for each radius (cells), evenly around the circle, computed with sqrt only.
 const RAY = [];

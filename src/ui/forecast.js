@@ -59,7 +59,7 @@ export function forecastFight(g, me, mem) {
   }
   if (!best) return null;
   // named by the area the meeting point is in (src/world/places.js), an objective by its boss
-  const s = best.s, pl = placeAt(W, s);
+  const s = best.s, pl = placeAt(W, s, g);
   const where = s.obj ? OBJ_NAME[s.obj] : pl.area === 'pit' || pl.area === 'arena' ? placeText(pl, { my: me, g }).name : placeText(pl, { my: me, g }).name.toLowerCase();
   return { at: { x: s.x, y: s.y }, where, obj: s.obj, lane: pl.area === 'lane' ? pl.lane : null, eta: Math.round(best.t), mine: best.a, theirs: best.b, unseen, edge: best.a - best.b };
 }
