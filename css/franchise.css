@@ -8,6 +8,7 @@
 .h2tile .navcrest img { width: 12px !important; height: 12px !important; }
 /* Home nav: one row however many tiles (the Franchise tile made it nine) */
 @media (min-width: 621px) { .h2nav { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); } }
+@media (max-height: 430px) { .h2tile .navcrest { width: 17px; height: 20px; } .h2tile .navcrest img { width: 10px !important; height: 10px !important; } }
 @media (max-height: 340px) { .h2tile .navcrest { width: 14px; height: 16px; } .h2tile .navcrest img { width: 8px !important; height: 8px !important; } }
 .frteam { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
 .frteam span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
