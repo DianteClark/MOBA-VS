@@ -3,6 +3,7 @@
 // Nothing here mutates the game; everything only uses what the coach's team can see.
 import { TICK_RATE, OBJ_NAME, DRAGON_INFO, MOMENTUM } from '../sim/constants.js';
 import { fmtTime } from './dom.js';
+import { placeName } from '../world/places.js';
 import { costOf, affordable, readyIn, accepted, canIssue, seen, busy, eta, bestGanker, teamEta, objTimeLeft, SOON, WINDOW } from './feasible.js';
 
 const LANE_L = { top: 'Top', mid: 'Mid', bot: 'Bot' };
@@ -12,18 +13,8 @@ const CARRY = (h) => h.def.cls === 'marksman' || h.def.cls === 'mage';
 const objName = (g, k) => (k === 'dragon' ? DRAGON_INFO[g.objectives.dragon ? g.objectives.dragon.element : g.teams.some((t) => t.soul) ? 'elder' : g.nextDragon].short + ' Kami' : OBJ_NAME[k]);
 const pitOf = (g, k) => g.objPit(k); // (Living World: the Tengu's spot, the parade's current spot)
 
-// "KAMI", "TOP", "ENEMY JUNGLE"… for a world point, from `my` team's point of view.
-export function placeName(g, p, my) {
-  const W = g.world;
-  if (d2(W.pits.kami, p) < 450 * 450) return 'KAMI';
-  if (d2(W.pits.kraken, p) < 450 * 450) return g.time < g.T.heraldDespawn && !g.objectives.baron ? 'ONI' : 'KRAKEN';
-  if (g.shrines.some((s) => d2(s, p) < 320 * 320)) return 'SHRINE';
-  const me = Math.max(0, my);
-  for (const t of [0, 1]) if (d2(W.fountain[t], p) < 950 * 950) return t === me ? 'YOUR BASE' : 'ENEMY BASE';
-  const lane = W.closestLane(p);
-  if (W.distToLane(lane, p) < 300) return LANE_L[lane].toUpperCase();
-  return d2(W.fountain[me], p) < d2(W.fountain[1 - me], p) ? 'YOUR JUNGLE' : 'ENEMY JUNGLE';
-}
+// "in top lane by your outer tower", "at the Kami pit"… for a world point, from `my` team's view (src/world/places.js).
+const where = (g, p, my) => placeName(g.world, p, { my, g }).where;
 
 // The enemy lane with the fewest structures left (same rule as the AI coach).
 function weakestLane(g, my) {
@@ -101,7 +92,7 @@ export function coachMoment(g, my, own) {
     if (near.length < 2) continue;
     // the ganker is whoever can really get there before the carry walks off (jungler first), or no gank option
     const lane = g.world.closestLane(e), gk = bestGanker(g, my, e, lane, WINDOW.caught, own), x = gk && gk.hero;
-    if ((m = finish(g, my, { key: 'caught' + e.id + Math.floor(now / (TICK_RATE * 40)), kind: 'caught', topic: 'pick:' + e.id, title: `${e.def.name} caught out`, text: `Their ${ROLE_L[e.role]} is alone at ${placeName(g, e, my).toLowerCase()}.`, at: e, still: sees(e),
+    if ((m = finish(g, my, { key: 'caught' + e.id + Math.floor(now / (TICK_RATE * 40)), kind: 'caught', topic: 'pick:' + e.id, title: `${e.def.name} caught out`, text: `Their ${ROLE_L[e.role]} is alone ${where(g, e, my)}.`, at: e, still: sees(e),
       opts: [x ? opt(`${x.def.name}: gank ${LANE_L[lane]}`, { type: 'gank', lane, hero: x.id }, `${Math.max(1, Math.round(gk.t))}s away`, () => seen(g, my, e) && !busy(g, x) && eta(g, x, e) <= WINDOW.caught) : null,
         opt(`Focus ${e.def.name}`, { type: 'focus', target: e.id }, null, sees(e)), opt('Leave it', null, 'no call')].filter(Boolean) }))) return m;
   }
@@ -115,7 +106,9 @@ export function coachMoment(g, my, own) {
       const fed = enemies.slice().sort((p, q) => (q.kills * 2 + q.items.length) - (p.kills * 2 + p.items.length))[0];
       const ults = allies.filter((x) => x.level >= 5 && g.abilityReady(x, 2)).length;
       const first = surgeReady ? opt('Kami Surge', { type: 'surge' }, '+12% dmg & speed') : ults >= 2 ? opt('ALL-IN', { type: 'ult', mode: 'go' }, `${ults} ults ready`) : opt('Fight!', { type: 'ult', mode: 'go' }, 'ults fire');
-      if ((m = finish(g, my, { key: 'brew' + Math.floor(now / (TICK_RATE * 30)), kind: 'brew', title: 'Teamfight brewing', text: `${allies.length}v${enemies.length} at ${placeName(g, a, my).toLowerCase()}.`, at: a,
+      // named and pinged at the middle of everyone involved, not at one of our heroes
+      const all = [...allies, ...enemies], at = { x: all.reduce((s, q) => s + q.x, 0) / all.length, y: all.reduce((s, q) => s + q.y, 0) / all.length };
+      if ((m = finish(g, my, { key: 'brew' + Math.floor(now / (TICK_RATE * 30)), kind: 'brew', title: 'Teamfight brewing', text: `${allies.length}v${enemies.length} ${where(g, at, my)}.`, at,
         opts: [first, opt(`Focus ${fed.def.name}`, { type: 'focus', target: fed.id }, null, sees(fed)), opt('Back off', { type: 'safe' })] }))) return m;
       break;
     }
@@ -141,7 +134,7 @@ export function coachMoment(g, my, own) {
       const pit = pitOf(g, k), wakeIn = () => (tm && !(o && o.alive) ? Math.max(0, (tm - g.tick) / TICK_RATE) : 0);
       const invade = jg && jg.alive && g.camps.some((c) => c.side !== my && c.mobs.length);
       // three of ours get there in the window (or by the time it wakes), ahead of their jungler
-      if ((m = finish(g, my, { key: 'ej' + k + (o ? o.id : tm), kind: 'jungler', title: 'Enemy jungler spotted', text: `${ej.def.name} is at ${placeName(g, ej, my).toLowerCase()}, far from ${OBJ_NAME[k]}.`, at: pit,
+      if ((m = finish(g, my, { key: 'ej' + k + (o ? o.id : tm), kind: 'jungler', title: 'Enemy jungler spotted', text: `${ej.def.name} is ${where(g, ej, my)}, far from ${OBJ_NAME[k]}.`, at: pit,
         opts: [opt(`Take ${OBJ_NAME[k]}`, { type: 'objective', obj: k }, null, () => teamEta(g, my, pit, 3) <= Math.max(WINDOW.objective, wakeIn() + 10)), invade ? opt('Invade', { type: 'invade' }, null, () => !busy(g, jg)) : wait(), opt('Ignore', null, 'no call')] }))) return m;
     }
   }

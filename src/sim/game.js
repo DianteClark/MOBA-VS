@@ -1083,6 +1083,14 @@ export class Game {
       // skip ahead when the next waypoint is already in clear view
       if (pc.i < pts.length - 1 && (now + u.ph) % 3 === 0 && W.losWide(u.x, u.y, pts[pc.i + 1].x, pts[pc.i + 1].y)) pc.i++;
       step = pts[pc.i];
+      // pushed off the route (bodies, knockbacks) so the next waypoint is out of sight: plan again from here
+      // (walking straight at it would grind on a wall corner, the slide flipping ±3px every tick)
+      if (!W.los(u.x, u.y, step.x, step.y) && !(u.rpT > now - 10)) {
+        u.rpT = now;
+        pc = u.path = { goal: { x: p.x, y: p.y }, pts: W.findPath(u.x, u.y, p.x, p.y), i: 0, until: now + 60 + (u.ph % 13) };
+        while (pc.i < pc.pts.length - 1 && dist2(u, pc.pts[pc.i]) < 18 * 18) pc.i++;
+        step = pc.pts[pc.i];
+      }
       // no progress for a while: replan, and step sideways to unstick
       if (!pc.prog || dist2(u, pc.prog) > 20 * 20) pc.prog = { x: u.x, y: u.y, t: now };
       else if (now - pc.prog.t > 24) { pc.until = now; pc.prog = null; u.unstick = now + 6; }

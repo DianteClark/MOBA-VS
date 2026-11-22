@@ -5,9 +5,9 @@
 // Hotspots: the Kami / Oni-Kraken pits while their boss is up (or wakes within 10s), plus the point where
 // the two closest visible groups would meet.
 import { TICK_RATE, OBJ_NAME } from '../sim/constants.js';
+import { placeAt, placeText } from '../world/places.js';
 
 export const FORECAST = { min: 5, max: 11, r: 320, need: 2 };
-const LANE_L = { top: 'Top', mid: 'Mid', bot: 'Bot' };
 
 // mem: per-coach memory between samples ({ pos: Map(id → {x, y, t}) }). Returns null or
 // { at: {x, y}, where, obj, eta, mine, theirs, unseen, edge } (edge = mine - theirs).
@@ -58,7 +58,8 @@ export function forecastFight(g, me, mem) {
     if (!best || sc > best.sc) best = { sc, s, t, a: a.length, b: b.length };
   }
   if (!best) return null;
-  const s = best.s, lane = W.closestLane(s), onLane = W.distToLane(lane, s) < 300;
-  const where = s.obj ? OBJ_NAME[s.obj] : onLane ? LANE_L[lane] || 'lane' : 'the river';
-  return { at: { x: s.x, y: s.y }, where, obj: s.obj, lane: onLane ? lane : null, eta: Math.round(best.t), mine: best.a, theirs: best.b, unseen, edge: best.a - best.b };
+  // named by the area the meeting point is in (src/world/places.js), an objective by its boss
+  const s = best.s, pl = placeAt(W, s, g);
+  const where = s.obj ? OBJ_NAME[s.obj] : pl.area === 'pit' || pl.area === 'arena' ? placeText(pl, { my: me, g }).name : placeText(pl, { my: me, g }).name.toLowerCase();
+  return { at: { x: s.x, y: s.y }, where, obj: s.obj, lane: pl.area === 'lane' ? pl.lane : null, eta: Math.round(best.t), mine: best.a, theirs: best.b, unseen, edge: best.a - best.b };
 }

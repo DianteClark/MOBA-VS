@@ -5,7 +5,7 @@
 import { h, face, bossFace } from './dom.js';
 import { TICK_RATE } from '../sim/constants.js';
 import { settings } from './settings.js';
-import { placeName } from './moments.js';
+import { placeName, fightClusters } from '../world/places.js';
 import { onViewport } from '../render/viewport.js';
 import { laneOpenSend } from './feasible.js';
 
@@ -31,21 +31,15 @@ export class Alerts {
     const g = this.g, r = this.r, my = this.hud.my, view = this.hud.view, now = g.tick, out = [];
     if (!settings.alerts || g.over) { this.sync(out); return; }
     const recent = (t, s) => t !== undefined && now - t < s * TICK_RATE;
-    // fights: clusters of heroes we can see trading blows. 3+ heroes = a big fight (fight cam prompt);
-    // smaller ones only matter when one of ours is in it.
-    const fights = [];
-    for (const x of [...g.teams[0].heroes, ...g.teams[1].heroes]) {
-      if (!x.alive || !(recent(x.lastHitHero, 2) || recent(x.lastHurtByHero, 2))) continue;
-      if (my >= 0 && !r.visible(x)) continue;
-      const f = fights.find((q) => (q.x - x.x) ** 2 + (q.y - x.y) ** 2 < 600 * 600);
-      const ours = my < 0 || x.team === my;
-      if (f) { f.n++; f.x = (f.x * (f.n - 1) + x.x) / f.n; f.y = (f.y * (f.n - 1) + x.y) / f.n; if (ours && !f.hero) f.hero = x; } else fights.push({ x: x.x, y: x.y, n: 1, hero: ours ? x : null, any: x });
-    }
-    for (const f of fights) {
-      const lead = f.hero || f.any;
+    // fights: clusters of heroes we can see trading blows (src/world/places.js: named and aimed at the centroid
+    // of the heroes in it). 3+ heroes = a big fight (fight cam prompt); smaller ones only matter when one of ours is in it.
+    for (const f of fightClusters(g, my >= 0 ? (x) => r.visible(x) : null)) {
+      const ours = f.heroes.filter((x) => my < 0 || x.team === my), lead = ours[0] || f.heroes[0];
       if (f.n >= 3 && this.hud.att && this.hud.att.covers(f)) continue; // the fight's decision card is up: no second prompt
-      if (f.n >= 3) out.push({ key: 'big' + lead.id, kind: 'bigfight', x: f.x, y: f.y, img: face(lead.heroId), label: `FIGHT AT ${placeName(g, f, view)}`, team: lead.team });
-      else if (f.hero) out.push({ key: 'fight' + f.hero.id, kind: 'fight', x: f.x, y: f.y, img: face(f.hero.heroId), label: f.n > 1 ? `${f.n}` : '', team: f.hero.team });
+      if (f.n >= 3) {
+        const pl = placeName(g.world, f, { my: my >= 0 ? view : -1, g });
+        out.push({ key: 'big' + lead.id, kind: 'bigfight', x: f.x, y: f.y, ids: f.ids, img: face(lead.heroId), label: `FIGHT AT ${pl.short}`, sub: pl.detail ? `${pl.detail} · tap to watch` : 'tap to watch', team: lead.team });
+      } else if (ours.length) out.push({ key: 'fight' + ours[0].id, kind: 'fight', x: f.x, y: f.y, img: face(ours[0].heroId), label: f.n > 1 ? `${f.n}` : '', team: ours[0].team });
     }
     // structures under attack (ours)
     for (const u of g.units) {
@@ -96,8 +90,9 @@ export class Alerts {
         it = { el, lab, img, sub, born: performance.now(), w: 0, hh: 0 };
         this.items.set(a.key, it);
       }
-      it.seen = now; it.x = a.x; it.y = a.y; it.kind = a.kind; it.cmd = a.cmd; it.key = a.key; it.label = a.label; it.who = a.who;
+      it.seen = now; it.x = a.x; it.y = a.y; it.ids = a.ids; it.kind = a.kind; it.cmd = a.cmd; it.key = a.key; it.label = a.label; it.who = a.who;
       if (it.lab.textContent !== a.label) it.lab.textContent = a.label;
+      if (a.kind === 'bigfight' && it.sub.textContent !== a.sub) { it.sub.textContent = a.sub; it.w = 0; } // the fight can move (re-measure)
       if (a.kind === 'laneopen') { // the send option comes and goes with charges / the hero's state
         const t = a.sub || 'tap to watch', src = a.img || DEF_IMG;
         if (it.sub.textContent !== t) it.sub.textContent = t;
@@ -114,7 +109,7 @@ export class Alerts {
   }
   go(it) {
     if (it.kind === 'laneopen' && it.cmd) this.hud.send(it.cmd);
-    if (it.kind === 'bigfight') this.hud.watchFight(it.x, it.y);
+    if (it.kind === 'bigfight') this.hud.watchFight(it.x, it.y, it.ids);
     else { const r = this.r; r.follow = null; r.panTo = { x: it.x, y: it.y }; this.hud.director = false; this.hud.refreshCtrl(); }
     it.el.classList.add('hidden');
   }
