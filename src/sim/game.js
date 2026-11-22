@@ -277,6 +277,7 @@ export class Game {
       level: this.rules.startLevel, xp: 0, gold: gold0, radius: 14, cds: [0, 0, 0], castLock: 0, dash: null, every3: 0, passiveCd: 0,
       kills: 0, deaths: 0, assists: 0, cs: 0, dmgHeroes: 0, dmgTaken: 0, healed: 0, goldEarned: gold0, streak: 0,
       respawnAt: 0, recallAt: 0, flashCd: 0, task: { kind: 'idle' }, dmgBy: {}, lowShieldCd: 0, smiteCd: 0, wardCd: sec(50), lastHurtByHero: -999,
+      fmod: spec.mod ? Math.max(-0.1, Math.min(0.1, +spec.mod || 0)) : 0, // Franchise roster form (src/franchise/roster.js): small stat edge
       stats: null, maxHp: 1, hp: 1, trust: 50, tiltUntil: 0, pendingCall: null, stealthUntil: 0, ambushUntil: 0, revealUntil: 0,
     });
     h.pers = PERSONALITIES[def.pers] || PERSONALITIES.calm;
@@ -338,6 +339,7 @@ export class Game {
     const team = this.teams[h.team];
     if (this.clanStats) add(this.clanStats[h.team]);
     const tn = TUNE[h.heroId] || 1; if (tn !== 1) { s.dmgPct += tn - 1; s.hpPct += (tn - 1) * 0.6; }
+    if (h.fmod) { s.dmgPct += h.fmod; s.hpPct += h.fmod * 0.6; }
     if (this.shrines) for (const sh of this.shrines) if (sh.owner === h.team) s.dmgPct += this.rules.shrine ? this.rules.shrine.dmg : 0.05;
     s.dmgPct += planEdge(this, h.team); // game plans: countering the enemy's plan
     for (const d of team.dragons) {
