@@ -67,6 +67,8 @@ const clone = (x) => JSON.parse(JSON.stringify(x));
     { heroes: ['varro', 'gama', 'hex', 'bolt', 'frost'].map((id, i) => ({ id, role: ['top', 'jungle', 'mid', 'bot', 'support'][i] })) }];
   const g = new Game({ seed: 5, map: 'sakura', coach: [true, true], teams: t });
   ok(g.teams[0].heroes.every((x) => x.fmod === 0.1) && g.teams[1].heroes.every((x) => x.fmod === 0), 'cfg mod clamped to +10% and only where given');
+  const run = () => { const c = { seed: 9, map: 'frost', coach: [true, true], teams: clone(t) }; c.teams[0].heroes.forEach((x, i) => { x.mod = [0.03, -0.02, 0.05, 0, 0.01][i]; }); const gg = new Game(c); for (let k = 0; k < 2400 && !gg.over; k++) { gg.step([]); gg.fx.length = 0; } return gg.checksum(); };
+  ok(run() === run(), 'a match with roster edges is deterministic');
 }
 // Pro League
 {
