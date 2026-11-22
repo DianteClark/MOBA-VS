@@ -5,6 +5,9 @@
 //               every duo gets measured (reported with its members' overall win rates for comparison)
 //   --plans     give every game a pair of different game plans (src/sim/plans.js), cycling evenly through all
 //               20 ordered pairs, and report per-plan win rates (overall, by side) and the plan-vs-plan matrix
+//   --depth     play with match depth on (cfg.depth: talents, item overrides, ult upgrades, revenge, duo ults)
+//               and report per-talent win rates. With --randtal each hero takes random talents (so every
+//               option is measured evenly); without it the heroes' own AI picks are used.
 //   --nudge K   also move each hero's TUNE multiplier toward 50% (delta = (0.5 - shrunk win rate) * K,
 //               max ±6% per pass, clamp 0.8-1.2) and rewrite src/data/tuning.js (same format as tune.mjs)
 // Each game draws heroes from shuffled per-role decks so every hero gets the same number of games.
@@ -40,11 +43,12 @@ if (!isMainThread) {
     };
     const teams = [prep(ida, idb, job.builds[0]), prep(idb, ida, job.builds[1])];
     if (job.plans) teams.forEach((t, k) => { t.plan = job.plans[k]; });
-    const g = new Game({ seed: job.seed, map: MAPS[job.seed % 4], coach: [true, true], teams });
+    if (job.tal) teams.forEach((t, k) => t.heroes.forEach((x, j) => { x.tal = job.tal[k][j]; }));
+    const g = new Game({ seed: job.seed, map: MAPS[job.seed % 4], coach: [true, true], teams, ...(workerData.depth ? { depth: true } : {}) });
     while (!g.over) { g.step([]); g.fx.length = 0; }
-    const ev = {}; for (const e of g.events) if (e.type === 'duo' || e.type === 'comp' || e.type === 'reset') ev[e.type] = (ev[e.type] || 0) + 1;
+    const ev = {}; for (const e of g.events) if (e.type === 'duo' || e.type === 'comp' || e.type === 'reset' || e.type === 'ultUp' || e.type === 'revenge' || e.type === 'duoUlt' || e.type === 'talent') ev[e.type] = (ev[e.type] || 0) + 1;
     const out = { seed: job.seed, winner: g.winner, plans: g.teams.map((t) => g.cfg.teams[t.id].plan || 'balanced'), half: g.events.filter((e) => e.type === 'plan').map((e) => [e.team, e.plan]), min: g.time / 60, timeout: g.events.some((e) => e.type === 'victory' && e.timeout), ev,
-      teams: g.teams.map((t) => ({ comp: t.comp && t.comp.active ? t.comp.id : null, heroes: t.heroes.map((h) => ({ id: h.heroId, role: h.role, build: h.build, k: h.kills, d: h.deaths, a: h.assists, dmg: h.dmgHeroes, taken: h.dmgTaken, healed: h.healed, gold: h.goldEarned, bh: h._bh || 0, ab: h._ab || [[0, 0], [0, 0], [0, 0]] })) })) };
+      teams: g.teams.map((t) => ({ comp: t.comp && t.comp.active ? t.comp.id : null, heroes: t.heroes.map((h) => ({ id: h.heroId, role: h.role, build: h.build, k: h.kills, d: h.deaths, a: h.assists, dmg: h.dmgHeroes, taken: h.dmgTaken, healed: h.healed, gold: h.goldEarned, bh: h._bh || 0, ab: h._ab || [[0, 0], [0, 0], [0, 0]], ...(h.tal ? { tal: h.tal } : {}) })) })) };
     parentPort.postMessage(out);
   }
   parentPort.postMessage({ done: true });
@@ -90,19 +94,21 @@ if (!isMainThread) {
     const pb = (ids) => ids.map((id) => { const bl = HERO_BY_ID[id].builds; return bl[rng.int(bl.length)]; });
     const job = { seed: seed0 + i, teams: [a, b], builds: [pb(a), pb(b)] };
     if (flag('plans')) { const P = ['aggro', 'scale', 'objective', 'split', 'protect'], pairs = []; for (const x of P) for (const y of P) if (x !== y) pairs.push([x, y]); job.plans = pairs[i % pairs.length]; }
+    if (flag('randtal')) job.tal = [0, 1].map(() => ROLES.map(() => [0, 1, 2].map(() => rng.int(2))));
     jobs.push(job);
   }
   const results = [];
   const t0 = Date.now(), log = opt('log', null), from = opt('from', null);
   if (from) for (const f of from.split(',')) for (const line of readFileSync(f, 'utf8').split('\n')) { if (line.trim()) results.push(JSON.parse(line)); }
   else await Promise.all(Array.from({ length: NW }, (_, w) => new Promise((res) => {
-    const wk = new Worker(fileURLToPath(import.meta.url), { workerData: { jobs: jobs.filter((_, k) => k % NW === w), smart: flag('smart') } });
+    const wk = new Worker(fileURLToPath(import.meta.url), { workerData: { jobs: jobs.filter((_, k) => k % NW === w), smart: flag('smart'), depth: flag('depth') } });
     wk.on('message', (m) => { if (m.done) return res(); results.push(m); if (log) appendFileSync(log, JSON.stringify(m) + '\n'); if (!flag('quiet') && results.length % 10 === 0) console.log(`  ${results.length}/${N} games (${((Date.now() - t0) / 1000).toFixed(0)}s)`); });
     wk.on('error', (e) => { console.error(e); res(); });
   })));
 
   // Aggregate
-  const H = {}, B = {}, HB = {}, C = {}, D = {};
+  const H = {}, B = {}, HB = {}, C = {}, D = {}, TAL = {}, HT = {};
+  const { HERO_TALENTS } = await import('../src/data/talents.js');
   let blue = 0, len = 0, timeouts = 0, kills = 0; const ev = {};
   for (const r of results) {
     if (r.winner === 0) blue++; len += r.min; if (r.timeout) timeouts++;
@@ -118,6 +124,8 @@ if (!isMainThread) {
         s.g++; s.w += win; s.k += x.k; s.d += x.d; s.a += x.a; s.dmg += x.dmg; s.share += x.dmg / teamDmg; s.taken += x.taken; s.healed += x.healed; s.gold += x.gold; s.bh += x.bh; s.min += r.min;
         x.ab.forEach((v, i) => { s.ab[i][0] += v[0]; s.ab[i][1] += v[1]; });
         const b = B[x.build] || (B[x.build] = { g: 0, w: 0, heroes: new Set() }); b.g++; b.w += win; b.heroes.add(x.id);
+        if (x.tal) x.tal.forEach((p, i) => { if (p < 0) return; const key = HERO_TALENTS[x.id][i][p], tk = key.split('.').pop(), k2 = x.id + ':' + i + ':' + p;
+          const a = TAL[tk] || (TAL[tk] = { g: 0, w: 0 }); a.g++; a.w += win; const b2 = HT[k2] || (HT[k2] = { g: 0, w: 0 }); b2.g++; b2.w += win; });
         const hb = HB[x.id + ':' + x.build] || (HB[x.id + ':' + x.build] = { g: 0, w: 0 }); hb.g++; hb.w += win;
       }
     });
@@ -135,6 +143,19 @@ if (!isMainThread) {
   }
   console.log('\nBuild        games  win%  heroes');
   for (const [k, b] of Object.entries(B).sort((a, b) => b[1].w / b[1].g - a[1].w / a[1].g)) console.log(`${k.padEnd(12)} ${String(b.g).padStart(5)}  ${pct(b.w, b.g).padStart(4)}  ${b.heroes.size}`);
+  if (Object.keys(TAL).length) {
+    // talents: per template (all heroes), then each hero's option B minus option A per tier (shrunk toward 0)
+    console.log('\nTalent       games  win%');
+    for (const [k, t] of Object.entries(TAL).sort((a, b) => b[1].w / b[1].g - a[1].w / a[1].g)) console.log(`${k.padEnd(12)} ${String(t.g).padStart(5)}  ${pct(t.w, t.g).padStart(4)}`);
+    const gaps = [];
+    for (const id in HERO_TALENTS) for (let i = 0; i < 3; i++) {
+      const A = HT[id + ':' + i + ':0'] || { g: 0, w: 0 }, Bq = HT[id + ':' + i + ':1'] || { g: 0, w: 0 };
+      if (A.g < 4 || Bq.g < 4) continue;
+      const sh = (c) => (c.w + 5) / (c.g + 10); gaps.push({ id, i, d: sh(Bq) - sh(A), A, B: Bq });
+    }
+    gaps.sort((a, b) => Math.abs(b.d) - Math.abs(a.d));
+    console.log('Largest option gaps (shrunk B-A win rate):', gaps.slice(0, 12).map((x) => `${x.id} t${x.i + 1} ${HERO_TALENTS[x.id][x.i][x.d > 0 ? 1 : 0]} +${Math.abs(x.d * 100).toFixed(0)}% (${x.A.g}/${x.B.g})`).join(', ') || 'n/a');
+  }
   // comps / duos next to what their heroes win overall (a duo or comp is only strong if it beats that)
   const wr = (id) => H[id].w / H[id].g;
   const avgWr = (ids) => (100 * ids.reduce((s, id) => s + wr(id), 0) / ids.length).toFixed(0);

@@ -96,7 +96,7 @@ function rebuild(g, h) {
 // ── the AI's pick: enemy comp + how this hero's game is going (deterministic, from public info) ──
 export function aiTalent(g, h, tier) {
   const opts = (HERO_TALENTS[h.heroId] || [])[tier]; if (!opts) return 0;
-  const foes = g.teams[1 - h.team].heroes.map((x) => HERO_BY_ID[x.heroId]);
+  const me = HERO_BY_ID[h.heroId], foes = g.teams[1 - h.team].heroes.map((x) => HERO_BY_ID[x.heroId]);
   const n = (f) => foes.filter(f).length;
   const tanks = n((x) => x.cls === 'tank' || x.tags.includes('tank')), heal = n((x) => x.tags.includes('heal') || x.tags.includes('sustain') || x.passive.kind === 'healAllies' || x.passive.kind === 'spellVamp');
   const cc = n((x) => x.tags.includes('cc')), burst = n((x) => x.cls === 'assassin' || x.tags.includes('burst'));
@@ -108,10 +108,20 @@ export function aiTalent(g, h, tier) {
       else if (t === 'snowball') s += ahead ? 0.8 : behind ? -0.4 : 0; else if (t === 'safe') s += behind ? 0.8 : 0;
       else if (t === 'team') s += h.role === 'support' ? 0.6 : 0; else if (t === 'split') s += h.role === 'top' ? 0.4 : 0;
     }
-    return s;
+    return s + (((FIT[key.split('.').pop()] || {})[me.cls]) || 0);
   };
-  return score(opts[1], 1) > score(opts[0], 0) ? 1 : 0;
+  // a small seeded lean per hero and tier so close calls vary from game to game (from cfg data only)
+  const lean = ((hash(h.heroId) ^ (g.cfg.seed >>> 0) ^ (tier * 0x9e3779b1)) >>> 0) % 1000 / 1000 * 0.5 - 0.25;
+  return score(opts[1], 1) + lean > score(opts[0], 0) ? 1 : 0;
 }
+// How well a template suits a hero class (the AI's default lean).
+const FIT = {
+  dmg: { marksman: 0.2, mage: 0.25, assassin: 0.25 }, crit: { marksman: 0.3 }, fury: { marksman: 0.25, bruiser: 0.1 }, power: { mage: 0.2, assassin: 0.15 },
+  pierce: { mage: 0.1, marksman: 0.1 }, execute: { assassin: 0.2 }, armor: { tank: 0.3, support: 0.1 }, vital: { tank: 0.3, bruiser: 0.1 }, thorns: { tank: 0.2 },
+  hold: { tank: 0.2, support: 0.2 }, area: { tank: 0.1, mage: 0.1 }, mend: { support: 0.3 }, healer: { support: 0.3 }, guard: { support: 0.2, tank: 0.1 },
+  vamp: { bruiser: 0.25 }, laststand: { bruiser: 0.2 }, cd: { support: 0.1, mage: 0.1 },
+};
+const hash = (s) => { let x = 2166136261; for (let i = 0; i < s.length; i++) x = Math.imul(x ^ s.charCodeAt(i), 16777619); return x >>> 0; };
 
 // Level-up hook (Game.giveXp): talents at 4, 8 and 12.
 export function talentLevel(g, h) {
