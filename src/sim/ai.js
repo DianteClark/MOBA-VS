@@ -10,6 +10,7 @@ import { DT, sec, BLUE, MOMENTUM } from './constants.js';
 import { dist2, dist, norm, segDist2 } from './geom.js';
 import { isCCd } from './effects.js';
 import { planRisk, planLane, planSplits, planCarry, diveMul, gankWeights, wardWeights, contestReach, peelMul } from './plans.js';
+import { duoUltWant } from './interplay.js';
 
 const LANES = ['top', 'mid', 'bot'];
 const CARRY = (h) => h.def.cls === 'marksman' || h.def.cls === 'mage';
@@ -731,6 +732,7 @@ function castCombat(g, h, t, near, allies, killable) {
       const um = ab.ult && g.teams[h.team].ultMode;
       if (um && um.mode === 'save' && !(u.includes('defend') && h.hp / h.maxHp < 0.4)) continue;
       if (um && um.mode === 'go' && dist2(h, t) < (h.stats.range + 200) ** 2) { g.cast(h, i, null); return true; }
+      if (ab.ult && g.depth && duoUltWant(g, h) && dist2(h, t) < (h.stats.range + 200) ** 2) { g.cast(h, i, null); return true; }
       if ((u.includes('engage') || u.includes('teamfight')) && dist2(h, t) < (h.stats.range + 140) ** 2) { g.cast(h, i, null); return true; }
       if (u.includes('defend') && h.hp / h.maxHp < 0.6 && g.tick - h.lastHurtByHero < sec(1)) { g.cast(h, i, null); return true; }
       continue;
@@ -743,7 +745,7 @@ function castCombat(g, h, t, near, allies, killable) {
     const um = ab.ult && g.teams[h.team].ultMode;
     if (um && um.mode === 'save' && !exec) continue;            // coach: hold ults
     if (um && um.mode === 'go') { if (castAt(g, h, i, t)) return true; continue; } // coach: all-in, fire now
-    let ok = false;
+    let ok = !!(ab.ult && g.depth && duoUltWant(g, h)); // v23: a duo partner just fired theirs
     if (u.includes('execute') && exec) ok = true;
     if (u.includes('engage')) ok = true;
     if (u.includes('poke') && !ab.ult) ok = true;

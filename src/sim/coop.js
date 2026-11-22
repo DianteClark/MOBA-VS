@@ -19,7 +19,7 @@ import { Coach } from './coach.js';
 import { HEROES, HERO_BY_ID, ROLES, matchupScore } from '../data/heroes.js';
 import { currentTurn, taken, apply as draftApply, synergyScore } from './draft.js';
 
-export const HERO_CMDS = new Set(['gank', 'split', 'build', 'permit']);
+export const HERO_CMDS = new Set(['gank', 'split', 'build', 'permit', 'talent', 'item']);
 export const DEFAULT_OWN = { top: 0, jungle: 0, mid: 0, bot: 1, support: 1 };
 
 // A clean role → seat split (each seat at least one role).
