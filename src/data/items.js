@@ -276,7 +276,7 @@ export const BUILD_ORDER = ['burst', 'burn', 'tank', 'sustain', 'crit', 'haste',
   'bloodline', 'spellshield', 'thorns', 'swift', 'executioner', 'frostbite', 'venom', 'bulwark', 'momentum', 'stalker'];
 
 // Build combos: two heroes on one team running these two build types get a small bonus (src/sim/builds2.js).
-// Simple and readable: shown in prep, the Dojo Build Guide and as a banner at kickoff.
+// Simple and readable: shown in prep, the Dojo Build Guide and in the match ticker.
 export const BUILD_COMBOS = [
   { id: 'shatter', name: 'Shatter', a: 'frostbite', b: 'executioner', text: 'The Executioner deals 10% more damage to chilled or slowed enemies.' },
   { id: 'ironwall', name: 'Iron Wall', a: 'bulwark', b: 'thorns', text: 'Both heroes gain 15 armor and 15 magic resist.' },

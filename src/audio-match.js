@@ -32,6 +32,8 @@ const ELEM = { explosion: 'fireball', flame: 'fire', circle_orange: 'fireball', 
 const PRELOAD = ['hit_l1', 'hit_l2', 'hit_m1', 'hit_m2', 'hit_h1', 'hit_h2', 'crit', 'minion', 'tshot', 'coin2', 'kill', 'death', 'impact', 'magic', 'boom', 'explosion',
   'roar', 'objective', 'levelup', 'st_ace', 'st_obj', 'st_last', 'st_win', 'st_lose', ...Object.values(CLAN).flat(), ...new Set(Object.values(ELEM))];
 const TENSION_IN = 0.6, TENSION_OUT = 0.2, CALM_AFTER = 5, MIN_TENSION = 12, MIN_CALM = 8;
+// v26 cards: a second, themed layer on the card sound
+const CARD_SFX = { blackout: 'magic', owl: 'wings', charge: 'roar', fallback: 'wings', underdog: 'heal', crash: 'water1', escort: 'shield', pit: 'rock', slowpush: 'rock', lone: 'zap', echo: 'magic', raid: 'coin', wardline: 'magic', snipe: 'zap', bounty: 'coin', revive: 'heal' };
 
 export const matchAudio = {
   g: null, r: null, runner: null, my: -1, evIdx: 0, pid: 0, heat: 0, state: null, calm: 'calm', tensionAt: 0, calmAt: 0, quietFor: 0, contested: false,
@@ -150,7 +152,11 @@ export const matchAudio = {
       case 'heraldDrop': audio.play('roar', { vol: 0.8, prio: 3, rate: 0.92 }); audio.play('explosion', { vol: 0.8, delay: 0.15 }); break;
       case 'shrine': audio.play('powerup', { vol: this.mine(e.team) ? 0.6 : 0.4 }); break;
       case 'surge': if (this.mine(e.team)) audio.play('powerup', { vol: 0.8, prio: 3 }); break;
-      case 'tactic': if (this.mine(e.team)) audio.play('powerup', { vol: 0.7, prio: 3 }); break;
+      case 'tactic':
+        if (this.mine(e.team)) { audio.play('powerup', { vol: 0.7, prio: 3 }); if (CARD_SFX[e.card]) audio.play(CARD_SFX[e.card], { vol: 0.55, delay: 0.12 }); }
+        else if (e.card === 'blackout' || e.card === 'bounty') audio.play('alert2', { vol: 0.5 }); // (they blinded you / put a price on your carry)
+        break;
+      case 'bounty': audio.play(this.mine(e.team) ? 'gold' : 'alert', { vol: 0.6 }); break;
       case 'finalPhase': audio.play('st_last', { prio: 5, throttle: 0 }); audio.duck(0.4, 1400); this.setState('laststand'); break;
       case 'victory': {
         const won = this.my < 0 || e.team === this.my;

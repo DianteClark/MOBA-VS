@@ -23,7 +23,7 @@ export function refreshCombos(g, team) {
   const now = ids.join(',');
   if (now !== before) for (const id of ids) if (!before.split(',').includes(id)) g.emit({ type: 'buildCombo', team, combo: id });
 }
-export const hasCombo = (h, id) => !!(h.combos && h.combos.includes(id));
+const hasCombo = (h, id) => !!(h.combos && h.combos.includes(id));
 
 // ── stats (Game.recalc, before power is converted) ──
 export function stats(g, h, s) {

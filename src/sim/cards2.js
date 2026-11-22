@@ -5,7 +5,7 @@
 import { sec } from './constants.js';
 import { dist2 } from './geom.js';
 
-export const CARDS2 = ['blackout', 'owl', 'charge', 'fallback', 'underdog', 'crash', 'escort', 'pit', 'slowpush', 'lone', 'echo', 'raid', 'wardline', 'snipe', 'bounty', 'revive'];
+const CARDS2 = ['blackout', 'owl', 'charge', 'fallback', 'underdog', 'crash', 'escort', 'pit', 'slowpush', 'lone', 'echo', 'raid', 'wardline', 'snipe', 'bounty', 'revive'];
 const PIT_R = 420, LONE_R = 900;
 
 const st = (team) => team.c2 || (team.c2 = { waves: {}, charged: [] });

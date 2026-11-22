@@ -2,7 +2,7 @@
 //   #leftcol  (my team)                     #topcenter (score + objectives + one-line ticker)   #rightcol (enemies + kill feed)
 //   #detail   (followed hero)               #cmdbar    (decision tray + tactic cards + calls)  #brcol    (controls + minimap)
 import { h, mount, face, icon, fmtTime, toast, bossFace, kamiNow, objLabel, setText, setCss, setOff } from './dom.js';
-import { BUILDS } from '../data/items.js';
+import { BUILDS, BUILD_COMBOS } from '../data/items.js';
 import { PERSONALITIES, ROLE_LABEL } from '../data/heroes.js';
 import { heroInfo, closeHeroInfo } from './heroinfo.js';
 import { TACTICS } from '../data/tactics.js';
@@ -672,6 +672,8 @@ export class Hud {
         case 'pivot': if (e.team === this.view) this.ticker(`${this.name(e.hero)} will now build ${BUILDS[e.build].name}`, 'n', 0); break;
         case 'trust': if (e.team === this.view && this.my >= 0) { const x = g.byId(e.hero); this.ticker(e.tier === 2 ? `${x.def.name} is Inspired by your calls!` : e.tier === 0 ? `${x.def.name} is losing faith in your calls` : `${x.def.name} trusts you again`, e.tier === 0 ? 'danger' : 'n', e.tier === 0 ? 1 : 0); } break;
         case 'tactic': if (e.team === this.view || this.my < 0) { this.banner(TACTICS[e.card].name.toUpperCase(), TEAM_COL[e.team], 1500); } break;
+        case 'buildCombo': if (e.team === this.view) { const cb = BUILD_COMBOS.find((x) => x.id === e.combo); if (cb) this.ticker(`Build combo ${cb.name}: ${cb.text}`, 'n', 1); } break;
+        case 'bounty': this.ticker(e.team === this.view ? `Bounty collected: ${this.name(e.victim)} is down, +250 gold each!` : `They collected the bounty on ${this.name(e.victim)}`, e.team === this.view ? 'act' : 'danger', 2); break;
         case 'finalPhase': this.banner('LAST STAND', '#ff8a3a', 2200, null); this.ticker(`Final ${Math.round(g.timeLeft / 60)} minutes: gold ×1.5, longer respawns. Every tower counts!`, 'act', 3); break;
         case 'stolenCamp': if (e.big && e.team !== this.view) this.ticker(e.camp && e.camp.endsWith(':moon') ? 'Enemy stole your Moon Spirits!' : 'Enemy invaded your jungle!', 'danger', 2); break;
         default: livingEvent(this, e);

@@ -6,8 +6,8 @@ import { h, mount, face, icon, emptyState } from './dom.js';
 import { HEROES, HERO_BY_ID, ROLES, ROLE_LABEL, PERSONALITIES } from '../data/heroes.js';
 import { CLANS } from '../sim/constants.js';
 import { BUILDS } from '../data/items.js';
-import { TACTICS, TACTIC_IDS } from '../data/tactics.js';
-import { ownsTactic } from '../meta.js';
+import { TACTICS } from '../data/tactics.js';
+import { deckPicker, cardList } from './deckpick.js';
 import { SKINS } from '../data/seasons.js';
 import { skinViewer, heroSkinKeys } from './collection.js';
 import { matchups } from '../data/herostats.js';
@@ -38,11 +38,11 @@ export function showDojo(app, patch = {}) {
   stopParade();
   if (patch.tab === 'lineups' && patch.slot === undefined) state.slot = Math.max(0, profile.d.presets.active);
   const prevScroll = screen().scrollTop;
-  const body = state.tab === 'shop' ? shopTab(app, () => showDojo(app, { keepScroll: true })) : state.tab === 'lineups' ? lineups(app) : state.tab === 'builds' ? buildGuide((id) => { tap(); showDojo(app, { tab: 'heroes', hero: id }); }) : state.hero ? heroPage(app, state.hero) : heroList(app);
+  const body = state.tab === 'shop' ? shopTab(app, () => showDojo(app, { keepScroll: true })) : state.tab === 'lineups' ? lineups(app) : state.tab === 'builds' ? buildGuide((id) => { tap(); showDojo(app, { tab: 'heroes', hero: id }); }) : state.tab === 'cards' ? cardList() : state.hero ? heroPage(app, state.hero) : heroList(app);
   const head = h('div', { class: 'shead dojohead' + (app.dojoReturn ? ' ret' : '') },
     h('button', { class: 'btn backbtn', onclick: () => { tap(); if (state.hero && state.tab === 'heroes') showDojo(app, { hero: null }); else app.menu(); } }, state.hero && state.tab === 'heroes' ? '‹ Heroes' : '‹ Back'),
     // opened from the ready check (src/ui/readycheck.js): straight back into the match start
-    h('div', { class: 'dojotabs' }, ...[['heroes', 'Heroes'], ['builds', 'Builds'], ['lineups', 'Lineups'], ['shop', 'Shop']].map(([k, l]) => h('button', { class: 'chip' + (state.tab === k ? ' on' : ''), onclick: () => { tap(); showDojo(app, { tab: k }); } }, l))),
+    h('div', { class: 'dojotabs' }, ...[['heroes', 'Heroes'], ['builds', 'Builds'], ['cards', 'Cards'], ['lineups', 'Lineups'], ['shop', 'Shop']].map(([k, l]) => h('button', { class: 'chip' + (state.tab === k ? ' on' : ''), onclick: () => { tap(); showDojo(app, { tab: k }); } }, l))),
     app.dojoReturn ? h('button', { class: 'btn dojoret', onclick: () => { const r = app.dojoReturn; app.dojoReturn = null; audio.sfx('accept', 0.6); r.go(); } }, `${app.dojoReturn.label} ›`) : h('h2', {}, 'Dojo'));
   mount(screen(), h('div', { class: 'subscreen dojo', 'data-view': 'dojo:' + state.tab + ':' + (state.tab === 'heroes' && state.hero ? 'hero' : '') }, head, body));
   if (patch.keepScroll) screen().scrollTop = prevScroll; else screen().scrollTop = 0;
@@ -223,15 +223,8 @@ function pickTalents(app, id) {
 }
 function pickCards(app) {
   const p = cur();
-  let close = null;
-  const grid = h('div', { class: 'deck' });
-  const draw = () => mount(grid, ...TACTIC_IDS.filter((id) => ownsTactic(profile.d.meta, id) || p.deck.includes(id)).map((id) => {
-    const t = TACTICS[id], on = p.deck.includes(id);
-    return h('button', { class: 'card' + (on ? ' sel' : ''), onclick: () => { if (on) p.deck = p.deck.filter((d) => d !== id); else p.deck = [...p.deck.slice(p.deck.length >= 3 ? 1 : 0), id]; tap(); draw(); count.textContent = `${p.deck.length}/3`; } },
-      h('img', { src: icon(t.icon) }), h('div', { class: 'cn' }, t.name), h('div', { class: 'cd' }, t.desc), on ? h('i', { class: 'tick' }) : null);
-  }));
   const count = h('span', { class: 'dcount' }, `${p.deck.length}/3`);
-  draw();
-  close = modal('Tactic cards', h('div', { class: 'row', style: { justifyContent: 'space-between' } }, h('small', { class: 'muted' }, 'Pick 3. Each can be played once per match.'), count), grid,
+  const picker = deckPicker({ get: () => p.deck, set: (d) => { p.deck = d; }, plan: p.plan, onChange: () => { tap(); count.textContent = `${p.deck.length}/3`; } });
+  const close = modal('Tactic cards', h('div', { class: 'row', style: { justifyContent: 'space-between' } }, h('small', { class: 'muted' }, 'Pick 3. Each can be played once per match.'), count), picker,
     h('button', { class: 'btn big', onclick: () => { close(); save(app, p); } }, 'Done'));
 }

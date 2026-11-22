@@ -3,8 +3,9 @@ import { h, mount, face, icon, fmtTime } from './dom.js';
 import { talentPicker } from './talentui.js';
 import { cleanPrefs } from '../data/talents.js';
 import { HEROES, HERO_BY_ID, ROLES, ROLE_LABEL, matchupScore, PERSONALITIES } from '../data/heroes.js';
-import { TACTICS, TACTIC_IDS } from '../data/tactics.js';
-import { ownsTactic } from '../meta.js';
+import { TACTICS } from '../data/tactics.js';
+import { deckPicker } from './deckpick.js';
+import { combosOf } from './buildguide.js';
 import { profile } from '../profile.js';
 import { PLAN_IDS, PLAN_INFO, planLine, EDGE_TEXT } from '../data/plans.js';
 import { BUILDS } from '../data/items.js';
@@ -72,6 +73,8 @@ export function showHowTo(app) {
     h('div', { class: 'howacad' }, h('span', {}, 'Learn by playing: the Coach Academy is a guided first match.'), h('button', { class: 'btn', onclick: () => import('./campaign.js').then((c) => c.playTutorial(app)) }, 'Coach Academy')),
     h('h3', {}, '1. Draft'), h('p', {}, 'Ban and pick in turns: Top, Jungle, Mid, Bot and Support. Filter by role or search ("tank", "dive", a name). Green numbers show counters; duos, comps and matching clans give team bonuses.'),
     h('h3', {}, '2. Prep'), h('p', {}, 'Pick each hero\'s build path, 3 tactic cards and a game plan: Early Aggression, Scale, Objective Control, Split Push or Protect the Carry. Your heroes play to it. The recommended plan (★) reads your comp against theirs. Each plan beats two others and loses to two; both plans are revealed at kickoff, and you can switch once at halftime.'),
+    h('p', {}, 'Builds: 21 build types, and each hero can take 2 to 4 of them (Burst, Tank, Venom, Frostbite, Bulwark, Nightstalker...). Two heroes on a matching pair of builds make a build combo, like Frostbite + Executioner (Shatter) or Bulwark + Thorns (Iron Wall). The Dojo Build Guide lists them all.'),
+    h('p', {}, 'Tactic cards: build a deck of 3 from the cards you own, or take a recommended deck for your plan. Some cards only work when you are behind (Underdog, Spirit Return, Bounty Hunt) and every card has a counter: Owl Watch sees through Smoke Bomb and Blackout, Fall Back escapes a Charge!. New cards unlock with coach levels and achievements; the Dojo Cards tab shows them all.'),
     h('h3', {}, '3. Calls'), h('p', {}, 'Six big buttons along the bottom: Gank, Objective, Push, Shrine, Defend and Regroup. Calls cost charges (max 3, +1 every 20s). Or just tap the map: tap a lane, a pit, a shrine or an enemy and a ring of calls pops up right there.'),
     h('p', {}, 'Your analyst flashes one-tap suggestions ("Mid is overextended: Gank"). Tap the button and the call goes out. Tactic cards (Q, E, T) are one-time plays like Smoke Bomb or Second Wind.'),
     h('p', {}, 'Tap one of your portraits to follow that hero and change its build; tap an enemy portrait to focus them. Press and hold (or right-click) a portrait for details, including "Why": what the hero is doing and why. Good calls build trust, and inspired heroes react faster.'),
@@ -151,7 +154,10 @@ export function showPrep(app, prep, enemyIds, left, onChange, onReady, ready) {
   };
   const clans = (() => {
     const c = {}; for (const p of prep.heroes) { const k = HERO_BY_ID[p.id].clan; c[k] = (c[k] || 0) + 1; }
-    return Object.entries(c).sort((a, b) => b[1] - a[1]).map(([k, n]) => { const tier = CLANS[k].tiers.filter((t) => n >= t.n).pop(); return h('div', { class: 'cchip' + (tier ? ' on' : ''), style: { '--cc': CLANS[k].color } }, h('b', {}, `${CLANS[k].name} x${n}`), h('small', {}, tier ? tier.text : `${CLANS[k].tiers[0].n} needed: ${CLANS[k].tiers[0].text}`)); });
+    const chips = Object.entries(c).sort((a, b) => b[1] - a[1]).map(([k, n]) => { const tier = CLANS[k].tiers.filter((t) => n >= t.n).pop(); return h('div', { class: 'cchip' + (tier ? ' on' : ''), style: { '--cc': CLANS[k].color } }, h('b', {}, `${CLANS[k].name} x${n}`), h('small', {}, tier ? tier.text : `${CLANS[k].tiers[0].n} needed: ${CLANS[k].tiers[0].text}`)); });
+    // build combos (two heroes on a pair of build types: src/data/items.js BUILD_COMBOS)
+    for (const cb of combosOf(prep.heroes.map((p) => p.build))) chips.push(h('div', { class: 'cchip on combo', style: { '--cc': BUILDS[cb.a].color } }, h('b', {}, `${cb.name}: ${BUILDS[cb.a].name} + ${BUILDS[cb.b].name}`), h('small', {}, cb.text)));
+    return chips;
   })();
   const sec = (title, extra, ...kids) => h('div', { class: 'panel psec' }, h('div', { class: 'psh' }, h('span', {}, title), extra || null), ...kids);
   // game plan: the recommended one (your comp vs theirs) is marked; the enemy only sees yours at kickoff. Co-op: the lead picks it.
@@ -171,11 +177,7 @@ export function showPrep(app, prep, enemyIds, left, onChange, onReady, ready) {
         h('b', {}, h('img', { src: icon(P.icon), alt: '' }), P.name), h('small', {}, P.desc), h('small', { class: 'pvs' }, planLine(k)),
         rec.id === k ? h('span', { class: 'precw' }, '★ ' + rec.why) : null); }))),
     !lead || mirror ? null : sec('Tactic deck', h('span', { class: 'dcount' + (prep.deck.length === 3 ? ' full' : '') }, `${prep.deck.length}/3`),
-      h('div', { class: 'deck' }, ...TACTIC_IDS.filter((id) => ownsTactic(profile.d.meta, id) || prep.deck.includes(id)).map((id) => {
-        const t = TACTICS[id], on = prep.deck.includes(id);
-        return h('button', { class: 'card' + (on ? ' sel' : ''), onclick: () => { if (on) prep.deck = prep.deck.filter((d) => d !== id); else if (prep.deck.length < 3) prep.deck = [...prep.deck, id]; else prep.deck = [...prep.deck.slice(1), id]; audio.sfx('move', 0.4); onChange(); } },
-          h('img', { src: icon(t.icon) }), h('div', { class: 'cn' }, t.name), h('div', { class: 'cd' }, t.desc), on ? h('i', { class: 'tick' }) : null);
-      })))] : [];
+      deckPicker({ get: () => prep.deck, set: (d) => { prep.deck = d; }, plan: prep.plan, onChange: () => { audio.sfx('move', 0.4); onChange(); } }))] : [];
   const prevScroll = screen().scrollTop;
   mount(screen(), h('div', { class: 'prep' + (ready ? ' ready' : '') + (adjust ? ' adjusting' : '') },
     h('div', { class: 'phead' },

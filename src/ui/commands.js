@@ -6,6 +6,7 @@
 import { h, mount, face, icon, fmtTime, toast, bossFace, kamiNow, objLabel, setText, setCss, setOff, fitText } from './dom.js';
 import { BUILDS } from '../data/items.js';
 import { TACTICS } from '../data/tactics.js';
+import { cardBlock } from '../sim/cards2.js';
 import { CMD, DRAGON_INFO, TICK_RATE, OBJ_NAME, MOMENTUM } from '../sim/constants.js';
 import { Tray, PRIO } from './tray.js';
 import { MOMENTS, MOMENT_IDS, MOMENT, momentReady } from '../sim/moments-coach.js';
@@ -62,10 +63,10 @@ export class Dock {
     this.meterEl = h('button', { class: 'meter', title: 'Command charges (+1 every 20s) and momentum. When momentum is full, tap for Kami Surge [V]', onclick: () => this.surge() },
       h('div', { class: 'pips' }, this.pips), h('div', { class: 'mom' }, this.momFill), this.chargeTxt);
     this.cards = this.team.deck.map((d, i) => {
-      const t = TACTICS[d.id];
+      const t = TACTICS[d.id]; let b0 = null;
       const b = h('button', { class: 'tcard', title: `${t.name}: ${t.desc} [${CARD_KEYS[i].toUpperCase()}]`, onclick: () => this.playCard(d.id) },
-        h('img', { src: icon(t.icon) }), h('div', { class: 'tc-t' }, h('b', {}, t.name), h('small', {}, t.short)), h('span', { class: 'key' }, CARD_KEYS[i].toUpperCase()));
-      b._d = d; return b;
+        h('img', { src: icon(t.icon) }), h('div', { class: 'tc-t' }, h('b', {}, t.name), b0 = h('small', {}, t.short)), h('span', { class: 'key' }, CARD_KEYS[i].toUpperCase()));
+      b._d = d; b._sub = b0; return b;
     });
     this.callBtns = CORE.map((c) => {
       const n = this.cost(CORE_COST[c.id]);
@@ -104,7 +105,7 @@ export class Dock {
       const rel = this.relevance(b._id);
       b.classList.toggle('hot', rel === 'hot'); b.classList.toggle('danger', rel === 'danger'); b.classList.toggle('dim', rel === 'dim');
     }
-    for (const b of this.cards) { b.classList.toggle('used', b._d.used); b.setAttribute('aria-disabled', String(!!b._d.used)); b.classList.toggle('on', this.sheetId === 'card:' + b._d.id); }
+    for (const b of this.cards) { const blk = !b._d.used && cardBlock(g, this.my, b._d.id); if (b._blk !== blk) { b._blk = blk; b.classList.toggle('wait', !!blk); setText(b._sub, blk || TACTICS[b._d.id].short); } b.classList.toggle('used', b._d.used); b.setAttribute('aria-disabled', String(!!b._d.used)); b.classList.toggle('on', this.sheetId === 'card:' + b._d.id); }
     const left = MOMENT_IDS.filter((k) => !team.moments[k]).length, anyReady = MOMENT_IDS.some((k) => momentReady(g, this.my, k));
     if (this.momentN.textContent !== String(left)) this.momentN.textContent = String(left);
     this.momentBtn.classList.toggle('spent', !left); this.momentBtn.classList.toggle('ready', anyReady); this.momentBtn.classList.toggle('lock', !!left && !anyReady);
@@ -217,7 +218,8 @@ export class Dock {
   playCard(id) {
     const d = this.team.deck.find((x) => x.id === id); if (!d) return;
     if (d.used) { toast(`${TACTICS[id].name} is already played: each card once per match`, 1600); audio.sfx('cancel', 0.4); return; }
-    const t = TACTICS[id];
+    const t = TACTICS[id], blk = cardBlock(this.g, this.my, id);
+    if (blk) { toast(`${t.name}: ${blk}`, 1600); audio.sfx('cancel', 0.4); return; }
     if (t.target === 'none') { this.send({ type: 'tactic', card: id }); return; }
     this.open('card:' + id);
   }
