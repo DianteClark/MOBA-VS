@@ -1,6 +1,6 @@
 /* Live-ops UI: feedback form, notifications settings, results footer (src/ui/feedback.js, src/ui/notify.js). */
 .fbpanel { display: flex; flex-direction: column; gap: 6px; width: min(520px, 100%); margin: auto; }
-.fbtext { font-family: inherit; font-size: 14px; line-height: 1.35; padding: 8px 10px; background: #120f18; color: var(--ink); border: 2px solid var(--line); resize: vertical; min-height: 84px; max-height: 40vh; width: 100%; box-sizing: border-box; }
+.fbtext { font-family: inherit; word-spacing: 0.32em; font-size: 14px; line-height: 1.35; padding: 8px 10px; background: #120f18; color: var(--ink); border: 2px solid var(--line); resize: vertical; min-height: 84px; max-height: 40vh; width: 100%; box-sizing: border-box; }
 .fbtext:focus { outline: none; border-color: var(--gold); }
 .fbrow { display: flex; justify-content: flex-end; margin-top: -2px; }
 .fbshot { display: flex; align-items: center; gap: 8px; font-size: 12px; cursor: pointer; min-height: 44px; }
@@ -10,7 +10,7 @@
 .fbshot img.off { opacity: 0.25; }
 .fbinfo { font-size: 10px; line-height: 1.4; overflow-wrap: anywhere; }
 .fbpanel .sfoot { justify-content: flex-end; gap: 10px; }
-.pushgroup .srow.dim .slab { opacity: 0.5; }
+.pushgroup .srow.dim .slab, .pushgroup .srow.dim .sctl { opacity: 0.5; }
 .pushgroup .srow .slab small { max-width: 52ch; }
 .rfoot { display: flex; flex-direction: column; align-items: center; gap: 8px; margin: 4px 0 2px; }
 .linkbtn { background: none; border: none; color: var(--muted); font: inherit; font-size: 12px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; padding: 10px 14px; min-height: 40px; }
