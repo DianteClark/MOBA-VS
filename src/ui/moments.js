@@ -10,7 +10,7 @@ const LANE_L = { top: 'Top', mid: 'Mid', bot: 'Bot' };
 const ROLE_L = { top: 'top', mid: 'mid', bot: 'carry', support: 'support', jungle: 'jungler' };
 const d2 = (a, b) => (a.x - b.x) ** 2 + (a.y - b.y) ** 2;
 const CARRY = (h) => h.def.cls === 'marksman' || h.def.cls === 'mage';
-const objName = (g, k) => (k === 'dragon' && !g.beasts ? DRAGON_INFO[g.objectives.dragon ? g.objectives.dragon.element : g.teams.some((t) => t.soul) ? 'elder' : g.nextDragon].short + ' Kami' : objLabel(g, k));
+const objName = (g, k) => (k === 'dragon' && !(g.beasts && g.beasts.full) ? DRAGON_INFO[g.objectives.dragon ? g.objectives.dragon.element : g.teams.some((t) => t.soul) ? 'elder' : g.nextDragon].short + ' Kami' : objLabel(g, k));
 const pitOf = (g, k) => g.objPit(k); // (Living World: the Elder Kami's arena, the parade's current spot)
 // Bosses & Beasts: a free scout to a spot we cannot see, while our scout is ready (else null).
 const scoutTo = (g, my, p) => (g.beasts && g.tick >= g.teams[my].scoutCd && !g.beasts.pet(my) && !g.visGrid[my][g.world.idx(p.x, p.y)] ? { type: 'scout', x: Math.round(p.x), y: Math.round(p.y) } : null);

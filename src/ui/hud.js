@@ -351,7 +351,7 @@ export class Hud {
   // Objective / shrine timers: built once, updated in place (no image reloads, no flicker).
   buildObjBar() {
     const g = this.g;
-    this.objCells = ['dragon', 'herald', 'baron', ...(g.living ? ['yokai'] : []), ...(g.beasts ? ['boss'] : [])].map((k) => {
+    this.objCells = ['dragon', 'herald', 'baron', ...(g.living ? ['yokai'] : []), ...((g.beasts && g.beasts.full) ? ['boss'] : [])].map((k) => {
       const img = h('img', { src: bossFace(k, kamiNow(g)) }), lab = h('span', {}), val = h('b', {});
       const el = h('div', { class: 'ot' + (k === 'yokai' || k === 'boss' ? ' lw-' + k : ''), title: objLabel(g, k), onclick: () => this.my >= 0 && this.dock.open('objective') }, img, lab, val);
       return { k, el, img, lab, val };
@@ -370,8 +370,8 @@ export class Hud {
     for (const c of this.objCells) {
       const k = c.k, o = g.objectives[k], tmr = g.objTimers[k];
       const hide = (k === 'herald' && (g.time > g.T.heraldDespawn || g.objectives.baron)) || (k === 'baron' && g.time < g.T.heraldDespawn - 60 && !o)
-        || (k === 'yokai' && !o && (!tmr || (g.beasts && g.time >= BEASTS.elderAt - 120))) || (k === 'boss' && !o && g.time < BEASTS.elderAt - 120) // Living World; the Elder Kami from 10:00
-        || (k === 'dragon' && g.beasts && !o && !tmr); // Bosses & Beasts: both base Kami are taken
+        || (k === 'yokai' && !o && (!tmr || ((g.beasts && g.beasts.full) && g.time >= BEASTS.elderAt - 120))) || (k === 'boss' && !o && g.time < BEASTS.elderAt - 120) // Living World; the Elder Kami from 10:00
+        || (k === 'dragon' && (g.beasts && g.beasts.full) && !o && !tmr); // Bosses & Beasts: both base Kami are taken
       c.el.classList.toggle('hidden', !!hide); if (hide) continue;
       const up = !!(o && o.alive);
       if (k === 'dragon') { const el = kamiNow(g), src = bossFace(k, el); set(c.lab, DRAGON_INFO[el].short); if (c.img.getAttribute('src') !== src) c.img.setAttribute('src', src); }

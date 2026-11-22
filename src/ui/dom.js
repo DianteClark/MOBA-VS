@@ -50,9 +50,9 @@ const KAMI_FACE = { infernal: 'kami_infernal', ocean: 'kami_ocean', mountain: 'k
 export const bossFace = (k, el, rare) => (k === 'dragon' && KAMI[el] ? kamiFace(el) : k === 'boss' ? kamiFace(KAMI[el] ? el : 'frog', true)
   : `assets/img/boss/${k === 'dragon' ? KAMI_FACE[el] || 'kami_elder' : k === 'herald' ? (rare ? 'oni_rare_faceset' : 'herald_faceset') : k === 'yokai' ? 'yokai_faceset' : rare ? 'kraken_rare_faceset' : 'baron_faceset'}.png`);
 // The Kami that is up, or the one that wakes next (Bosses & Beasts: the map's species).
-export const kamiNow = (g) => (g.beasts ? g.beasts.species : g.objectives.dragon ? g.objectives.dragon.element : g.teams.some((t) => t.soul) ? 'elder' : g.nextDragon);
+export const kamiNow = (g) => (g.beasts && g.beasts.full ? g.beasts.species : g.objectives.dragon ? g.objectives.dragon.element : g.teams.some((t) => t.soul) ? 'elder' : g.nextDragon);
 // An objective's name as players see it: this map's Kami and Elder, a rare Oni / Kraken.
-export const objLabel = (g, k) => (k === 'dragon' ? DRAGON_INFO[kamiNow(g)].name : k === 'boss' && g.beasts ? elderName(g.beasts.species) : (g.objectives[k] && g.objectives[k].rare ? 'Rare ' : '') + OBJ_NAME[k]);
+export const objLabel = (g, k) => (k === 'dragon' ? DRAGON_INFO[kamiNow(g)].name : k === 'boss' && g.beasts && g.beasts.full ? elderName(g.beasts.species) : (g.objectives[k] && g.objectives[k].rare ? 'Rare ' : '') + OBJ_NAME[k]);
 export const icon = (name) => `assets/img/icons/${name}.png`;
 // Per-tick HUD writes: touch the DOM only when a value really changes (no style recalc / mutations for nothing).
 export const setText = (el, v) => { v = tr(String(v)); if (el.textContent !== v) el.textContent = v; };

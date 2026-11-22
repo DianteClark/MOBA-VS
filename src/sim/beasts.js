@@ -47,7 +47,13 @@ export class Beasts {
   constructor(g) {
     this.g = g;
     const W = g.world, d = W.def;
-    this.species = KAMI[d.kami] ? d.kami : 'frog';
+    // full: the classic 5v5 with the Living World (map Kami + Elder, night forms). Lane Rush gets what fits its
+    // one lane: the rare Kraken and the scout pet (its elemental Kami stay as they are).
+    this.full = !!g.living;
+    this.species = this.full ? (KAMI[d.kami] ? d.kami : 'frog') : null;
+    this.scoutFrom = sec(BEASTS.scoutFrom * (this.full ? 1 : 0.5));
+    for (const t of g.teams) { t.rareBaron = 0; t.rareOni = false; t.scoutCd = this.scoutFrom; t.scout = 0; t.kamiElder = 0; t.elderPush = 0; }
+    if (!this.full) return;
     this.kamiN = 0; // base Kami spawned so far
     this.landed = false;
     // Kami Storm week: three base Kami, from 2:00, back 60s after one falls
@@ -55,14 +61,15 @@ export class Beasts {
     g.objTimers.dragon = sec(this.at[0]);
     g.objectives.boss = null; g.objTimers.boss = sec(BEASTS.elderAt);
     this.arena = g.living ? g.living.bossSpot : W.nearestOpen({ x: 1200, y: 1200 });
-    for (const t of g.teams) { t.kamiElder = 0; t.elderPush = 0; t.rareBaron = 0; t.rareOni = false; t.scoutCd = sec(BEASTS.scoutFrom); t.scout = 0; }
   }
 
   // Blessing power of a team (0 = none).
-  power(team) { const t = this.g.teams[team]; return t.dragons.length + (t.kamiElder > this.g.tick ? BEASTS.elderPower : 0); }
+  power(team) { if (!this.full) return 0; const t = this.g.teams[team]; return t.dragons.length + (t.kamiElder > this.g.tick ? BEASTS.elderPower : 0); }
 
   update() {
     const g = this.g, now = g.tick;
+    for (const u of g.units) if (u.type === 'pet' && u.alive) this.updatePet(u);
+    if (!this.full) return;
     if (g.objTimers.boss && now === g.objTimers.boss - sec(BEASTS.elderWarn)) g.emit({ type: 'bossSoon', x: this.arena.x, y: this.arena.y, kami: this.species });
     if (!g.objectives.boss && g.objTimers.boss && now >= g.objTimers.boss) this.spawnElder();
     // Spring Water: out-of-combat regen (every half second)
@@ -70,12 +77,13 @@ export class Beasts {
       const p = this.power(t); if (!p) continue;
       for (const h of g.teams[t].heroes) if (h.alive && now - h.lastCombat > sec(4) && h.hp < h.maxHp) g.heal(h, h.maxHp * 0.008 * p * 0.5, null, true);
     }
-    for (const u of g.units) if (u.type === 'pet' && u.alive) this.updatePet(u);
   }
 
   // ───────── Kami ─────────
   // The base Kami that wakes now (game.updateObjectivesSpawn): this map's species.
   kamiSpawned() { this.kamiN++; }
+  // The base Kami's element: this map's species (Lane Rush: its own elemental Kami).
+  kamiElement(el) { return this.full ? this.species : el; }
   // Next base Kami after one falls (or none: two per match, three in Kami Storm week, never after 10:40).
   nextKami() {
     const g = this.g;
@@ -105,7 +113,7 @@ export class Beasts {
   // game.kill, objective case (after the shared rewards).
   onObjective(u, team) {
     const g = this.g, tm = g.teams[team], now = g.tick;
-    if (u.kind === 'dragon') g.objTimers.dragon = this.nextKami();
+    if (u.kind === 'dragon' && this.full) g.objTimers.dragon = this.nextKami();
     if (u.kind === 'boss') {
       tm.kamiElder = now + sec(BEASTS.elderBuff); tm.elderPush = now + sec(BEASTS.push);
       for (const h of tm.heroes) if (h.alive) g.addBuff(h, { siegePct: BEASTS.pushSiege, msPct: BEASTS.pushMs }, BEASTS.push, 'elder');

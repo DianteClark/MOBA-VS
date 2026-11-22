@@ -162,7 +162,7 @@ export function placeText(pl, opts = {}) {
       const n = pl.pit === 'kami' ? 'Kami' : oni ? 'Oni' : 'Kraken';
       return mk(n, n, 'pit', `at the ${n} pit`);
     }
-    case 'arena': { const n = g && g.beasts ? elderName(g.beasts.species) : 'Elder Kami'; return mk(n, 'Elder', 'World Boss', `at the ${n}`); }
+    case 'arena': { const n = g && g.beasts && g.beasts.full ? elderName(g.beasts.species) : 'Elder Kami'; return mk(n, 'Elder', 'World Boss', `at the ${n}`); }
     case 'base': return mk(`${own(pl.team)} base`, 'Base', '', `in ${the(pl.team, 'base')}`);
     case 'shrine': return mk(`${own(pl.team)} shrine`, 'Shrine', '', `at ${the(pl.team, 'shrine')}`);
     case 'lane': {

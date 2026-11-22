@@ -106,7 +106,7 @@ export class Game {
     this.setupStructures();
     this.setupCamps();
     this.living = living ? new Living(this) : null; // Living World: night, Yokai Parade, breakable walls (src/sim/living.js)
-    this.beasts = living && cfg.beasts ? new Beasts(this) : null; // Bosses & Beasts: map Kami + Elder, rare Oni / Kraken, scout pets, night camps (src/sim/beasts.js)
+    this.beasts = cfg.beasts && (living || this.mode === 'rush') ? new Beasts(this) : null; // Bosses & Beasts: map Kami + Elder, rare Oni / Kraken, scout pets, night camps (src/sim/beasts.js)
     this.shrines = this.world.shrines.map((p, i) => ({ id: i, x: p.x, y: p.y, owner: -1, progress: 0, capTeam: -1 }));
     const wl = this.world.def.weather || ['clear'];
     const off = (cfg.seed >>> 3) % wl.length;
@@ -804,7 +804,7 @@ export class Game {
     const ob = this.objectives;
     if (!ob.dragon && this.objTimers.dragon && now >= this.objTimers.dragon) {
       const elder = this.teams.some((t) => t.soul);
-      const el = this.beasts ? this.beasts.species : elder ? 'elder' : this.nextDragon; // Bosses & Beasts: the map's Kami species
+      const el0 = elder ? 'elder' : this.nextDragon, el = this.beasts ? this.beasts.kamiElement(el0) : el0; // Bosses & Beasts: the map's Kami species
       if (this.beasts) this.beasts.kamiSpawned();
       const hp = ((elder ? 6500 : 3200) + minute * 120) * this.rules.kamiPower;
       ob.dragon = this.addUnit({ type: 'objective', kind: 'dragon', element: el, team: NEUTRAL, x: this.world.pits.kami.x, y: this.world.pits.kami.y, home: { ...this.world.pits.kami },

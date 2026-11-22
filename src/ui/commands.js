@@ -128,7 +128,7 @@ export class Dock {
   relevance(id) {
     const g = this.g, me = this.my, now = g.tick, alive = this.alive();
     if (id === 'objective') {
-      const ks = ['dragon', 'herald', 'baron', ...(g.living ? ['yokai'] : []), ...(g.beasts ? ['boss'] : [])];
+      const ks = ['dragon', 'herald', 'baron', ...(g.living ? ['yokai'] : []), ...((g.beasts && g.beasts.full) ? ['boss'] : [])];
       if (ks.some((k) => g.objectives[k] && g.objectives[k].alive)) return 'hot';
       return ks.some((k) => g.objAvailable(k)) ? '' : 'dim';
     }
@@ -289,8 +289,8 @@ export class Dock {
       const list = ['dragon', 'herald', 'baron'].filter((k) => !(k === 'herald' && g.time > g.T.heraldDespawn) && !(k === 'baron' && g.time < g.T.heraldDespawn - 90 && !g.objectives.baron));
       // Living World: the Yokai Parade while it roams (or wakes soon); Bosses & Beasts: the Elder Kami from 10:00
       if (g.living && g.objAvailable('yokai')) list.push('yokai');
-      if (g.beasts && (g.objectives.boss || g.time >= BEASTS.elderAt - 120)) list.push('boss');
-      if (g.beasts && !g.objectives.dragon && !g.objTimers.dragon) list.splice(list.indexOf('dragon'), 1); // both base Kami are taken
+      if ((g.beasts && g.beasts.full) && (g.objectives.boss || g.time >= BEASTS.elderAt - 120)) list.push('boss');
+      if ((g.beasts && g.beasts.full) && !g.objectives.dragon && !g.objTimers.dragon) list.splice(list.indexOf('dragon'), 1); // both base Kami are taken
       return { title: 'Take which objective?', els: [h('div', { class: 'tiles' }, ...list.map(obj),
         !g.camps.length ? null : this.tile({ ico: 'Camouflage', title: 'Invade', sub: 'Steal a camp', state: () => ({ off: !this.afford('invade') }), onclick: () => this.send({ type: 'invade' }), cost: 'invade' }))] };
     }
@@ -423,7 +423,7 @@ export class Dock {
         opts.push({ ico: 'OrbFire', label: 'Take it', type: 'objective', cmd: { type: 'objective', obj: kk }, off: !g.objAvailable(kk), sub: this.objStatus(kk) });
       }
       if (g.living) for (const k of ['boss', 'yokai']) {
-        const o = g.objectives[k], at = o && o.alive ? o : k === 'boss' && g.beasts && g.time >= BEASTS.elderAt - 120 ? g.objPit(k) : null;
+        const o = g.objectives[k], at = o && o.alive ? o : k === 'boss' && (g.beasts && g.beasts.full) && g.time >= BEASTS.elderAt - 120 ? g.objPit(k) : null;
         if (!at || d2(at, w) > 220 * 220 || (k === 'yokai' && !r.visible(o))) continue;
         title = objLabel(g, k);
         opts.push({ ico: 'OrbFire', label: 'Take it', type: 'objective', cmd: { type: 'objective', obj: k }, off: !g.objAvailable(k), sub: this.objStatus(k) });
