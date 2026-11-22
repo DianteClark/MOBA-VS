@@ -44,18 +44,19 @@ export function showCoopLobby(app) {
       const seat = room.own[me.team][r] === 1 ? 1 : 0;
       return h('button', { class: 'crole', style: { '--sc': COOP_COL[seat] }, disabled: !myTeamFull, onclick: () => act({ t: 'own', team: me.team, role: r }) }, h('i', {}, SEAT[seat]), ROLE_LABEL[r]);
     }))) : null;
-  if (host && !s.inviteEl && room.status && !room.status.startsWith('Opening') && !room.status.startsWith('Could')) s.inviteEl = lobbyInvite(app, room.code, { invite: room.invite, mode: 'coop' });
+  if (host && !room.auto && !s.inviteEl && room.status && !room.status.startsWith('Opening') && !room.status.startsWith('Could')) s.inviteEl = lobbyInvite(app, room.code, { invite: room.invite, mode: 'coop' });
   const full = room.players.length >= maxPlayers(room.kind), ready = canStart(room);
-  const hint = room.kind === '2v2' ? (ready ? 'Ready: a side with one coach runs all five heroes.' : 'Waiting for a coach on each side…')
+  const hint = room.auto ? (room.kind === '2v2' ? `Coaches in: ${room.players.length}/4. The match starts when everyone is here.` : 'Starting as soon as your partner is in…')
+    : room.kind === '2v2' ? (ready ? 'Ready: a side with one coach runs all five heroes.' : 'Waiting for a coach on each side…')
     : ready ? 'Both coaches are in!' : 'Waiting for your partner…';
   mount(screen(), h('div', { class: 'coop panel', 'data-view': 'coop' },
     h('div', { class: 'cleft' },
       h('h2', {}, 'Co-op room'),
       h('div', { class: 'code' }, room.code),
-      host ? h('div', { class: 'seg3 ckind', role: 'radiogroup', 'aria-label': 'Co-op mode' }, ...[['ai', '2 vs AI'], ['2v2', '2v2 online']].map(([k, l]) =>
+      host && !room.auto ? h('div', { class: 'seg3 ckind', role: 'radiogroup', 'aria-label': 'Co-op mode' }, ...[['ai', '2 vs AI'], ['2v2', '2v2 online']].map(([k, l]) =>
         h('button', { class: 'chip' + (room.kind === k ? ' on' : ''), role: 'radio', 'aria-checked': String(room.kind === k), onclick: () => act({ t: 'kind', kind: k }) }, l)))
         : h('div', { class: 'muted' }, room.kind === '2v2' ? '2v2: two coaches a side' : `Two coaches vs ${DIFF[room.aiLevel]} AI`),
-      host && room.kind === 'ai' ? h('div', { class: 'seg3', role: 'radiogroup', 'aria-label': 'AI difficulty' }, ...DIFF.map((l, i) =>
+      host && !room.auto && room.kind === 'ai' ? h('div', { class: 'seg3', role: 'radiogroup', 'aria-label': 'AI difficulty' }, ...DIFF.map((l, i) =>
         h('button', { class: 'chip' + (room.aiLevel === i ? ' on' : ''), role: 'radio', 'aria-checked': String(room.aiLevel === i), onclick: () => act({ t: 'ai', level: i }) }, l))) : null,
       h('div', { class: 'status muted' }, host ? room.status : 'Connected to the room.'),
       host ? s.inviteEl || null : null),
@@ -65,8 +66,8 @@ export function showCoopLobby(app) {
       h('small', { class: 'muted chint' }, full && !ready ? 'Room full.' : hint),
       h('div', { class: 'cbtns' },
         h('button', { class: 'btn', onclick: () => app.menu() }, 'Leave'),
-        host ? h('button', { class: 'btn big' + (ready ? ' hot' : ''), disabled: !ready, onclick: () => { audio.sfx('accept', 0.6); startRoom(app); } }, 'Start')
-          : h('span', { class: 'muted' }, 'The host starts the match')))));
+        host && !room.auto ? h('button', { class: 'btn big' + (ready ? ' hot' : ''), disabled: !ready, onclick: () => { audio.sfx('accept', 0.6); startRoom(app); } }, 'Start')
+          : h('span', { class: 'muted' }, room.auto ? 'Starting automatically' : 'The host starts the match')))));
 }
 
 // Results: credit every coach of your team (roles, calls made, calls that paid off) and offer
