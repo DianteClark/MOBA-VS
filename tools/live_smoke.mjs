@@ -11,7 +11,7 @@ for (const [name, type, dev] of [['webkit-iphone', webkit, devices['iPhone 15 Pr
   pg.on('pageerror', (e) => errs.push('PAGEERR ' + (e.stack || e.message)));
   pg.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') errs.push(m.type().toUpperCase() + ' ' + m.text()); });
   pg.on('requestfailed', (r) => errs.push('REQFAIL ' + r.url() + ' ' + (r.failure() && r.failure().errorText)));
-  pg.on('response', (r) => { if (r.status() >= 400) errs.push('HTTP ' + r.status() + ' ' + r.url()); });
+  pg.on('response', async (r) => { if (r.status() >= 400) { let t = ''; try { t = (await r.text()).slice(0, 300); } catch { /* none */ } errs.push('HTTP ' + r.status() + ' ' + r.request().method() + ' ' + r.url() + ' ' + t); } });
   for (let i = 0; i < 2; i++) {
     try { await pg.goto(URL, { timeout: 45000 }); } catch (e) { errs.push('GOTO ' + e.message); }
     await pg.waitForTimeout(15000);
