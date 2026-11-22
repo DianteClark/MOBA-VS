@@ -49,10 +49,10 @@ export function pruneStmts(db, env, now) {
 }
 
 export const tokenOk = async (req, env, sha) => {
-  const tok = env && env.MOBAVS_ADMIN;
-  if (!tok || String(tok).length < 16) return false;
-  const m = (req.headers.get('authorization') || '').match(/^Bearer (\S{16,200})$/);
-  return !!m && (await sha(m[1])) === (await sha(String(tok)));
+  const tok = String((env && env.MOBAVS_ADMIN) || '').trim(); // pasted secrets often carry a stray space/newline
+  if (tok.length < 16) return false;
+  const m = (req.headers.get('authorization') || '').trim().match(/^Bearer\s+(\S{16,200})$/);
+  return !!m && (await sha(m[1])) === (await sha(tok));
 };
 
 // Roll back a flagged match: ranked rating change (exact applied deltas, win/loss counts) or cup result.

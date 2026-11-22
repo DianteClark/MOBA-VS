@@ -13,6 +13,9 @@
 //            from the owner's base). Pits and camps must stay out of tower range: tools/maps.mjs checks it.
 //   brush    tall-grass blobs [x, y, r]; rocks: blocking boulders [x, y, r]; clear: extra open areas [x, y, r]
 //   theme    painter palette; weather: cycle used on this map
+//   Living World (cfg.living, src/sim/living.js): walls = breakable walls [x1, y1, x2, y2, 'wall' | 'thicket'] (a corridor
+//            through the forest, closed until it breaks; a thicket turns into tall grass), moon = the river spot of the
+//            night-only Moon Spirits, yokai = the Yokai Parade's waypoint in Blue's jungle (its loop: river, jungle, mirrors)
 //   Lane Rush maps live in rush.js (single lane, smaller base); they are looked up by id like any map.
 import { RUSH_MAPS } from './rush.js';
 export { RUSH_MAPS };
@@ -44,6 +47,7 @@ export const MAPS = [
     brush: [[430, 1240, 60], [850, 1700, 56], [1180, 1440, 54], [1500, 1880, 50], [340, 620, 58], [1640, 2150, 52], [980, 860, 58], [760, 420, 50], [1020, 1980, 46], [520, 1640, 44]],
     rocks: [[520, 1240, 34], [900, 1400, 30], [1180, 1880, 34], [740, 1060, 28], [1380, 1640, 28]],
     clear: [[1200, 1200, 150]],
+    walls: [[612, 1044, 756, 900, 'wall'], [1452, 1596, 1406, 1707, 'thicket']], moon: [514, 461], yokai: [1510, 1724],
   },
   {
     id: 'frost', name: 'Frostfang Pass', theme: 'winter', weather: ['snow', 'clear', 'blizzard', 'snow', 'clear', 'fog'],
@@ -70,6 +74,7 @@ export const MAPS = [
     brush: [[470, 1180, 56], [880, 1640, 54], [1300, 1720, 52], [1650, 2010, 50], [420, 600, 56], [1050, 980, 56], [620, 380, 46], [1040, 2080, 46]],
     rocks: [[600, 1240, 40], [820, 1460, 34], [1060, 1700, 36], [460, 1000, 30], [1500, 1800, 32], [880, 1200, 30]],
     clear: [[1200, 1200, 230], [1000, 1520, 90]], lake: 210,
+    walls: [[636, 780, 636, 924, 'wall'], [1260, 1764, 1404, 1620, 'thicket']], moon: [559, 547], yokai: [1398, 1604],
   },
   {
     id: 'ember', name: 'Ember Canyon', theme: 'autumn', weather: ['clear', 'wind', 'heat', 'clear', 'dust', 'wind'],
@@ -96,6 +101,7 @@ export const MAPS = [
     brush: [[400, 1180, 50], [760, 1420, 52], [1060, 1760, 50], [1460, 1720, 50], [360, 560, 50], [960, 900, 54], [1700, 2040, 46], [700, 1640, 44]],
     rocks: [[1080, 1380, 70], [540, 1160, 32], [1220, 1820, 32], [800, 1700, 28], [940, 1160, 30]],
     clear: [[1200, 1200, 140]],
+    walls: [[612, 828, 612, 900, 'wall'], [1404, 1812, 1548, 1668, 'thicket']], moon: [461, 529], yokai: [662, 1054],
   },
   {
     id: 'marsh', name: 'Moonlit Marsh', theme: 'marsh', weather: ['fog', 'clear', 'rain', 'fog', 'clear', 'rain'],
@@ -124,6 +130,7 @@ export const MAPS = [
     brush: [[400, 1300, 62], [820, 1580, 58], [1160, 1400, 56], [1520, 1900, 54], [380, 600, 58], [1700, 2140, 50], [960, 820, 60], [780, 380, 52], [1000, 2020, 50], [580, 1720, 50], [300, 860, 44], [1300, 1640, 44]],
     rocks: [[560, 1340, 32], [920, 1340, 28], [1160, 1900, 32], [780, 1120, 28], [1340, 1700, 26]],
     clear: [[1200, 1200, 170]],
+    walls: [[564, 1020, 708, 876, 'thicket'], [1452, 1620, 1452, 1740, 'wall']], moon: [798, 910], yokai: [802, 1012],
   },
   {
     id: 'oasis', name: 'Sunscar Oasis', theme: 'desert', weather: ['heat', 'clear', 'dust', 'heat', 'clear', 'dust'],
@@ -148,6 +155,7 @@ export const MAPS = [
     brush: [[400, 1700, 62], [380, 1250, 58], [760, 860, 58], [1060, 1620, 56], [1640, 1880, 58], [1240, 2010, 52], [880, 1320, 50], [300, 640, 44]],
     rocks: [[760, 1400, 34], [600, 1300, 26], [1180, 1660, 34], [960, 1940, 30], [400, 1000, 26]],
     clear: [[1200, 1200, 150], [470, 470, 220], [540, 684, 26], [156, 1764, 26], [1452, 1644, 26], [1476, 1596, 26], [1716, 1860, 26], [636, 2244, 26]], // + single-cell pockets
+    walls: [[660, 1092, 828, 924, 'wall'], [1380, 1812, 1476, 1908, 'thicket']], moon: [843, 927], yokai: [1482, 1690],
   },
   {
     id: 'ruins', name: 'Mossgate Ruins', theme: 'ruins', weather: ['clear', 'rain', 'fog', 'clear', 'wind', 'rain'],
@@ -176,6 +184,7 @@ export const MAPS = [
     brush: [[470, 1100, 48], [520, 1500, 46], [980, 1240, 44], [1300, 1900, 46], [1700, 1900, 44], [430, 700, 46], [800, 1980, 40], [1000, 1660, 44]],
     rocks: [[1060, 1210, 24], [1210, 1060, 24], [760, 1300, 30], [900, 1600, 28], [1340, 1660, 26], [1060, 1980, 30], [360, 1400, 26]],
     clear: [[1200, 1200, 250], [468, 900, 26], [540, 900, 26], [900, 1020, 26], [948, 1068, 26], [1092, 1428, 26], [588, 900, 38], [924, 1044, 26]], // + single-cell pockets
+    walls: [[708, 1212, 756, 1164, 'wall'], [1380, 1740, 1428, 1692, 'wall']], moon: [320, 320], yokai: [640, 856],
   },
 ];
 export const MAP_BY_ID = Object.fromEntries([...MAPS, ...RUSH_MAPS].map((m) => [m.id, m]));
