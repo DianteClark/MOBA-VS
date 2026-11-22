@@ -13,7 +13,7 @@ export const TIPS = [
     when: (g) => g.time > 3 },
   { id: 'ring', sel: '#mm', title: 'Tap the map', text: 'Tap the battlefield for a ring of calls that fit that spot. Tap the minimap to jump the camera.',
     when: (g, t) => g.time > 22 && t.gap(10) },
-  { id: 'stance', sel: '#cmdbar .ultbtn', title: 'Ults stance', text: 'Auto: heroes choose. Hold: save ultimates. ALL-IN: fire them in the next fight. Free to switch.',
+  { id: 'stance', sel: '#cmdbar .ultbtn', title: 'Ults stance', text: 'Auto: heroes choose. One tap: ALL-IN, ultimates fire in the next fight. Tap again: Hold them. Free.',
     when: (g, t, my) => t.gap(20) && (g.teams[my].heroes.some((x) => x.level >= 5) || g.time > 150) },
   { id: 'moments', sel: '#cmdbar .momentbtn', title: 'Coach Moments', text: 'Three once-per-match plays: Timeout, Rally and All-Out Push. Save them for a swing.',
     when: (g, t, my) => t.gap(20) && MOMENT_IDS.some((k) => momentReady(g, my, k)) },
