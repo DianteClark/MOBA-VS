@@ -6,7 +6,7 @@ import { loopbackPair, Hub } from '../src/net/peer.js';
 import { DEFAULT_OWN } from '../src/sim/coop.js';
 import { itemOptions } from '../src/sim/talents.js';
 const pick = (ids) => ids.map((id) => { const h = HEROES.find((x) => x.id === id); return { id, role: h.role, build: h.rec }; });
-const cfg = (mode) => ({ seed: 4242, coach: [false, false], ...(mode === 'rush' ? { mode: 'rush', map: 'rush_sakura' } : mode === 'event' ? { map: 'oasis', event: 'shrine' } : mode === 'depth' ? { depth: true } : mode === 'living' ? { map: 'ruins', living: 1, beasts: 1, depth: true } : {}), teams: [
+const cfg = (mode) => ({ seed: 4242, coach: [false, false], ...(mode === 'rush' ? { mode: 'rush', map: 'rush_sakura' } : mode === 'event' ? { map: 'oasis', event: 'shrine' } : mode === 'depth' ? { depth: true } : mode === 'living' ? { map: 'ruins', living: 1, beasts: 1, depth: true } : mode === 'tide' || mode === 'sky' ? { map: mode, living: 1, beasts: 1, depth: true } : {}), teams: [
   { heroes: pick(['bastion', 'kaze', 'ember', 'fletch', 'oak']), plan: 'protect' },
   { heroes: pick(['kenshi', 'leonin', 'raiden', 'marlowe', 'wu']), plan: 'split' } ] });
 async function run(mode) {
@@ -22,9 +22,9 @@ async function run(mode) {
     g.step = (cmds) => { step(cmds); m.set(g.tick, `${g.checksum()}|${g.teams.map((t) => t.kills)}|${g.callLog.length}`); };
   }
   let desync = 0; ra.onDesync = rb.onDesync = (k) => { desync++; console.log('DESYNC at', k); };
-  const TARGET = 20 * 60 * (mode === 'rush' ? 4 : mode === 'living' ? 6.6 : 6); // minutes of game time (Living World: past nightfall)
+  const TARGET = 20 * 60 * (mode === 'rush' ? 4 : mode === 'living' || mode === 'tide' ? 6.6 : 6); // (tide: past the first high tide) // minutes of game time (Living World: past nightfall)
   const calls = [{ type: 'gank', lane: mode === 'rush' ? 'mid' : 'top' }, { type: 'objective', obj: 'dragon' }, { type: 'group', lane: 'mid' }, { type: 'moment', id: 'rally' }, { type: 'safe' }, { type: 'moment', id: 'push' }, { type: 'reset' }, { type: 'moment', id: 'timeout' },
-    ...(mode === 'living' ? [{ type: 'objective', obj: 'yokai' }, { type: 'invade', camp: '1:moon' }, { type: 'scout', x: 1200, y: 1500 }, { type: 'scout', x: 700, y: 700 }] : [])];
+    ...(mode === 'living' || mode === 'tide' || mode === 'sky' ? [{ type: 'objective', obj: 'yokai' }, { type: 'invade', camp: '1:moon' }, { type: 'scout', x: 1200, y: 1500 }, { type: 'scout', x: 700, y: 700 }] : [])];
   let i = 0;
   const t0 = Date.now();
   await new Promise((res) => {
@@ -143,5 +143,6 @@ const okCoop = coopAi.ok && room.ok && rules.every((x) => x[1]) && rules2.every(
 const okC = process.env.COOP_ONLY ? true : await run('classic'), okR = process.env.COOP_ONLY ? true : await run('rush'), okE = process.env.COOP_ONLY ? true : await run('event');
 const okD = process.env.COOP_ONLY ? true : await run('depth'); // v23 match depth: talent and item commands from both peers
 const okL = process.env.COOP_ONLY ? true : await run('living');
-console.log(okC && okR && okE && okD && okL && okCoop ? 'LOCKSTEP IN SYNC ✔' : 'LOCKSTEP DESYNC ✘');
-process.exit(okC && okR && okE && okD && okL && okCoop ? 0 : 1);
+const okT = process.env.COOP_ONLY ? true : (await run('tide')) && (await run('sky')); // v25 maps: the tide, wind bridges, jump pads
+console.log(okC && okR && okE && okD && okL && okT && okCoop ? 'LOCKSTEP IN SYNC ✔' : 'LOCKSTEP DESYNC ✘');
+process.exit(okC && okR && okE && okD && okL && okT && okCoop ? 0 : 1);

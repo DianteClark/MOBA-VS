@@ -71,9 +71,9 @@ export class TerrainFx {
     if (k > 0.01) {
       // flats: water blobs (overlapping circles read as one sheet), a lighter rim, slow ripples
       ctx.save(); ctx.globalAlpha = 0.62 * k; ctx.fillStyle = '#3fa7c4';
-      ctx.beginPath(); this.each(this.sand, x0, y0, vw, vh, (x, y) => { ctx.moveTo(x + 18, y); ctx.arc(x, y, 18, 0, Math.PI * 2); }); ctx.fill();
+      ctx.beginPath(); this.each(this.sand, x0, y0, vw, vh, (x, y) => { ctx.moveTo(x + 15, y); ctx.arc(x, y, 15, 0, Math.PI * 2); }); ctx.fill();
       ctx.globalAlpha = 0.22 * k; ctx.fillStyle = '#1d5f8c';
-      ctx.beginPath(); this.each(this.chan, x0, y0, vw, vh, (x, y) => { ctx.moveTo(x + 15, y); ctx.arc(x, y, 15, 0, Math.PI * 2); }); ctx.fill();
+      ctx.beginPath(); this.each(this.chan, x0, y0, vw, vh, (x, y) => { ctx.moveTo(x + 14, y); ctx.arc(x, y, 14, 0, Math.PI * 2); }); ctx.fill();
       if (mo) { ctx.globalAlpha = 0.35 * k; ctx.fillStyle = '#d6f6fb'; this.each(this.sand, x0, y0, vw, vh, (x, y) => { const v = Math.sin(t * 1.7 + x * 0.05 + y * 0.03); if (v > 0.8) ctx.fillRect(Math.round(x - 5), Math.round(y + (v - 0.9) * 20), 10, 2); }); }
       ctx.restore();
     }
@@ -84,7 +84,12 @@ export class TerrainFx {
       if (G.kind === 'bar') {
         // the sandbar goes under: deep water over it as the tide comes in
         const wk = 1 - lv;
-        if (wk > 0.01) { ctx.save(); ctx.globalAlpha = Math.min(0.92, wk * 1.05); ctx.fillStyle = '#226a99'; ctx.beginPath(); for (let i = 0; i < G.cells.length; i += 2) { ctx.moveTo(G.cells[i] + 17, G.cells[i + 1]); ctx.arc(G.cells[i], G.cells[i + 1], 17, 0, Math.PI * 2); } ctx.fill(); ctx.restore(); }
+        if (wk > 0.01) {
+          ctx.save(); ctx.globalAlpha = Math.min(0.92, wk * 1.05);
+          ctx.fillStyle = '#c4f3f7'; ctx.beginPath(); for (let i = 0; i < G.cells.length; i += 2) { ctx.moveTo(G.cells[i] + 17, G.cells[i + 1]); ctx.arc(G.cells[i], G.cells[i + 1], 17, 0, Math.PI * 2); } ctx.fill(); // foam rim
+          ctx.fillStyle = '#226a99'; ctx.beginPath(); for (let i = 0; i < G.cells.length; i += 2) { ctx.moveTo(G.cells[i] + 14, G.cells[i + 1]); ctx.arc(G.cells[i], G.cells[i + 1], 14, 0, Math.PI * 2); } ctx.fill();
+          ctx.restore();
+        }
       } else this.drawRaft(ctx, G, lv, t);
       this.poles(ctx, G, G.kind === 'bar' ? lv : lv, t);
     }
