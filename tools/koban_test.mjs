@@ -91,7 +91,7 @@ r = await api('/api/koban/buy', { method: 'POST', who: A, body: { hero: STARTERS
 r = await api('/api/koban/buy', { method: 'POST', who: A, body: { hero: gen } });
 assert.equal(r.status, 200, JSON.stringify(r.data)); assert.equal(r.data.state.bal, balA - priceOf(gen)); assert.ok(r.data.state.own.includes(gen));
 r = await api('/api/koban/buy', { method: 'POST', who: A, body: { hero: gen } }); assert.equal(r.status, 400, 'no double buy');
-r = await api('/api/koban/buy', { method: 'POST', who: A, body: { hero: leg } }); assert.equal(r.status, 400, 'Legend costs 6,000');
+r = await api('/api/koban/buy', { method: 'POST', who: C, body: { hero: leg } }); assert.equal(r.status, 400, 'Legend costs 6,000');
 // two purchases racing: only what the balance covers goes through
 { const row = env.DB.raw.prepare('SELECT st FROM koban WHERE player = ?').get(A.id), st = JSON.parse(row.st); st.bal = 3200; env.DB.raw.prepare('UPDATE koban SET st = ? WHERE player = ?').run(JSON.stringify(st), A.id); }
 const cheap = ALL_IDS.filter((id) => tierOf(id) === 'G' && !STARTERS.includes(id) && id !== gen).slice(0, 4);
