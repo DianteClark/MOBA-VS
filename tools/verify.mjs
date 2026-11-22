@@ -181,7 +181,7 @@ async function main() {
     return;
   }
   const base = String(arg('api', process.env.MOBAVS_API || 'https://moba-vs.chesscomplex.workers.dev')).replace(/\/$/, '');
-  const token = process.env.MOBAVS_ADMIN;
+  const token = (process.env.MOBAVS_ADMIN || "").trim();
   if (!token) { console.error('MOBAVS_ADMIN is not set (the admin token, also set as a Worker secret).'); process.exit(2); }
   const workers = Math.max(1, Number(arg('workers', 2)) | 0), limit = Math.max(1, Math.min(50, Number(arg('limit', workers * 4)) | 0));
   const until = Date.now() + Number(arg('budget', 40)) * 60000, dry = !!arg('dry', false);
