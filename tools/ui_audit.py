@@ -48,15 +48,9 @@ VIEWS = parse(sys.argv[3]) if len(sys.argv) > 3 else presets('all')
 # name -> selector; '*' suffix = use the union of the element's visible children
 PANELS = [('myteam', '#myteam'), ('scorebar', '#scorebar'), ('objtimers', '#objtimers'), ('ticker', '#ticker'), ('enemyteam', '#enemyteam'),
           ('killfeed', '#killfeed*'), ('mm', '#mm'), ('ctrl', '#ctrl*'), ('detail', '#detail'), ('foestrip', '#foestrip'),
-<<<<<<< HEAD
           ('tray', '#cmdbar .tray'), ('sheet', '#cmdbar .sheet'), ('cancel', '#cmdbar .cancelpill'), 
           ('handrow', '#cmdbar .handrow'), ('calls', '#cmdbar .callrow'), ('banner', '#banner*'),
-          ('qchatbtn', '#qchatbtn'), ('qfeed', '#qfeed*'), ('ring', '#ring*'), ('theater', '#cmdbar .theaterbar')]
-=======
-          ('tray', '#cmdbar .tray'), ('sheet', '#cmdbar .sheet'), ('cancel', '#cmdbar .cancelpill'), ('meter', '#cmdbar .meter'),
-          ('hand', '#cmdbar .hand'), ('stance', '#cmdbar .ultbtn'), ('moments', '#cmdbar .momentbtn'), ('calls', '#cmdbar .callrow'), ('banner', '#banner*'),
           ('qchatbtn', '#qchatbtn'), ('qfeed', '#qfeed*'), ('ring', '#ring*'), ('theater', '#cmdbar .theaterbar'), ('irchip', '.irchip'), ('irpip', '.irpip')]
->>>>>>> world
 # overlays that may cover the HUD on purpose: they only have to fit the safe area
 OVERLAYS = [('menu', '#ctrl.open .seg:last-child'), ('qchat', '#qchat'), ('scoreboard', '#scoreboard .sbcard'), ('hpop', '#hpop'), ('modal', '.modal .mpanel'), ('halftime', '#halftime .ht-card'), ('follow', '#thfollow'), ('analysis', '#anasheet')]
 # pairs that are allowed to touch (one lives inside the other's column / is drawn over the map on purpose)
