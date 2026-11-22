@@ -40,7 +40,8 @@ export function rawRatings(x) {
   // Damage: burst (everything at once) + sustained damage per second.
   const p3 = p.kind === 'every3' ? scale(p.dmg, st) : 0, pBurn = p.kind === 'burnHits' ? scale(p.burn, st) : 0;
   const burst = abs.reduce((a, ab) => a + abDamage(ab, st), 0) + st.ad * 2 + p3;
-  const dps = st.ad * st.as * (1 + st.crit * 0.75) + st.as * (p3 / 3 + pBurn * 0.5) + abs.reduce((a, ab) => a + abDamage(ab, st) / cd(ab), 0);
+  const rep = p.kind === 'repeater' ? st.ad * st.as * p.pct / p.n : 0; // v24 Suzu: every nth bolt twice
+  const dps = st.ad * st.as * (1 + st.crit * 0.75) + st.as * (p3 / 3 + pBurn * 0.5) + rep + abs.reduce((a, ab) => a + abDamage(ab, st) / cd(ab), 0);
   const execute = p.kind === 'executer' ? 1 + p.pct * 0.5 : ['lone', 'cruel', 'firstStrike', 'longshot'].includes(p.kind) ? 1 + p.pct * 0.5
     : p.kind === 'shredHits' ? 1 + p.cap * 0.4 : p.kind === 'frenzy' ? 1 + p.pct * p.max * 0.4 : p.kind === 'stackOnKill' ? 1.06 : 1;
   // Toughness: effective HP plus self shields, damage reduction and defensive buffs.
@@ -54,6 +55,7 @@ export function rawRatings(x) {
   for (const ab of abs) if (ab.parry) selfShield += st.ad * 2.5;
   const dr = p.kind === 'dr' ? p.pct : p.kind === 'aura' && p.stats.drPct ? p.stats.drPct : p.kind === 'tenacity' ? p.pct * 0.15 : 0;
   const lowRegen = p.kind === 'lowhpRegen' ? p.pct * st.maxHp * 4 : 0;
+  if (p.kind === 'hearthGuard') resBuff += p.per * 2 * 2.5; // v24: Hearthfire embers (about 2.5 lit on average)
   const toughness = (st.maxHp * (1 + (st.armor + st.mr + resBuff) / 200) + selfShield + lowRegen) / (1 - dr);
   // Control: crowd-control seconds, weighted by how often they come up and whether they hit an area.
   let control = 0, hooks = 0;
@@ -73,6 +75,8 @@ export function rawRatings(x) {
   }
   if (p.kind === 'msOutOfCombat') mobility += p.pct * 20;
   if (p.kind === 'onTakedown') mobility += p.ms * 6;
+  if (p.kind === 'emberChase') mobility += p.ms * 2.5 * 20;
+  if (p.kind === 'kiteWind') mobility += p.ms * p.max * 12;
   // Range: basic-attack reach (most important) plus how far the damaging/cc spells reach.
   const reach = abs.filter((ab) => ab.dmg || ab.cc).map((ab) => (ab.kind === 'nova' ? ab.radius || 120 : ab.kind === 'dash' ? (ab.range || 200) * 0.6 : ab.range || 150) * (ab.ult ? 0.6 : 1));
   const rangeBuff = abs.reduce((a, ab) => a + (ab.buff && ab.buff.stats.range ? ab.buff.stats.range * 0.5 : 0), 0);
@@ -82,7 +86,7 @@ export function rawRatings(x) {
   for (const ab of abs) if (ab.heal) heals += scale(ab.heal, st) / cd(ab) * (ab.kind === 'allynova' ? 1.5 : 1);
   const vamp = (p.kind === 'spellVamp' ? p.pct : 0) + abs.reduce((a, ab) => a + (ab.buff && ab.buff.stats.omnivamp ? ab.buff.stats.omnivamp * ab.buff.dur / ab.cd : 0), 0);
   const allyHeal = p.kind === 'healAllies' ? scale(p.heal, st) * st.as * 0.6 : p.kind === 'onTakedown' ? p.heal * st.maxHp / 30 : 0;
-  const sustain = heals + vamp * dps + allyHeal + st.regen + (p.kind === 'lowhpRegen' ? p.pct * st.maxHp * 0.25 : 0);
+  const sustain = (heals + vamp * dps + allyHeal + st.regen + (p.kind === 'lowhpRegen' ? p.pct * st.maxHp * 0.25 : 0)) * (p.kind === 'hearthBrew' ? 1 + p.per * 2.5 : 1);
   // Difficulty: how much the kit depends on timing, aim and target choice.
   const tags = new Set(x.tags);
   let diff = 2;

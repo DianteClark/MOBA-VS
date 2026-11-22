@@ -97,7 +97,8 @@ export class DraftView {
       onclick: () => { this.filter = r; this.scroll = 0; this.render(); } }, r === 'all' ? 'All' : ROLE_LABEL[r], h('small', {}, counts[r]))), clanChip(this.clan, (c) => { this.clan = c; this.scroll = 0; this.render(); }), this.searchEl);
     const banChips = myTurn && ban && recs.length ? h('div', { class: 'sugbans' }, h('span', { class: 'lab' }, 'Suggested bans'),
       ...recs.map((id) => h('button', { class: 'sugban' + (this.sel === id ? ' on' : ''), onclick: () => this.select(id) }, h('img', { src: face(id) }), HERO_BY_ID[id].name))) : null;
-    const list = POOL.filter((x) => (this.filter === 'all' || x.roles.includes(this.filter)) && (!this.clan || x.clan === this.clan));
+    const list = POOL.filter((x) => (this.filter === 'all' || x.roles.includes(this.filter)) && (!this.clan || x.clan === this.clan))
+      .sort((a, b) => this.filter === 'all' ? ROLES.indexOf(a.role) - ROLES.indexOf(b.role) : (a.role === this.filter ? 0 : 1) - (b.role === this.filter ? 0 : 1)); // main role first
     list.sort((a, b) => (tk.has(a.id) ? 1 : 0) - (tk.has(b.id) ? 1 : 0) || (recs.includes(b.id) ? 1 : 0) - (recs.includes(a.id) ? 1 : 0));
     const grid = h('div', { class: 'grid' }, ...list.map((x) => {
       const off = tk.has(x.id), bad = !off && myTurn && !ban && !this.legal(x.id);

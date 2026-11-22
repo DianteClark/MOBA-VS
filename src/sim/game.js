@@ -1748,6 +1748,7 @@ export class Game {
     h = hashInts(h, this.tick, this.units.length, this.projectiles.length, this.rng.state());
     for (const u of this.units) if (u.alive) h = hashInts(h, u.id, r2(u.x), r2(u.y), r2(u.hp));
     for (const t of this.teams) { h = hashInts(h, r2(t.momentum), t.surgeUntil, t.momentCd, t.allOut); for (const x of t.heroes) h = hashInts(h, r2(x.gold), x.level, x.items.length); }
+    if (this.hearth) for (const H of this.hearth) if (H) h = hashInts(h, H.embers, H.peak); // v24 Hearthfire
     return h >>> 0;
   }
 

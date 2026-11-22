@@ -74,6 +74,28 @@ function runDepth() {
   if (!prefsOk) console.log('depth: coach talent defaults were not applied');
   ok = ok && same && a.acc.startsWith('11') && prefsOk;
 }
+// v24 Hearth clan: Hearthfire embers (takedowns, objectives, Aki's floor, Kenta's double embers) on both teams,
+// with depth on, scripted calls for blue; the ember sequence and checksums must match.
+function runHearth() {
+  const c = { ...cfg('classic'), depth: true };
+  c.teams[0].heroes = pick(['daichi', 'kenta', 'taro', 'suzu', 'aki']);
+  c.teams[1].heroes = pick(['tobi', 'isamu', 'mame', 'momo', 'ume']);
+  const g = new Game(c); const sums = [];
+  while (!g.over && g.tick < 20 * 60 * 12) {
+    const s = script[g.tick]; const cmds = [];
+    if (s) { const q = { ...s, team: 0, seq: 1 }; if (s.targetIdx !== undefined) q.target = g.teams[1].heroes[s.targetIdx].id; if (s.heroIdx !== undefined) q.hero = g.teams[0].heroes[s.heroIdx].id; cmds.push(q); }
+    g.step(cmds); g.fx.length = 0;
+    if (g.tick % 200 === 0) sums.push(g.checksum());
+  }
+  return { sums, winner: g.winner, tick: g.tick, embers: g.events.filter((e) => e.type === 'hearth').map((e) => e.team + ':' + e.embers).join(' ') };
+}
+{
+  const a = runHearth(), b = runHearth();
+  const same = a.sums.length === b.sums.length && a.sums.every((v, i) => v === b.sums[i]) && a.embers === b.embers;
+  console.log(`hearth run A: ${a.sums.length} checkpoints, winner ${a.winner} @${(a.tick / 1200).toFixed(1)}m, embers ${a.embers.split(' ').length} changes (${a.embers.slice(0, 60)}...)`);
+  console.log(`hearth run B: ${b.sums.length} checkpoints, winner ${b.winner}, ${same ? 'same' : 'DIFFERENT'}`);
+  ok = ok && same && a.embers.length > 0;
+}
 // Co-op: two coaches on blue (seat-stamped commands, ownership checks, a lead pass, then the partner leaving)
 // and two on red (red's coaches both leave: the AI coach takes over).
 const coopCfg = () => ({ ...cfg('classic'), coach: [false, false], coop: [{ seats: 2, own: { top: 0, jungle: 0, mid: 0, bot: 1, support: 1 }, lead: 0 }, { seats: 2, own: { top: 1, jungle: 1, mid: 0, bot: 0, support: 0 }, lead: 1 }] });

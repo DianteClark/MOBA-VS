@@ -50,7 +50,7 @@ function record(id) { const r = profile.d.heroStats[id]; return r && r.g ? r : n
 function heroList(app) {
   const lineup = profile.activePreset;
   const list = HEROES.filter((x) => (state.role === 'all' || x.roles.includes(state.role)) && (state.clan === 'all' || x.clan === state.clan))
-    .sort((a, b) => (state.role === 'all' ? 0 : (a.role === state.role ? 0 : 1) - (b.role === state.role ? 0 : 1)));
+    .sort((a, b) => (state.role === 'all' ? ROLES.indexOf(a.role) - ROLES.indexOf(b.role) : (a.role === state.role ? 0 : 1) - (b.role === state.role ? 0 : 1)));
   const grid = h('div', { class: 'dgrid' }, ...list.map((x) => {
     const r = record(x.id), mine = presetRole(lineup, x.id);
     return h('button', { class: 'dcard', 'data-hero': x.id, style: { '--cc': CLANS[x.clan].color }, onclick: () => { tap(); showDojo(app, { hero: x.id }); } },
