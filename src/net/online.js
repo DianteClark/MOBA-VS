@@ -90,3 +90,6 @@ export async function cupJoin(version) { return call('/api/cup/join', { method: 
 export async function cupLeave() { try { await call('/api/cup/leave', { method: 'POST', auth: true, body: {} }); } catch { /* best effort */ } }
 export async function cupReady(cup) { return call('/api/cup/ready', { method: 'POST', auth: true, body: { cup } }); }
 export async function cupHistory() { return call('/api/cup/history', { auth: true }); }
+// Pro League predictions (worker/pro.js): the week's board, and locking in one matchday's picks (one write).
+export async function proBoard(week) { return call(`/api/pro?w=${week | 0}`, { auth: !!account }); }
+export async function proSend(week, day, picks) { return call('/api/pro/picks', { method: 'POST', auth: true, body: { w: week, day, picks } }); }
