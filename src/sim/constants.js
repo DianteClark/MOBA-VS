@@ -73,6 +73,8 @@ export const CLANS = {
   spirit: { name: 'Spirit', color: '#c7a7ff', icon: 'OrbLight', tiers: [{ n: 2, stats: { healPower: 0.1 }, text: '+10% heal & shield power' }, { n: 3, stats: { healPower: 0.1, haste: 12 }, text: '+12 ability haste' }] },
   iron: { name: 'Iron', color: '#c8c8d8', icon: 'DefenseUpgrade', tiers: [{ n: 2, stats: { armor: 8, mr: 8 }, text: '+8 armor & MR' }, { n: 3, stats: { armor: 8, mr: 8, siegePct: 0.15 }, text: '+15% damage to towers' }] },
   wild: { name: 'Wild', color: '#8be08b', icon: 'BookWind', tiers: [{ n: 2, stats: { dmgPct: 0.04 }, text: '+4% damage' }, { n: 3, stats: { dmgPct: 0.06, msPct: 0.04 }, text: '+6% damage, +4% speed' }] },
+  // v24: the Hearth clan's real power is Hearthfire (src/sim/hearth.js); its tiers stay small
+  hearth: { name: 'Hearth', color: '#ffcf5a', icon: 'OrbFire', tiers: [{ n: 2, stats: { hp: 50 }, text: '+50 HP' }, { n: 3, stats: { hp: 50, healPower: 0.06 }, text: '+50 HP, +6% heal & shield power' }] },
 };
 
 // Weather: each map cycles through its list, one phase every T.weatherPhase seconds.

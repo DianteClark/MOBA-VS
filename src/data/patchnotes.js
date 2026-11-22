@@ -1,6 +1,20 @@
 // Patch notes, newest first. tools/season.mjs prepends an entry at each season rollover.
 export const PATCHES = [
   {
+    version: '24.0', season: 1, date: '2026-11-22', title: 'The Hearth',
+    highlights: ['80 heroes', 'The Hearth clan', 'Hero lore', 'Map music'],
+    notes: [
+      '20 new heroes: 80 in total, 16 per role.',
+      'New clan, the Hearth: ten villagers who share Hearthfire. Takedowns stoke embers that boost Hearth damage and healing; at 5 embers a Bonfire speeds them up.',
+      'Ten more heroes join the Beast, Iron, Shinobi, Spirit and Wild clans.',
+      'Lore: every hero page has a story, comic panels and a map of their duos, rivals and clan-mates.',
+      'The draft groups heroes by role and adds a clan filter.',
+      'Every classic map has its own laning and fight music, and winning plays your clan\'s victory theme.',
+      '6 new duos and 10 new rivalries.',
+    ],
+    heroes: [],
+  },
+  {
     version: '23.8', season: 1, date: '2026-11-22', title: 'Balance',
     notes: [
       'Hero balance with talents: the strongest heroes (Bastion, Karasu, Wren, Fang) were toned down; Gama, Brawlo, Sora, Hachi, Umbra and Tetsu were buffed.',

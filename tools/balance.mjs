@@ -8,6 +8,9 @@
 //   --depth     play with match depth on (cfg.depth: talents, item overrides, ult upgrades, revenge, duo ults)
 //               and report per-talent win rates. With --randtal each hero takes random talents (so every
 //               option is measured evenly); without it the heroes' own AI picks are used.
+//   --focus ids comma list of hero ids (or 'v24' for the 20 v24 heroes): one team per game (alternating sides)
+//               draws each role from the focus heroes with probability --fp (default 0.5), so new heroes get
+//               many more games per CPU minute (their opponents still come from the full roster)
 //   --nudge K   also move each hero's TUNE multiplier toward 50% (delta = (0.5 - shrunk win rate) * K,
 //               max ±6% per pass, clamp 0.8-1.2) and rewrite src/data/tuning.js (same format as tune.mjs)
 // Each game draws heroes from shuffled per-role decks so every hero gets the same number of games.
@@ -56,7 +59,7 @@ if (!isMainThread) {
   const args = process.argv.slice(2);
   const flag = (k) => args.includes('--' + k);
   const opt = (k, d) => { const i = args.indexOf('--' + k); return i >= 0 ? args[i + 1] : d; };
-  const pos = args.filter((a, i) => !a.startsWith('--') && !['--seed', '--json', '--log', '--from', '--nudge'].includes(args[i - 1]));
+  const pos = args.filter((a, i) => !a.startsWith('--') && !['--seed', '--json', '--log', '--from', '--nudge', '--focus', '--fp', '--duos'].includes(args[i - 1]));
   const N = +(pos[0] || 60), NW = +(pos[1] || 2), seed0 = +opt('seed', 9000);
   const { HEROES, ROLES, HERO_BY_ID } = await import('../src/data/heroes.js');
   const { BUILDS } = await import('../src/data/items.js');
@@ -79,13 +82,29 @@ if (!isMainThread) {
   const draw = (r, used) => {
     for (let tries = 0; tries < 50; tries++) {
       if (!decks[r].length) { const d = HEROES.filter((h) => h.role === r).map((h) => h.id); for (let i = d.length - 1; i > 0; i--) { const j = rng.int(i + 1); [d[i], d[j]] = [d[j], d[i]]; } decks[r] = d; }
-      const id = decks[r].pop(); if (!used.has(id)) { used.add(id); return id; } decks[r].unshift(id);
+      // take the last unused id (a deck left holding only used ids is topped up with a fresh shuffle)
+      for (let k = decks[r].length - 1; k >= 0; k--) { const id = decks[r][k]; if (!used.has(id)) { decks[r].splice(k, 1); used.add(id); return id; } }
+      const d = HEROES.filter((h) => h.role === r).map((h) => h.id); for (let i = d.length - 1; i > 0; i--) { const j = rng.int(i + 1); [d[i], d[j]] = [d[j], d[i]]; } decks[r].unshift(...d);
     }
     throw new Error('deck');
   };
+  const V24 = ['daichi', 'tobi', 'kuma', 'mogura', 'kenta', 'isamu', 'hebi', 'upa', 'taro', 'mame', 'fukuro', 'hitotsume', 'suzu', 'momo', 'komori', 'tako', 'ume', 'aki', 'bao', 'kinoko'];
+  const focus = opt('focus', '') === 'v24' ? V24 : opt('focus', '').split(',').filter((id) => HERO_BY_ID[id]);
+  const fdecks = Object.fromEntries(ROLES.map((r) => [r, []])), fp = +opt('fp', 0.5);
+  const fdraw = (r, used) => {
+    const pool = focus.filter((id) => HERO_BY_ID[id].role === r); if (!pool.length || rng.next() >= fp) return draw(r, used);
+    for (let tries = 0; tries < 20; tries++) {
+      if (!fdecks[r].length) { const d = pool.slice(); for (let i = d.length - 1; i > 0; i--) { const j = rng.int(i + 1); [d[i], d[j]] = [d[j], d[i]]; } fdecks[r] = d; }
+      const id = fdecks[r].pop(); if (!used.has(id)) { used.add(id); return id; }
+    }
+    return draw(r, used);
+  };
   const jobs = [];
   for (let i = 0; i < N; i++) {
-    const used = new Set(), a = ROLES.map((r) => draw(r, used)), b = ROLES.map((r) => draw(r, used));
+    const used = new Set();
+    let a, b;
+    if (focus.length) { const f = ROLES.map((r) => fdraw(r, used)), o = ROLES.map((r) => draw(r, used)); [a, b] = i % 2 ? [o, f] : [f, o]; }
+    else { a = ROLES.map((r) => draw(r, used)); b = ROLES.map((r) => draw(r, used)); }
     const crossDuos = DUOS.filter((d) => HERO_BY_ID[d.a].role !== HERO_BY_ID[d.b].role);
     if (rng.next() < +opt('duos', 0.5)) {
       const d = crossDuos[rng.int(crossDuos.length)], [mine, other] = rng.next() < 0.5 ? [a, b] : [b, a];

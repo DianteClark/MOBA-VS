@@ -27,7 +27,7 @@ import { toast, h, setFaceSkins } from './ui/dom.js';
 import { myLooks, cleanLooks, cleanSkins, matchSkins, faceMap, matchBeasts, cleanBeasts } from './looks.js';
 import { achToasts, resultEmotes } from './ui/collection.js';
 import { audio } from './audio.js';
-import { matchAudio } from './audio-match.js';
+import { matchAudio, victoryTheme } from './audio-match.js';
 import { DEFAULT_DECK } from './data/tactics.js';
 import { fpsCap } from './ui/settings.js';
 import { showHalftime, hideHalftime } from './ui/halftime.js';
@@ -76,7 +76,7 @@ import { startRelay, stopRelay, stopWatching, liveTag } from './ui/spectate.js';
 import { Broadcast } from './ui/broadcast.js';
 import { publishChip } from './ui/hub.js';
 
-const VERSION = 33; // bump whenever the sim or balance changes (peers must match)
+const VERSION = 34; // bump whenever the sim or balance changes (peers must match)
 const PREP_SECONDS = 60;
 installCrashReporter(VERSION); // window errors, unhandled rejections and lockstep desyncs → the owner dashboard (src/net/ops.js)
 
@@ -783,7 +783,7 @@ class App {
     this.teardownMatch(m);
     this.fade(() => {
       this.showScreen(true);
-      audio.music(won ? 'victory' : 'defeat');
+      audio.music(won ? victoryTheme(m.game, this.session ? this.session.myTeam : 0) : 'defeat');
       const s = this.session;
       if (s.pnp) s.myTeam = -1; // pass-and-play results: "Blue wins" for both coaches
       const exhibition = !!(s.custom || s.pnp); // custom games: never rated, no progress

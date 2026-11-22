@@ -18,6 +18,7 @@ import { applyMoment } from './moments-coach.js';
 import { normPlan, planChangeOk, planEdge } from './plans.js';
 import { setupCoop, coopGate } from './coop.js';
 import { openCrystal } from './endgame.js';
+import * as HE from './hearth.js'; // v24 Hearth clan: Hearthfire embers
 import { customRules } from './custom.js'; // custom games (cfg.custom): double gold, fast respawns, no backdoor guard
 import * as D from './talents.js'; // v23 match depth (cfg.depth): talents, item override, ult upgrades, revenge, duo ults
 import { Living } from './living.js';
@@ -127,6 +128,7 @@ export class Game {
       this.clanStats[t] = st; this.teams[t].clans = active;
     }
     FX.setupSynergy(this); // team comp bonus joins the clan stats; duo links
+    HE.setupHearth(this);
     for (let t = 0; t < 2; t++) for (const h of this.teams[t].heroes) { this.recalc(h); h.hp = h.maxHp; }
     for (let t = 0; t < 2; t++) if (cfg.coach && cfg.coach[t]) this.coaches[t] = new Coach(this, t, cfg.coachLevel?.[t] ?? 1, cfg.coachStyle?.[t] || null);
   }
@@ -1323,6 +1325,7 @@ export class Game {
         h.silenceUntil = h.fearUntil = h.shredUntil = h.grievousUntil = 0; h.mark = null;
         this.buyItems(h);
         this.rejoinCall(h);
+        if (this.hearth) HE.hearthRespawn(this, h);
       }
       return;
     }
@@ -1734,6 +1737,7 @@ export class Game {
         const ev = { type: 'objective', obj: u.kind, element: u.element, team, killer: killer ? killer.id : 0, steal: smite, ...(u.rare ? { rare: true } : {}) };
         this.emit(ev); this.resolveCalls(ev);
         if (this.depth) D.depthObjective(this, team, u);
+        if (this.hearth) HE.hearthObjective(this, team, u);
         break;
       }
       case 'tower': case 'inhib': case 'nexus': {
@@ -1781,6 +1785,7 @@ export class Game {
     h = hashInts(h, this.tick, this.units.length, this.projectiles.length, this.rng.state());
     for (const u of this.units) if (u.alive) h = hashInts(h, u.id, r2(u.x), r2(u.y), r2(u.hp));
     for (const t of this.teams) { h = hashInts(h, r2(t.momentum), t.surgeUntil, t.momentCd, t.allOut); for (const x of t.heroes) h = hashInts(h, r2(x.gold), x.level, x.items.length); }
+    if (this.hearth) for (const H of this.hearth) if (H) h = hashInts(h, H.embers, H.peak); // v24 Hearthfire
     if (this.living) h = hashInts(h, this.living.mask, this.teams[0].moonUntil, 0);
     if (this.beasts) for (const t of this.teams) h = hashInts(h, t.kamiElder, t.elderPush, t.scoutCd, t.rareBaron);
     return h >>> 0;

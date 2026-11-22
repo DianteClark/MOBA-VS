@@ -340,6 +340,7 @@ h1, h2, h3 { margin: 0; font-weight: normal; }
 .clantags { display: flex; gap: 3px; flex-wrap: wrap; min-height: 12px; }
 #rightcol .clantags { justify-content: flex-end; }
 .clantags span { font-size: 8px; padding: 0 3px; border: 1px solid; background: #000a; }
+.clantags .hearthtag.on { background: #ffcf5a33; box-shadow: 0 0 6px #ffcf5a88; }
 .hrow { display: grid; grid-template-columns: 38px 1fr; gap: 5px; background: var(--panel); border: 2px solid var(--line); padding: 3px; cursor: pointer; position: relative; transition: border-color 0.15s; }
 .hrow:hover { border-color: #6a5a7a; }
 .hrow.sel { border-color: var(--gold); box-shadow: 0 0 6px rgba(255,216,74,0.4); }
