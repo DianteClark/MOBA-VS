@@ -612,7 +612,7 @@ export const HEROES = [
     tags: ['tank', 'siege', 'split'], builds: ['siege', 'tank', 'warden'],
     passive: { kind: 'siege', name: 'Undermine', pct: 0.25, desc: 'Deals 25% bonus damage to structures.' },
     abilities: [
-      { name: 'Burrow', icon: 'BookRock', kind: 'dash', range: 320, cd: 10, stealth: 1, dmg: { b: 55, l: 16, ad: 0.5, hp: 0.02 }, cc: { knock: 0.5 }, use: ['engage', 'escape'], fx: 'rock' },
+      { name: 'Burrow', icon: 'BookRock', kind: 'dash', range: 320, cd: 9, stealth: 1, dmg: { b: 60, l: 18, ad: 0.5, hp: 0.025 }, cc: { knock: 0.5 }, use: ['engage', 'escape'], fx: 'rock' },
       { name: 'Hard Hat', icon: 'DefenseUpgrade', kind: 'self', cd: 13, buff: { dur: 4, stats: { armor: 35, mr: 20, tenacity: 0.3 } }, use: ['defend', 'engage'], fx: 'shield' },
       { name: 'Cave-In', icon: 'RockSpike', kind: 'circle', range: 450, radius: 200, delay: 0.8, cd: 75, dmg: { b: 150, l: 45, hp: 0.05 }, cc: { root: 1.5 }, use: ['teamfight', 'engage'], fx: 'rockspike', ult: true },
     ] },
@@ -633,7 +633,7 @@ export const HEROES = [
     abilities: [
       { name: 'Bear Trap', icon: 'RockSpike', kind: 'circle', range: 400, radius: 80, delay: 0.4, cd: 11, dmg: { b: 55, l: 16, ad: 0.5 }, cc: { root: 1.25 }, use: ['engage', 'peel'], fx: 'cutx' },
       { name: 'Tracking Arrow', icon: 'Vision', kind: 'shot', range: 450, speed: 1000, width: 30, cd: 9, reveal: 4, dmg: { b: 60, l: 18, ad: 0.7 }, cc: { slow: [0.2, 1.5] }, use: ['poke', 'engage'], proj: 'p_arrow', fx: 'cut' },
-      { name: 'The Great Hunt', icon: 'Upgrade', kind: 'allynova', radius: 420, cd: 75, buff: { dur: 5, stats: { msPct: 0.25, dmgPct: 0.1 } }, enemyCc: { slow: [0.3, 2] }, use: ['teamfight', 'engage'], fx: 'boost', ult: true },
+      { name: 'The Great Hunt', icon: 'Upgrade', kind: 'allynova', radius: 420, cd: 65, buff: { dur: 5, stats: { msPct: 0.25, dmgPct: 0.1 } }, enemyCc: { slow: [0.3, 2] }, use: ['teamfight', 'engage'], fx: 'boost', ult: true },
     ] },
   { id: 'hebi', clan: 'shinobi', pers: 'cautious', name: 'Hebi', title: 'Venom Fang', role: 'jungle', flex: ['mid'], cls: 'assassin', dmgType: 'phys', curve: 'mid',
     lore: 'A serpent who sheds a skin for every name she has worn. The Shinobi send her when the target must not get up again.',
