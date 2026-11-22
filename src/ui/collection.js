@@ -267,14 +267,12 @@ export function achToasts(list, delay = 0) {
 function nextToast() {
   const a = queue.shift();
   if (!a) { busy = false; return; }
-  const el = h('div', { class: 'achtoast' + (reduced() ? ' still' : ''), role: 'status', 'aria-live': 'polite', onclick: () => done() },
+  const el = h('div', { class: 'achtoast' + (reduced() ? ' still' : ''), role: 'status', 'aria-live': 'polite' },
     h('img', { class: 'achi', src: achIcon(a), alt: '' }),
     h('div', { class: 'col' }, h('small', { class: 'kick' }, 'ACHIEVEMENT UNLOCKED'), h('b', {}, a.name), h('span', { class: 'achrwline' }, rewardIcon(a.reward), h('small', {}, rewardName(a.reward)))));
   document.body.append(el);
   audio.sfx('powerup', 0.45);
-  let gone = false;
-  const done = () => { if (gone) return; gone = true; el.classList.add('out'); setTimeout(() => { el.remove(); nextToast(); }, reduced() ? 0 : 260); };
-  setTimeout(done, 3200);
+  setTimeout(() => { el.classList.add('out'); setTimeout(() => { el.remove(); nextToast(); }, reduced() ? 0 : 260); }, 3200); // taps pass through it (css/taps.css)
 }
 
 // ───────────── results emotes ─────────────
