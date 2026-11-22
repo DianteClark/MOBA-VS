@@ -1104,6 +1104,16 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 20px; border-radius: 
   #myteam .hrow .pf { width: 31px; height: 31px; }
   #foestrip .foe { width: 27px !important; height: 27px !important; }
   .ht-score > div:not(.ht-clock) small, .ht-score span { display: none; }
+  /* halftime on the shortest Safari heights: clock on one line, one-line headings, slimmer tiles and button */
+  .ht-card { gap: 4px 12px; padding: 5px 10px; }
+  .ht-clock { flex-direction: row !important; align-items: baseline; justify-content: center; gap: 8px; }
+  .ht-score b { font-size: 18px !important; }
+  .ht-h { font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ht-sec { gap: 3px; }
+  .htplans .tile { min-height: 32px; padding: 2px 5px; }
+  .ht-row .tcard { min-height: 32px; }
+  .ht-builds { gap: 2px; } .ht-hero .chip { min-height: 24px; }
+  .ht-card > .btn.big { min-height: 32px; font-size: 14px; }
 }
 
 /* ═════════ v20: menu polish ═════════ */
