@@ -1,6 +1,18 @@
 // Patch notes, newest first. tools/season.mjs prepends an entry at each season rollover.
 export const PATCHES = [
   {
+    version: '23.3', season: 1, date: '2026-11-22', title: 'Living World',
+    notes: [
+      'Night falls from 6:00 to 9:00: shorter sight for heroes and minions, and Moon Spirit camps in the river that grant Moonsight.',
+      'The Yokai Parade wanders the jungle from 4:00. Kill its leader and it pushes for your team.',
+      'Breakable walls and thickets open new shortcuts. The Tengu lands at 12:00 to break stalemates.',
+      'Instant Replay: after a big fight, tap the Replay chip to watch the last 15 seconds in slow motion while the match goes on.',
+      'Cleaner matches: one message per event, one card per fight or objective, steady arrows, and fewer repeats (prompts per minute down about 40%).',
+      'Every greyed button tells you why, costs look the same everywhere, and common actions take one tap.',
+    ],
+    heroes: [],
+  },
+  {
     version: '23.2', season: 1, date: '2026-11-21', title: 'Full Screen',
     notes: [
       'Fixed: a black band at the bottom of the screen on iPhone. The match now always fills the whole screen, even after the Safari toolbar hides or you rotate.',

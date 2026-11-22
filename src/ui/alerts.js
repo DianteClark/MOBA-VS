@@ -11,6 +11,9 @@ import { laneOpenSend } from './feasible.js';
 
 const PANEL_IDS = ['banner', 'myteam', 'topcenter', 'rightcol', 'foestrip', 'brcol', 'cmdbar', 'detail', 'qfeed'];
 const SIZE = 46, EDGE = 8, DEF_IMG = 'assets/img/icons/DefenseUpgrade.png';
+// Attention budget (attention.js): at most MAX arrows at once; a fight's arrow stays LINGER ms after the blows stop
+// (and keeps its key while the fight drifts), so one fight is one prompt, not a flicker of new ones.
+const MAX = 3, LINGER = { bigfight: 2500, fight: 1600, obj: 3000 }, SAME_FIGHT = 900; // (other arrows: 1s)
 
 export class Alerts {
   constructor(hud) {
@@ -32,6 +35,7 @@ export class Alerts {
     // of the heroes in it). 3+ heroes = a big fight (fight cam prompt); smaller ones only matter when one of ours is in it.
     for (const f of fightClusters(g, my >= 0 ? (x) => r.visible(x) : null)) {
       const ours = f.heroes.filter((x) => my < 0 || x.team === my), lead = ours[0] || f.heroes[0];
+      if (f.n >= 3 && this.hud.att && this.hud.att.covers(f)) continue; // the fight's decision card is up: no second prompt
       if (f.n >= 3) {
         const pl = placeName(g.world, f, { my: my >= 0 ? view : -1, g });
         out.push({ key: 'big' + lead.id, kind: 'bigfight', x: f.x, y: f.y, ids: f.ids, img: face(lead.heroId), label: `FIGHT AT ${pl.short}`, sub: pl.detail ? `${pl.detail} · tap to watch` : 'tap to watch', team: lead.team });
@@ -47,6 +51,7 @@ export class Alerts {
       const o = g.objectives[k];
       if (!o || !o.alive || o.hp >= o.maxHp || !recent(o.lastHurt, 2.5)) continue;
       if (my >= 0 && !g.vision[view].has(o.id)) continue;
+      if (this.hud.att && this.hud.att.coversObj(k)) continue; // its decision card says it
       out.push({ key: 'obj' + k, kind: 'obj', x: o.x, y: o.y, img: bossFace(k, o.element), label: Math.round(o.hp / o.maxHp * 100) + '%' });
     }
     // a lane left open: an enemy wave is hitting our structure and nobody is there (sim: team.laneOpen).
@@ -63,10 +68,15 @@ export class Alerts {
     const rank = { bigfight: 0, laneopen: 1, fight: 2, tower: 3, obj: 4 };
     for (const a of out.slice()) if (a.kind === 'laneopen') { const i = out.findIndex((b) => b.kind === 'tower' && b.x === a.x); if (i >= 0) out.splice(i, 1); }
     out.sort((a, b) => rank[a.kind] - rank[b.kind]);
-    this.sync(out.slice(0, 5));
+    this.sync(out.slice(0, MAX));
   }
   sync(list) {
-    const keep = new Set();
+    const keep = new Set(), now = performance.now();
+    // the same fight under a new lead hero keeps its prompt
+    for (const a of list) {
+      if ((a.kind !== 'bigfight' && a.kind !== 'fight') || this.items.has(a.key)) continue;
+      for (const [k, it] of this.items) if (it.kind === a.kind && !list.some((b) => b.key === k) && (it.x - a.x) ** 2 + (it.y - a.y) ** 2 < SAME_FIGHT * SAME_FIGHT) { a.key = k; break; }
+    }
     for (const a of list) {
       keep.add(a.key);
       let it = this.items.get(a.key);
@@ -80,7 +90,7 @@ export class Alerts {
         it = { el, lab, img, sub, born: performance.now(), w: 0, hh: 0 };
         this.items.set(a.key, it);
       }
-      it.x = a.x; it.y = a.y; it.ids = a.ids; it.kind = a.kind; it.cmd = a.cmd; it.key = a.key; it.label = a.label; it.who = a.who;
+      it.seen = now; it.x = a.x; it.y = a.y; it.ids = a.ids; it.kind = a.kind; it.cmd = a.cmd; it.key = a.key; it.label = a.label; it.who = a.who;
       if (it.lab.textContent !== a.label) it.lab.textContent = a.label;
       if (a.kind === 'bigfight' && it.sub.textContent !== a.sub) { it.sub.textContent = a.sub; it.w = 0; } // the fight can move (re-measure)
       if (a.kind === 'laneopen') { // the send option comes and goes with charges / the hero's state
@@ -90,7 +100,12 @@ export class Alerts {
         if (!a.cmd) it.offered = false; // offer the tray card again once a send is possible
       }
     }
-    for (const [k, it] of this.items) if (!keep.has(k)) { it.el.remove(); this.items.delete(k); }
+    let room = MAX - keep.size; // lingering arrows only fill free slots, newest first
+    for (const [k, it] of [...this.items].sort((p, q) => q[1].seen - p[1].seen)) {
+      if (keep.has(k)) continue;
+      if (it.kind !== 'laneopen' && now - it.seen <= (LINGER[it.kind] || 1000) && room > 0) { room--; continue; }
+      it.el.remove(); this.items.delete(k);
+    }
   }
   go(it) {
     if (it.kind === 'laneopen' && it.cmd) this.hud.send(it.cmd);

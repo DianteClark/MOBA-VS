@@ -92,7 +92,7 @@ export function coachMoment(g, my, own) {
     if (near.length < 2) continue;
     // the ganker is whoever can really get there before the carry walks off (jungler first), or no gank option
     const lane = g.world.closestLane(e), gk = bestGanker(g, my, e, lane, WINDOW.caught, own), x = gk && gk.hero;
-    if ((m = finish(g, my, { key: 'caught' + e.id + Math.floor(now / (TICK_RATE * 40)), kind: 'caught', title: `${e.def.name} caught out`, text: `Their ${ROLE_L[e.role]} is alone ${where(g, e, my)}.`, at: e, still: sees(e),
+    if ((m = finish(g, my, { key: 'caught' + e.id + Math.floor(now / (TICK_RATE * 40)), kind: 'caught', topic: 'pick:' + e.id, title: `${e.def.name} caught out`, text: `Their ${ROLE_L[e.role]} is alone ${where(g, e, my)}.`, at: e, still: sees(e),
       opts: [x ? opt(`${x.def.name}: gank ${LANE_L[lane]}`, { type: 'gank', lane, hero: x.id }, `${Math.max(1, Math.round(gk.t))}s away`, () => seen(g, my, e) && !busy(g, x) && eta(g, x, e) <= WINDOW.caught) : null,
         opt(`Focus ${e.def.name}`, { type: 'focus', target: e.id }, null, sees(e)), opt('Leave it', null, 'no call')].filter(Boolean) }))) return m;
   }
