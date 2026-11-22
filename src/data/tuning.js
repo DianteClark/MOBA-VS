@@ -67,7 +67,7 @@ export const TUNE = {
   mogura: 1.02,
   kenta: 1.03,
   isamu: 1.08,
-  hebi: 1.16,
+  hebi: 1.2,
   upa: 0.93,
   taro: 0.95,
   mame: 0.98,
