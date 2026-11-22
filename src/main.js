@@ -50,6 +50,7 @@ import { installPressSounds, confetti } from './ui/juice.js';
 import { keepAwake } from './ui/awake.js';
 import { MatchRecorder, showAnalysis } from './ui/analytics.js';
 import { Theater } from './ui/theater.js';
+import { InstantReplay } from './ui/instant.js';
 import { loadLib, storeMatch } from './ui/replays.js';
 import { nextRival, rivalPlayed, rivalPref, rivalPrep, rivalStyle, rivalPanel } from './ui/rivals.js';
 import { RIVAL_BY_ID } from './data/rivals.js';
@@ -63,7 +64,7 @@ import { openAdminReplay } from './ui/adminreplay.js';
 import { frPrep, frRecord } from './franchise/play.js';
 import { showFranchise, franchiseResults } from './ui/franchise.js';
 
-const VERSION = 28; // bump whenever the sim or balance changes (peers must match)
+const VERSION = 29; // bump whenever the sim or balance changes (peers must match)
 const PREP_SECONDS = 60;
 installCrashReporter(VERSION); // window errors, unhandled rejections and lockstep desyncs → the owner dashboard (src/net/ops.js)
 
@@ -82,7 +83,7 @@ class App {
   // the map (Blood Moon) gets its own canvas, replacing that map's other one (one 2400px canvas per map at most).
   mapCanvas(world, event) {
     this.mapCache = this.mapCache || {};
-    const id = world.def.id, key = id + '|' + eventPaintKey(event);
+    const id = world.def.id, key = id + '|' + eventPaintKey(event) + (world.wallAt ? '|w' : ''); // Living World maps paint the ground under breakable walls
     if (!this.mapCache[key]) {
       for (const k of Object.keys(this.mapCache)) if (k.split('|')[0] === id) delete this.mapCache[k];
       this.mapCache[key] = paintEventMap(paintMap(world), event);
@@ -127,7 +128,7 @@ class App {
     const bar = document.querySelector('#loading .barw i');
     await loadAssets((p) => { bar.style.width = Math.round(p * 100) + '%'; }, true);
     try { await document.fonts.load('12px PixelFont'); } catch { /* ignore */ }
-    this.map = this.mapCanvas(new World(MAPS[0]));
+    this.map = this.mapCanvas(new World(MAPS[0], { walls: true })); // (painted as a Living World match will use it)
     document.getElementById('loading').remove();
     this.startBg();
     const q = new URLSearchParams(location.search), code = q.get('join'), shared = q.get('s'), invite = q.get('i');
@@ -599,7 +600,7 @@ class App {
     // (Mirror Match: both sides field the identical shared lineup, lanes and deck)
     if (!s.replay && s.draft && s.preps) for (let t = 0; t < 2; t++) s.preps[t] = s.draft.mirror ? fitMirror(s.preps[t], s.draft.mirror) : fitPrep(s.preps[t], s.draft.picks[t]);
     const cfg = s.replay ? JSON.parse(JSON.stringify(s.replay.cfg)) : {
-      seed: s.seed, map: s.mapId, ...(s.gameMode === 'rush' ? { mode: 'rush' } : {}), ...(s.event ? { event: s.event } : {}),
+      seed: s.seed, map: s.mapId, ...(s.gameMode === 'rush' ? { mode: 'rush' } : { living: 1 }), ...(s.event ? { event: s.event } : {}), // living: Living World (classic maps)
       ...(s.gameMode !== 'rush' ? { depth: true } : {}), // v23 match depth: talents, item override, ult upgrades, revenge, duo ults
       teams: [0, 1].map((t) => ({ heroes: s.preps[t].heroes, plan: s.preps[t].plan, deck: s.preps[t].deck, name: s.names[t], ...(s.preps[t].mv ? { mv: s.preps[t].mv } : {}) })),
       coach: s.mode === 'coop' ? s.ai.slice() : s.mode === 'ai' ? [s.myTeam !== 0, s.myTeam !== 1] : s.mode === 'watch' ? [true, true] : [false, false],
@@ -654,6 +655,7 @@ class App {
     matchAudio.attach(game, this.renderer, runner, s.myTeam);
     // post-match analytics are recorded live; a replay (not the Play of the Game) opens in the Theater
     if (!s.replay && !pre) this.match.rec = new MatchRecorder(game);
+    if (!s.replay && !pre) this.match.instant = new InstantReplay(this, this.match, s.myTeam); // the last 15s again, in a small panel
     if (s.replay && !s.potg) this.match.theater = new Theater(this, this.match, s.replay, { back: s.theaterBack });
     if (!pre && !s.replay && s.myTeam >= 0) matchPresence(); // friends see 'In a match'
     if (!pre && !s.replay && s.mode !== 'watch') track('match_start', { mode: modeKey(s), map: cfg.map, event: cfg.event || null });
@@ -664,7 +666,7 @@ class App {
     this.bgTick = setInterval(() => {
       const m = this.match; if (!m || !document.hidden) return;
       const now = performance.now(), dt = Math.min(1.5, (now - this.lastFrame) / 1000); this.lastFrame = now;
-      m.runner.update(dt, () => this.renderer.snapshot(), () => { this.renderer.game.fx.length = 0; if (m.rec) m.rec.step(); });
+      m.runner.update(dt, () => this.renderer.snapshot(), () => { this.renderer.game.fx.length = 0; if (m.rec) m.rec.step(); if (m.instant) m.instant.step(); });
     }, 100);
   }
   clickWorld(w, sx, sy) {
@@ -690,11 +692,12 @@ class App {
     const raw = (now - this.lastFrame) / 1000; this.lastFrame = now;
     const dt = Math.min(0.1, raw);
     const r = this.renderer;
-    m.runner.update(m.runner.online ? Math.min(1, raw) : dt, () => r.snapshot(), () => { matchAudio.consume(); r.consume(); if (m.rec) m.rec.step(); });
+    m.runner.update(m.runner.online ? Math.min(1, raw) : dt, () => r.snapshot(), () => { matchAudio.consume(); r.consume(); if (m.rec) m.rec.step(); if (m.instant) m.instant.step(); });
     this.camCtl.update(dt);
     r.draw(m.runner.alpha, dt);
     this.minimap.draw();
     m.hud.update(dt);
+    if (m.instant) m.instant.frame(dt);
     matchAudio.frame();
     if (m.theater) m.theater.frame(raw);
     const potg = this.session && this.session.potg;
@@ -721,6 +724,7 @@ class App {
     matchAudio.detach();
     for (const id of ['scoreboard', 'halftime']) { const el = document.getElementById(id); if (el) el.remove(); }
     if (m && m.hud) m.hud.destroy();
+    if (m && m.instant) m.instant.destroy();
   }
   // The Play of the Game pre-roll fast-forwards a whole match in the background: stop it once the results are left.
   dropReel() { if (this.potgReel) { this.potgReel.stop = true; this.potgReel = null; } }

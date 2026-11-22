@@ -34,6 +34,7 @@ for (const def of [...MAPS, ...RUSH_MAPS]) {
   const goals = w.camps.length ? w.camps : [w.pits.kami, w.pits.kraken, w.fountain[1]];
   const t0 = Date.now(); let plen = 0; for (let k = 0; k < 50; k++) { const p = w.findPath(w.fountain[0].x, w.fountain[0].y, goals[k % goals.length].x, goals[k % goals.length].y); plen += p.length; } const ms = (Date.now() - t0) / 50;
   console.log(`${def.name}: open ${(open / N / N * 100).toFixed(0)}%, brush cells ${brush}, structures ${w.structures.length}, A* ${ms.toFixed(2)}ms avg, tower clearance pit ${Math.round(minPit)}/${PIT_CLEAR} camp ${minCamp < 1e9 ? Math.round(minCamp) : '-'}/${CAMP_CLEAR}, ${miss ? 'ISSUES' : 'all reachable ✔'}`);
+  if (def.walls && !def.single) miss += livingCheck(def, towers);
   if (out) {
     const px = 4, Wd = N * px; const buf = Buffer.alloc(Wd * Wd * 3);
     const col = { 0: [30, 60, 30], 1: [110, 170, 70], 2: [170, 120, 80], 3: [80, 150, 200], 4: [140, 140, 170], 5: [110, 100, 90], 6: [230, 200, 90], 7: [130, 180, 90] };
@@ -45,5 +46,31 @@ for (const def of [...MAPS, ...RUSH_MAPS]) {
     for (const st of w.structures) { const c = st.team ? [255, 60, 60] : [60, 140, 255]; const cx = Math.floor(st.x / C) * px, cy = Math.floor(st.y / C) * px; for (let yy = -4; yy < 8; yy++) for (let xx = -4; xx < 8; xx++) { const o = ((cy + yy) * Wd + cx + xx) * 3; if (o >= 0 && o < buf.length) { buf[o] = c[0]; buf[o + 1] = c[1]; buf[o + 2] = c[2]; } } }
     writeFileSync(`${out}/${def.id}.ppm`, Buffer.concat([Buffer.from(`P6 ${Wd} ${Wd} 255\n`), buf]));
   }
+}
+// Living World (src/sim/living.js): every breakable wall is a real shortcut (shorter path once open) that never
+// cuts anything off while closed; Moon Spirits, the Yokai Parade's loop and the Tengu's spot are open ground
+// out of tower reach; the A* clearance kept up incrementally as walls open equals a full rebuild.
+function livingCheck(def, towers) {
+  let miss = 0; const say = (m) => { console.log(`  ✘ ${def.id}: ${m}`); miss++; };
+  const w = new World(def, { walls: true }), plain = new World(def);
+  for (let i = 0; i < N * N; i++) if (w.walk[i] !== plain.walk[i]) { say('closed walls change the walkable map'); break; }
+  const plen = (a, b) => { const p = w.findPath(a.x, a.y, b.x, b.y); let d = 0, q = a; for (const r of p) { d += Math.hypot(r.x - q.x, r.y - q.y); q = r; } return d; };
+  const ends = w.walls.map((x) => [w.nearestOpen(x.a), w.nearestOpen(x.b)]), before = ends.map(([a, b]) => plen(a, b));
+  w.setWalls((1 << w.walls.length) - 1);
+  const after = ends.map(([a, b]) => plen(a, b)), full = new World(def, { walls: true }); full.walk.set(w.walk); full.brush.set(w.brush);
+  // rebuild clearance from scratch on the opened grid and compare with the incremental one
+  const ref = new World(def, { walls: true }); ref.walk.set(w.walk); ref.updateClearance(0, 0, N - 1, N - 1);
+  for (let i = 0; i < N * N; i++) if (ref.clearance[i] !== w.clearance[i] && i % N > 0 && i % N < N - 1 && i >= N && i < N * N - N) { say(`incremental clearance differs at cell ${i}`); break; }
+  w.walls.forEach((x, i) => { if (!(after[i] < before[i] - 120)) say(`wall ${i} (${x.kind}) is no shortcut: ${Math.round(before[i])} -> ${Math.round(after[i])}px`); });
+  const reach = RANGE.tower + 14 + 60, tw = (p) => Math.min(...towers.map((t) => Math.hypot(t.x - p.x, t.y - p.y)));
+  const spots = [['moon', def.moon], ['yokai', def.yokai], ['centre', [1200, 1200]]];
+  for (const [n, q] of spots) {
+    if (!q) { say(`no ${n} spot`); continue; }
+    const p = { x: q[0], y: q[1] }, o = w.nearestOpen(p);
+    if (Math.hypot(o.x - p.x, o.y - p.y) > 40) say(`${n} spot is not open ground`);
+    if (n !== 'centre' && tw(p) < reach) say(`${n} spot only ${Math.round(tw(p))}px from a tower (needs ${reach})`);
+  }
+  console.log(`  ${def.id} Living World: walls ${w.walls.map((x, i) => `${x.kind} ${Math.round(before[i])}->${Math.round(after[i])}px`).join(', ')}${miss ? '' : ' ✔'}`);
+  return miss;
 }
 process.exit(bad ? 1 : 0);

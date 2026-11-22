@@ -14,6 +14,7 @@ import { TEAM_COL } from '../render/renderer.js';
 import { audio } from '../audio.js';
 import { COOP_COL } from '../coop-room.js';
 import { canIssue, readyIn, bestGanker, busy } from './feasible.js';
+import { LIVING } from '../sim/living.js';
 
 const LANE_L = { top: 'Top', mid: 'Mid', bot: 'Bot' };
 export const CORE = [
@@ -115,8 +116,9 @@ export class Dock {
   relevance(id) {
     const g = this.g, me = this.my, now = g.tick, alive = this.alive();
     if (id === 'objective') {
-      if (['dragon', 'herald', 'baron'].some((k) => g.objectives[k] && g.objectives[k].alive)) return 'hot';
-      return ['dragon', 'herald', 'baron'].some((k) => g.objAvailable(k)) ? '' : 'dim';
+      const ks = g.living ? ['dragon', 'herald', 'baron', 'boss', 'yokai'] : ['dragon', 'herald', 'baron'];
+      if (ks.some((k) => g.objectives[k] && g.objectives[k].alive)) return 'hot';
+      return ks.some((k) => g.objAvailable(k)) ? '' : 'dim';
     }
     if (id === 'shrine') return g.time < g.T.shrineUnlock || !g.shrines.some((s) => s.owner !== me) ? 'dim' : 'hot';
     if (id === 'gank') {
@@ -246,6 +248,8 @@ export class Dock {
         onclick: () => this.send({ type: 'objective', obj: k }),
       });
       const list = ['dragon', 'herald', 'baron'].filter((k) => !(k === 'herald' && g.time > g.T.heraldDespawn) && !(k === 'baron' && g.time < g.T.heraldDespawn - 90 && !g.objectives.baron));
+      // Living World: the Yokai Parade while it roams (or wakes soon), the Tengu from 10:00
+      if (g.living) { if (g.objAvailable('yokai')) list.push('yokai'); if (g.objectives.boss || g.time >= LIVING.bossAt - 120) list.push('boss'); }
       return { title: 'Take which objective?', els: [h('div', { class: 'tiles' }, ...list.map(obj),
         !g.camps.length ? null : this.tile({ ico: 'Camouflage', title: 'Invade', sub: () => `Steal a camp · ${this.cost('invade')} charges`, state: () => ({ off: !this.afford('invade') }), onclick: () => this.send({ type: 'invade' }) }))] };
     }
@@ -375,6 +379,12 @@ export class Dock {
         title = OBJ_NAME[kk];
         opts.push({ ico: 'OrbFire', label: 'Take it', type: 'objective', cmd: { type: 'objective', obj: kk }, off: !g.objAvailable(kk), sub: this.objStatus(kk) });
       }
+      if (g.living) for (const k of ['boss', 'yokai']) {
+        const o = g.objectives[k], at = o && o.alive ? o : k === 'boss' && g.time >= LIVING.bossAt - 120 ? g.objPit(k) : null;
+        if (!at || d2(at, w) > 220 * 220 || (k === 'yokai' && !r.visible(o))) continue;
+        title = OBJ_NAME[k];
+        opts.push({ ico: 'OrbFire', label: 'Take it', type: 'objective', cmd: { type: 'objective', obj: k }, off: !g.objAvailable(k), sub: this.objStatus(k) });
+      }
       for (const s of g.shrines) if (d2(s, w) < 220 * 220) { title = 'Shrine'; opts.push({ ico: 'OrbLight', label: 'Capture', type: 'shrine', cmd: { type: 'shrine', shrine: s.id }, off: s.owner === me || g.time < g.T.shrineUnlock }); }
       if (!opts.length) {
         const lane = W.closestLane(w);
@@ -388,7 +398,7 @@ export class Dock {
           if (this.team.heraldEye > g.tick) opts.push({ ico: 'Counter', label: 'Oni', type: 'herald', cmd: { type: 'herald', lane } });
         } else {
           const camp = g.camps.filter((c) => c.side !== me && c.mobs.length).sort((a, b) => d2(a, w) - d2(b, w))[0];
-          if (camp && d2(camp, w) < 500 * 500) { title = 'Enemy jungle'; opts.push({ ico: 'Camouflage', label: 'Invade', type: 'invade', cmd: { type: 'invade' } }); }
+          if (camp && d2(camp, w) < 500 * 500) { title = camp.night ? 'Moon Spirits' : 'Enemy jungle'; opts.push({ ico: 'Camouflage', label: 'Invade', type: 'invade', cmd: camp.night ? { type: 'invade', camp: camp.key } : { type: 'invade' } }); }
         }
       }
     }

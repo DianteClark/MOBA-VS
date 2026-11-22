@@ -23,6 +23,8 @@ const r10 = (v) => Math.round(v / 10) * 10, r1 = (v) => Math.round(v * 10) / 10;
 export const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 export const kGold = (v) => (Math.abs(v) >= 1000 ? (Math.round(v / 100) / 10) + 'k' : String(Math.round(v)));
 const heroName = (id) => (HERO_BY_ID[id] ? HERO_BY_ID[id].name : id || '?');
+// Living World objectives read as what happened to them
+const took = (obj, steal) => (steal ? 'stole' : obj === 'yokai' ? 'tamed' : obj === 'boss' ? 'slew' : 'took');
 const objName = (obj, el) => (obj === 'dragon' && DRAGON_INFO[el] ? DRAGON_INFO[el].name : OBJ_NAME[obj] || obj);
 
 // ───────────────────────── recording ─────────────────────────
@@ -80,7 +82,7 @@ export class MatchRecorder {
           const o = g.objectives;
           // a call made in the last 3s already counts
           const recent = g.events.some((e) => e.type === 'call' && e.team === T && e.t >= g.tick - 60 && ACTS.has(e.call.type));
-          w = this.win[T] = { tick: g.tick, adv, n: up(), obj: o.baron && o.baron.alive ? 'baron' : o.dragon && o.dragon.alive ? 'dragon' : o.herald && o.herald.alive ? 'herald' : '', acted: recent, got: false };
+          w = this.win[T] = { tick: g.tick, adv, n: up(), obj: o.boss && o.boss.alive ? 'boss' : o.baron && o.baron.alive ? 'baron' : o.dragon && o.dragon.alive ? 'dragon' : o.herald && o.herald.alive ? 'herald' : '', acted: recent, got: false };
         } else if (adv > w.adv) { w.adv = adv; w.n = up(); }
       } else if (w) {
         if (g.tick - w.tick >= 100 && !w.acted && !w.got && w.tick - this.lastMissed[T] > 800) { this.missed.push([r1(w.tick / 20), T, w.n[0], w.n[1], w.obj]); this.lastMissed[T] = w.tick; }
@@ -157,7 +159,7 @@ export function analyze(A) {
     const [t, ty, tm] = e, W = teamWord(A, tm);
     if (ty === 'tw') add(t, tm, 'tw', `${W} took a ${LANE[e[3]] || 'base'} tower`);
     else if (ty === 'in') add(t, tm, 'in', `${W} broke the ${LANE[e[3]] || ''} gate`.replace('  ', ' '));
-    else if (ty === 'ob') add(t, tm, 'ob', `${W} ${e[5] ? 'stole' : 'took'} the ${objName(e[3], e[4])}`, { obj: e[3], el: e[4] });
+    else if (ty === 'ob') add(t, tm, 'ob', `${W} ${took(e[3], e[5])} the ${objName(e[3], e[4])}${e[3] === 'boss' ? ": Tengu's Gale" : ''}`, { obj: e[3], el: e[4] });
     else if (ty === 'sl') add(t, tm, 'sl', `${W} earned the ${DRAGON_INFO[e[3]] ? DRAGON_INFO[e[3]].short : ''} Kami Blessing`);
     else if (ty === 'on') add(t, tm, 'on', `${W} unleashed the Oni ${LANE[e[3]] || ''}`.trim());
     else if (ty === 'mo') add(t, tm, 'mo', `${A.my >= 0 ? (tm === A.my ? 'Your' : 'Their') : TEAM_NAME[tm]} Coach Moment: ${(MOMENTS[e[3]] || {}).name || e[3]}`);
@@ -218,7 +220,7 @@ function turningPoint(A, fights, calls) {
   for (const f of fights) if (inW(f.t0)) { const q = byPlace[f.place] || (byPlace[f.place] = { n: [0, 0], k: 0, ace: false }); q.n[0] += f.n[0]; q.n[1] += f.n[1]; q.k++; q.ace = q.ace || f.ace === w; }
   for (const [pl, q] of Object.entries(byPlace)) if (q.n[w] > q.n[1 - w]) parts.push(`won ${q.k > 1 ? 'fights' : 'a fight'} at ${PLACE[pl] || pl} ${q.n[w]}-${q.n[1 - w]}${q.ace ? ' and aced ' + them : ''}`);
   for (const e of A.ev) if (inW(e[0]) && e[2] === w) {
-    if (e[1] === 'ob') parts.push(`${e[5] ? 'stole' : 'took'} the ${objName(e[3], e[4])}`);
+    if (e[1] === 'ob') parts.push(`${took(e[3], e[5])} the ${objName(e[3], e[4])}`);
     if (e[1] === 'in') parts.push(`broke the ${LANE[e[3]] || ''} gate`);
   }
   const tw = A.ev.filter((e) => e[1] === 'tw' && e[2] === w && inW(e[0])).length;
@@ -240,7 +242,7 @@ function boss(obj, el, redraw) {
   const k = obj + (el || '');
   if (!bossImg[k]) {
     const KF = { infernal: 'kami_infernal', ocean: 'kami_ocean', mountain: 'kami_mountain', cloud: 'kami_cloud', elder: 'kami_elder' };
-    const i = new Image(); i.src = `assets/img/boss/${obj === 'dragon' ? KF[el] || 'kami_elder' : obj === 'herald' ? 'herald_faceset' : 'baron_faceset'}.png`;
+    const i = new Image(); i.src = `assets/img/boss/${obj === 'dragon' ? KF[el] || 'kami_elder' : obj === 'herald' ? 'herald_faceset' : obj === 'boss' ? 'tengu_faceset' : obj === 'yokai' ? 'yokai_faceset' : 'baron_faceset'}.png`;
     bossImg[k] = i; i.redraws = [];
     i.onload = () => { for (const f of i.redraws.splice(0)) f(); };
   }
@@ -252,7 +254,7 @@ function boss(obj, el, redraw) {
 export function markerList(A, d) {
   const out = [];
   for (const e of A.ev) {
-    if (e[1] === 'ob') out.push({ t: e[0], team: e[2], kind: 'ob', obj: e[3], el: e[4], label: `${fmt(e[0])} ${teamWord(A, e[2])} ${e[5] ? 'stole' : 'took'} the ${objName(e[3], e[4])}` });
+    if (e[1] === 'ob') out.push({ t: e[0], team: e[2], kind: 'ob', obj: e[3], el: e[4], label: `${fmt(e[0])} ${teamWord(A, e[2])} ${took(e[3], e[5])} the ${objName(e[3], e[4])}` });
     else if (e[1] === 'tw' || e[1] === 'in') out.push({ t: e[0], team: e[2], kind: e[1], label: `${fmt(e[0])} ${teamWord(A, e[2])} ${e[1] === 'in' ? 'broke the ' + (LANE[e[3]] || '') + ' gate' : 'took a ' + (LANE[e[3]] || 'base') + ' tower'}` });
     else if (e[1] === 'mo') out.push({ t: e[0], team: e[2], kind: 'mo', label: `${fmt(e[0])} ${TEAM_NAME[e[2]]} Coach Moment: ${(MOMENTS[e[3]] || {}).name || e[3]}` });
   }

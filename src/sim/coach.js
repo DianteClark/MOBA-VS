@@ -16,6 +16,26 @@ export class Coach {
     this.cooldown = { surge: 0, ult: 0, gank: 0, objective: 0, reset: 0, group: 0, focus: 0, herald: 0, build: 0, invade: 0, shrine: 0 };
   }
   issue(c) { c.team = this.team; return this.g.applyCommand(c); }
+  // Living World (src/sim/living.js): the Tengu breaks stalemates, the Yokai Parade is worth a detour, and at
+  // night the enemy's Moon Spirits are worth stealing.
+  livingCalls(takeObj, s) {
+    const g = this.g, me = g.teams[this.team], jg = me.heroes.find((h) => h.role === 'jungle'), y = g.objectives.yokai;
+    // The Tengu breaks stalemates: whoever can, takes it (its Gale is how a late lead becomes a Crystal)
+    if (takeObj('boss', 3, s.deadEnemies >= 1 || s.alive.length >= s.enemyAlive.length + (this.level >= 1 ? 0 : 1))) return true;
+    // the parade on our half of the map (closer to our fountain), or an enemy down; late on, charges go to pushes
+    const f = g.world.fountain[this.team], o = g.world.fountain[1 - this.team];
+    const ours = y && y.alive && dist2(y, f) < dist2(y, o);
+    if (g.time < 600 * g.rules.k && takeObj('yokai', 3, jg && jg.alive && (s.deadEnemies >= 1 || ours))) return true;
+    // stealing Moon Spirits only with charges to spare (a full bar)
+    if (g.living.night && this.level >= 1 && s.ready('invade') && s.charges >= 3 && jg && jg.alive && jg.hp > jg.maxHp * 0.6) {
+      const camp = g.camps.find((c) => c.night && c.side !== this.team && c.mobs.length);
+      const theirJg = g.teams[1 - this.team].heroes.find((h) => h.role === 'jungle');
+      if (camp && !(theirJg && theirJg.alive && s.visibleEnemies.includes(theirJg) && dist2(theirJg, camp) < 900 * 900) && dist2(jg, camp) < 1300 * 1300) {
+        if (this.issue({ type: 'invade', camp: camp.key })) { s.cd('invade', 40); return true; }
+      }
+    }
+    return false;
+  }
 
   update() {
     const g = this.g, now = g.tick;
@@ -83,15 +103,16 @@ export class Coach {
       const spawnSoon = !o && g.objTimers[obj] && g.objTimers[obj] - now < sec(20) && g.objTimers[obj] > 0;
       if (!(o && o.alive) && !spawnSoon) return false;
       if (charges < 2 || !ready('objective')) return false;
-      const pit = obj === 'dragon' ? g.world.pits.kami : g.world.pits.kraken;
-      const enemiesNearPit = near(pit, LANE_NAMES.length === 1 ? 650 : 1100, visibleEnemies);
+      const pit = g.objPit(obj);
+      const enemiesNearPit = near(pit, LANE_NAMES.length === 1 || obj === 'boss' ? 650 : 1100, visibleEnemies); // (the Tengu sits on mid lane: only count those right on it)
       if (alive.length < minAlive) return false;
       if (enemiesNearPit > 1 && deadEnemies === 0) return false;
       if (W.objWait && deadEnemies < 1) return false;
-      if (!extra && !(W.objFree && obj !== 'baron' && alive.length >= enemyAlive.length && enemiesNearPit === 0)) return false;
+      if (!extra && !(W.objFree && obj !== 'baron' && obj !== 'boss' && alive.length >= enemyAlive.length && enemiesNearPit === 0)) return false;
       if (this.issue({ type: 'objective', obj })) { cd('objective', W.objCd); return true; }
       return false;
     };
+    if (g.living && this.livingCalls(takeObj, { alive, enemyAlive, deadEnemies, visibleEnemies, charges, ready, cd })) return;
     if (takeObj('baron', 4, deadEnemies >= 2 || (g.time > 1050 * k && alive.length >= enemyAlive.length + 1) || (LANE_NAMES.length === 1 && alive.length >= enemyAlive.length + 1))) return;
     const jg = me.heroes.find((h) => h.role === 'jungle');
     const enemyJgVisibleTop = them.heroes.some((h) => h.role === 'jungle' && vis.has(h.id) && h.x + h.y < 2400 && h.alive);
