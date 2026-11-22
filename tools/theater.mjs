@@ -44,5 +44,6 @@ function run(name, cfg, seconds) {
 run('classic', { seed: 777, map: 'sakura', coach: [false, true], teams }, 420);
 run('rush', { seed: 778, map: 'rush_sakura', mode: 'rush', coach: [false, true], teams }, 240);
 run('event', { seed: 779, map: 'oasis', event: 'shrine', coach: [false, true], teams }, 300); // weekly event rules are a per-game copy
+run('depth', { seed: 780, map: 'frost', depth: true, coach: [false, true], teams }, 540); // v23: per-hero talent views of the hero data, empowered ults
 console.log(ok ? 'THEATER SNAPSHOTS OK ✔' : 'THEATER SNAPSHOTS FAILED ✘');
 process.exit(ok ? 0 : 1);
