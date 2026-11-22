@@ -1,5 +1,5 @@
 // Front end: home, season pass, profile (banners/titles/borders), Season Cup bracket, patch notes, and post-match progression.
-import { h, mount, face, emptyState, fmtTime, MODE_LABEL } from './dom.js';
+import { h, mount, face, emptyState, fmtTime, MODE_LABEL, toast } from './dom.js';
 import { HERO_BY_ID } from '../data/heroes.js';
 import { MAPS, MAP_BY_ID } from '../maps/defs.js';
 import { CLANS } from '../sim/constants.js';
@@ -33,6 +33,8 @@ import { eventCard } from './events.js';
 import { showFranchise, crest } from './franchise.js';
 import { getFr } from '../franchise/play.js';
 import { nextFixture } from '../franchise/league.js';
+import { party, mate, onParty, queueSize, setQueueSize, partyStart, setMode } from '../party.js';
+import { partyPanel, openInvite } from './party.js';
 import { showClub, clubDot } from './clubs.js';
 import { showHub, featuredCard } from './hub.js';
 import { showCustom } from './custom.js';
@@ -56,16 +58,37 @@ function patchHighlights(pt) {
   if (Array.isArray(pt.highlights) && pt.highlights.length) return pt.highlights.slice(0, 4);
   return pt.notes.slice(0, 3).map((n) => n.split(/[:.(]/)[0].trim()).filter(Boolean);
 }
+// Party entry points (src/party.js): the leader launches, the partner follows; outside a party Co-op opens one.
+function coopTap(app) {
+  audio.sfx('move', 0.5);
+  const P = party();
+  if (P && !P.leader) { toast('Your party leader picks the mode and starts.', 2200); return; }
+  if (!P || !mate()) { openInvite(app); return; }
+  setMode('coop'); partyStart(app, 'coop');
+}
+function hostTap(app, duo) {
+  const P = party();
+  if (!duo) { app.hostGame(); return; }
+  if (P && !P.leader) { toast('Your party leader opens the room.', 2200); return; }
+  if (P) { setMode('room2'); partyStart(app, 'room2'); return; }
+  app.hostCoop({ kind: '2v2' });
+}
+// Home redraws when a party starts or ends (the side column becomes the party panel); one subscription only.
+let homeApp = null, hadParty = false;
+onParty((P) => { if (homeApp && !!P !== hadParty && document.querySelector('#screen .home2')) showHome(homeApp); });
 export function showHome(app) {
   // a season just ended: its ceremony first (once), then home
   if (profile.newSeasonNote) { const n = profile.newSeasonNote; profile.newSeasonNote = null; showCeremony(n, () => showHome(app)); return; }
+  homeApp = app; hadParty = !!party();
   const p = profile, s = p.season, ss = p.ss(), rk = p.rank, pt = PATCHES[0], td = todaySummary(p);
   const qm = app.queueMode || 'ranked', unseen = p.d.seenPatch !== pt.version, newbie = !p.d.history.length;
+  const duo = queueSize() === '2v2', P = party();
   const cup = p.d.cup && p.d.cup.season === s.id && !p.d.cup.done ? p.d.cup : null;
   const mm = cup ? myMatch(cup) : null;
   const mapPick = app.mapPref === 'rush' ? 'random' : app.mapPref || 'random';
   const fs = document.fullscreenEnabled || document.webkitFullscreenEnabled;
   const QDESC = { ranked: 'Real players · climbs the ladder', casual: 'Real players · 5v5, no rank change', rush: 'Real players · Lane Rush, casual' };
+  const DUO_DESC = P && mate() ? `Casual · with ${mate().name} vs a real pair` : 'Casual · real players, a partner is found for you';
   mount(screen(), h('div', { class: 'home2' + (newbie ? ' newbie' : '') },
     h('div', { class: 'h2top' },
       h('div', { class: 'h2brand' }, h('div', { class: 'title' }, 'MOBA-VS'), h('small', {}, `v${pt.version}`)),
@@ -91,19 +114,22 @@ export function showHome(app) {
         h('div', { class: 'maprow' }, ...[['random', 'Random'], ...MAPS.map((m) => [m.id, m.id[0].toUpperCase() + m.id.slice(1)])].map(([id, l]) =>
           h('button', { class: 'mapchip' + (mapPick === id ? ' on' : ''), title: id === 'random' ? `Random (${MAP_BY_ID[s.map].name} is featured)` : `${MAP_BY_ID[id].name}: ${MAP_BY_ID[id].blurb}`, onclick: () => { app.mapPref = id; showHome(app); } },
             id === 'random' ? h('span', { class: 'q' }, '?') : mapThumb(id), h('span', {}, l)))),
-        h('button', { class: 'btn big h2go', onclick: () => app.startVsAI('classic') }, 'Play')),
+        h('div', { class: 'h2gorow' }, h('button', { class: 'btn big h2go', onclick: () => app.startVsAI('classic') }, 'Play'),
+          h('button', { class: 'btn h2coop', title: 'Co-op vs AI: two coaches, one team (with your party)', onclick: () => coopTap(app) }, h('b', {}, 'Co-op'), h('small', {}, P && mate() ? `with ${mate().name}` : '2 coaches')))),
       h('div', { class: 'h2card h2online' },
-        h('div', { class: 'h2h' }, h('b', {}, 'Find Match'), h('small', {}, QDESC[qm])),
+        h('div', { class: 'h2fmhead' }, h('div', { class: 'h2h' }, h('b', {}, 'Find Match'), h('small', {}, duo ? DUO_DESC : QDESC[qm])),
+          h('div', { class: 'seg2 h2size', role: 'radiogroup', 'aria-label': 'Team size' }, ...[['1v1', '1v1'], ['2v2', '2v2']].map(([k, l]) =>
+            h('button', { class: 'chip' + (queueSize() === k ? ' on' : ''), role: 'radio', 'aria-checked': String(queueSize() === k), title: k === '2v2' ? 'Two coaches a side (casual)' : 'One coach a side', onclick: () => { audio.sfx('move', 0.4); setQueueSize(k); showHome(app); } }, l)))),
         h('div', { class: 'seg3', role: 'radiogroup', 'aria-label': 'Queue' }, ...[['ranked', 'Ranked'], ['casual', 'Casual'], ['rush', 'Rush']].map(([k, l]) =>
-          h('button', { class: 'chip' + (qm === k ? ' on' : ''), role: 'radio', 'aria-checked': String(qm === k), title: QDESC[k], onclick: () => { app.setQueueMode(k); showHome(app); } }, l))),
-        h('button', { class: 'btn big h2go net', onclick: () => app.findMatch() }, 'Find Match'),
+          h('button', { class: 'chip' + ((duo ? k === 'casual' : qm === k) ? ' on' : ''), role: 'radio', 'aria-checked': String(duo ? k === 'casual' : qm === k), disabled: duo && k !== 'casual', title: duo ? (k === 'casual' ? '2v2 is casual' : '2v2 is casual only') : QDESC[k], onclick: () => { app.setQueueMode(k); showHome(app); } }, l))),
+        h('button', { class: 'btn big h2go net', onclick: () => app.findMatch() }, duo ? 'Find 2v2' : 'Find Match'),
         h('small', { class: 'offtag' }, 'Offline: play vs AI or Lane Rush. Online returns with your connection.'),
-        h('div', { class: 'h2row' },
-          h('button', { class: 'chip net', title: 'Private room: share a code with a friend', onclick: () => app.hostGame() }, 'Host'),
-          h('button', { class: 'chip net', title: 'Join a friend\'s room code', onclick: () => app.joinScreen() }, 'Join'),
-          h('button', { class: 'chip coopchip net', title: 'Co-op: coach one team with a friend, vs the AI or 2v2', onclick: () => app.hostCoop() }, 'Co-op'),
+        h('div', { class: 'h2row h2row4' },
+          h('button', { class: 'chip net', title: duo ? 'Private 2v2 room: share the code with another pair' : 'Private room: share a code with a friend', onclick: () => hostTap(app, duo) }, 'Host'),
+          h('button', { class: 'chip net', title: 'Join a friend\'s room or party code', onclick: () => app.joinScreen() }, 'Join'),
+          h('button', { class: 'chip partychip net' + (P ? ' on' : ''), title: 'Party: team up with a friend for co-op and 2v2, match after match', onclick: () => { audio.sfx('move', 0.5); if (P && !P.leader) toast('You are in a party: see the panel on the right.', 2000); else openInvite(app); } }, 'Party'),
           h('button', { class: 'chip', title: 'Custom game: private room with rule toggles, or pass-and-play on this device (never ranked)', onclick: () => { audio.sfx('move', 0.5); showCustom(app); } }, 'Custom'))),
-      h('div', { class: 'h2side' },
+      P ? h('div', { class: 'h2side' }, partyPanel(app)) : h('div', { class: 'h2side' },
         h('button', { class: 'h2card h2rush', onclick: () => app.startVsAI('rush') },
           h('span', { class: 'h2h' }, h('b', {}, 'Lane Rush'), h('small', {}, `One lane · ~7 min · vs ${nextRival(app).name}`)),
           h('span', { class: 'h2arrow' }, 'Play ›')),

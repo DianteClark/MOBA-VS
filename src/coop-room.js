@@ -10,6 +10,10 @@
 //   match   lockstep with one slot per peer; commands carry the coach's seat; a peer that drops mid-match
 //           is cut at a host-chosen tick with a 'leave' command (sim/coop.js hands its heroes over)
 // Leaving before the match starts closes the room for everyone (back to the menu with a note).
+// Party and matchmade rooms (src/party.js) know who is coming: `expect` maps a player id to a side (the party
+// mate sits on blue; a 2v2 match seats each coach on the side the matchmaker gave them), seats are kept for
+// them, a matchmade room turns everyone else away, and an `auto` room starts by itself once everyone is in
+// (or closes if someone never arrives).
 import { Rng } from './sim/rng.js';
 import { ROLES, ROLE_LABEL } from './data/heroes.js';
 import { currentTurn, apply as draftApply, autoChoice, aiPrep, legal } from './sim/draft.js';
@@ -25,6 +29,7 @@ import { EVENT_BY_ID } from './data/events.js';
 
 export const COOP_COL = ['#ffd84a', '#6fe3c8']; // seat colours: seat A gold, seat B mint (the same on every screen)
 const DIFF = ['Easy', 'Normal', 'Hard'];
+const AUTO_WAIT = 25000; // an auto room closes if its coaches are not all in by then
 export const maxPlayers = (kind) => (kind === '2v2' ? 4 : 2);
 
 // ───────────── lobby (host) ─────────────
@@ -35,7 +40,10 @@ export async function hostCoop(app, opts = {}) {
   const live = () => app.lobbyId === id;
   const hub = new Hub();
   const room = { code, kind: opts.kind === '2v2' ? '2v2' : 'ai', aiLevel: app.aiLevel ?? 1, own: [{ ...DEFAULT_OWN }, { ...DEFAULT_OWN }],
-    players: [{ slot: 0, name: app.name, pid: getAccount() && getAccount().id, team: 0, seat: 0, looks: myLooks() }], status: 'Opening room…', invite: opts.invite || null };
+    players: [{ slot: 0, name: app.name, pid: getAccount() && getAccount().id, team: 0, seat: 0, looks: myLooks() }], status: 'Opening room…', invite: opts.invite || null,
+    expect: opts.expect || null, mm: !!opts.mm, auto: !!opts.auto };
+  const me0 = room.players[0]; me0.key = me0.pid;
+  if (room.expect && me0.key in room.expect) me0.team = room.expect[me0.key] === 1 ? 1 : 0;
   app.session = { mode: 'coop', lobby: true, host: true, slot: 0, room };
   app.net = { peer: { destroy() {} }, t: hub, hub };
   hub.onMessage((m) => app.onNet(m));
@@ -50,18 +58,37 @@ export async function hostCoop(app, opts = {}) {
     } });
     if (!live()) { try { peer.destroy(); } catch { /* ignore */ } hub.close(); return; }
     app.pendingPeer = null; app.net.peer = peer;
-    room.status = 'Room open: share the code or invite a friend.';
+    room.status = room.mm ? 'Match found: waiting for the other coaches…' : room.auto ? 'Waiting for your party…' : 'Room open: share the code or invite a friend.';
+    if (room.auto) setTimeout(() => { if (live() && app.session && app.session.lobby) closeRoom(app, room.mm ? 'A coach could not connect: the match was called off.' : 'Your partner could not connect.'); }, AUTO_WAIT);
   } catch (e) {
     if (!live()) return;
     room.status = 'Could not open the room: ' + (e.message || e.type || e);
   }
   showCoopLobby(app);
 }
-// Free seats in order: blue A, blue B, then red A, red B (2v2 only).
-function freeSeat(room, prefer) {
+// Free seats in order: blue A, blue B, then red A, red B (2v2 only). An expected coach (room.expect: their
+// player id, or the party's token for a party mate) gets a seat on their side; anyone else only a seat
+// that no expected coach still needs.
+function freeSeat(room, prefer, key = null) {
   const seats = [[0, 0], [0, 1], ...(room.kind === '2v2' ? [[1, 0], [1, 1]] : [])];
-  const free = seats.filter(([t, s]) => !room.players.some((p) => p.team === t && p.seat === s));
+  let free = seats.filter(([t, s]) => !room.players.some((p) => p.team === t && p.seat === s));
+  const ex = room.expect;
+  if (ex) {
+    if (key && key in ex) { const mine = free.filter(([t]) => t === ex[key]); if (mine.length) free = mine; }
+    else {
+      const pend = [0, 0]; for (const [id, t] of Object.entries(ex)) if (!room.players.some((p) => p.key === id)) pend[t === 1 ? 1 : 0]++;
+      free = free.filter(([t]) => free.filter(([u]) => u === t).length > pend[t]);
+    }
+  }
   return (prefer && free.find(([t, s]) => t === prefer[0] && s === prefer[1])) || free[0] || null;
+}
+// An auto room starts once every expected coach is seated (a short beat so everyone sees the line-up).
+function maybeAutoStart(app) {
+  const s = app.session, room = s && s.room; if (!room || !room.auto || !s.host || room.starting) return;
+  const all = () => Object.keys(room.expect || {}).every((id) => room.players.some((p) => p.key === id)) && canStart(room);
+  if (!all()) return;
+  room.starting = true;
+  setTimeout(() => { room.starting = false; if (app.session === s && s.lobby && all()) startRoom(app); }, 900);
 }
 function broadcast(app) {
   const s = app.session, room = s.room;
@@ -72,9 +99,9 @@ function broadcast(app) {
 function cleanRoom(r) {
   const players = (Array.isArray(r && r.players) ? r.players : []).slice(0, 4).map((p) => ({ slot: p.slot | 0, name: String(p.name || 'Coach').slice(0, 12), pid: typeof p.pid === 'string' ? p.pid : null,
     team: p.team === 1 ? 1 : 0, seat: p.seat === 1 ? 1 : 0, looks: cleanLooks(p.looks) }));
-  return { code: String(r.code || ''), kind: r.kind === '2v2' ? '2v2' : 'ai', aiLevel: Math.max(0, Math.min(2, r.aiLevel | 0)), own: [0, 1].map((t) => cleanOwn(r.own && r.own[t])), players, status: String(r.status || '') };
+  return { code: String(r.code || ''), kind: r.kind === '2v2' ? '2v2' : 'ai', aiLevel: Math.max(0, Math.min(2, r.aiLevel | 0)), own: [0, 1].map((t) => cleanOwn(r.own && r.own[t])), players, status: String(r.status || ''), auto: !!r.auto };
 }
-const publicRoom = (r) => ({ code: r.code, kind: r.kind, aiLevel: r.aiLevel, own: r.own, players: r.players, status: r.status });
+const publicRoom = (r) => ({ code: r.code, kind: r.kind, aiLevel: r.aiLevel, own: r.own, players: r.players.map(({ key, ...p }) => p), status: r.status, auto: !!r.auto });
 // Host-side lobby actions (a guest's taps arrive as messages and land here too).
 function roomAction(app, slot, a) {
   const s = app.session, room = s && s.room; if (!s || !s.host || !s.lobby) return;
@@ -82,6 +109,7 @@ function roomAction(app, slot, a) {
   if (a.t === 'seat') {
     const t = a.team === 1 ? 1 : 0, seat = a.seat === 1 ? 1 : 0;
     if (t === 1 && room.kind !== '2v2') return;
+    if (room.mm && me.team !== t) return; // matchmade sides are fixed
     if (room.players.some((p) => p.team === t && p.seat === seat)) return;
     me.team = t; me.seat = seat;
   } else if (a.t === 'own') {
@@ -89,7 +117,7 @@ function roomAction(app, slot, a) {
     if (!ROLES.includes(a.role) || me.team !== t) return;
     const own = { ...room.own[t] }; own[a.role] = own[a.role] ? 0 : 1;
     room.own[t] = cleanOwn(own);
-  } else if (a.t === 'kind' && slot === 0) {
+  } else if (a.t === 'kind' && slot === 0 && !room.auto) {
     const kind = a.kind === '2v2' ? '2v2' : 'ai';
     if (kind === 'ai' && room.players.length > 2) { toast('Two coaches at most against the AI'); return; }
     room.kind = kind;
@@ -155,10 +183,13 @@ export function onCoopNet(app, m) {
     case 'hello': {
       if (!s.host || !s.lobby) return;
       if (m.v !== app.version) { app.net.hub.sendTo(m.p, { t: 'closed', why: 'Version mismatch: refresh the game.' }); setTimeout(() => app.net.hub.kick(m.p), 200); return; }
-      const f = freeSeat(s.room); if (!f || s.room.players.some((p) => p.slot === m.p)) return;
-      s.room.players.push({ slot: m.p, name: String(m.name || 'Coach').slice(0, 12), pid: m.pid || null, team: f[0], seat: f[1], looks: cleanLooks(m.looks) });
+      const pid = typeof m.pid === 'string' ? m.pid : null, key = typeof m.key === 'string' ? m.key.slice(0, 24) : pid; // key: a party mate's token
+      if (s.room.mm && !(key && s.room.expect && key in s.room.expect && !s.room.players.some((p) => p.key === key))) { app.net.hub.sendTo(m.p, { t: 'closed', why: 'That room is for a matchmade 2v2.' }); setTimeout(() => app.net.hub.kick(m.p), 200); return; }
+      const f = freeSeat(s.room, null, key); if (!f || s.room.players.some((p) => p.slot === m.p)) return;
+      s.room.players.push({ slot: m.p, name: String(m.name || 'Coach').slice(0, 12), pid, key, team: f[0], seat: f[1], looks: cleanLooks(m.looks) });
       audio.sfx('accept', 0.5);
       broadcast(app);
+      maybeAutoStart(app);
       return;
     }
     case 'seat': case 'own': case 'kind': case 'ai': if (s.host) roomAction(app, m.p, m); return;
