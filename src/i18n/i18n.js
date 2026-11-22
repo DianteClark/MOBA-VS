@@ -136,6 +136,10 @@ function look(core, depth) {
   // compound text: "Top · Tank", "Gold: 350", two sentences: translate each part
   for (const sep of [' · ', ' — ', ' | ', '. ', ': ', ' / ', ', ', '/']) {
     if (!core.includes(sep)) continue;
+    if (sep === ': ') { // "Head: rest" with more colons in the rest: the extractor catalogs it as head + rest
+      const i = core.indexOf(sep), hd = look(core.slice(0, i).trim(), depth + 1), rest = hd != null ? look(core.slice(i + 2).trim(), depth + 1) : null;
+      if (hd != null && rest != null) return hd + sep + rest;
+    }
     const parts = core.split(sep); let any = false, bad = false;
     const outp = parts.map((x, i) => {
       const piece = sep === '. ' && i < parts.length - 1 ? x + '.' : x;

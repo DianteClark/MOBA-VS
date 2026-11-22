@@ -1,5 +1,6 @@
 // Champion scan, step 2: unlock price tiers from a tools/scan.mjs result plus the static kit data.
-//   node tools/scantiers.mjs scan.json [--experts 16] [--generals 28] [--mingen 5] [--band 3] [--out tiers.json]
+//   node tools/scantiers.mjs scan.json [--experts 16] [--generals 28] [--mingen 5] [--band 3] [--legends 6] [--force id=Tier,...] [--out tiers.json]
+//   (src/data/unlocks-tiers.js is generated from --out by tools/unlocks_gen.mjs)
 // Signals (all z-scored across the roster):
 //   coaching sensitivity CS = paired sharp-minus-passive gaps: win 30%, share of team gold 35%, share of team hero damage 35%
 //   (CS and PF use empirical-Bayes shrunk values over the sd of the raw values, so a measure that is mostly
@@ -80,17 +81,25 @@ for (const ro of ROLES) {
   const have = rows.filter((x) => x.h.role === ro && x.tier === 'General').length;
   pool.filter((x) => x.h.role === ro && !x.tier).slice(0, Math.max(0, MINGEN - have)).forEach((x) => { x.tier = 'General'; x.topUp = true; });
 }
+// Legend (the top price) = the most demanding Expert kits: every Difficulty 10, then the next Experts by E
+// (Difficulty first), up to --legends. Picked by skill load, never by win rate: a hero far above the field is
+// nerfed, not priced up.
+const NL = +opt('legends', 6);
+byE.filter((x) => x.tier === 'Expert').sort((a, b) => (b.diff >= 10) - (a.diff >= 10) || b.diff - a.diff || b.E - a.E).slice(0, NL).forEach((x) => { x.tier = 'Legend'; });
+// --force id=Tier overrides (owner decisions on top of the scan, e.g. wu=Specialist)
+const forced = {};
+for (const kv of (opt('force', '') || '').split(',').filter(Boolean)) { const [id, t] = kv.split('='); const x = rows.find((q) => q.h.id === id); if (x && ['General', 'Specialist', 'Expert', 'Legend'].includes(t)) { x.tier = t; x.forced = true; forced[id] = t; } }
 for (const x of rows) {
   if (!x.tier) x.tier = 'Specialist';
   x.border = Math.abs(x.rankE - (NE - 0.5)) < BAND || (x.rankG !== undefined && Math.abs(x.rankG - (NG - 0.5)) < BAND) || !!x.topUp;
 }
-const PRICE = { General: 1500, Specialist: 3000, Expert: 4500 };
+const PRICE = { General: 1500, Specialist: 3000, Expert: 4500, Legend: 6000 };
 const counts = {}; for (const x of rows) counts[x.tier] = (counts[x.tier] || 0) + 1;
-console.log(`n=${scan.n} games · sharp ${(100 * scan.S).toFixed(1)}% · tiers`, counts, 'per role', Object.fromEntries(ROLES.map((ro) => [ro, ['General', 'Specialist', 'Expert'].map((t) => rows.filter((x) => x.h.role === ro && x.tier === t).length).join('/')])));
+console.log(`n=${scan.n} games · sharp ${(100 * scan.S).toFixed(1)}% · tiers`, counts, 'per role (G/S/E/L)', Object.fromEntries(ROLES.map((ro) => [ro, ['General', 'Specialist', 'Expert', 'Legend'].map((t) => rows.filter((x) => x.h.role === ro && x.tier === t).length).join('/')])));
 console.log('id         role    tier        E      G     CS    SK    PF    CD   diff  cx   passWR sharpWR gap(sh) gold% games');
 for (const ro of ROLES) for (const x of rows.filter((q) => q.h.role === ro).sort((a, b) => b.G - a.G)) {
   const r = x.r, f = (v) => v.toFixed(2).padStart(5);
   console.log(`${x.h.id.padEnd(10)} ${ro.padEnd(7)} ${(x.tier + (x.border ? '?' : '')).padEnd(11)} ${f(x.E)} ${f(x.G)} ${f(x.CS)} ${f(x.SK)} ${f(x.PF)} ${f(x.CD)}  ${String(x.diff).padStart(2)}  ${x.cx.c.toFixed(1)}   ${(100 * r.pw / r.pg).toFixed(0).padStart(3)}    ${(100 * r.sw / r.sg).toFixed(0).padStart(3)}   ${(100 * r.gapShr).toFixed(1).padStart(5)}  ${(100 * r.gsShr).toFixed(1).padStart(5)}  ${r.sg + r.pg}`);
 }
 const out = opt('out', null);
-if (out) writeFileSync(out, JSON.stringify(rows.map((x) => ({ id: x.h.id, tier: x.tier, border: x.border, E: x.E, G: x.G, CS: x.CS, SK: x.SK, PF: x.PF, CD: x.CD, diff: x.diff, cx: x.cx, price: PRICE[x.tier], topUp: !!x.topUp, rankE: x.rankE, rankG: x.rankG ?? null })), null, 1));
+if (out) writeFileSync(out, JSON.stringify(rows.map((x) => ({ id: x.h.id, tier: x.tier, border: x.border, E: x.E, G: x.G, CS: x.CS, SK: x.SK, PF: x.PF, CD: x.CD, diff: x.diff, cx: x.cx, price: PRICE[x.tier], topUp: !!x.topUp, forced: !!x.forced, rankE: x.rankE, rankG: x.rankG ?? null })), null, 1));

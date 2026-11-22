@@ -1,5 +1,6 @@
 // Today: one screen for the daily coaching goals, this week's division, the season pass and the story week.
 // Home shows a single "Today" card (the season button) that opens it.
+import { ECON } from '../data/unlocks.js';
 import { h, mount } from './dom.js';
 import { GOALS, storyAt, storyNext, storyLeft, storyIn, dayOf, STORY_XP, GOAL_REWARD } from '../data/goals.js';
 import { LEAGUES, GROUP, PROMOTE, DEMOTE, PTS, weekOf, weekStart, WEEK_MS, weekFrac, fillGroup, TOP5_XP } from '../data/divisions.js';
@@ -47,7 +48,7 @@ export function showToday(app, opts = {}) {
         h('small', { class: 'tdn' }, `${p}/${g.n}`),
         !done && rr > 0 ? h('button', { class: 'chip small tdrr', title: 'Swap this goal for another of the same difficulty (once a day)', 'aria-label': `Reroll: ${g.text}`, onclick: () => { if (reroll(P, i)) { audio.sfx('move', 0.5); redraw(); } } }, '↻') : null);
     }),
-    h('small', { class: 'muted' }, `+${GOAL_REWARD.xp} pass XP per goal, +${GOAL_REWARD.allXp} for all three.`),
+    h('small', { class: 'muted' }, `+${GOAL_REWARD.xp} pass XP per goal, +${GOAL_REWARD.allXp} for all three. Koban: ${ECON.goal.join(' / ')} (easy / medium / hard).`),
     h('div', { class: 'tdstreak' }, h('b', {}, S.n ? `Streak: ${S.n} day${S.n > 1 ? 's' : ''}` : 'No streak yet'),
       h('small', { class: 'muted' }, nx ? `${nx.n} days: ${rname(nx.r)}` : `Best ${S.best} days`)));
   // ── division ──
