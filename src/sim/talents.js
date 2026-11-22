@@ -224,7 +224,7 @@ export function depthTick(g) {
     if (!h.talCond || !h.alive) continue;
     const st = {};
     for (const c of h.talCond) {
-      const on = c.when === 'lowHp' ? h.hp < h.maxHp * 0.4
+      const on = c.when === 'lowHp' ? h.hp < h.maxHp * 0.5
         : g.grid.query(h.x, h.y, c.when === 'ally' ? 500 : 800).some((a) => a !== h && a.type === 'hero' && a.alive && a.team === h.team) === (c.when === 'ally');
       if (on) for (const k in c.stat) st[k] = (st[k] || 0) + c.stat[k];
     }
