@@ -28,7 +28,7 @@ export const HEROES = [
   // ───────────── TOP ─────────────
   { id: 'bastion', clan: 'iron', pers: 'loyal', name: 'Bastion', title: 'The Iron Wall', role: 'top', flex: ['support'], cls: 'tank', dmgType: 'phys', curve: 'mid',
     lore: 'A fortress gate that learned to walk. The Iron clan builds its line around him.',
-    tags: ['tank', 'cc', 'engage'], builds: ['tank', 'warden', 'haste'],
+    tags: ['tank', 'cc', 'engage'], builds: ['tank', 'bulwark', 'thorns'],
     passive: { kind: 'shieldOnHit', name: 'Bulwark', pct: 0.08, cd: 10, desc: 'Taking hero damage grants a shield (8% max HP). 10s cooldown.' },
     abilities: [
       { name: 'Shield Bash', icon: 'DefenseUpgrade', kind: 'dash', range: 220, cd: 11, dmg: { b: 60, l: 15, ad: 0.6, hp: 0.04 }, cc: { stun: 1.0 }, use: ['engage', 'peel'], fx: 'impact' },
@@ -37,7 +37,7 @@ export const HEROES = [
     ] },
   { id: 'kenshi', clan: 'iron', pers: 'calm', name: 'Kenshi', title: 'Wandering Blade', role: 'top', flex: ['mid'], cls: 'bruiser', dmgType: 'phys', curve: 'mid',
     lore: 'A masterless blade who wanders from duel to duel, looking for the one he cannot win.',
-    tags: ['dive', 'split', 'burst'], builds: ['spellblade', 'burst', 'sustain'],
+    tags: ['dive', 'split', 'burst'], builds: ['spellblade', 'executioner', 'burst'],
     passive: { kind: 'every3', name: 'Way of the Sword', dmg: { b: 20, l: 6, ad: 0.4 }, desc: 'Every third attack deals bonus physical damage.' },
     abilities: [
       { name: 'Iaido', icon: 'Cut', kind: 'line', range: 260, width: 50, cd: 6, dmg: { b: 70, l: 20, ad: 1.0 }, use: ['poke', 'clear', 'engage'], fx: 'slash' },
@@ -46,7 +46,7 @@ export const HEROES = [
     ] },
   { id: 'varro', clan: 'iron', pers: 'hothead', name: 'Varro', title: 'Arena Champion', role: 'top', flex: ['jungle'], cls: 'bruiser', dmgType: 'phys', curve: 'mid',
     lore: 'Forty arena seasons, forty crowns. He fights best with his back to the wall.',
-    tags: ['tank', 'split', 'sustain'], builds: ['sustain', 'siege', 'tank'],
+    tags: ['tank', 'split', 'sustain'], builds: ['sustain', 'bloodline', 'siege'],
     passive: { kind: 'lowhpRegen', name: 'Second Wind', pct: 0.026, desc: 'Below 35% HP, regenerates 2.6% max HP per second.' },
     abilities: [
       { name: 'Cleave', icon: 'Cut', kind: 'nova', radius: 160, cd: 6, dmg: { b: 75, l: 22, ad: 1.0 }, heal: { b: 40, l: 10, ad: 0.2 }, use: ['clear', 'engage'], fx: 'circular' },
@@ -55,7 +55,7 @@ export const HEROES = [
     ] },
   { id: 'brawlo', clan: 'beast', pers: 'reckless', name: 'Brawlo', title: 'Ringside Menace', role: 'top', flex: ['jungle'], cls: 'bruiser', dmgType: 'phys', curve: 'early',
     lore: 'A ringside menace who never learned when the bell means stop.',
-    tags: ['dive', 'burst', 'early'], builds: ['burst', 'spellblade', 'crit', 'sustain'],
+    tags: ['dive', 'burst', 'early'], builds: ['burst', 'bloodline', 'momentum', 'spellblade'],
     passive: { kind: 'every3', name: 'Combo', dmg: { b: 30, l: 9, ad: 0.6 }, desc: 'Every third punch lands a heavy hit.' },
     abilities: [
       { name: 'Jab Rush', icon: 'BookWind', kind: 'dash', range: 260, cd: 7, dmg: { b: 60, l: 18, ad: 0.8 }, cc: { mark: [0.25, 3] }, use: ['engage', 'escape'], fx: 'impact' },
@@ -64,7 +64,7 @@ export const HEROES = [
     ] },
   { id: 'grok', clan: 'beast', pers: 'cautious', name: 'Grok', title: 'Stoneback', role: 'top', flex: ['support'], cls: 'tank', dmgType: 'phys', curve: 'late',
     lore: 'A caveman with a rock for a head and a bigger rock for everything else.',
-    tags: ['tank', 'cc', 'peel'], builds: ['tank', 'warden', 'haste'],
+    tags: ['tank', 'cc', 'peel'], builds: ['tank', 'thorns', 'warden'],
     passive: { kind: 'dr', name: 'Thick Skull', pct: 0.06, desc: 'Takes 6% less damage from all sources.' },
     abilities: [
       { name: 'Boulder Toss', icon: 'BookRock', kind: 'shot', range: 330, speed: 600, width: 34, cd: 8, dmg: { b: 70, l: 20, ad: 0.5, hp: 0.03 }, cc: { slow: [0.3, 1.5] }, use: ['poke', 'engage', 'clear'], proj: 'p_cannon', fx: 'rock' },
@@ -73,7 +73,7 @@ export const HEROES = [
     ] },
   { id: 'yuki', clan: 'shinobi', pers: 'calm', name: 'Yuki', title: 'Snowblade Duelist', role: 'top', flex: ['jungle'], cls: 'bruiser', dmgType: 'phys', curve: 'mid',
     lore: 'A northern duelist whose blade leaves frost on everything it touches.',
-    tags: ['split', 'cc', 'dps'], builds: ['crit', 'siege', 'spellblade'],
+    tags: ['split', 'cc', 'dps'], builds: ['crit', 'frostbite', 'siege'],
     passive: { kind: 'every3', name: 'Frostbite', dmg: { b: 18, l: 6, ad: 0.35 }, desc: 'Every third strike bites with extra cold damage.' },
     abilities: [
       { name: 'Frost Lunge', icon: 'BookIce', kind: 'dash', range: 260, cd: 7, dmg: { b: 60, l: 18, ad: 0.8 }, cc: { slow: [0.35, 1.5] }, use: ['engage', 'escape'], fx: 'ice' },
@@ -82,7 +82,7 @@ export const HEROES = [
     ] },
   { id: 'akaro', clan: 'beast', pers: 'hothead', name: 'Akaro', title: 'The Red Horn', role: 'top', flex: ['jungle'], cls: 'bruiser', dmgType: 'phys', curve: 'early',
     lore: 'A red-horned demon who grows stronger with every drop of blood spilled.',
-    tags: ['dive', 'sustain', 'dps'], builds: ['sustain', 'pierce', 'tank'],
+    tags: ['dive', 'sustain', 'dps'], builds: ['sustain', 'bloodline', 'pierce'],
     passive: { kind: 'spellVamp', name: 'Bloodlust', pct: 0.10, desc: '10% omnivamp.' },
     abilities: [
       { name: 'Horn Charge', icon: 'Counter', kind: 'dash', range: 280, cd: 9, dmg: { b: 65, l: 18, ad: 0.7 }, cc: { knock: 0.5 }, use: ['engage'], fx: 'impact' },
@@ -91,7 +91,7 @@ export const HEROES = [
     ] },
   { id: 'monolith', clan: 'iron', pers: 'cautious', name: 'Monolith', title: 'Living Stone', role: 'top', flex: ['support'], cls: 'tank', dmgType: 'magic', curve: 'late',
     lore: 'An ancient statue that wakes when the valley is threatened, and the valley is always threatened.',
-    tags: ['tank', 'cc', 'teamfight'], builds: ['tank', 'warden', 'burn'],
+    tags: ['tank', 'cc', 'teamfight'], builds: ['tank', 'bulwark', 'burn'],
     passive: { kind: 'lowhpRegen', name: 'Mending Stone', pct: 0.02, desc: 'Below 35% HP, regenerates 2% max HP per second.' },
     abilities: [
       { name: 'Tremor', icon: 'RockSpike', kind: 'zone', range: 300, radius: 130, dur: 3, cd: 11, dmg: { b: 20, l: 6, hp: 0.01 }, cc: { slow: [0.3, 0.5] }, use: ['clear', 'engage', 'poke'], fx: 'rock' },
@@ -101,7 +101,7 @@ export const HEROES = [
 
   { id: 'gorath', clan: 'beast', pers: 'hothead', name: 'Gorath', title: 'Tusk Warlord', role: 'top', flex: ['jungle'], cls: 'bruiser', dmgType: 'phys', curve: 'early',
     lore: 'A boar chieftain who has never met a wall, or a shield, he could not gore through.',
-    tags: ['dive', 'teamfight', 'antitank'], builds: ['pierce', 'sustain', 'tank'],
+    tags: ['dive', 'teamfight', 'antitank'], builds: ['pierce', 'venom', 'sustain'],
     passive: { kind: 'shredHits', name: 'Gore', pct: 0.05, cap: 0.2, dur: 4, desc: 'Basic attacks on heroes shred 5% armor and magic resist, stacking to 20% for 4s.' },
     abilities: [
       { name: 'Tusk Toss', icon: 'Cut', kind: 'line', range: 260, width: 60, cd: 7, dmg: { b: 65, l: 20, ad: 0.9 }, cc: { shred: [0.15, 4] }, use: ['poke', 'clear', 'engage'], fx: 'slash' },
@@ -110,7 +110,7 @@ export const HEROES = [
     ] },
   { id: 'valka', clan: 'iron', pers: 'loyal', name: 'Valka', title: 'Shieldmaiden', role: 'top', flex: ['support'], cls: 'tank', dmgType: 'phys', curve: 'mid',
     lore: 'She swore to stand in front of whoever stands behind her. She has never broken an oath.',
-    tags: ['tank', 'peel', 'shield', 'engage'], builds: ['warden', 'tank', 'haste'],
+    tags: ['tank', 'peel', 'shield', 'engage'], builds: ['warden', 'bulwark', 'tank'],
     passive: { kind: 'aura', name: 'Shieldwall', r: 260, stats: { drPct: 0.08 }, desc: 'Allies within 260 (and Valka) take 8% less damage.' },
     abilities: [
       { name: 'Shield Throw', icon: 'DefenseUpgrade', kind: 'shot', range: 380, speed: 850, width: 34, cd: 9, dmg: { b: 60, l: 18, ad: 0.5, hp: 0.02 }, cc: { silence: 1.25 }, use: ['engage', 'peel', 'poke'], proj: 'p_shuriken', fx: 'impact' },
@@ -119,7 +119,7 @@ export const HEROES = [
     ] },
   { id: 'sora', clan: 'shinobi', pers: 'calm', name: 'Sora', title: 'Straw Hat Ronin', role: 'top', flex: ['jungle'], cls: 'bruiser', dmgType: 'phys', curve: 'mid',
     lore: 'Kenshi\'s runaway student. Waits, reads, then ends the duel in one draw.',
-    tags: ['split', 'pick', 'dive'], builds: ['spellblade', 'crit', 'siege'],
+    tags: ['split', 'pick', 'dive'], builds: ['spellblade', 'stalker', 'siege'],
     passive: { kind: 'firstStrike', name: 'Iai Draw', pct: 0.3, cd: 6, desc: 'The first hit on an enemy hero after 6s without hitting heroes deals 30% more damage.' },
     abilities: [
       { name: 'Parry', icon: 'Counter', kind: 'self', cd: 12, parry: { dur: 1.5, stun: 1.0 }, use: ['engage', 'defend'], fx: 'shield' },
@@ -128,7 +128,7 @@ export const HEROES = [
     ] },
   { id: 'tetsu', clan: 'iron', pers: 'cautious', name: 'Tetsu', title: 'Siege Golem', role: 'top', flex: ['jungle'], cls: 'tank', dmgType: 'phys', curve: 'late',
     lore: 'Built to knock down castle gates. Nobody remembered to tell it the war ended.',
-    tags: ['siege', 'split', 'tank'], builds: ['siege', 'tank', 'warden'],
+    tags: ['siege', 'split', 'tank'], builds: ['siege', 'thorns', 'tank'],
     passive: { kind: 'siege', name: 'Demolisher', pct: 0.35, desc: 'Deals 35% bonus damage to structures.' },
     abilities: [
       { name: 'Drill Fist', icon: 'RockSpike', kind: 'target', range: 120, cd: 6, dmg: { b: 70, l: 22, ad: 0.7, hp: 0.04 }, cc: { shred: [0.2, 3], slow: [0.3, 1] }, use: ['engage', 'clear', 'poke'], fx: 'impact' },
@@ -139,7 +139,7 @@ export const HEROES = [
   // ───────────── JUNGLE ─────────────
   { id: 'kaze', clan: 'shinobi', pers: 'reckless', name: 'Kaze', title: 'Leaf on the Wind', role: 'jungle', flex: ['mid'], cls: 'assassin', dmgType: 'phys', curve: 'mid',
     lore: 'Loud, fast and gone before you turn around. Leaves a shuriken as a calling card.',
-    tags: ['burst', 'dive', 'pick'], builds: ['burst', 'crit', 'spellblade'],
+    tags: ['burst', 'dive', 'pick'], builds: ['burst', 'executioner', 'swift'],
     passive: { kind: 'executer', name: 'Opportunist', pct: 0.12, desc: 'Deals 12% more damage to targets below 35% HP.' },
     abilities: [
       { name: 'Shuriken', icon: 'MagicWeapon', kind: 'shot', range: 350, speed: 900, width: 28, cd: 5, dmg: { b: 60, l: 20, ad: 0.8 }, use: ['poke', 'clear'], proj: 'p_shuriken', fx: 'cut' },
@@ -148,7 +148,7 @@ export const HEROES = [
     ] },
   { id: 'leonin', clan: 'beast', pers: 'hothead', name: 'Leonin', title: 'Pride Hunter', role: 'jungle', flex: ['top'], cls: 'bruiser', dmgType: 'phys', curve: 'early',
     lore: "The pride's hunter. He eats first and he eats well.",
-    tags: ['dive', 'sustain', 'early'], builds: ['sustain', 'pierce', 'tank'],
+    tags: ['dive', 'sustain', 'early'], builds: ['sustain', 'momentum', 'pierce'],
     passive: { kind: 'spellVamp', name: 'Feast', pct: 0.12, desc: '12% omnivamp.' },
     abilities: [
       { name: 'Pounce', icon: 'BookWind', kind: 'dash', range: 300, cd: 8, dmg: { b: 60, l: 18, ad: 0.8 }, cc: { slow: [0.3, 1] }, use: ['engage'], fx: 'claw' },
@@ -157,7 +157,7 @@ export const HEROES = [
     ] },
   { id: 'karasu', clan: 'spirit', pers: 'loyal', name: 'Karasu', title: 'Crow of the Peaks', role: 'jungle', flex: ['top'], cls: 'bruiser', dmgType: 'phys', curve: 'mid',
     lore: 'A crow tengu who rules the mountain winds and swoops on anyone below.',
-    tags: ['dive', 'cc', 'engage'], builds: ['burst', 'tank', 'spellblade'],
+    tags: ['dive', 'cc', 'engage'], builds: ['burst', 'tank', 'swift'],
     passive: { kind: 'shieldOnHit', name: 'Feathered Mantle', pct: 0.07, cd: 12, desc: 'Taking hero damage grants a shield (7% max HP). 12s cooldown.' },
     abilities: [
       { name: 'Wing Slash', icon: 'Cut', kind: 'line', range: 250, width: 70, cd: 6, dmg: { b: 70, l: 20, ad: 0.9 }, use: ['poke', 'clear', 'engage'], fx: 'slash' },
@@ -166,7 +166,7 @@ export const HEROES = [
     ] },
   { id: 'umbra', clan: 'shinobi', pers: 'greedy', name: 'Umbra', title: 'The Unseen', role: 'jungle', flex: ['mid'], cls: 'assassin', dmgType: 'phys', curve: 'late',
     lore: "Nobody has seen Umbra's face. Nobody who saw it is still talking.",
-    tags: ['burst', 'dive', 'scaling'], builds: ['burst', 'crit', 'pierce'],
+    tags: ['burst', 'dive', 'scaling'], builds: ['burst', 'stalker', 'crit'],
     passive: { kind: 'msOutOfCombat', name: 'Shadowwalk', pct: 0.10, desc: '+10% move speed when out of combat.' },
     abilities: [
       { name: 'Kunai Fan', icon: 'MagicWeapon', kind: 'shot', range: 320, speed: 950, width: 60, pierce: true, cd: 5.5, dmg: { b: 60, l: 20, ad: 0.7 }, use: ['poke', 'clear'], proj: 'p_kunai', fx: 'cut' },
@@ -175,7 +175,7 @@ export const HEROES = [
     ] },
   { id: 'gama', clan: 'beast', pers: 'cautious', name: 'Gama', title: 'Swamp King', role: 'jungle', flex: ['support'], cls: 'tank', dmgType: 'magic', curve: 'mid',
     lore: 'The swamp king. His tongue is longer than your escape route.',
-    tags: ['tank', 'cc', 'engage'], builds: ['tank', 'warden', 'burn'],
+    tags: ['tank', 'cc', 'engage'], builds: ['tank', 'frostbite', 'warden'],
     passive: { kind: 'lowhpRegen', name: 'Amphibious', pct: 0.018, desc: 'Below 35% HP, regenerates 1.8% max HP per second.' },
     abilities: [
       { name: 'Tongue Lash', icon: 'BookPlant', kind: 'hook', range: 330, speed: 900, width: 36, cd: 12, dmg: { b: 60, l: 15, ap: 0.5 }, cc: { stun: 0.5 }, use: ['engage', 'peel'], proj: 'p_plant', fx: 'plant' },
@@ -184,7 +184,7 @@ export const HEROES = [
     ] },
   { id: 'ponta', clan: 'beast', pers: 'reckless', name: 'Ponta', title: 'Masked Trickster', role: 'jungle', flex: ['support'], cls: 'assassin', dmgType: 'phys', curve: 'early',
     lore: 'A raccoon trickster who wears a leaf as a disguise and a grin as armor.',
-    tags: ['pick', 'cc', 'early'], builds: ['burst', 'haste', 'warden'],
+    tags: ['pick', 'cc', 'early'], builds: ['burst', 'swift', 'stalker'],
     passive: { kind: 'msOutOfCombat', name: 'Leaf Disguise', pct: 0.15, desc: '+15% move speed when out of combat — perfect for lurking in brush.' },
     abilities: [
       { name: 'Tanuki Tug', icon: 'BookPlant', kind: 'hook', range: 380, speed: 950, width: 34, cd: 11, dmg: { b: 60, l: 18, ad: 0.6 }, cc: { stun: 0.5 }, use: ['engage'], proj: 'p_plant', fx: 'smoke' },
@@ -193,7 +193,7 @@ export const HEROES = [
     ] },
   { id: 'fang', clan: 'beast', pers: 'greedy', name: 'Fang', title: 'Cave Stalker', role: 'jungle', flex: ['top'], cls: 'bruiser', dmgType: 'phys', curve: 'late',
     lore: 'A cave lion that stalks the dark, bleeding its prey slowly.',
-    tags: ['dps', 'scaling', 'burn'], builds: ['crit', 'pierce', 'burn'],
+    tags: ['dps', 'scaling', 'burn'], builds: ['crit', 'venom', 'burn'],
     passive: { kind: 'burnHits', name: 'Rending Claws', burn: { b: 6, l: 2, dur: 2 }, desc: 'Basic attacks make enemies bleed for 2s.' },
     abilities: [
       { name: 'Rend', icon: 'Cut', kind: 'line', range: 220, width: 80, cd: 5, dmg: { b: 60, l: 18, ad: 0.8 }, use: ['clear', 'poke', 'engage'], fx: 'claw' },
@@ -202,7 +202,7 @@ export const HEROES = [
     ] },
   { id: 'kumo', clan: 'shinobi', pers: 'greedy', name: 'Kumo', title: 'Web Weaver', role: 'jungle', flex: ['mid'], cls: 'assassin', dmgType: 'magic', curve: 'mid',
     lore: 'Weaves webs between the trees and waits. Always waits.',
-    tags: ['cc', 'pick', 'poke'], builds: ['burst', 'haste', 'spellblade'],
+    tags: ['cc', 'pick', 'poke'], builds: ['burst', 'stalker', 'haste'],
     passive: { kind: 'executer', name: 'Venom Fang', pct: 0.12, desc: 'Deals 12% more damage to targets below 35% HP.' },
     abilities: [
       { name: 'Silk Thread', icon: 'Permutation', kind: 'shot', range: 420, speed: 850, width: 30, cd: 8, dmg: { b: 65, l: 22, ap: 0.6 }, cc: { root: 1.0 }, use: ['poke', 'engage', 'clear'], proj: 'p_energy', fx: 'spark' },
@@ -212,7 +212,7 @@ export const HEROES = [
 
   { id: 'kaen', clan: 'wild', pers: 'reckless', name: 'Kaen', title: 'Cinder Fang', role: 'jungle', flex: ['mid'], cls: 'assassin', dmgType: 'phys', curve: 'mid',
     lore: 'Ember\'s little brother. Every takedown fans the flame, and he does not know when to stop.',
-    tags: ['burst', 'dive', 'pick'], builds: ['burst', 'spellblade', 'crit'],
+    tags: ['burst', 'dive', 'pick'], builds: ['burst', 'executioner', 'momentum'],
     passive: { kind: 'onTakedown', name: 'Blaze', ms: 0.3, dur: 3, heal: 0.1, desc: 'Takedowns grant 30% move speed for 3s and heal 10% max HP.' },
     abilities: [
       { name: 'Flare Kunai', icon: 'Fireball', kind: 'shot', range: 380, speed: 950, width: 28, cd: 6, dmg: { b: 60, l: 20, ad: 0.8 }, cc: { mark: [0.2, 3] }, burn: { b: 10, l: 3, dur: 2 }, use: ['poke', 'clear'], proj: 'p_kunai', fx: 'flame' },
@@ -221,7 +221,7 @@ export const HEROES = [
     ] },
   { id: 'saru', clan: 'beast', pers: 'greedy', name: 'Saru', title: 'Monkey King', role: 'jungle', flex: ['top'], cls: 'bruiser', dmgType: 'phys', curve: 'mid',
     lore: 'Stole a cloud, a staff and a crown. Still looking for something worth keeping.',
-    tags: ['dive', 'pick', 'teamfight'], builds: ['crit', 'spellblade', 'tank'],
+    tags: ['dive', 'pick', 'teamfight'], builds: ['crit', 'spellblade', 'frostbite'],
     passive: { kind: 'empowerCC', name: 'Trickster', cd: 6, cc: { knock: 0.4 }, dmg: { b: 26, l: 8, ad: 0.35 }, desc: 'After casting an ability, the next attack within 3s knocks the target up (6s cooldown).' },
     abilities: [
       { name: 'Staff Extend', icon: 'MagicWeapon', kind: 'line', range: 300, width: 40, cd: 6.5, dmg: { b: 78, l: 22, ad: 0.95 }, use: ['poke', 'clear', 'engage'], fx: 'impact' },
@@ -230,7 +230,7 @@ export const HEROES = [
     ] },
   { id: 'gaki', clan: 'spirit', pers: 'hothead', name: 'Gaki', title: 'Hungry Ghost', role: 'jungle', flex: ['top'], cls: 'bruiser', dmgType: 'magic', curve: 'mid',
     lore: 'Cursed with a hunger nothing fills. He drinks the fear of the living and calls it dinner.',
-    tags: ['sustain', 'antiheal', 'dive'], builds: ['sustain', 'burn', 'tank'],
+    tags: ['sustain', 'antiheal', 'dive'], builds: ['sustain', 'venom', 'burn'],
     passive: { kind: 'cruel', name: 'Prey on the Weak', pct: 0.15, desc: 'Deals 15% more damage to stunned, rooted, feared or slowed heroes.' },
     abilities: [
       { name: 'Soul Siphon', icon: 'Necromancy', kind: 'target', range: 200, cd: 7, dmg: { b: 60, l: 20, ap: 0.6 }, heal: { b: 30, l: 10, ap: 0.3 }, cc: { grievous: 3 }, use: ['poke', 'engage'], fx: 'spirit' },
@@ -239,7 +239,7 @@ export const HEROES = [
     ] },
   { id: 'shiro', clan: 'shinobi', pers: 'calm', name: 'Shiro', title: 'Silent Fang', role: 'jungle', flex: ['mid'], cls: 'assassin', dmgType: 'phys', curve: 'late',
     lore: 'Kaze\'s shadow. Where Kaze is loud, Shiro is a held breath in the dark.',
-    tags: ['burst', 'pick', 'scaling'], builds: ['burst', 'pierce', 'haste'],
+    tags: ['burst', 'pick', 'scaling'], builds: ['burst', 'stalker', 'pierce'],
     passive: { kind: 'lone', name: 'Isolation', pct: 0.22, desc: 'Deals 22% more damage to heroes with no ally within 500.' },
     abilities: [
       { name: 'Hush Needle', icon: 'Permutation', kind: 'shot', range: 380, speed: 1000, width: 26, cd: 9, dmg: { b: 55, l: 18, ad: 0.7 }, cc: { silence: 1.5 }, use: ['engage', 'poke'], proj: 'p_kunai', fx: 'cut' },
@@ -250,7 +250,7 @@ export const HEROES = [
   // ───────────── MID ─────────────
   { id: 'ember', clan: 'wild', pers: 'hothead', name: 'Ember', title: 'Pyromancer', role: 'mid', flex: ['support', 'bot'], cls: 'mage', dmgType: 'magic', curve: 'mid',
     lore: 'A hot-tempered pyromancer who solves every problem with fire.',
-    tags: ['burn', 'poke', 'antiheal'], builds: ['burn', 'burst', 'haste'],
+    tags: ['burn', 'poke', 'antiheal'], builds: ['burn', 'venom', 'burst'],
     passive: { kind: 'burnAbilities', name: 'Kindling', burn: { b: 5, l: 2, dur: 3 }, desc: 'Ability hits set enemies ablaze.' },
     abilities: [
       { name: 'Fireball', icon: 'Fireball', kind: 'shot', range: 450, speed: 650, width: 30, cd: 5, dmg: { b: 70, l: 25, ap: 0.6 }, use: ['poke', 'clear'], proj: 'p_fireball', fx: 'explosion' },
@@ -259,7 +259,7 @@ export const HEROES = [
     ] },
   { id: 'raiden', clan: 'shinobi', pers: 'calm', name: 'Raiden', title: 'Storm Caller', role: 'mid', flex: ['bot'], cls: 'mage', dmgType: 'magic', curve: 'mid',
     lore: 'The storm caller. Calm voice, loud thunder.',
-    tags: ['burst', 'poke'], builds: ['burst', 'haste', 'spellblade'],
+    tags: ['burst', 'poke'], builds: ['burst', 'momentum', 'haste'],
     passive: { kind: 'every3', name: 'Overcharge', type: 'magic', dmg: { b: 30, l: 8, ap: 0.3 }, desc: 'Every third attack discharges bonus magic damage.' },
     abilities: [
       { name: 'Lightning Bolt', icon: 'BookThunder', kind: 'shot', range: 480, speed: 1000, width: 28, cd: 6, dmg: { b: 80, l: 30, ap: 0.75 }, use: ['poke', 'clear'], proj: 'p_energy', fx: 'thunder' },
@@ -268,7 +268,7 @@ export const HEROES = [
     ] },
   { id: 'totem', clan: 'spirit', pers: 'cautious', name: 'Totem', title: 'Spirit Speaker', role: 'mid', flex: ['support'], cls: 'mage', dmgType: 'magic', curve: 'late',
     lore: 'Speaks for the ancestors, and the ancestors have a lot to say.',
-    tags: ['cc', 'poke', 'scaling'], builds: ['haste', 'burn', 'burst'],
+    tags: ['cc', 'poke', 'scaling'], builds: ['haste', 'frostbite', 'burn'],
     passive: { kind: 'every3', name: 'Ancestors', type: 'magic', dmg: { b: 20, l: 6, ap: 0.25 }, desc: 'Every third attack calls a spirit for bonus magic damage.' },
     abilities: [
       { name: 'Spirit Bolt', icon: 'OrbWater', kind: 'shot', range: 450, speed: 750, width: 30, cd: 6, dmg: { b: 65, l: 22, ap: 0.6 }, cc: { slow: [0.25, 1.5] }, use: ['poke', 'clear'], proj: 'p_bigenergy', fx: 'spirit' },
@@ -277,7 +277,7 @@ export const HEROES = [
     ] },
   { id: 'sanguis', clan: 'spirit', pers: 'greedy', name: 'Sanguis', title: 'Crimson Count', role: 'mid', flex: ['top'], cls: 'mage', dmgType: 'magic', curve: 'late',
     lore: 'An old count who stays young by draining everyone else.',
-    tags: ['sustain', 'scaling', 'teamfight'], builds: ['sustain', 'burst', 'spellblade'],
+    tags: ['sustain', 'scaling', 'teamfight'], builds: ['sustain', 'bloodline', 'burst'],
     passive: { kind: 'spellVamp', name: 'Thirst', pct: 0.19, desc: '19% omnivamp.' },
     abilities: [
       { name: 'Blood Lance', icon: 'BookDeath', kind: 'target', range: 400, cd: 5.5, dmg: { b: 85, l: 27, ap: 0.6 }, heal: { b: 30, l: 10, ap: 0.25 }, use: ['poke', 'clear'], fx: 'spark' },
@@ -286,7 +286,7 @@ export const HEROES = [
     ] },
   { id: 'hex', clan: 'shinobi', pers: 'calm', name: 'Hex', title: 'Night Weaver', role: 'mid', flex: ['jungle'], cls: 'mage', dmgType: 'magic', curve: 'mid',
     lore: 'A night weaver who unravels the unwary with one dark thread.',
-    tags: ['burst', 'dive', 'pick'], builds: ['burst', 'spellblade', 'haste'],
+    tags: ['burst', 'dive', 'pick'], builds: ['burst', 'executioner', 'spellblade'],
     passive: { kind: 'executer', name: 'Malice', pct: 0.16, desc: 'Deals 16% more damage to targets below 35% HP.' },
     abilities: [
       { name: 'Dark Orb', icon: 'OrbDarkness', kind: 'shot', range: 420, speed: 800, width: 30, cd: 4.5, dmg: { b: 95, l: 29, ap: 0.7 }, use: ['poke', 'clear'], proj: 'p_bigenergy', fx: 'spirit' },
@@ -295,7 +295,7 @@ export const HEROES = [
     ] },
   { id: 'kurai', clan: 'spirit', pers: 'cautious', name: 'Kurai', title: 'Hollow Sage', role: 'mid', flex: ['support'], cls: 'mage', dmgType: 'magic', curve: 'mid',
     lore: 'A hollow sage who sees the battlefield as a board of runes.',
-    tags: ['cc', 'teamfight', 'poke'], builds: ['haste', 'burst', 'burn'],
+    tags: ['cc', 'teamfight', 'poke'], builds: ['haste', 'frostbite', 'burst'],
     passive: { kind: 'every3', name: 'Echo', type: 'magic', dmg: { b: 20, l: 6, ap: 0.25 }, desc: 'Every third attack echoes for bonus magic damage.' },
     abilities: [
       { name: 'Rune Mine', icon: 'OrbDarkness', kind: 'circle', range: 450, radius: 100, delay: 0.9, cd: 8, dmg: { b: 65, l: 20, ap: 0.55 }, cc: { slow: [0.4, 1.5] }, use: ['poke', 'clear'], fx: 'circle_orange' },
@@ -304,7 +304,7 @@ export const HEROES = [
     ] },
   { id: 'nami', clan: 'shinobi', pers: 'reckless', name: 'Nami', title: 'Tide Dancer', role: 'mid', flex: ['jungle'], cls: 'mage', dmgType: 'magic', curve: 'mid',
     lore: 'Dances on the tide and drags whole teams under with it.',
-    tags: ['dive', 'teamfight', 'cc'], builds: ['burst', 'spellblade', 'sustain'],
+    tags: ['dive', 'teamfight', 'cc'], builds: ['burst', 'spellshield', 'spellblade'],
     passive: { kind: 'shieldOnHit', name: 'Bubble Guard', pct: 0.07, cd: 12, desc: 'Taking hero damage wraps her in a bubble shield (7% max HP). 12s cooldown.' },
     abilities: [
       { name: 'Water Whip', icon: 'WaterCanon', kind: 'line', range: 340, width: 60, cd: 6, dmg: { b: 85, l: 28, ap: 0.7 }, cc: { slow: [0.35, 1.5] }, use: ['poke', 'clear', 'engage'], fx: 'water' },
@@ -313,7 +313,7 @@ export const HEROES = [
     ] },
   { id: 'kitsu', clan: 'wild', pers: 'greedy', name: 'Kitsu', title: 'Foxfire Mystic', role: 'mid', flex: ['bot'], cls: 'mage', dmgType: 'magic', curve: 'late',
     lore: 'A nine-tailed fox spirit who burns slowly, and burns long.',
-    tags: ['poke', 'scaling', 'pick'], builds: ['burn', 'burst', 'siege'],
+    tags: ['poke', 'scaling', 'pick'], builds: ['burn', 'stalker', 'burst'],
     passive: { kind: 'burnAbilities', name: 'Foxfire', burn: { b: 4, l: 1.5, dur: 3 }, desc: 'Ability hits leave a lingering foxfire burn.' },
     abilities: [
       { name: 'Foxfire Orb', icon: 'OrbFire', kind: 'shot', range: 470, speed: 700, width: 40, pierce: true, cd: 7, dmg: { b: 55, l: 17, ap: 0.5 }, use: ['poke', 'clear'], proj: 'p_fireball', fx: 'flame' },
@@ -323,7 +323,7 @@ export const HEROES = [
 
   { id: 'azim', clan: 'wild', pers: 'greedy', name: 'Azim', title: 'Sand Sultan', role: 'mid', flex: ['support', 'bot'], cls: 'mage', dmgType: 'magic', curve: 'late',
     lore: 'Every fallen rival pays him tribute. The desert remembers every coin.',
-    tags: ['scaling', 'poke', 'teamfight'], builds: ['burst', 'haste', 'spellblade'],
+    tags: ['scaling', 'poke', 'teamfight'], builds: ['burst', 'momentum', 'haste'],
     passive: { kind: 'stackOnKill', name: 'Tribute', power: 6, max: 20, desc: 'Each hero takedown permanently grants +6 power (up to 20 takedowns).' },
     abilities: [
       { name: 'Sand Lance', icon: 'BookRock', kind: 'line', range: 420, width: 40, cd: 6, dmg: { b: 75, l: 25, ap: 0.7 }, use: ['poke', 'clear'], fx: 'rock' },
@@ -332,7 +332,7 @@ export const HEROES = [
     ] },
   { id: 'mori', clan: 'spirit', pers: 'cautious', name: 'Mori', title: 'Curse Weaver', role: 'mid', flex: ['support'], cls: 'mage', dmgType: 'magic', curve: 'mid',
     lore: 'A one-eyed swamp yokai. Her curses do little alone; they are an invitation for others.',
-    tags: ['poke', 'cc', 'teamfight', 'antiheal'], builds: ['burn', 'haste', 'burst'],
+    tags: ['poke', 'cc', 'teamfight', 'antiheal'], builds: ['burn', 'venom', 'haste'],
     passive: { kind: 'markAbilities', name: 'Witch Mark', pct: 0.12, dur: 3, desc: 'Ability hits mark enemies: the next hit from any ally deals 12% more damage.' },
     abilities: [
       { name: 'Hex Bolt', icon: 'OrbDarkness', kind: 'shot', range: 440, speed: 750, width: 30, cd: 6, dmg: { b: 72, l: 24, ap: 0.65 }, cc: { slow: [0.2, 1] }, use: ['poke', 'clear'], proj: 'p_bigenergy', fx: 'spirit' },
@@ -341,7 +341,7 @@ export const HEROES = [
     ] },
   { id: 'fujin', clan: 'spirit', pers: 'reckless', name: 'Fujin', title: 'Wind Tengu', role: 'mid', flex: ['support'], cls: 'mage', dmgType: 'magic', curve: 'mid',
     lore: 'The wind god\'s youngest servant. Loves nothing more than slamming enemies into cliffs.',
-    tags: ['cc', 'peel', 'poke'], builds: ['haste', 'spellblade', 'burst'],
+    tags: ['cc', 'peel', 'poke'], builds: ['haste', 'frostbite', 'spellblade'],
     passive: { kind: 'wallSlam', name: 'Gale Force', stun: 0.9, desc: 'Enemies knocked into a wall are stunned for 0.9s.' },
     abilities: [
       { name: 'Gust', icon: 'BookWind', kind: 'line', range: 340, width: 70, cd: 7, dmg: { b: 80, l: 26, ap: 0.7 }, knockAway: 120, use: ['poke', 'peel', 'engage'], fx: 'smoke' },
@@ -350,7 +350,7 @@ export const HEROES = [
     ] },
   { id: 'sumi', clan: 'shinobi', pers: 'calm', name: 'Sumi', title: 'Ink Painter', role: 'mid', flex: ['bot'], cls: 'mage', dmgType: 'magic', curve: 'mid',
     lore: 'Paints from across the valley. By the time you see the brushstroke, it has already landed.',
-    tags: ['poke', 'siege', 'scaling'], builds: ['burst', 'haste', 'siege'],
+    tags: ['poke', 'siege', 'scaling'], builds: ['burst', 'siege', 'haste'],
     passive: { kind: 'longshot', name: 'Long Brush', pct: 0.2, desc: 'Abilities deal up to 20% more damage the farther away the target is (full at 450).' },
     abilities: [
       { name: 'Ink Stroke', icon: 'WaterCanon', kind: 'shot', range: 480, speed: 800, width: 30, cd: 6, dmg: { b: 80, l: 26, ap: 0.7 }, use: ['poke', 'clear'], proj: 'p_energy', fx: 'water' },
@@ -361,7 +361,7 @@ export const HEROES = [
   // ───────────── BOT ─────────────
   { id: 'fletch', clan: 'wild', pers: 'calm', name: 'Fletch', title: 'Greenwood Archer', role: 'bot', flex: [], cls: 'marksman', dmgType: 'phys', curve: 'late',
     lore: "The greenwood's best archer. Never misses twice.",
-    tags: ['dps', 'scaling', 'poke'], builds: ['crit', 'pierce', 'sustain'], proj: 'p_arrow',
+    tags: ['dps', 'scaling', 'poke'], builds: ['crit', 'pierce', 'spellshield'], proj: 'p_arrow',
     passive: { kind: 'every3', name: 'Quick Draw', dmg: { b: 15, l: 5, ad: 0.3 }, desc: 'Every third arrow deals bonus damage.' },
     abilities: [
       { name: 'Volley', icon: 'MagicWeapon', kind: 'shot', range: 450, speed: 900, width: 80, pierce: true, cd: 7, dmg: { b: 60, l: 20, ad: 0.8 }, cc: { slow: [0.2, 1] }, use: ['poke', 'clear'], proj: 'p_arrow', fx: 'cut' },
@@ -370,7 +370,7 @@ export const HEROES = [
     ] },
   { id: 'marlowe', clan: 'iron', pers: 'greedy', name: 'Marlowe', title: 'The Inspector', role: 'bot', flex: [], cls: 'marksman', dmgType: 'phys', curve: 'late',
     lore: 'A detective who closes cases with a very long gun.',
-    tags: ['crit', 'scaling', 'pick'], builds: ['crit', 'burst', 'pierce'], proj: 'p_kunai',
+    tags: ['crit', 'scaling', 'pick'], builds: ['crit', 'executioner', 'burst'], proj: 'p_kunai',
     passive: { kind: 'executer', name: 'Case Closed', pct: 0.10, desc: 'Deals 10% more damage to targets below 35% HP.' },
     abilities: [
       { name: 'Piercing Shot', icon: 'Cut', kind: 'line', range: 500, width: 40, cd: 7, dmg: { b: 70, l: 25, ad: 1.1 }, use: ['poke', 'clear'], fx: 'spark' },
@@ -379,7 +379,7 @@ export const HEROES = [
     ] },
   { id: 'shuri', clan: 'shinobi', pers: 'reckless', name: 'Shuri', title: 'Golden Star', role: 'bot', flex: ['mid'], cls: 'marksman', dmgType: 'phys', curve: 'mid',
     lore: 'A golden star thrower whose poison makes every hit sting longer.',
-    tags: ['dps', 'burn', 'teamfight'], builds: ['crit', 'burn', 'siege'], proj: 'p_shuriken',
+    tags: ['dps', 'burn', 'teamfight'], builds: ['crit', 'venom', 'burn'], proj: 'p_shuriken',
     passive: { kind: 'burnHits', name: 'Venom Stars', burn: { b: 6, l: 2, dur: 2 }, desc: 'Basic attacks poison for 2s.' },
     abilities: [
       { name: 'Triple Star', icon: 'MagicWeapon', kind: 'shot', range: 400, speed: 900, width: 50, pierce: true, cd: 5, dmg: { b: 50, l: 18, ad: 0.7 }, use: ['poke', 'clear'], proj: 'p_shuriken', fx: 'cut' },
@@ -397,7 +397,7 @@ export const HEROES = [
     ] },
   { id: 'sling', clan: 'wild', pers: 'hothead', name: 'Sling', title: 'Cave Sniper', role: 'bot', flex: ['mid'], cls: 'marksman', dmgType: 'phys', curve: 'early',
     lore: 'A cave sniper with a sling, a rock and terrible aim at manners.',
-    tags: ['poke', 'early', 'cc'], builds: ['burst', 'crit', 'pierce'], proj: 'p_cannon',
+    tags: ['poke', 'early', 'cc'], builds: ['burst', 'momentum', 'crit'], proj: 'p_cannon',
     passive: { kind: 'every3', name: 'Heavy Stone', dmg: { b: 20, l: 6, ad: 0.4 }, desc: 'Every third stone hits harder.' },
     abilities: [
       { name: 'Rock Sling', icon: 'BookRock', kind: 'shot', range: 450, speed: 900, width: 30, cd: 5, dmg: { b: 82, l: 25, ad: 1.0 }, use: ['poke', 'clear'], proj: 'p_cannon', fx: 'rock' },
@@ -406,7 +406,7 @@ export const HEROES = [
     ] },
   { id: 'wren', clan: 'wild', pers: 'cautious', name: 'Wren', title: 'Trapwright', role: 'bot', flex: ['support'], cls: 'marksman', dmgType: 'phys', curve: 'mid',
     lore: 'A trapwright who turns every bush into a snare.',
-    tags: ['cc', 'peel', 'poke'], builds: ['crit', 'haste', 'warden'], proj: 'p_arrow',
+    tags: ['cc', 'peel', 'poke'], builds: ['crit', 'frostbite', 'warden'], proj: 'p_arrow',
     passive: { kind: 'executer', name: "Hunter's Mark", pct: 0.10, desc: 'Deals 10% more damage to targets below 35% HP.' },
     abilities: [
       { name: 'Barbed Shot', icon: 'MagicWeapon', kind: 'shot', range: 450, speed: 950, width: 28, cd: 6, dmg: { b: 70, l: 22, ad: 0.9 }, cc: { slow: [0.25, 1.5] }, use: ['poke', 'clear'], proj: 'p_arrow', fx: 'cut' },
@@ -424,7 +424,7 @@ export const HEROES = [
     ] },
   { id: 'tomoe', clan: 'iron', pers: 'greedy', name: 'Tomoe', title: 'Stance Archer', role: 'bot', flex: [], cls: 'marksman', dmgType: 'phys', curve: 'late',
     lore: 'A stance archer whose arrows fly faster the longer she holds her ground.',
-    tags: ['dps', 'scaling', 'teamfight'], builds: ['crit', 'pierce', 'spellblade'], proj: 'p_arrow',
+    tags: ['dps', 'scaling', 'teamfight'], builds: ['crit', 'bloodline', 'spellblade'], proj: 'p_arrow',
     passive: { kind: 'spellVamp', name: 'Bushido', pct: 0.06, desc: '6% omnivamp.' },
     abilities: [
       { name: 'Piercing Arrow', icon: 'Cut', kind: 'line', range: 480, width: 36, cd: 6, dmg: { b: 70, l: 24, ad: 1.05 }, use: ['poke', 'clear'], fx: 'spark' },
@@ -434,7 +434,7 @@ export const HEROES = [
 
   { id: 'voss', clan: 'iron', pers: 'greedy', name: 'Voss', title: 'Dueling Baron', role: 'bot', flex: [], cls: 'marksman', dmgType: 'phys', curve: 'late',
     lore: 'A nobleman who leaves a calling card on every opponent. He has a lot of cards.',
-    tags: ['dps', 'pick', 'scaling'], builds: ['crit', 'pierce', 'spellblade'], proj: 'p_kunai',
+    tags: ['dps', 'pick', 'scaling'], builds: ['crit', 'stalker', 'pierce'], proj: 'p_kunai',
     passive: { kind: 'markEvery', name: 'Calling Card', n: 3, pct: 0.25, dur: 3, desc: 'Every 3rd attack marks the target: the next hit from any ally deals 25% more damage.' },
     abilities: [
       { name: 'Ricochet', icon: 'MagicWeapon', kind: 'target', range: 400, cd: 6, dmg: { b: 70, l: 22, ad: 1.0 }, bounce: 2, use: ['poke', 'clear'], fx: 'spark' },
@@ -443,7 +443,7 @@ export const HEROES = [
     ] },
   { id: 'morel', clan: 'beast', pers: 'reckless', name: 'Morel', title: 'Spore Toad', role: 'bot', flex: ['support'], cls: 'marksman', dmgType: 'phys', curve: 'early',
     lore: 'A swamp toad grown in the shade of giant mushrooms. Everything it touches stops healing.',
-    tags: ['poke', 'antiheal', 'cc'], builds: ['burn', 'haste', 'siege'], proj: 'p_plant',
+    tags: ['poke', 'antiheal', 'cc'], builds: ['burn', 'venom', 'frostbite'], proj: 'p_plant',
     passive: { kind: 'grievousHits', name: 'Toxic Spores', dur: 2, desc: 'Basic attacks apply Grievous Wounds (-40% healing) for 2s.' },
     abilities: [
       { name: 'Spore Shot', icon: 'OrbPlant', kind: 'shot', range: 420, speed: 850, width: 32, cd: 7, dmg: { b: 60, l: 20, ad: 0.75 }, burn: { b: 10, l: 3, dur: 3 }, use: ['poke', 'clear'], proj: 'p_plant', fx: 'plant' },
@@ -452,7 +452,7 @@ export const HEROES = [
     ] },
   { id: 'hachi', clan: 'shinobi', pers: 'hothead', name: 'Hachi', title: 'Hornet', role: 'bot', flex: [], cls: 'marksman', dmgType: 'phys', curve: 'mid',
     lore: 'Fast, furious and very angry. Each sting comes quicker than the last.',
-    tags: ['dps', 'dive', 'crit'], builds: ['crit', 'pierce', 'sustain'], proj: 'p_shuriken',
+    tags: ['dps', 'dive', 'crit'], builds: ['crit', 'momentum', 'sustain'], proj: 'p_shuriken',
     passive: { kind: 'frenzy', name: 'Hornet Swarm', pct: 0.1, max: 5, desc: 'Each attack on the same target grants +10% attack speed, up to 5 stacks. Switching targets resets it.' },
     abilities: [
       { name: 'Sting', icon: 'Cut', kind: 'shot', range: 420, speed: 1000, width: 30, cd: 5, dmg: { b: 70, l: 22, ad: 1.0 }, cc: { shred: [0.2, 3] }, use: ['poke', 'clear'], proj: 'p_shuriken', fx: 'cut' },
@@ -461,7 +461,7 @@ export const HEROES = [
     ] },
   { id: 'rekka', clan: 'wild', pers: 'cautious', name: 'Rekka', title: 'Rocket Ninja', role: 'bot', flex: ['mid'], cls: 'marksman', dmgType: 'phys', curve: 'mid',
     lore: 'Traded her sword for black powder. Towers are just big targets that do not dodge.',
-    tags: ['siege', 'poke', 'teamfight'], builds: ['siege', 'crit', 'spellblade'], proj: 'p_cannon',
+    tags: ['siege', 'poke', 'teamfight'], builds: ['siege', 'crit', 'spellshield'], proj: 'p_cannon',
     passive: { kind: 'splashEvery', name: 'Payload', n: 4, r: 90, pct: 0.6, desc: 'Every 4th attack explodes, dealing 60% of its damage around the target.' },
     abilities: [
       { name: 'Rocket Barrage', icon: 'Explosion', kind: 'line', range: 420, width: 80, cd: 8, dmg: { b: 60, l: 20, ad: 0.75 }, use: ['poke', 'clear'], fx: 'explosion' },
@@ -472,7 +472,7 @@ export const HEROES = [
   // ───────────── SUPPORT ─────────────
   { id: 'oak', clan: 'spirit', pers: 'loyal', name: 'Brother Oak', title: 'Temple Healer', role: 'support', flex: [], cls: 'support', dmgType: 'magic', curve: 'mid',
     lore: 'A gentle temple healer with very strong hands.',
-    tags: ['heal', 'peel', 'sustain'], builds: ['guardian', 'warden', 'haste'],
+    tags: ['heal', 'peel', 'sustain'], builds: ['guardian', 'bulwark', 'warden'],
     passive: { kind: 'healAllies', name: 'Blessed Hands', heal: { b: 10, l: 4, ap: 0.1 }, desc: 'Basic attacks on heroes heal the lowest-HP nearby ally.' },
     abilities: [
       { name: 'Mending Palm', icon: 'Heal', kind: 'ally', range: 450, cd: 8, heal: { b: 60, l: 20, ap: 0.45 }, use: ['sustain'], fx: 'spirit' },
@@ -481,7 +481,7 @@ export const HEROES = [
     ] },
   { id: 'wu', clan: 'spirit', pers: 'calm', name: 'Sensei Wu', title: 'Old Master', role: 'support', flex: ['mid'], cls: 'support', dmgType: 'magic', curve: 'late',
     lore: 'An old master who teaches with shields and palm strikes.',
-    tags: ['shield', 'cc', 'peel'], builds: ['guardian', 'warden', 'haste'],
+    tags: ['shield', 'cc', 'peel'], builds: ['guardian', 'frostbite', 'warden'],
     passive: { kind: 'every3', name: 'Discipline', type: 'magic', dmg: { b: 15, l: 5, ap: 0.2 }, desc: 'Every third strike deals bonus magic damage.' },
     abilities: [
       { name: 'Palm Strike', icon: 'Counter', kind: 'shot', range: 400, speed: 800, width: 34, cd: 9, dmg: { b: 70, l: 22, ap: 0.5 }, cc: { stun: 1.0 }, use: ['engage', 'peel'], proj: 'p_energy', fx: 'spark' },
@@ -490,7 +490,7 @@ export const HEROES = [
     ] },
   { id: 'aurelia', clan: 'wild', pers: 'loyal', name: 'Aurelia', title: 'Sun Princess', role: 'support', flex: [], cls: 'support', dmgType: 'magic', curve: 'mid',
     lore: 'The sun princess. Her light heals friends and blinds foes.',
-    tags: ['heal', 'buff', 'peel'], builds: ['guardian', 'haste', 'burst'],
+    tags: ['heal', 'buff', 'peel'], builds: ['guardian', 'haste'],
     passive: { kind: 'healAllies', name: 'Radiance', heal: { b: 8, l: 4, ap: 0.1 }, desc: 'Basic attacks on heroes heal the lowest-HP nearby ally.' },
     abilities: [
       { name: 'Starlight', icon: 'OrbLight', kind: 'shot', range: 450, speed: 850, width: 34, cd: 11, dmg: { b: 60, l: 20, ap: 0.5 }, cc: { root: 1.25 }, use: ['engage', 'peel'], proj: 'p_energy', fx: 'spark' },
@@ -499,7 +499,7 @@ export const HEROES = [
     ] },
   { id: 'bonehook', clan: 'spirit', pers: 'reckless', name: 'Bonehook', title: 'Grave Fisher', role: 'support', flex: ['jungle'], cls: 'support', dmgType: 'magic', curve: 'early',
     lore: 'Fishes for souls with a rusty hook. Always gets a bite.',
-    tags: ['cc', 'engage', 'pick'], builds: ['tank', 'warden', 'haste'], range: 55,
+    tags: ['cc', 'engage', 'pick'], builds: ['tank', 'swift', 'warden'], range: 55,
     passive: { kind: 'shieldOnHit', name: 'Bone Armor', pct: 0.08, cd: 12, desc: 'Taking hero damage grants a shield (8% max HP).' },
     abilities: [
       { name: 'Bone Hook', icon: 'Necromancy', kind: 'hook', range: 450, speed: 1000, width: 40, cd: 12, dmg: { b: 90, l: 30, ap: 0.5 }, cc: { stun: 0.75 }, use: ['engage'], proj: 'p_bigkunai', fx: 'cut' },
@@ -508,7 +508,7 @@ export const HEROES = [
     ] },
   { id: 'frost', clan: 'wild', pers: 'loyal', name: 'Frost', title: 'Tundra Guard', role: 'support', flex: ['top'], cls: 'support', dmgType: 'magic', curve: 'mid',
     lore: 'A tundra guard who freezes anything that wanders too close.',
-    tags: ['cc', 'engage', 'tank'], builds: ['tank', 'warden', 'haste'], range: 55,
+    tags: ['cc', 'engage', 'tank'], builds: ['tank', 'frostbite', 'thorns'], range: 55,
     passive: { kind: 'dr', name: 'Permafrost', pct: 0.06, desc: 'Takes 6% less damage.' },
     abilities: [
       { name: 'Ice Shard', icon: 'BookIce', kind: 'shot', range: 420, speed: 850, width: 30, cd: 7, dmg: { b: 60, l: 20, ap: 0.5 }, cc: { slow: [0.4, 1.5] }, use: ['poke', 'peel'], proj: 'p_icespike', fx: 'ice' },
@@ -517,7 +517,7 @@ export const HEROES = [
     ] },
   { id: 'gizmo', clan: 'iron', pers: 'loyal', name: 'Gizmo', title: 'Shield Unit', role: 'support', flex: [], cls: 'support', dmgType: 'magic', curve: 'mid',
     lore: 'A loyal shield robot. Its only program: protect.',
-    tags: ['shield', 'peel', 'buff'], builds: ['guardian', 'warden', 'tank'],
+    tags: ['shield', 'peel', 'buff'], builds: ['guardian', 'bulwark', 'warden'],
     passive: { kind: 'shieldOnHit', name: 'Auto-Barrier', pct: 0.07, cd: 12, desc: 'Taking hero damage grants a shield (7% max HP). 12s cooldown.' },
     abilities: [
       { name: 'Barrier Drone', icon: 'DefenseUpgrade', kind: 'ally', range: 450, cd: 8, shield: { b: 90, l: 30, ap: 0.5, dur: 3 }, use: ['sustain', 'peel'], fx: 'shield' },
@@ -526,7 +526,7 @@ export const HEROES = [
     ] },
   { id: 'ruga', clan: 'beast', pers: 'hothead', name: 'Ruga', title: 'Drum Shaman', role: 'support', flex: ['top'], cls: 'support', dmgType: 'magic', curve: 'early',
     lore: 'A lion shaman whose war drums make the whole pride braver.',
-    tags: ['buff', 'engage', 'heal'], builds: ['guardian', 'tank', 'warden'],
+    tags: ['buff', 'engage', 'heal'], builds: ['guardian', 'tank', 'bulwark'],
     passive: { kind: 'dr', name: 'Thick Mane', pct: 0.05, desc: 'Takes 5% less damage.' },
     abilities: [
       { name: 'War Drum', icon: 'Counter', kind: 'nova', radius: 180, cd: 9, dmg: { b: 55, l: 16, ap: 0.4 }, cc: { slow: [0.35, 1.5] }, buff: { dur: 3, stats: { msPct: 0.2 } }, use: ['engage', 'peel', 'clear'], fx: 'circle_orange' },
@@ -535,7 +535,7 @@ export const HEROES = [
     ] },
   { id: 'hotaru', clan: 'spirit', pers: 'reckless', name: 'Hotaru', title: 'Lantern Ghost', role: 'support', flex: ['mid'], cls: 'support', dmgType: 'magic', curve: 'mid',
     lore: 'A lantern ghost who guides lost allies and haunts lost enemies.',
-    tags: ['cc', 'pick', 'heal'], builds: ['guardian', 'burst', 'haste'],
+    tags: ['cc', 'pick', 'heal'], builds: ['guardian', 'burst', 'frostbite'],
     passive: { kind: 'healAllies', name: 'Lantern Glow', heal: { b: 8, l: 3, ap: 0.1 }, desc: 'Basic attacks on heroes heal the lowest-HP nearby ally.' },
     abilities: [
       { name: 'Haunt', icon: 'Necromancy', kind: 'target', range: 380, cd: 13, dmg: { b: 50, l: 16, ap: 0.35 }, cc: { stun: 0.75 }, use: ['engage', 'peel'], fx: 'spirit' },
@@ -544,7 +544,7 @@ export const HEROES = [
     ] },
   { id: 'hoshi', clan: 'spirit', pers: 'calm', name: 'Hoshi', title: 'Star Sage', role: 'support', flex: ['mid'], cls: 'support', dmgType: 'magic', curve: 'late',
     lore: 'Oak\'s old teacher. Reads the stars, and the stars say: do not let them stun you.',
-    tags: ['peel', 'shield', 'cc'], builds: ['warden', 'guardian', 'haste'],
+    tags: ['peel', 'shield', 'cc'], builds: ['warden', 'bulwark', 'guardian'],
     passive: { kind: 'aura', name: 'Serenity', r: 400, stats: { tenacity: 0.2 }, desc: 'Allies within 400 have 20% tenacity (shorter stuns, roots, silences, fears and slows).' },
     abilities: [
       { name: 'Purify', icon: 'BookLight', kind: 'ally', range: 450, cd: 11, cleanse: true, shield: { b: 70, l: 25, ap: 0.5, dur: 2.5 }, use: ['sustain', 'peel'], fx: 'shield_yellow' },
@@ -553,7 +553,7 @@ export const HEROES = [
     ] },
   { id: 'daikoku', clan: 'iron', pers: 'loyal', name: 'Daikoku', title: 'Golden Bell', role: 'support', flex: ['top'], cls: 'support', dmgType: 'magic', curve: 'mid', range: 55,
     lore: 'A temple bell given a body. When he rings, spellcasters forget their words.',
-    tags: ['tank', 'engage', 'cc'], builds: ['tank', 'warden', 'haste'],
+    tags: ['tank', 'engage', 'cc'], builds: ['tank', 'thorns', 'bulwark'],
     passive: { kind: 'tenacity', name: 'Immovable', pct: 0.3, desc: '30% tenacity: stuns, roots, silences, fears and slows on him are 30% shorter.' },
     abilities: [
       { name: 'Bell Toll', icon: 'Counter', kind: 'nova', radius: 170, cd: 11, dmg: { b: 55, l: 16, ap: 0.4, hp: 0.02 }, cc: { silence: 1.25, slow: [0.3, 1.5] }, use: ['engage', 'peel', 'clear'], fx: 'circle_orange' },
@@ -562,7 +562,7 @@ export const HEROES = [
     ] },
   { id: 'kinta', clan: 'beast', pers: 'greedy', name: 'Kinta', title: 'Lucky Scout', role: 'support', flex: ['jungle'], cls: 'support', dmgType: 'magic', curve: 'early',
     lore: 'A golden-masked raccoon who sees everything shiny, including you, hiding in that bush.',
-    tags: ['pick', 'poke', 'vision'], builds: ['warden', 'haste', 'burst'],
+    tags: ['pick', 'poke', 'vision'], builds: ['warden', 'swift', 'burst'],
     passive: { kind: 'sight', name: 'Keen Eyes', pct: 0.25, desc: '+25% vision radius, and places wards twice as often.' },
     abilities: [
       { name: 'Shiny Coin', icon: 'LuckUpgrade', kind: 'shot', range: 450, speed: 950, width: 30, cd: 7, dmg: { b: 60, l: 20, ap: 0.5 }, cc: { mark: [0.25, 4], slow: [0.25, 1.5] }, use: ['poke', 'engage'], proj: 'p_shuriken', fx: 'spark' },
@@ -571,7 +571,7 @@ export const HEROES = [
     ] },
   { id: 'zahra', clan: 'wild', pers: 'loyal', name: 'Zahra', title: 'Desert Dancer', role: 'support', flex: [], cls: 'support', dmgType: 'magic', curve: 'mid',
     lore: 'Azim\'s court dancer. Her blessings make blades sing and feet fly.',
-    tags: ['buff', 'heal', 'peel'], builds: ['guardian', 'haste', 'spellblade'],
+    tags: ['buff', 'heal', 'peel'], builds: ['guardian', 'haste', 'swift'],
     passive: { kind: 'hasteGift', name: 'Tailwind', ms: 0.2, dur: 2, desc: 'Allies she heals, shields or buffs gain 20% move speed for 2s.' },
     abilities: [
       { name: 'Blessed Blade', icon: 'MagicWeapon', kind: 'ally', range: 450, cd: 9, onHitAlly: { b: 18, l: 6, ap: 0.15, dur: 4 }, buff: { dur: 4, stats: { asPct: 0.15 } }, use: ['sustain', 'engage'], fx: 'boost' },
@@ -582,7 +582,7 @@ export const HEROES = [
   // top
   { id: 'daichi', clan: 'hearth', pers: 'loyal', name: 'Daichi', title: 'The Millstone', role: 'top', flex: ['support'], cls: 'tank', dmgType: 'phys', curve: 'mid',
     lore: 'A miller who has carried the valley\'s grain up the mountain every day for thirty years. Now he carries the valley.',
-    tags: ['tank', 'cc', 'peel', 'teamfight'], builds: ['tank', 'warden', 'haste'],
+    tags: ['tank', 'cc', 'peel', 'teamfight'], builds: ['tank', 'bulwark', 'warden'],
     passive: { kind: 'hearthGuard', name: 'Hearthguard', per: 4, desc: '+4 armor and magic resist for every Hearthfire ember.' },
     abilities: [
       { name: 'Millstone Roll', icon: 'BookRock', kind: 'line', range: 300, width: 70, cd: 9, dmg: { b: 60, l: 16, ad: 0.4, hp: 0.03 }, cc: { slow: [0.35, 1.5] }, use: ['poke', 'engage', 'clear'], fx: 'rock' },
@@ -591,7 +591,7 @@ export const HEROES = [
     ] },
   { id: 'tobi', clan: 'hearth', pers: 'hothead', name: 'Tobi', title: 'Woodcutter', role: 'top', flex: ['jungle'], cls: 'bruiser', dmgType: 'phys', curve: 'early',
     lore: 'The strongest arm in the valley. He has felled a thousand cedars and he talks to every one of them first.',
-    tags: ['split', 'dps', 'antitank'], builds: ['pierce', 'siege', 'sustain'],
+    tags: ['split', 'dps', 'antitank'], builds: ['pierce', 'siege', 'venom'],
     passive: { kind: 'every3', name: 'Timber!', dmg: { b: 18, l: 6, ad: 0.3, hp: 0.02 }, desc: 'Every third swing deals bonus physical damage (plus 2% of his max HP).' },
     abilities: [
       { name: 'Axe Throw', icon: 'MagicWeapon', kind: 'shot', range: 360, speed: 800, width: 40, cd: 7, dmg: { b: 70, l: 20, ad: 0.9 }, cc: { slow: [0.25, 1.5] }, use: ['poke', 'clear', 'engage'], proj: 'p_bigshuriken', fx: 'cut' },
@@ -600,7 +600,7 @@ export const HEROES = [
     ] },
   { id: 'kuma', clan: 'beast', pers: 'hothead', name: 'Kuma', title: 'Mountain Bear', role: 'top', flex: ['jungle'], cls: 'bruiser', dmgType: 'phys', curve: 'early',
     lore: 'Wakes from hibernation hungry and in a terrible mood. The Beast clan schedules its wars around his naps.',
-    tags: ['tank', 'dive', 'sustain', 'antiheal'], builds: ['sustain', 'tank', 'pierce'],
+    tags: ['tank', 'dive', 'sustain', 'antiheal'], builds: ['sustain', 'bloodline', 'tank'],
     passive: { kind: 'onTakedown', name: 'Feast', heal: 0.1, ms: 0.2, dur: 3, desc: 'Takedowns heal 10% max HP and give +20% move speed for 3s.' },
     abilities: [
       { name: 'Maul', icon: 'Cut', kind: 'target', range: 80, cd: 7, dmg: { b: 70, l: 22, ad: 0.9 }, cc: { grievous: 3 }, use: ['engage', 'poke'], fx: 'claw' },
@@ -609,7 +609,7 @@ export const HEROES = [
     ] },
   { id: 'mogura', clan: 'iron', pers: 'cautious', name: 'Mogura', title: 'Tunnel Sapper', role: 'top', flex: ['jungle'], cls: 'tank', dmgType: 'phys', curve: 'late',
     lore: 'The Iron clan\'s tunneller. To him a wall is a suggestion and a tower is a long afternoon.',
-    tags: ['tank', 'siege', 'split'], builds: ['siege', 'tank', 'warden'],
+    tags: ['tank', 'siege', 'split'], builds: ['siege', 'tank', 'thorns'],
     passive: { kind: 'siege', name: 'Undermine', pct: 0.25, desc: 'Deals 25% bonus damage to structures.' },
     abilities: [
       { name: 'Burrow', icon: 'BookRock', kind: 'dash', range: 320, cd: 9, stealth: 1, dmg: { b: 60, l: 18, ad: 0.5, hp: 0.025 }, cc: { knock: 0.5 }, use: ['engage', 'escape'], fx: 'rock' },
@@ -619,7 +619,7 @@ export const HEROES = [
   // jungle
   { id: 'kenta', clan: 'hearth', pers: 'reckless', name: 'Kenta', title: 'Rooftop Runner', role: 'jungle', flex: ['mid'], cls: 'assassin', dmgType: 'phys', curve: 'early',
     lore: 'The fastest kid in the valley never touches the ground if there is a roof. He carries the news, and lately, the fight.',
-    tags: ['dive', 'pick', 'burst', 'early'], builds: ['burst', 'crit', 'spellblade'],
+    tags: ['dive', 'pick', 'burst', 'early'], builds: ['burst', 'swift', 'momentum'],
     passive: { kind: 'emberChase', name: 'Light the Way', ms: 0.02, desc: 'His takedowns light 2 Hearthfire embers instead of 1. +2% move speed per ember.' },
     abilities: [
       { name: 'Rooftop Leap', icon: 'BookWind', kind: 'dash', range: 300, cd: 8, dmg: { b: 65, l: 20, ad: 0.8 }, use: ['engage', 'escape'], fx: 'smoke' },
@@ -628,7 +628,7 @@ export const HEROES = [
     ] },
   { id: 'isamu', clan: 'hearth', pers: 'calm', name: 'Isamu', title: 'Ridge Hunter', role: 'jungle', flex: ['top'], cls: 'bruiser', dmgType: 'phys', curve: 'mid',
     lore: 'He reads tracks the way monks read scripture. Whatever walks the ridge, Isamu already knows where it sleeps.',
-    tags: ['pick', 'cc', 'vision'], builds: ['warden', 'pierce', 'sustain'],
+    tags: ['pick', 'cc', 'vision'], builds: ['warden', 'frostbite', 'pierce'],
     passive: { kind: 'cruel', name: 'Hunter\'s Patience', pct: 0.12, desc: 'Deals 12% more damage to stunned, rooted, feared or slowed heroes.' },
     abilities: [
       { name: 'Bear Trap', icon: 'RockSpike', kind: 'circle', range: 400, radius: 80, delay: 0.4, cd: 11, dmg: { b: 55, l: 16, ad: 0.5 }, cc: { root: 1.25 }, use: ['engage', 'peel'], fx: 'cutx' },
@@ -637,7 +637,7 @@ export const HEROES = [
     ] },
   { id: 'hebi', clan: 'shinobi', pers: 'cautious', name: 'Hebi', title: 'Venom Fang', role: 'jungle', flex: ['mid'], cls: 'assassin', dmgType: 'phys', curve: 'mid',
     lore: 'A serpent who sheds a skin for every name she has worn. The Shinobi send her when the target must not get up again.',
-    tags: ['pick', 'burst', 'antiheal'], builds: ['burst', 'pierce', 'crit'],
+    tags: ['pick', 'burst', 'antiheal'], builds: ['burst', 'venom', 'stalker'],
     passive: { kind: 'grievousHits', name: 'Venom', dur: 3, desc: 'Basic attacks apply Grievous Wounds (-40% healing) for 3s.' },
     abilities: [
       { name: 'Fang Strike', icon: 'Cut', kind: 'dash', range: 300, cd: 8, dmg: { b: 70, l: 22, ad: 0.85 }, cc: { slow: [0.3, 1.5] }, use: ['engage', 'escape'], fx: 'claw' },
@@ -646,7 +646,7 @@ export const HEROES = [
     ] },
   { id: 'upa', clan: 'wild', pers: 'loyal', name: 'Upa', title: 'Axolotl Tracker', role: 'jungle', flex: ['top'], cls: 'bruiser', dmgType: 'phys', curve: 'mid',
     lore: 'Lose an arm, grow it back by lunch. Upa guides the Wild clan through the marsh and never seems to stay hurt.',
-    tags: ['sustain', 'cc', 'engage'], builds: ['sustain', 'tank', 'spellblade'],
+    tags: ['sustain', 'cc', 'engage'], builds: ['sustain', 'tank', 'bloodline'],
     passive: { kind: 'lowhpRegen', name: 'Regrowth', pct: 0.024, desc: 'Below 35% HP, regenerates 2.4% max HP per second.' },
     abilities: [
       { name: 'Bubble Spit', icon: 'OrbWater', kind: 'shot', range: 400, speed: 800, width: 40, cd: 7, dmg: { b: 65, l: 20, ad: 0.7 }, cc: { slow: [0.35, 1.5] }, use: ['poke', 'clear', 'engage'], proj: 'p_energy', fx: 'water' },
@@ -665,7 +665,7 @@ export const HEROES = [
     ] },
   { id: 'mame', clan: 'hearth', pers: 'hothead', name: 'Mame', title: 'Bean Thrower', role: 'mid', flex: ['support'], cls: 'mage', dmgType: 'magic', curve: 'early',
     lore: 'Every spring the valley throws roasted beans to drive out the oni. Mame never stopped, and the oni have noticed.',
-    tags: ['cc', 'poke', 'pick'], builds: ['haste', 'burst', 'spellblade'],
+    tags: ['cc', 'poke', 'pick'], builds: ['haste', 'frostbite', 'spellblade'],
     passive: { kind: 'empowerCC', name: 'Oni Out!', cd: 8, dmg: { b: 20, l: 8, ap: 0.3 }, cc: { fear: 0.6 }, desc: 'After casting, her next basic attack within 3s throws a fistful of beans: bonus magic damage and a 0.6s fear. 8s cooldown.' },
     abilities: [
       { name: 'Bean Volley', icon: 'MagicWeapon', kind: 'shot', range: 420, speed: 850, width: 50, pierce: true, cd: 6, dmg: { b: 70, l: 22, ap: 0.6 }, use: ['poke', 'clear'], proj: 'p_rock', fx: 'spark' },
@@ -674,7 +674,7 @@ export const HEROES = [
     ] },
   { id: 'fukuro', clan: 'spirit', pers: 'calm', name: 'Fukuro', title: 'Night Owl Sage', role: 'mid', flex: ['support'], cls: 'mage', dmgType: 'magic', curve: 'late',
     lore: 'Hoots once for every secret it knows. It has not stopped hooting in three hundred years.',
-    tags: ['poke', 'pick', 'vision'], builds: ['burst', 'haste', 'burn'],
+    tags: ['poke', 'pick', 'vision'], builds: ['burst', 'executioner', 'haste'],
     passive: { kind: 'executer', name: 'Night Hunter', pct: 0.1, desc: 'Deals 10% more damage to targets below 35% HP.' },
     abilities: [
       { name: 'Moon Feather', icon: 'OrbLight', kind: 'shot', range: 460, speed: 900, width: 32, pierce: true, cd: 6, dmg: { b: 80, l: 26, ap: 0.65 }, use: ['poke', 'clear'], proj: 'p_magicstar', fx: 'spirit' },
@@ -683,7 +683,7 @@ export const HEROES = [
     ] },
   { id: 'hitotsume', clan: 'iron', pers: 'reckless', name: 'Hitotsume', title: 'Forge Eye', role: 'mid', flex: ['top'], cls: 'mage', dmgType: 'magic', curve: 'mid',
     lore: 'A one-eyed smith who never blinks: not at the forge, not in a fight. Every Iron blade passed through his hands.',
-    tags: ['burn', 'teamfight', 'poke'], builds: ['burn', 'burst', 'haste'],
+    tags: ['burn', 'teamfight', 'poke'], builds: ['burn', 'burst', 'spellshield'],
     passive: { kind: 'burnAbilities', name: 'Molten', burn: { b: 5, l: 1.6, dur: 3 }, desc: 'Ability hits leave a molten burn.' },
     abilities: [
       { name: 'Forge Beam', icon: 'OrbFire', kind: 'line', range: 400, width: 40, cd: 6, dmg: { b: 75, l: 25, ap: 0.65 }, use: ['poke', 'clear'], fx: 'flame' },
@@ -693,7 +693,7 @@ export const HEROES = [
   // bot
   { id: 'suzu', clan: 'hearth', pers: 'calm', name: 'Suzu', title: 'Crossbow Tinker', role: 'bot', flex: ['mid'], cls: 'marksman', dmgType: 'phys', curve: 'late',
     lore: 'Taro\'s twin. He makes things explode; she makes them hit exactly where she meant. Her crossbow has a name, and it is not polite.',
-    tags: ['dps', 'siege', 'scaling'], builds: ['crit', 'siege', 'pierce'], proj: 'p_arrow',
+    tags: ['dps', 'siege', 'scaling'], builds: ['crit', 'siege', 'pierce', 'spellshield'], proj: 'p_arrow',
     passive: { kind: 'repeater', name: 'Repeater', n: 4, pct: 0.6, desc: 'Every 4th basic attack fires a second bolt for 60% damage.' },
     abilities: [
       { name: 'Bolt Spread', icon: 'MagicWeapon', kind: 'shot', range: 420, speed: 950, width: 70, pierce: true, cd: 7, dmg: { b: 55, l: 20, ad: 0.8 }, use: ['poke', 'clear'], proj: 'p_arrow', fx: 'cut' },
@@ -702,7 +702,7 @@ export const HEROES = [
     ] },
   { id: 'momo', clan: 'hearth', pers: 'cautious', name: 'Momo', title: 'Kite Fighter', role: 'bot', flex: ['support'], cls: 'marksman', dmgType: 'phys', curve: 'mid',
     lore: 'She learned to fight with kites on the festival hill, cutting other children\'s strings. Now she cuts other things.',
-    tags: ['poke', 'peel', 'cc'], builds: ['crit', 'haste', 'warden'], proj: 'p_magicstar',
+    tags: ['poke', 'peel', 'cc'], builds: ['crit', 'frostbite', 'swift'], proj: 'p_magicstar',
     passive: { kind: 'kiteWind', name: 'Updraft', ms: 0.07, max: 3, dur: 2, desc: 'Basic attacks on heroes give +7% move speed for 2s, stacking 3 times.' },
     abilities: [
       { name: 'Kite String', icon: 'MagicWeapon', kind: 'shot', range: 450, speed: 900, width: 28, cd: 7, dmg: { b: 78, l: 22, ad: 0.85 }, cc: { slow: [0.35, 1.5] }, use: ['poke', 'peel'], proj: 'p_magicstar', fx: 'cut' },
@@ -711,7 +711,7 @@ export const HEROES = [
     ] },
   { id: 'komori', clan: 'shinobi', pers: 'greedy', name: 'Komori', title: 'Echo Archer', role: 'bot', flex: ['mid'], cls: 'marksman', dmgType: 'phys', curve: 'mid',
     lore: 'Blind as a bat, and she still never misses. She hears your heartbeat from across the river.',
-    tags: ['dps', 'sustain', 'pick'], builds: ['crit', 'sustain', 'burst'], proj: 'p_kunai',
+    tags: ['dps', 'sustain', 'pick'], builds: ['crit', 'bloodline', 'sustain'], proj: 'p_kunai',
     passive: { kind: 'spellVamp', name: 'Night Thirst', pct: 0.08, desc: '8% omnivamp.' },
     abilities: [
       { name: 'Sonic Bolt', icon: 'BookThunder', kind: 'shot', range: 450, speed: 1000, width: 30, cd: 7, dmg: { b: 70, l: 22, ad: 0.9 }, cc: { silence: 0.75 }, use: ['poke', 'clear', 'peel'], proj: 'p_energy', fx: 'spark' },
@@ -720,7 +720,7 @@ export const HEROES = [
     ] },
   { id: 'tako', clan: 'wild', pers: 'hothead', name: 'Tako', title: 'Ink Cannon', role: 'bot', flex: ['mid'], cls: 'marksman', dmgType: 'phys', curve: 'early',
     lore: 'An octopus with eight arms and one opinion: shoot first. The Wild clan keeps him on the river bank, pointed outward.',
-    tags: ['poke', 'cc', 'early'], builds: ['burst', 'crit', 'haste'], proj: 'p_bigenergy',
+    tags: ['poke', 'cc', 'early'], builds: ['burst', 'momentum', 'crit'], proj: 'p_bigenergy',
     passive: { kind: 'empowerCC', name: 'Ink Shot', cd: 7, dmg: { b: 15, l: 6, ad: 0.3 }, cc: { slow: [0.35, 1.5] }, desc: 'After casting, his next attack within 3s inks the target: bonus damage and a 35% slow. 7s cooldown.' },
     abilities: [
       { name: 'Ink Jet', icon: 'WaterCanon', kind: 'shot', range: 440, speed: 850, width: 36, cd: 6, dmg: { b: 75, l: 24, ad: 0.9 }, use: ['poke', 'clear'], proj: 'p_bigenergy', fx: 'water' },
@@ -730,7 +730,7 @@ export const HEROES = [
   // support
   { id: 'ume', clan: 'hearth', pers: 'cautious', name: 'Granny Ume', title: 'Plum Elder', role: 'support', flex: ['mid'], cls: 'support', dmgType: 'magic', curve: 'late',
     lore: 'She has outlived two husbands, three wars and one dragon. She will outlive you too, dear, if you eat your plums.',
-    tags: ['heal', 'peel', 'cc'], builds: ['guardian', 'haste', 'warden'],
+    tags: ['heal', 'peel', 'cc'], builds: ['guardian', 'haste', 'frostbite'],
     passive: { kind: 'hearthBrew', name: 'Plum Tonic', per: 0.03, desc: 'Her heals and shields gain another +3% per Hearthfire ember (on top of the clan bonus).' },
     abilities: [
       { name: 'Umeboshi', icon: 'Heal', kind: 'ally', range: 450, cd: 8, heal: { b: 65, l: 20, ap: 0.45 }, buff: { dur: 3, stats: { tenacity: 0.2 } }, use: ['sustain'], fx: 'spirit' },
@@ -748,7 +748,7 @@ export const HEROES = [
     ] },
   { id: 'bao', clan: 'beast', pers: 'calm', name: 'Bao', title: 'Bamboo Monk', role: 'support', flex: ['top'], cls: 'support', dmgType: 'magic', curve: 'mid',
     lore: 'Drinks tea, eats bamboo and flattens anyone who interrupts either. The Beast clan\'s only pacifist, technically.',
-    tags: ['tank', 'engage', 'cc', 'peel'], builds: ['tank', 'warden', 'guardian'], range: 55,
+    tags: ['tank', 'engage', 'cc', 'peel'], builds: ['tank', 'thorns', 'swift'], range: 55,
     passive: { kind: 'tenacity', name: 'Unbothered', pct: 0.25, desc: '+25% tenacity: stuns, roots, fears and slows on him are shorter.' },
     abilities: [
       { name: 'Bamboo Bash', icon: 'Counter', kind: 'dash', range: 300, cd: 11, dmg: { b: 55, l: 16, ap: 0.35, hp: 0.03 }, cc: { stun: 0.75 }, use: ['engage', 'peel'], fx: 'impact' },
@@ -757,7 +757,7 @@ export const HEROES = [
     ] },
   { id: 'kinoko', clan: 'spirit', pers: 'loyal', name: 'Kinoko', title: 'Glowcap', role: 'support', flex: ['mid'], cls: 'support', dmgType: 'magic', curve: 'late',
     lore: 'A forest mushroom that glows brighter whenever a friend is hurt. On a bad day the whole wood is lit.',
-    tags: ['heal', 'sustain', 'peel'], builds: ['guardian', 'haste', 'warden'],
+    tags: ['heal', 'sustain', 'peel'], builds: ['guardian', 'venom', 'haste'],
     passive: { kind: 'healAllies', name: 'Glow Spores', heal: { b: 9, l: 3, ap: 0.1 }, desc: 'Basic attacks on heroes heal the lowest-HP nearby ally.' },
     abilities: [
       { name: 'Glowcap', icon: 'Heal', kind: 'ally', range: 450, cd: 8, heal: { b: 60, l: 19, ap: 0.42 }, buff: { dur: 3, stats: { regen: 8 } }, use: ['sustain'], fx: 'spirit' },

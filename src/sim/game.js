@@ -25,6 +25,8 @@ import { Living } from './living.js';
 import { Beasts, BEASTS } from './beasts.js';
 import { Terrain } from './terrain.js'; // v25 maps: the tide, wind bridges, jump pads
 import { setupMission, missionTick } from './mission.js'; // story campaign / tutorial rules (cfg.mission)
+import * as B2 from './builds2.js'; // v26 build types and build combos
+import * as C2 from './cards2.js'; // v26 tactic cards (hooks only run once one is played: Game.c2)
 
 // Champion-vs-champion damage scale: keeps fights readable and lanes from snowballing at level 1.
 const STEER_K = +(globalThis.process?.env?.SK || 0.45);
@@ -132,6 +134,7 @@ export class Game {
     }
     FX.setupSynergy(this); // team comp bonus joins the clan stats; duo links
     HE.setupHearth(this);
+    for (let t = 0; t < 2; t++) B2.refreshCombos(this, t);
     for (let t = 0; t < 2; t++) for (const h of this.teams[t].heroes) { this.recalc(h); h.hp = h.maxHp; }
     for (let t = 0; t < 2; t++) if (cfg.coach && cfg.coach[t]) this.coaches[t] = new Coach(this, t, cfg.coachLevel?.[t] ?? 1, cfg.coachStyle?.[t] || null);
     if (cfg.mission) setupMission(this);
@@ -223,7 +226,7 @@ export class Game {
         for (const h of team.heroes) { if (h.homeLane === 'top') h.lane = 'bot'; else if (h.homeLane === 'bot') h.lane = 'top'; if (h.task.kind === 'lane') h.task = { kind: 'idle' }; }
         break;
       }
-      default: if (!playSkillTactic(this, c, team, alive)) return false; // coach skill tree cards (src/sim/sidegrades.js)
+      default: { const r = C2.playCard2(this, c, team, alive); if (r === false || (r === undefined && !playSkillTactic(this, c, team, alive))) return false; } // v26 cards (src/sim/cards2.js), skill tree cards (src/sim/sidegrades.js)
     }
     card.used = true;
     this.emit({ type: 'tactic', team: c.team, card: c.card, lane: c.lane, hero: c.hero });
@@ -374,6 +377,7 @@ export class Game {
     if (p.kind === 'msOutOfCombat' && now - h.lastCombat > sec(4)) s.msPct += p.pct;
     FX.passiveStats(this, h, s);
     if (this.beasts) this.beasts.stats(h, s); // Kami blessings, rare Kraken
+    B2.stats(this, h, s); if (this.c2) C2.stats(this, h, s);
     const pw = s.power * (1 + s.powerMult);
     if (h.def.dmgType === 'phys') s.ad = (s.ad + pw) * (1 + s.powerMult * 0.5); else s.ap = (s.ap + pw) * (1 + s.powerMult);
     s.maxHp = (s.maxHp + s.hp) * (1 + s.hpPct);
@@ -516,7 +520,7 @@ export class Game {
       case 'build': {
         const h = heroes.find((x) => x.id === c.hero);
         if (!h || !BUILDS[c.build] || !h.def.builds.includes(c.build)) { ok = false; break; }
-        h.build = c.build; this.emit({ type: 'pivot', hero: h.id, team: h.team, build: c.build });
+        h.build = c.build; this.emit({ type: 'pivot', hero: h.id, team: h.team, build: c.build }); B2.refreshCombos(this, c.team);
         break;
       }
       case 'tactic': ok = this.playTactic(c); break;
@@ -716,6 +720,7 @@ export class Game {
     }
     this.updateStatus();
     if (this.depth && now % 10 === 0) D.depthTick(this);
+    if (now % 10 === 0) { B2.tick(this); if (this.c2) C2.tick(this); }
     this.updateProjectiles();
     this.updatePending();
     this.separate(rev);
@@ -748,7 +753,9 @@ export class Game {
       if (this.teams[t].siegeWaves[ln] > 0) { this.teams[t].siegeWaves[ln]--; baron = true; }
       const allOut = this.teams[t].allOut > 0 || this.teams[t].elderPush > this.tick; // Coach Moment: All-Out Push (and the Elder's Push)
       if (allOut) kinds.unshift('super');
+      const n0 = this.units.length;
       kinds.forEach((k, i) => this.spawnMinion(t, ln, k, i, minute, baron, allOut));
+      if (this.c2) C2.onWave(this, t, ln, n0); // Crash Wave / Slow Push
     }
     for (const tm of this.teams) if (tm.allOut > 0) tm.allOut--;
   }
@@ -845,13 +852,14 @@ export class Game {
   updateVision() {
     const W = this.world;
     for (let t = 0; t < 2; t++) {
-      const src = [], nv = this.living ? this.living.visMult(t) : 1; // night shortens unit sight
+      const src = [], nv = (this.living ? this.living.visMult(t) : 1) * (this.c2 ? C2.sightMult(this, t) : 1); // night shortens unit sight (Blackout / Owl Watch: v26 cards)
       for (const u of this.units) {
         if (!u.alive || u.team !== t) continue;
         const r = u.type === 'hero' ? VISION.hero : u.type === 'minion' ? VISION.minion : u.type === 'summon' ? VISION.summon : u.structure ? VISION.tower : 0;
         if (r) src.push({ x: u.x, y: u.y, r: u.structure ? r : r * this.wx.vision * (1 + ((u.stats && u.stats.sight) || 0)) * this.rules.vision * nv });
       }
-      for (const w of this.wards) if (w.team === t && w.until > this.tick) src.push({ x: w.x, y: w.y, r: VISION.ward * this.rules.vision });
+      const dark = this.c2 && C2.wardsDark(this, t), owl = this.c2 && C2.seesStealth(this, t);
+      for (const w of this.wards) if (w.team === t && w.until > this.tick && !dark) src.push({ x: w.x, y: w.y, r: VISION.ward * this.rules.vision });
       if (this.beasts) this.beasts.sight(t, src);
       for (const sh of this.shrines) if (sh.owner === t) src.push({ x: sh.x, y: sh.y, r: VISION.shrine });
       src.push({ x: W.fountain[t].x, y: W.fountain[t].y, r: VISION.fountain });
@@ -861,13 +869,14 @@ export class Game {
         if (!u.alive || u.team === t) continue;
         if (u.revealUntil > this.tick) { vis.add(u.id); continue; }
         if (!grid[W.idx(u.x, u.y)]) continue;
-        if (u.stealthUntil > this.tick && !this.grid.query(u.x, u.y, 150).some((e) => e.alive && e.team === t && !e.structure)) continue;
+        if (u.stealthUntil > this.tick && !owl && !this.grid.query(u.x, u.y, 150).some((e) => e.alive && e.team === t && !e.structure)) continue;
         vis.add(u.id);
       }
       this.vision[t] = vis;
       const ls = this.lastSeen[t];
       for (const h of this.teams[1 - t].heroes) if (h.alive && vis.has(h.id)) ls[h.id] = { x: h.x, y: h.y, t: this.tick };
     }
+    B2.afterVision(this);
   }
   canSee(team, u) { return u.team === team || u.structure || this.vision[team].has(u.id); }
 
@@ -897,6 +906,7 @@ export class Game {
       if (lowHp && ss.execute) amt *= 1 + ss.execute;
       if (tgt.structure && src.def.passive.kind === 'siege') amt *= 1 + src.def.passive.pct;
       if (ss.dmgPct) amt *= 1 + ss.dmgPct;
+      amt = B2.outMods(this, src, tgt, amt, flags); if (this.c2) amt = C2.outMods(this, src, tgt, amt);
       amt *= src.trustMult || 1;
       amt = FX.heroDamageMods(this, src, tgt, amt, flags);
       if (this.depth) amt = D.depthDamage(this, src, tgt, amt, flags);
@@ -924,6 +934,7 @@ export class Game {
     if (tgt.type === 'hero') {
       if (tgt.def.passive.kind === 'dr') amt *= 1 - tgt.def.passive.pct;
       if (tgt.stats.drPct) amt *= FX.drMult(tgt);
+      amt = B2.inMods(this, src, tgt, amt, flags);
       if (src && src.type === 'minion') amt *= 0.5;
       if (src && src.type === 'hero') amt *= HERO_VS_HERO;
     }
@@ -954,6 +965,7 @@ export class Game {
       const vamp = ss.omnivamp || 0;
       if (vamp > 0) this.heal(src, amt * vamp * (flags.aoe ? 0.4 : 1), null, true);
       if (flags.basic && tgt.type === 'hero' && tgt.stats.thorns) this.dealDamage(tgt, src, amt * tgt.stats.thorns + 10, 'magic', { thorns: true });
+      if (tgt.type === 'hero' && src.team !== tgt.team && !flags.dot && !flags.thorns) { B2.afterHit(this, src, tgt, amt, flags); if (this.c2) C2.onHeroHit(this, src, tgt, flags); }
     }
     if (flags.basic || flags.ability) this.fx.push({ kind: 'dmg', id: tgt.id, v: Math.round(amt), crit: flags.crit, t: type, hero: src && src.type === 'hero' && tgt.type === 'hero' });
     if (tgt.hp <= 0) this.kill(tgt, src);
@@ -1039,7 +1051,7 @@ export class Game {
       return;
     }
     this.dealDamage(att, tgt, dmg, 'phys', { basic: true, crit });
-    if (att.type === 'hero') FX.onBasicHit(this, att, tgt);
+    if (att.type === 'hero') { FX.onBasicHit(this, att, tgt); B2.onBasicHit(this, att, tgt); }
   }
 
   lowestAlly(h, r) {
@@ -1524,6 +1536,7 @@ export class Game {
     this.itemBurn(h, e, 1);
     if (h.stats.slowOnHit) e.slows.push({ pct: h.stats.slowOnHit, until: this.tick + sec(1) });
     FX.onAbilityHit(this, h, e, ab);
+    B2.onAbilityHit(this, h, e);
   }
 
   updateProjectiles() {
@@ -1681,6 +1694,7 @@ export class Game {
         } else if (killerTeam !== NEUTRAL && killerTeam !== u.team) this.teams[killerTeam].kills++;
         for (const a of assists) { a.assists++; this.giveGold(a, GOLD.assist / Math.max(1, assists.length) * 1.5 * this.rules.killGold); }
         FX.onTakedown(this, u, killer, assists);
+        B2.takedown(this, u, killer, assists); if (this.c2) C2.takedown(this, u, killer);
         if (this.beasts) this.beasts.onTakedown(u, killer, assists); // Racoon's Purse
         if (this.depth) D.depthTakedown(this, u, killer, assists);
         const xp = XP.killBase + XP.killPerLevel * u.level;
@@ -1703,7 +1717,7 @@ export class Game {
         let h = killer;
         if (!h) h = this.findTarget(u, 500, (e) => e.type === 'hero');
         if (h) {
-          this.giveGold(h, u.gold); this.giveXp(h, u.xpv); h.cs += u.big ? 4 : 1;
+          this.giveGold(h, u.gold * (this.c2 ? C2.campGold(this, h, u) : 1)); this.giveXp(h, u.xpv); h.cs += u.big ? 4 : 1;
           if (h.role === 'jungle') this.heal(h, h.maxHp * (u.big ? 0.12 : 0.04), null, true);
           if (u.buff === 'blue') { h.blueBuffUntil = now + sec(90); this.recalc(h); this.emit({ type: 'buff', hero: h.id, team: h.team, buff: 'blue', camp: u.camp }); }
           if (u.buff === 'red') { h.redBuffUntil = now + sec(90); this.emit({ type: 'buff', hero: h.id, team: h.team, buff: 'red', camp: u.camp }); }
@@ -1768,8 +1782,8 @@ export class Game {
   // Jungler smite: auto-used to secure (or steal) a nearly dead objective/buff.
   trySmite(h) {
     if (h.role !== 'jungle' || this.tick < h.smiteCd) return false;
-    const dmg = 450 + 40 * h.level;
-    for (const e of this.grid.query(h.x, h.y, 260)) {
+    const sn = this.c2 && C2.snipe(this, h), dmg = (450 + 40 * h.level) * (sn ? 2 : 1); // Smite Snipe (v26 card)
+    for (const e of this.grid.query(h.x, h.y, sn ? 420 : 260)) {
       if (!e.alive || !(e.type === 'objective' || (e.type === 'mob' && e.big))) continue;
       if (e.hp <= dmg) {
         h.smiteCd = this.tick + sec(45);

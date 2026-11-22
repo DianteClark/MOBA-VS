@@ -11,6 +11,8 @@
 //   --focus ids comma list of hero ids (or 'v24' for the 20 v24 heroes): one team per game (alternating sides)
 //               draws each role from the focus heroes with probability --fp (default 0.5), so new heroes get
 //               many more games per CPU minute (their opponents still come from the full roster)
+//   --cards     give each team a random 3-card deck from every tactic card and report per-card deck/play/win
+//               rates (no card should be a must-pick); also reports build combos (v26)
 //   --nudge K   also move each hero's TUNE multiplier toward 50% (delta = (0.5 - shrunk win rate) * K,
 //               max ±6% per pass, clamp 0.8-1.2) and rewrite src/data/tuning.js (same format as tune.mjs)
 // Each game draws heroes from shuffled per-role decks so every hero gets the same number of games.
@@ -46,12 +48,13 @@ if (!isMainThread) {
     };
     const teams = [prep(ida, idb, job.builds[0]), prep(idb, ida, job.builds[1])];
     if (job.plans) teams.forEach((t, k) => { t.plan = job.plans[k]; });
+    if (job.decks) teams.forEach((t, k) => { t.deck = job.decks[k]; });
     if (job.tal) teams.forEach((t, k) => t.heroes.forEach((x, j) => { x.tal = job.tal[k][j]; }));
     const g = new Game({ seed: job.seed, map: MAPS[job.seed % 4], coach: [true, true], teams, ...(workerData.depth ? { depth: true } : {}) });
     while (!g.over) { g.step([]); g.fx.length = 0; }
     const ev = {}; for (const e of g.events) if (e.type === 'duo' || e.type === 'comp' || e.type === 'reset' || e.type === 'ultUp' || e.type === 'revenge' || e.type === 'duoUlt' || e.type === 'talent') ev[e.type] = (ev[e.type] || 0) + 1;
     const out = { seed: job.seed, winner: g.winner, plans: g.teams.map((t) => g.cfg.teams[t.id].plan || 'balanced'), half: g.events.filter((e) => e.type === 'plan').map((e) => [e.team, e.plan]), min: g.time / 60, timeout: g.events.some((e) => e.type === 'victory' && e.timeout), ev,
-      teams: g.teams.map((t) => ({ comp: t.comp && t.comp.active ? t.comp.id : null, heroes: t.heroes.map((h) => ({ id: h.heroId, role: h.role, build: h.build, k: h.kills, d: h.deaths, a: h.assists, dmg: h.dmgHeroes, taken: h.dmgTaken, healed: h.healed, gold: h.goldEarned, bh: h._bh || 0, ab: h._ab || [[0, 0], [0, 0], [0, 0]], ...(h.tal ? { tal: h.tal } : {}) })) })) };
+      teams: g.teams.map((t) => ({ comp: t.comp && t.comp.active ? t.comp.id : null, deck: t.deck.map((d) => d.id), played: t.deck.filter((d) => d.used).map((d) => d.id), combos: t.combos || [], heroes: t.heroes.map((h) => ({ id: h.heroId, role: h.role, build: h.build, k: h.kills, d: h.deaths, a: h.assists, dmg: h.dmgHeroes, taken: h.dmgTaken, healed: h.healed, gold: h.goldEarned, bh: h._bh || 0, ab: h._ab || [[0, 0], [0, 0], [0, 0]], ...(h.tal ? { tal: h.tal } : {}) })) })) };
     parentPort.postMessage(out);
   }
   parentPort.postMessage({ done: true });
@@ -66,6 +69,7 @@ if (!isMainThread) {
   const { Rng } = await import('../src/sim/rng.js');
   const { RANGE } = await import('../src/sim/constants.js');
   const { DUOS } = await import('../src/data/synergy.js');
+  const { TACTIC_IDS: TIDS } = await import('../src/data/tactics.js');
 
   // Static range sanity: max basic-attack range (base + self buffs + range items) vs tower reach.
   const cap = RANGE.tower - 45, rangeRows = [];
@@ -113,6 +117,7 @@ if (!isMainThread) {
     const pb = (ids) => ids.map((id) => { const bl = HERO_BY_ID[id].builds; return bl[rng.int(bl.length)]; });
     const job = { seed: seed0 + i, teams: [a, b], builds: [pb(a), pb(b)] };
     if (flag('plans')) { const P = ['aggro', 'scale', 'objective', 'split', 'protect'], pairs = []; for (const x of P) for (const y of P) if (x !== y) pairs.push([x, y]); job.plans = pairs[i % pairs.length]; }
+    if (flag('cards')) { const ids = TIDS.slice(), pick = () => { const d = []; while (d.length < 3) { const c = ids[rng.int(ids.length)]; if (!d.includes(c)) d.push(c); } return d; }; job.decks = [pick(), pick()]; }
     if (flag('randtal')) job.tal = [0, 1].map(() => ROLES.map(() => [0, 1, 2].map(() => rng.int(2))));
     jobs.push(job);
   }
@@ -126,7 +131,7 @@ if (!isMainThread) {
   })));
 
   // Aggregate
-  const H = {}, B = {}, HB = {}, C = {}, D = {}, TAL = {}, HT = {};
+  const H = {}, B = {}, HB = {}, C = {}, D = {}, TAL = {}, HT = {}, CARD = {}, BC = {};
   const { HERO_TALENTS } = await import('../src/data/talents.js');
   let blue = 0, len = 0, timeouts = 0, kills = 0; const ev = {};
   for (const r of results) {
@@ -134,6 +139,8 @@ if (!isMainThread) {
     for (const k in r.ev) ev[k] = (ev[k] || 0) + r.ev[k];
     r.teams.forEach((t, ti) => {
       const win = r.winner === ti ? 1 : 0, teamDmg = t.heroes.reduce((s, x) => s + x.dmg, 0) || 1;
+      for (const c of t.deck || []) { const k = CARD[c] || (CARD[c] = { g: 0, w: 0, p: 0, pw: 0 }); k.g++; k.w += win; if ((t.played || []).includes(c)) { k.p++; k.pw += win; } }
+      for (const c of t.combos || []) { const k = BC[c] || (BC[c] = { g: 0, w: 0 }); k.g++; k.w += win; }
       if (t.comp) { const c = C[t.comp] || (C[t.comp] = { g: 0, w: 0, ids: [] }); c.g++; c.w += win; c.ids.push(...t.heroes.map((x) => x.id)); }
       const ids = t.heroes.map((x) => x.id);
       for (const du of DUOS) if (ids.includes(du.a) && ids.includes(du.b)) { const c = D[du.id] || (D[du.id] = { g: 0, w: 0 }); c.g++; c.w += win; }
@@ -162,6 +169,11 @@ if (!isMainThread) {
   }
   console.log('\nBuild        games  win%  heroes');
   for (const [k, b] of Object.entries(B).sort((a, b) => b[1].w / b[1].g - a[1].w / a[1].g)) console.log(`${k.padEnd(12)} ${String(b.g).padStart(5)}  ${pct(b.w, b.g).padStart(4)}  ${b.heroes.size}`);
+  if (flag('cards') || Object.keys(CARD).length > 3) {
+    console.log('\nCard          decks  win%  played  play%  win%(played)');
+    for (const [k, c] of Object.entries(CARD).sort((a, b) => b[1].w / b[1].g - a[1].w / a[1].g)) console.log(`${k.padEnd(12)} ${String(c.g).padStart(5)}  ${pct(c.w, c.g).padStart(4)}  ${String(c.p).padStart(6)}  ${pct(c.p, c.g).padStart(5)}  ${pct(c.pw, c.p).padStart(5)}`);
+  }
+  if (Object.keys(BC).length) console.log('\nBuild combos', Object.entries(BC).map(([k, c]) => `${k} ${pct(c.w, c.g)}% of ${c.g}`).join(' · '));
   if (Object.keys(TAL).length) {
     // talents: per template (all heroes), then each hero's option B minus option A per tier (shrunk toward 0)
     console.log('\nTalent       games  win%');

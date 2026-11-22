@@ -4,6 +4,7 @@ import { sec } from './constants.js';
 import { dist2 } from './geom.js';
 import { aiMoment } from './moments-coach.js';
 import { aiSkillTactic } from './sidegrades.js';
+import { aiCard2 } from './cards2.js';
 import { coachWeights, PLAN_IDS, PLAN_BEATS } from './plans.js';
 import { openCrystal } from './endgame.js';
 import { KAMI_VALUE } from './beasts.js';
@@ -111,11 +112,14 @@ export class Coach {
       const tanks = them.heroes.filter((h) => h.items.filter((i) => i.stats.armor || i.stats.mr).length >= 2).length;
       const healers = them.heroes.filter((h) => h.healed > 800 || h.items.some((i) => i.stats.omnivamp || i.stats.healPower)).length;
       const fed = them.heroes.filter((h) => h.kills >= h.deaths + 4 && (h.def.tags.includes('dive') || h.def.tags.includes('burst'))).length;
+      const fedMage = them.heroes.some((h) => h.kills >= h.deaths + 4 && h.def.dmgType === 'magic');
       for (const h of me.heroes) {
         if (h.items.length >= 4) continue;
         const want = tanks >= 2 && (h.build === 'burst' || h.build === 'crit') ? (h.def.builds.includes('pierce') ? 'pierce' : h.def.builds.includes('burn') ? 'burn' : null)
           : healers >= 2 && h.build !== 'burn' && h.def.builds.includes('burn') ? 'burn'
-          : fed >= 1 && (h.def.cls === 'support' || h.def.cls === 'tank') && h.build !== 'warden' && h.def.builds.includes('warden') ? 'warden' : null;
+          : fed >= 1 && (h.def.cls === 'support' || h.def.cls === 'tank') && h.build !== 'warden' && h.def.builds.includes('warden') ? 'warden'
+          : fed >= 1 && h.def.cls === 'tank' && h.build !== 'thorns' && h.def.builds.includes('thorns') ? 'thorns' // v26: punish the fed diver
+          : fedMage && (h.def.cls === 'marksman' || h.def.cls === 'mage' || h.def.cls === 'bruiser') && h.build !== 'spellshield' && h.def.builds.includes('spellshield') ? 'spellshield' : null;
         if (want && want !== h.build) { this.issue({ type: 'build', hero: h.id, build: want }); break; }
       }
     }
@@ -222,6 +226,7 @@ export class Coach {
     if (has('eyes') && obj && !fighting) return play({ card: 'eyes' });
     if (has('gate') && avgHp < 0.45 && !fighting && g.time > 300 * k) return play({ card: 'gate' });
     if (aiSkillTactic(has, play, { fighting, vis, avgHp, obj, call: me.call })) return true;
+    if (aiCard2(this, has, play, { fighting, vis, avgHp, obj, call: me.call, alive, dead })) return true; // v26 cards
     if (has('bait') && fighting >= 2) { const tank = alive.find((h) => h.def.cls === 'tank' && h.hp / h.maxHp > 0.6); if (tank) return play({ card: 'bait', hero: tank.id }); }
     return false;
   }

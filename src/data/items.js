@@ -8,6 +8,12 @@
 //        spellblade (after a cast, next attack deals x AD/AP bonus), sbSlow, guard (shield a low ally
 //        nearby for x of own max HP, 18s cd), sight (vision radius %), peelSlow (slow enemies who just
 //        hit an ally), tenacity (shorter CC)
+// v26 stats (src/sim/builds2.js): rage (up to x more damage at 0 HP, scales with missing HP), kheal (heal x max HP
+//        on takedown), spellShield (block x of the first enemy ability hit every 10s), reflect (x of hero ability
+//        damage taken is reflected), roam (move speed out of combat), reset (takedown: x of current cooldowns
+//        refunded), chill (abilities slow heroes hit by x for 1.5s), frostbite (+x damage to slowed heroes), venom
+//        (poison dps per stack, 5 stacks), bulwark (allies near take x less damage), glory (power per Glory stack
+//        from takedowns, max 6), stalk (first hit from out of enemy sight deals +x; faster while unseen)
 // Guide text per build: desc, goodAt, weakTo, bestOn (shown in the Build Guide).
 
 export const BUILDS = {
@@ -143,6 +149,140 @@ export const BUILDS = {
       { name: 'Gargoyle Plate', cost: 2900, icon: 'Upgrade', stats: { power: 20, hp: 450, armor: 35, mr: 35, guard: 0.08 } },
     ],
   },
+  // ── v26 build types (mechanics: src/sim/builds2.js) ──
+  bloodline: {
+    name: 'Bloodline', icon: 'Necromancy', color: '#ff3f6a',
+    desc: 'Hits harder the more HP it has lost, and heals on every takedown. A brawler who wins ugly fights.',
+    goodAt: 'Duels and messy brawls (stronger when hurt)', weakTo: 'Burst, hard CC and anti-heal', bestOn: 'Bruisers and melee carries',
+    items: [
+      { name: 'Blood Charm', cost: 1000, icon: 'Necromancy', stats: { power: 18, hp: 100, rage: 0.1 } },
+      { name: 'Crimson Axe', cost: 2900, icon: 'Cut', stats: { power: 45, asPct: 0.15, rage: 0.15 } },
+      { name: 'Bloodline Mail', cost: 2800, icon: 'Armor', stats: { hp: 350, armor: 30, kheal: 0.12 } },
+      { name: 'Red Moon Blade', cost: 3000, icon: 'MagicWeapon', stats: { power: 50, rage: 0.15, kheal: 0.06 } },
+      { name: 'Last Breath', cost: 2900, icon: 'Heal', stats: { power: 25, hp: 300, mr: 35, lowHpShield: 0.15 } },
+    ],
+  },
+  spellshield: {
+    name: 'Spellshield', icon: 'Amulet', color: '#62c6ff',
+    desc: 'A spell barrier that blocks most of the first enemy ability every 10s, plus magic resist and tenacity.',
+    goodAt: 'Surviving burst mages, assassins and CC chains', weakTo: 'Auto-attack damage, burn and venom', bestOn: 'Carries and divers facing burst',
+    items: [
+      { name: 'Null Amulet', cost: 900, icon: 'Amulet', stats: { power: 10, mr: 25, hp: 100, spellShield: 0.2 } },
+      { name: "Banshee's Veil", cost: 2800, icon: 'OrbWater', stats: { power: 40, mr: 40, spellShield: 0.2 } },
+      { name: 'Quicksilver Sash', cost: 2700, icon: 'Ring', stats: { power: 35, mr: 30, tenacity: 0.3 } },
+      { name: 'Wardstone Helm', cost: 2900, icon: 'Helmet', stats: { hp: 350, mr: 45, haste: 10 } },
+      { name: 'Edge of Night', cost: 3000, icon: 'BookDarkness', stats: { power: 55, hp: 200, spellShield: 0.15 } },
+    ],
+  },
+  thorns: {
+    name: 'Thorns', icon: 'Guard', color: '#9ccf6a',
+    desc: 'Reflects damage back: basic attacks AND abilities that hit you hurt the attacker.',
+    goodAt: 'Punishing divers and focus fire', weakTo: 'Being ignored, % HP damage and burn', bestOn: 'Tanks who get jumped on',
+    items: [
+      { name: 'Bramble Vest', cost: 900, icon: 'Guard', stats: { hp: 100, armor: 25, thorns: 0.08 } },
+      { name: 'Spiked Carapace', cost: 2800, icon: 'Counter', stats: { hp: 300, armor: 45, thorns: 0.15 } },
+      { name: 'Mirror Shell', cost: 2800, icon: 'OrbWater', stats: { hp: 300, mr: 45, reflect: 0.12 } },
+      { name: 'Briar Crown', cost: 2900, icon: 'Helmet', stats: { hp: 400, armor: 20, mr: 20, thorns: 0.07, reflect: 0.08 } },
+      { name: 'Thornwood Aegis', cost: 3000, icon: 'DefenseUpgrade', stats: { hp: 450, armor: 30, mr: 30, hpPct: 0.04 } },
+    ],
+  },
+  swift: {
+    name: 'Swift', icon: 'Boot', color: '#e7ff8a',
+    desc: 'Move speed everywhere, and much more out of combat. First to every gank, fight and objective.',
+    goodAt: 'Roaming, ganks and rotating first', weakTo: 'Tanky front-to-back teamfights', bestOn: 'Junglers, roamers and mobile mids',
+    items: [
+      { name: 'Swift Boots', cost: 800, icon: 'Boot', stats: { power: 10, msPct: 0.06, roam: 0.06 } },
+      { name: 'Windrunner Blade', cost: 2700, icon: 'BookWind', stats: { power: 40, msPct: 0.05, roam: 0.08 } },
+      { name: 'Gale Fan', cost: 2800, icon: 'Permutation', stats: { power: 45, haste: 20, msPct: 0.04 } },
+      { name: 'Shadowstep Cloak', cost: 2700, icon: 'Mist', stats: { power: 30, hp: 250, msPct: 0.04, tenacity: 0.15 } },
+      { name: 'Hurricane Edge', cost: 3000, icon: 'Shuriken', stats: { power: 55, asPct: 0.15, msPct: 0.04 } },
+    ],
+  },
+  executioner: {
+    name: 'Executioner', icon: 'Death', color: '#c43a52',
+    desc: 'Huge damage to low-HP heroes, and every takedown refunds a third of its cooldowns. Chains kills.',
+    goodAt: 'Cleaning up fights and chaining kills', weakTo: 'Tanks, shields and peel', bestOn: 'Assassins and fighters with resets',
+    items: [
+      { name: "Reaper's Sickle", cost: 1100, icon: 'Cut', stats: { power: 25, execute: 0.08 } },
+      { name: 'Guillotine', cost: 3000, icon: 'Death', stats: { power: 50, execute: 0.12, reset: 0.3 } },
+      { name: "Headsman's Axe", cost: 2900, icon: 'Downgrade', stats: { power: 45, pen: 0.12, execute: 0.05 } },
+      { name: 'Final Verdict', cost: 3000, icon: 'BookLight', stats: { power: 55, haste: 15, reset: 0.3 } },
+      { name: 'Death Knell', cost: 2800, icon: 'Explosion', stats: { power: 40, hp: 200, execute: 0.05, msPct: 0.04 } },
+    ],
+  },
+  frostbite: {
+    name: 'Frostbite', icon: 'Snow', color: '#bfe6ff',
+    desc: 'Abilities chill (slow) every hero they hit, and chilled enemies take more damage from this hero.',
+    goodAt: 'Kiting, peel and setting up picks', weakTo: 'Tenacity, cleanse and fast burst', bestOn: 'Control mages, poke marksmen and supports',
+    items: [
+      { name: 'Frost Shard', cost: 900, icon: 'BookIce', stats: { power: 15, hp: 100, chill: 0.15 } },
+      { name: 'Glacial Scepter', cost: 2800, icon: 'Snow', stats: { power: 45, hp: 200, chill: 0.1, frostbite: 0.08 } },
+      { name: "Winter's Bite", cost: 2700, icon: 'OrbWater', stats: { power: 40, haste: 15, frostbite: 0.07 } },
+      { name: 'Iceheart Mail', cost: 2800, icon: 'Armor', stats: { hp: 300, armor: 40, mr: 20, chill: 0.05 } },
+      { name: 'Permafrost Orb', cost: 3000, icon: 'OrbLight', stats: { power: 55, haste: 10, frostbite: 0.05 } },
+    ],
+  },
+  venom: {
+    name: 'Venom', icon: 'OrbPlant', color: '#5fbf3a',
+    desc: 'Every hit stacks poison (up to 5). A target at 5 stacks is Weakened: it deals 10% less damage.',
+    goodAt: 'Long fights and wearing down duelists', weakTo: 'Burst (stacks take time) and Spirit Gate resets', bestOn: 'Attack-speed marksmen and fighters',
+    items: [
+      { name: 'Viper Fang', cost: 1000, icon: 'Kunai', stats: { power: 18, venom: 2 } },
+      { name: 'Serpent Kris', cost: 2800, icon: 'Cut', stats: { power: 40, asPct: 0.15, venom: 2 } },
+      { name: 'Toxin Censer', cost: 2700, icon: 'Alchemy', stats: { power: 35, haste: 15, venom: 1 } },
+      { name: 'Coilskin Wrap', cost: 2800, icon: 'Armor', stats: { hp: 300, armor: 25, mr: 25, venom: 1 } },
+      { name: 'Hydra Fang', cost: 3000, icon: 'BookPlant', stats: { power: 50, pen: 0.08, venom: 2 } },
+    ],
+  },
+  bulwark: {
+    name: 'Bulwark', icon: 'Helmet', color: '#9fb3d9',
+    desc: 'A protective aura: nearby allies take less damage. Makes the whole grouped team tougher.',
+    goodAt: 'Grouped teamfights and sieges', weakTo: 'Poke, split-push and pick-offs (needs allies close)', bestOn: 'Tanks and frontline supports',
+    items: [
+      { name: 'Iron Buckler', cost: 900, icon: 'Guard', stats: { power: 8, hp: 150, armor: 15, bulwark: 0.03 } },
+      { name: 'Tower Shield', cost: 2800, icon: 'DefenseUpgrade', stats: { hp: 350, armor: 40, bulwark: 0.04 } },
+      { name: 'Rampart Mail', cost: 2800, icon: 'Armor', stats: { hp: 300, mr: 45, bulwark: 0.03 } },
+      { name: 'Banner of Iron', cost: 2600, icon: 'Upgrade', stats: { power: 20, hp: 250, armor: 20, mr: 20, haste: 15 } },
+      { name: 'Stalwart Plate', cost: 3000, icon: 'Helmet', stats: { hp: 450, armor: 20, hpPct: 0.05 } },
+    ],
+  },
+  momentum: {
+    name: 'Momentum', icon: 'Ring', color: '#ffb0f0',
+    desc: 'Every takedown adds a Glory stack (power, up to 6). Dying loses half. Snowballs a lead.',
+    goodAt: 'Snowballing a lead with a hero who stays alive', weakTo: 'Being caught early (dying halves the stacks)', bestOn: 'Carries who rarely die',
+    items: [
+      { name: 'Glory Charm', cost: 900, icon: 'Ring', stats: { power: 15, glory: 3 } },
+      { name: "Mejai's Tome", cost: 2700, icon: 'BookLight', stats: { power: 35, haste: 10, glory: 5 } },
+      { name: "Conqueror's Edge", cost: 2900, icon: 'MagicWeapon', stats: { power: 45, asPct: 0.15, glory: 3 } },
+      { name: "Victor's Mantle", cost: 2800, icon: 'Armor', stats: { power: 25, hp: 300, armor: 20, glory: 3 } },
+      { name: 'Crown of Ascension', cost: 3000, icon: 'OrbLight', stats: { power: 50, powerMult: 0.08 } },
+    ],
+  },
+  stalker: {
+    name: 'Nightstalker', icon: 'Moon', color: '#8a7aff',
+    desc: 'Faster while the enemy cannot see it (more at night), and its first hit from the fog lands hard.',
+    goodAt: 'Ambushes from the fog and at night, catching lone targets', weakTo: 'Wards, Ward Sweep and Owl Watch (vision)', bestOn: 'Assassins and junglers',
+    items: [
+      { name: 'Dusk Kunai', cost: 1000, icon: 'Kunai', stats: { power: 22, stalk: 0.1 } },
+      { name: 'Moonshadow Blade', cost: 2900, icon: 'Moon', stats: { power: 50, msPct: 0.03, stalk: 0.15 } },
+      { name: 'Night Veil', cost: 2700, icon: 'Mist', stats: { power: 35, hp: 200, stalk: 0.1 } },
+      { name: 'Umbral Glaive', cost: 3000, icon: 'BookDarkness', stats: { power: 55, pen: 0.12 } },
+      { name: 'Eclipse Mask', cost: 2800, icon: 'OrbDarkness', stats: { power: 40, haste: 15, stalk: 0.1 } },
+    ],
+  },
 };
 
-export const BUILD_ORDER = ['burst', 'burn', 'tank', 'sustain', 'crit', 'haste', 'guardian', 'pierce', 'siege', 'spellblade', 'warden'];
+export const BUILD_ORDER = ['burst', 'burn', 'tank', 'sustain', 'crit', 'haste', 'guardian', 'pierce', 'siege', 'spellblade', 'warden',
+  'bloodline', 'spellshield', 'thorns', 'swift', 'executioner', 'frostbite', 'venom', 'bulwark', 'momentum', 'stalker'];
+
+// Build combos: two heroes on one team running these two build types get a small bonus (src/sim/builds2.js).
+// Simple and readable: shown in prep, the Dojo Build Guide and as a banner at kickoff.
+export const BUILD_COMBOS = [
+  { id: 'shatter', name: 'Shatter', a: 'frostbite', b: 'executioner', text: 'The Executioner deals 10% more damage to chilled or slowed enemies.' },
+  { id: 'ironwall', name: 'Iron Wall', a: 'bulwark', b: 'thorns', text: 'Both heroes gain 15 armor and 15 magic resist.' },
+  { id: 'bloodpact', name: 'Blood Pact', a: 'bloodline', b: 'guardian', text: 'Both heroes gain 5% omnivamp.' },
+  { id: 'packhunt', name: 'Pack Hunt', a: 'swift', b: 'stalker', text: 'Both heroes gain 6% move speed.' },
+  { id: 'plague', name: 'Plague', a: 'venom', b: 'burn', text: 'Venom ticks 25% harder on burning targets.' },
+  { id: 'kingmaker', name: 'Kingmaker', a: 'momentum', b: 'bulwark', text: 'The Momentum hero loses only 1 Glory stack on death.' },
+];
+
