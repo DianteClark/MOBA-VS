@@ -126,6 +126,10 @@ button.h2card:hover { filter: brightness(1.15); } button.h2card:active { transfo
 .hsx { position: absolute; right: 2px; top: 50%; transform: translateY(-50%); width: 24px; height: 24px; display: none; place-items: center; background: none; border: none; color: var(--muted); cursor: pointer; font-size: 11px; }
 .hsearchw.has .hsx { display: grid; }
 .gnone { grid-column: 1 / -1; padding: 14px; text-align: center; font-size: 12px; }
+/* v24 clan filter chip (draft): cycles All -> clans */
+.clanchip { --cc: var(--muted); cursor: pointer; flex: 0 0 auto; font-family: inherit; font-size: 12px; color: var(--cc); background: #1e1928; border: 2px solid var(--line); border-bottom-width: 4px; padding: 2px 10px; min-height: 38px; }
+.clanchip.on { color: #fff; background: color-mix(in srgb, var(--cc) 24%, #120f18); border-color: var(--cc); }
+@media (max-height: 500px) { .clanchip { min-height: 32px; font-size: 11px; padding: 2px 7px; } }
 @media (max-height: 500px) {
   .hsearch { min-height: 32px; font-size: 11px; }
   /* denser hero grid on phones: more heroes per row, less scrolling */

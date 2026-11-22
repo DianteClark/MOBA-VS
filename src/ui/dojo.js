@@ -22,11 +22,13 @@ import { searchBox, applySearch } from './herosearch.js';
 import { talentList, talentPicker, talentSummary } from './talentui.js';
 import { heroPrefs, setHeroPref } from '../talentprefs.js';
 import { feudsOf } from '../data/feuds.js';
+import { lorePanel } from './lore.js';
+import { HEARTH_TEXT } from '../data/hearth.js';
 
 const screen = () => document.getElementById('screen');
 const tap = () => audio.sfx('move', 0.4);
 const CURVE = { early: 'Strong early', mid: 'Mid-game peak', late: 'Scales late' };
-let state = { tab: 'heroes', role: 'all', clan: 'all', q: '', hero: null, slot: 0 };
+let state = { tab: 'heroes', role: 'all', clan: 'all', q: '', hero: null, slot: 0, page: 'info' };
 
 export function showDojo(app, patch = {}) {
   state = { ...state, ...patch };
@@ -87,6 +89,12 @@ function heroPage(app, id) {
       heroStill(id, k, 40), h('b', {}, k === 'base' ? 'Classic' : sk.hero ? (sk.tier === 'legendary' ? 'Legendary' : 'Signature') : sk.name),
       h('small', {}, equipped === k ? 'Equipped' : have ? 'Owned' : sk.mastery ? `M${sk.mastery}` : 'Locked'));
   }));
+  const go = (pid) => { tap(); showDojo(app, { hero: pid }); };
+  // v24: Overview / Lore pages on the right column (the left column with the sprite stays)
+  const pageTabs = h('div', { class: 'dpages', role: 'tablist' }, ...[['info', 'Overview'], ['lore', 'Lore']].map(([k, l]) => h('button', { class: 'chip' + (state.page === k ? ' on' : ''), role: 'tab', 'aria-selected': String(state.page === k),
+    onclick: () => { tap(); showDojo(app, { page: k, keepScroll: true }); } }, l)));
+  const hearthSec = x.clan === 'hearth' ? h('div', { class: 'dsec hearthrules' }, h('div', { class: 'dsh', style: { color: clan.color } }, HEARTH_TEXT.name, h('small', { class: 'muted' }, ' clan mechanic')),
+    ...HEARTH_TEXT.rules.map((t) => h('div', { class: 'small' }, t))) : null;
   return h('div', { class: 'dhero', style: { '--cc': clan.color } },
     h('div', { class: 'dh-left' },
       h('div', { class: 'stage' }, h('button', { class: 'navb', title: 'Previous hero', onclick: () => showDojo(app, { hero: step(-1) }) }, '‹'), sprite,
@@ -101,12 +109,13 @@ function heroPage(app, id) {
         h('span', { class: 'chipx plain' }, x.ranged ? 'Ranged' : 'Melee'), h('span', { class: 'chipx plain' }, CURVE[x.curve])),
       h('div', { class: 'pers small' }, h('span', { style: { color: pers.color } }, pers.name + ': '), h('span', { class: 'muted' }, pers.desc)),
       h('div', { class: 'drecord' }, r ? [h('b', {}, `${r.w}W ${r.g - r.w}L`), h('span', {}, `${Math.round(r.w / r.g * 100)}% win rate in ${r.g} match${r.g > 1 ? 'es' : ''}`)] : h('span', { class: 'muted' }, 'You haven\'t played this hero yet.'))),
-    h('div', { class: 'dh-right' },
+    state.page === 'lore' ? h('div', { class: 'dh-right' }, pageTabs, lorePanel(id, go)) : h('div', { class: 'dh-right' }, pageTabs,
       h('div', { class: 'dsec' }, h('div', { class: 'dsh' }, 'Ratings'), statBars(id)),
       h('div', { class: 'dsec' }, h('div', { class: 'dsh' }, 'Abilities'),
         h('div', { class: 'dab' }, h('img', { src: icon('LuckUpgrade') }), h('div', {}, h('b', {}, x.passive.name, h('small', {}, 'Passive')), h('p', {}, x.passive.desc))),
         ...x.abilities.map((a) => { const t = abilitySentence(a, x); return h('div', { class: 'dab' + (a.ult ? ' ult' : '') }, h('img', { src: icon(a.icon) }),
           h('div', {}, h('b', {}, a.name, h('small', {}, a.ult ? 'Ultimate · level 5' : t.meta.split(' · ')[0])), h('p', {}, t.text), h('div', { class: 'meta' }, t.meta))); })),
+      hearthSec,
       h('div', { class: 'dsec mus' },
         h('div', {}, h('div', { class: 'dsh pos' }, 'Strong vs'), ...(mu.strong.length ? mu.strong.map(muRow) : [h('small', { class: 'muted' }, 'No clear edge')])),
         h('div', {}, h('div', { class: 'dsh neg' }, 'Weak vs'), ...(mu.weak.length ? mu.weak.map(muRow) : [h('small', { class: 'muted' }, 'No hard counters')]))),

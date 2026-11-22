@@ -16,7 +16,7 @@ import { profile } from '../profile.js';
 import { masteryBadge } from './badges.js';
 import { compLine } from './comp.js';
 import { buildLine } from './buildguide.js';
-import { searchBox, applySearch } from './herosearch.js';
+import { searchBox, applySearch, clanChip } from './herosearch.js';
 import { rivalDraftNote, rivalFaceImg } from './rivals.js';
 import { RIVAL_BY_ID } from '../data/rivals.js';
 import { draftLegal, draftWho, rolesLine, coachOf, COOP_COL } from '../coop-room.js';
@@ -94,10 +94,10 @@ export class DraftView {
     const hadFocus = this.searchEl && document.activeElement === this.searchEl.input;
     this.searchEl = searchBox(this.query, (q) => { this.query = q; this.filterGrid(); });
     const tabs = h('div', { class: 'rtabs', role: 'tablist' }, ...['all', ...ROLES].map((r) => h('button', { class: 'rtab' + (this.filter === r ? ' on' : ''), role: 'tab',
-      onclick: () => { this.filter = r; this.scroll = 0; this.render(); } }, r === 'all' ? 'All' : ROLE_LABEL[r], h('small', {}, counts[r]))), this.searchEl);
+      onclick: () => { this.filter = r; this.scroll = 0; this.render(); } }, r === 'all' ? 'All' : ROLE_LABEL[r], h('small', {}, counts[r]))), clanChip(this.clan, (c) => { this.clan = c; this.scroll = 0; this.render(); }), this.searchEl);
     const banChips = myTurn && ban && recs.length ? h('div', { class: 'sugbans' }, h('span', { class: 'lab' }, 'Suggested bans'),
       ...recs.map((id) => h('button', { class: 'sugban' + (this.sel === id ? ' on' : ''), onclick: () => this.select(id) }, h('img', { src: face(id) }), HERO_BY_ID[id].name))) : null;
-    const list = POOL.filter((x) => this.filter === 'all' || x.roles.includes(this.filter));
+    const list = POOL.filter((x) => (this.filter === 'all' || x.roles.includes(this.filter)) && (!this.clan || x.clan === this.clan));
     list.sort((a, b) => (tk.has(a.id) ? 1 : 0) - (tk.has(b.id) ? 1 : 0) || (recs.includes(b.id) ? 1 : 0) - (recs.includes(a.id) ? 1 : 0));
     const grid = h('div', { class: 'grid' }, ...list.map((x) => {
       const off = tk.has(x.id), bad = !off && myTurn && !ban && !this.legal(x.id);

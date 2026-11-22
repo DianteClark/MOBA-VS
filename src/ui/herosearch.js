@@ -41,3 +41,11 @@ export function searchBox(value, onInput, placeholder = 'Search heroes') {
   wrap.input = inp;
   return wrap;
 }
+// v24 clan filter for the draft grid: one compact chip that cycles All -> each clan -> All (tap), so 80 heroes
+// stay easy to scan on a phone without another row of tabs. Long-press / right-click goes back to All.
+export function clanChip(clan, onChange) {
+  const keys = Object.keys(CLANS), c = clan && CLANS[clan];
+  const next = () => { const i = clan ? keys.indexOf(clan) : -1; onChange(i + 1 < keys.length ? keys[i + 1] : null); };
+  return h('button', { class: 'clanchip' + (c ? ' on' : ''), style: c ? { '--cc': c.color } : null, title: 'Filter by clan (tap to cycle)', 'aria-label': 'Clan filter: ' + (c ? c.name : 'all clans'),
+    onclick: next, oncontextmenu: (e) => { e.preventDefault(); onChange(null); } }, c ? c.name : 'Clan');
+}

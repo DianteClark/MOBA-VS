@@ -1,0 +1,106 @@
+// Hero lore pages (v24): a three-beat story per hero (setup, conflict, bond), told in the Dojo's Lore tab as a
+// short paragraph and as the captions of three comic panels composed from pack sprites (src/ui/lore.js).
+// Pure data. Plain ASCII. Each beat stays short so it fits a phone-sized panel caption.
+import { HEROES } from './heroes.js';
+
+export const STORY = {
+  // ── Iron ──
+  bastion: ['The old fortress gate woke up the day the Iron clan lost its walls.', 'Tetsu was built to break gates. Bastion was built not to break.', 'Valka stands at his side, and the line has not moved since.'],
+  kenshi: ['Kenshi left his master\'s school with one sword and no name.', 'He has won every duel but one: the student he walked away from.', 'Now he and Sora cross blades only for practice. Mostly.'],
+  varro: ['Forty seasons in the arena taught Varro one lesson: never fall first.', 'When the arena closed, the war became his new crowd.', 'The Iron clan pays him in applause. He asks for nothing else.'],
+  monolith: ['A statue on the valley pass, older than every clan.', 'Each time war comes close, it opens one stone eye.', 'Grok calls it an old rock. Monolith calls Grok a pebble.'],
+  valka: ['Valka swore an oath to guard whoever stands behind her.', 'Gorath\'s charge shattered three shields. Never the fourth.', 'With Bastion beside her, the Iron line is a single wall.'],
+  tetsu: ['A golem built to knock down castle gates.', 'Nobody told it the old war ended, so it found a new one.', 'Bolt keeps its gears oiled. They talk in clanks.'],
+  marlowe: ['Marlowe closes every case. Some take one very long shot.', 'One file stays open: a face nobody has seen. Umbra.', 'Voss bets on his cases, and loses most of his money.'],
+  bolt: ['Bolt was a siege engine before it learned to walk.', 'Rekka swears powder beats gears. Bolt keeps score.', 'Tetsu and Bolt: the Iron clan\'s idea of diplomacy.'],
+  tomoe: ['Tomoe trained in one spot of the courtyard for ten years.', 'Every step back she takes makes her arrows slower. So she never steps back.', 'The Iron archers copy her stance. None can hold it as long.'],
+  voss: ['A baron with a deck of calling cards and too much time.', 'Fletch, a peasant archer, humiliated him once. He has not forgotten.', 'Marlowe keeps him honest, or at least keeps the bets small.'],
+  gizmo: ['A shield unit with one line of code: protect.', 'It once blocked a fireball meant for a kitten. It counts that as a win.', 'Every Iron squad asks for Gizmo. It never says no.'],
+  daikoku: ['A temple bell that was struck so often it grew a body.', 'When he rings, spellcasters forget the end of their words.', 'The monks still bow when he passes. He rings back, politely.'],
+  mogura: ['Mogura has dug under every wall in the valley, twice.', 'Bastion says no tunnel goes under him. Mogura took that as a dare.', 'The Iron engineers draw maps; Mogura makes them wrong.'],
+  hitotsume: ['The Iron forge has a single eye watching it, and it never blinks.', 'Every blade in the clan passed under that stare. The bad ones melted.', 'When Hitotsume joins a fight, he brings the forge with him.'],
+  // ── Beast ──
+  brawlo: ['Brawlo was born ringside and never left the ring.', 'The bell rang. He did not stop. The bell rang again.', 'Saru is his cousin and his favourite sparring dummy.'],
+  grok: ['Grok solved his first problem with a rock. Then every problem after.', 'The old statue on the pass called him a pebble.', 'Sling throws the small rocks. Grok throws the big ones.'],
+  akaro: ['A red-horned demon who gets stronger with every cut.', 'Sensei Wu stopped him once with a single palm. Once.', 'The Beast clan lets him lead charges and stays well behind.'],
+  gorath: ['A boar chieftain who has never met a wall he could not gore.', 'Valka\'s shield is the one wall he still dreams about.', 'His tusks carry the marks of every gate he broke.'],
+  leonin: ['The pride\'s hunter. He eats first and he eats well.', 'Fang hunts in the caves he calls his own.', 'Ruga\'s drum sounds, and Leonin is already running.'],
+  gama: ['The swamp king, croaking on a lily-pad throne.', 'His tongue is longer than any escape route.', 'The Beast clan sends him the slow ones. He is grateful.'],
+  ponta: ['A raccoon with a leaf on his head and a plan in his paw.', 'Saru stole his crown. Ponta stole it back. Then Saru again.', 'Kinta finds the shiny things; Ponta steals them.'],
+  fang: ['A cave lion who hunts where no light reaches.', 'Isamu tracked her once, all the way to her den.', 'She bleeds her prey slowly and patiently. Caves are quiet.'],
+  saru: ['He stole a cloud, a staff and a crown in a single morning.', 'A kid on the rooftops keeps beating him to every perch.', 'Brawlo is the only one who can keep up with him.'],
+  ruga: ['A lion shaman whose drum makes the whole pride braver.', 'When the drum stops, the pride hesitates. So it never stops.', 'Leonin hunts to its rhythm.'],
+  kinta: ['A golden-masked scout who spots everything shiny.', 'Including you, hiding in that bush.', 'Ponta is her partner in crime. She does the looking.'],
+  morel: ['A swamp toad raised in the shade of giant mushrooms.', 'Whatever it touches forgets how to heal.', 'The Beast clan keeps it far from the food.'],
+  kuma: ['Kuma wakes from hibernation hungry and in a terrible mood.', 'Leonin calls himself king of beasts. Kuma was napping at the coronation.', 'Bao is the only one who can wake him safely: with tea.'],
+  bao: ['A bamboo monk who drinks tea and wants no trouble.', 'Trouble keeps interrupting his tea.', 'Kuma naps beside him. Nobody bothers either of them twice.'],
+  // ── Shinobi ──
+  yuki: ['A northern duelist whose blade leaves frost behind.', 'Kaen\'s fire is the only thing that has made her sweat.', 'Frost of the tundra taught her that the cold always wins.'],
+  sora: ['Kenshi\'s runaway student, under a straw hat.', 'He waits, he reads, then ends the duel in one draw.', 'He still practices with his old master. He still loses on purpose.'],
+  kaze: ['Loud, fast and gone before you turn around.', 'Umbra calls him the loud one. Loud ones die first.', 'Shiro follows his noise and finishes what he starts.'],
+  umbra: ['Nobody has seen Umbra\'s face.', 'Kaze, Shiro and an inspector all want to.', 'Nobody who saw it is still talking.'],
+  kumo: ['Kumo weaves webs between the trees.', 'Then waits. Days, if needed.', 'The Shinobi learned patience by watching her.'],
+  shiro: ['Kaze\'s shadow, a held breath in the dark.', 'Umbra stole his style. Shiro wants it back.', 'Where Kaze is heard, Shiro is not.'],
+  raiden: ['A storm caller with a calm voice and loud thunder.', 'Nami\'s tides keep trying to drown his storms.', 'Fujin herds the enemy right under his bolts.'],
+  hex: ['A night weaver who unravels the unwary with one thread.', 'Kurai reads her runes before she casts them. It annoys her.', 'Her threads tie the Shinobi to the dark.'],
+  nami: ['She dances on the tide and drags whole teams under.', 'Raiden thunders, Tako inks. Neither stops the tide.', 'The Shinobi ride her waves into every fight.'],
+  sumi: ['Sumi paints from across the valley.', 'By the time you see the brushstroke, it has already landed.', 'Her masterpieces hang in the Shinobi hall, signed in ink.'],
+  shuri: ['A golden star thrower with a poisoned sense of humour.', 'Every hit stings a little longer than the last.', 'The Shinobi call her when they want a fight to end slowly.'],
+  hachi: ['Fast, furious and very angry.', 'Each sting comes quicker than the last.', 'The hive follows her. So does a lot of screaming.'],
+  hebi: ['A serpent who sheds a skin for every name she has worn.', 'An owl sage has watched her for years, waiting to strike.', 'The Shinobi send her when the target must not get up again.'],
+  komori: ['Blind as a bat, and she never misses.', 'She hears your heartbeat from across the river.', 'With Fukuro, nothing hides after dark.'],
+  // ── Spirit ──
+  karasu: ['A crow tengu who rules the mountain winds.', 'He swoops on anyone below, which is everyone.', 'The Spirit clan uses him as a weather vane with talons.'],
+  gaki: ['Cursed with a hunger nothing can fill.', 'Hotaru\'s lantern burns his eyes. He hates the light.', 'Sanguis hosts the feasts. Gaki eats.'],
+  totem: ['Totem speaks for the ancestors.', 'The ancestors have a lot to say, mostly at once.', 'The Spirit clan listens. It is very loud.'],
+  sanguis: ['An old count who stays young by draining everyone else.', 'Brother Oak\'s temple is the only door he cannot enter.', 'Gaki eats at his table. Nobody else is invited twice.'],
+  kurai: ['A hollow sage who sees the battlefield as a board of runes.', 'Hex weaves; Kurai reads every thread before it lands.', 'He moves the Spirit clan like stones on a board.'],
+  mori: ['A one-eyed swamp yokai with a curse for everything.', 'Granny Ume\'s plums undo her curses. It is personal now.', 'Her curses do little alone. They are an invitation for friends.'],
+  fujin: ['The wind god\'s youngest servant.', 'He loves nothing more than slamming enemies into cliffs.', 'Raiden brings the thunder; Fujin brings them to it.'],
+  oak: ['A gentle temple healer with very strong hands.', 'Sanguis has knocked on his temple door for a century.', 'Hoshi taught him everything, including when to punch.'],
+  wu: ['An old master who teaches with shields and palm strikes.', 'Akaro was his worst student and his best fight.', 'His students guard the Spirit temples to this day.'],
+  bonehook: ['Bonehook fishes for souls with a rusty hook.', 'He once hooked the sun princess. The light burned for a week.', 'He always gets a bite.'],
+  hotaru: ['A lantern ghost who guides lost allies home.', 'Gaki hates her light; Aki says there is only one true lantern.', 'Kitsu\'s foxfire and her lantern lead the night parade.'],
+  hoshi: ['Oak\'s old teacher, who reads the stars.', 'The stars say: do not let them stun you.', 'The Spirit clan never moves before Hoshi looks up.'],
+  fukuro: ['Fukuro hoots once for every secret it knows.', 'It has been hooting for three hundred years, and watching a snake.', 'Komori hears what Fukuro cannot see.'],
+  kinoko: ['A forest mushroom that glows when a friend is hurt.', 'On bad days the whole wood is lit.', 'The Spirit clan follows its glow back to safety.'],
+  // ── Wild ──
+  ember: ['A hot-tempered pyromancer who solves every problem with fire.', 'Frost of the tundra is the one problem fire has not solved.', 'Kaen, her little brother, fans every flame she lights.'],
+  kitsu: ['A nine-tailed fox spirit who burns slowly and long.', 'Azim wants her foxfire as tribute. She sends him ash.', 'Hotaru and Kitsu lead the lantern festival every year.'],
+  azim: ['Every fallen rival pays the Sand Sultan tribute.', 'A fox in the dunes refuses to pay.', 'Zahra dances, and the court of the desert follows.'],
+  kaen: ['Ember\'s little brother, all spark and no brakes.', 'Yuki\'s cold blade is the only thing that slows him.', 'Every takedown fans the flame, and he never stops.'],
+  fletch: ['The greenwood\'s best archer. Never misses twice.', 'A baron with calling cards wants a rematch.', 'Wren lays the traps; Fletch rains the arrows.'],
+  sling: ['A cave sniper with a sling and terrible manners.', 'Her aim is better than her temper. Barely.', 'Grok is family. Big rock, small rock.'],
+  wren: ['A trapwright who turns every bush into a snare.', 'The forest is hers. You are only visiting.', 'Fletch shoots whatever her traps catch.'],
+  bakuha: ['The mad bomber of the Wild clan.', 'Every problem looks like a fuse.', 'The Wild clan keeps his camp very far away.'],
+  rekka: ['Rekka traded her sword for black powder.', 'Bolt says gears beat powder. Boom says otherwise.', 'Towers are just big targets that do not dodge.'],
+  aurelia: ['The sun princess, whose light heals friends.', 'A grave fisher once hooked her. He still squints.', 'Her light blinds every foe of the Wild clan.'],
+  frost: ['A tundra guard who freezes anything that wanders close.', 'Ember\'s fire is the one thing he cannot freeze. Yet.', 'Yuki is his student in the long cold.'],
+  zahra: ['Azim\'s court dancer.', 'Her blessings make blades sing and feet fly.', 'The sultan never fights without her.'],
+  upa: ['Lose an arm, grow it back by lunch.', 'Upa guides the Wild clan through the marsh and never stays hurt.', 'Every scar becomes a story, and then disappears.'],
+  tako: ['An octopus with eight arms and one opinion: shoot first.', 'Nami\'s tide tried to wash him downriver. He inked her.', 'The Wild clan points him outward and stands back.'],
+  // ── Hearth ──
+  daichi: ['Daichi has carried the valley\'s grain up the mountain for thirty years.', 'When the golems came for the fields, he put down the sacks and picked up the millstone.', 'Now he carries the valley, and the Hearth stands behind him.'],
+  tobi: ['Tobi has felled a thousand cedars and thanked every one of them.', 'The clans burned his forest for their war camps.', 'Isamu tracks them; Tobi clears the path.'],
+  kenta: ['The fastest kid in the valley never touches the ground.', 'A monkey king keeps stealing his rooftops.', 'With Mame he lights the spring festival, firecrackers and all.'],
+  isamu: ['Isamu reads tracks the way monks read scripture.', 'A cave lion has been taking the village goats. He found her den.', 'Tobi swings the axe; Isamu chooses the tree.'],
+  taro: ['Taro has blown up his own workshop eleven times.', 'The clans laughed at the village tinkerer. Then the twelfth explosion.', 'His twin Suzu aims; Taro makes it go boom.'],
+  mame: ['Every spring the valley throws roasted beans to drive out the oni.', 'Mame never stopped, and the red-horned oni has noticed.', 'Kenta lights the firecrackers; Mame throws the beans. Oni out!'],
+  suzu: ['Suzu builds crossbows in the workshop her twin keeps exploding.', 'The clans called the village defenceless. Her bolts disagreed.', 'Taro and Suzu: same goggles, twice the trouble.'],
+  momo: ['Momo learned to fight on the festival hill, cutting kite strings.', 'When the clans marched in, she cut other strings.', 'Her dragon kite flies over every Hearth victory.'],
+  ume: ['Granny Ume has outlived two husbands, three wars and one dragon.', 'Mori\'s curses fell on the village. Granny\'s plums lifted every one.', 'Aki keeps the lantern lit; Granny keeps the kettle on.'],
+  aki: ['Aki keeps the valley lantern, lit when the first house was built.', 'A ghost with a lantern of her own says every flame goes out.', 'While Aki lives, the Hearth never goes dark.'],
+};
+
+// Panel scenes per clan: sky gradient, ground colour and pack props (src/ui/lore.js draws them).
+export const SCENES = {
+  iron: { sky: ['#2b3350', '#5a6a8a'], ground: '#6a6e7a', props: ['rockBig', 'pillar', 'rockTall'] },
+  beast: { sky: ['#3a2416', '#a8643a'], ground: '#7a5a34', props: ['tPine', 'rockGBig', 'stump'] },
+  shinobi: { sky: ['#0e1630', '#2f4a7a'], ground: '#3a4a3a', props: ['tGreen', 'bush1', 'tPine'] },
+  spirit: { sky: ['#221436', '#6a4a9a'], ground: '#4a3a5a', props: ['statue', 'tWhite', 'urn'] },
+  wild: { sky: ['#1e4a3a', '#8ad0a0'], ground: '#5f9a34', props: ['tPink', 'bigGreen', 'flowerY'] },
+  hearth: { sky: ['#4a2a1a', '#ffb86b'], ground: '#8a7a3a', props: ['tYel', 'pumpkin', 'berryBush'] },
+};
+
+// Load-time check: every hero has three beats.
+for (const h of HEROES) if (!STORY[h.id] || STORY[h.id].length !== 3) throw new Error('lore: missing story for ' + h.id);
