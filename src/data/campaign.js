@@ -143,7 +143,7 @@ export const MISSIONS = [
     brief: 'Shishi invades at the second minute and never stops. The Elder lands at 10:00.', learn: 'Boss: Shishi', tip: 'Ward your jungle, punish his invades, and save charges for the Elder.',
     rules: { elder: 600 }, goals: [W, { k: 'elder' }, { k: 'keep', n: 4 }] },
   // ── Chapter 4: The Lane Rush Circuit ──
-  { id: 'c4m1', ch: 4, title: 'One Lane', rival: 'taro', lvl: 1, map: 'rush_sakura', mode: 'rush',
+  { id: 'c4m1', ch: 4, title: 'One Lane', rival: 'taro', lvl: 0, map: 'rush_sakura', mode: 'rush',
     brief: 'Lane Rush: one bridge, all ten heroes, fast gold. Taro thinks speed is everything.', learn: 'Lane Rush', tip: 'No side lanes, no farming time: group, fight and push. Towers fall fast.',
     rules: {}, goals: [W, { k: 'before', t: 390 }, { k: 'kills', n: 20 }] },
   { id: 'c4m2', ch: 4, title: 'Cinder Run', rival: 'kenta', lvl: 1, map: 'rush_ember', mode: 'rush',

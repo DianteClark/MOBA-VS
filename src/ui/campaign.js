@@ -1,14 +1,14 @@
 // Story campaign screens: the chapter map (six chapters of five missions, the Coach Academy on top), mission
 // briefings, the comic story panels between chapters, the results panel (stars, Koban, Next mission) and the
 // first-launch offer of the guided match. Logic and progress: src/campaign.js; data: src/data/campaign.js.
-import { h, mount, face, toast } from './dom.js';
+import { h, mount, face, toast, MODE_LABEL } from './dom.js';
 import { audio } from '../audio.js';
 import { comicPanel } from './lore.js';
 import { guideSetup } from './tutorial.js';
 import { mapThumb } from './screens.js';
 import { MAP_BY_ID, RUSH_MAPS } from '../maps/defs.js';
 import { EVENT_BY_ID } from '../data/events.js';
-import { TIER_NAME, rivalFace } from '../data/rivals.js';
+import { rivalFace } from '../data/rivals.js';
 import { HERO_BY_ID, ROLE_LABEL } from '../data/heroes.js';
 import { PLAN_INFO } from '../data/plans.js';
 import { CHAPTERS, CHAPTER_BY_N, MISSIONS, missionsOf, goalText, STAR_KOBAN, TUTORIAL_KOBAN } from '../data/campaign.js';
@@ -90,8 +90,8 @@ export function showBriefing(app, mis) {
   const mult = mis.boss ? 2 : 1;
   const md = modal('cpbrief',
     h('div', { class: 'cpbhead' }, h('img', { class: 'cpbface', src: rivalFace(rv.id), alt: '' }),
-      h('div', { class: 'cpbt' }, h('small', {}, `Chapter ${mis.ch} · ${mis.boss ? 'Boss · ' : ''}vs ${rv.name}, ${rv.title}`), h('b', {}, mis.title),
-        h('div', { class: 'cpbchips' }, h('span', { class: 'chipx' }, `${TIER_NAME[mis.lvl]} AI`), h('span', { class: 'chipx' }, rush ? 'Lane Rush' : '5v5'), h('span', { class: 'chipx' }, mapName(mis.map)),
+      h('div', { class: 'cpbt' }, h('small', {}, h('span', {}, `Chapter ${mis.ch}`), mis.boss ? h('span', { class: 'cpbosst' }, ' · Boss') : null, ' · ', h('span', {}, 'vs'), ' ', h('span', { translate: 'no' }, rv.name), ', ', h('span', {}, rv.title)), h('b', {}, mis.title),
+        h('div', { class: 'cpbchips' }, h('span', { class: 'chipx' }, MODE_LABEL['ai' + mis.lvl]), h('span', { class: 'chipx' }, rush ? 'Lane Rush' : '5v5'), h('span', { class: 'chipx' }, mapName(mis.map)),
           ev ? h('span', { class: 'chipx ev' }, ev.name) : null)),
       rush ? null : h('div', { class: 'cpbmap' }, mapThumb(mis.map))),
     mentor(mis.brief),
@@ -131,7 +131,7 @@ export function showStory(panels, title, onDone) {
 // The results screen's campaign panel and its main button: { panel, again, label }.
 export function campaignResults(app, s, r) {
   if (r.tutorial) {
-    return { label: 'Start the campaign', again: () => showCampaign(app, 1),
+    return { label: 'Start the campaign', again: () => { audio.music('menu'); app.session = null; showCampaign(app, 1); },
       panel: h('div', { class: 'panel cpres' }, h('div', { class: 'cprhead' }, h('img', { src: rivalFace('ume'), alt: '' }),
         h('div', {}, h('small', {}, 'COACH ACADEMY'), h('b', {}, 'Academy complete!'))),
       mentor(r.won ? 'Well coached, dear! The village team is waiting for you in the campaign.' : 'A loss is a lesson too, dear. The village team is waiting for you in the campaign.'),

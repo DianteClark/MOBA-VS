@@ -22,6 +22,7 @@ import { QuickChat } from './quickchat.js';
 import { tweenNumber, pop } from './juice.js';
 import { CoachTips, tipsLeft } from './coachtips.js';
 import { MatchGuide } from './tutorial.js';
+import { goalText } from '../data/campaign.js';
 import { planReveal, planSwitch } from './plans.js';
 import { planName } from '../data/plans.js';
 import { EVENT_BY_ID } from '../data/events.js';
@@ -74,6 +75,8 @@ export class Hud {
     // the guided first match: Granny Ume's lessons instead (src/ui/tutorial.js)
     if (myTeam >= 0 && mode !== 'watch' && ses && ses.tutorial && !ses.replay) this.tips = new MatchGuide(this);
     else if (myTeam >= 0 && mode !== 'watch' && tipsLeft()) this.tips = new CoachTips(this);
+    // a story mission: its bonus goals on the ticker once the plans are revealed (src/data/campaign.js)
+    if (myTeam >= 0 && ses && ses.mission && !ses.tutorial && !ses.replay) this._goalT = setTimeout(() => { if (Hud.current !== this) return; const [a, b] = ses.mission.goals.slice(1); this.tickerNow('★ ' + goalText(a), 'n', 3); this._goalT = setTimeout(() => { if (Hud.current === this) this.tickerNow('★ ' + goalText(b), 'n', 3); }, 3200); }, 6500);
     if (runner.online && myTeam >= 0 && this.coop) {
       // co-op quick chat: between partners only (in 2v2 the other side never sees it)
       const s = this.coop;
@@ -522,7 +525,7 @@ export class Hud {
   // Online quick chat (non-sim messages; see quickchat.js).
   enableChat(send, opts) { if (!this.chat) this.chat = new QuickChat(this, send, opts); return this.chat; }
   disableChat() { if (this.chat) { this.chat.destroy(); this.chat = null; } }
-  destroy() { if (Hud.current === this) Hud.current = null; this.closePop(); if (this.tips) this.tips.destroy(); this.alerts.destroy(); this.att.destroy(); this.disableChat(); clearTimeout(this._bt); document.getElementById('hud').classList.remove('bannering'); window.removeEventListener('pointerdown', this._popClose, true); }
+  destroy() { clearTimeout(this._goalT); if (Hud.current === this) Hud.current = null; this.closePop(); if (this.tips) this.tips.destroy(); this.alerts.destroy(); this.att.destroy(); this.disableChat(); clearTimeout(this._bt); document.getElementById('hud').classList.remove('bannering'); window.removeEventListener('pointerdown', this._popClose, true); }
   // The AI's own short reason for what it is doing (hero.why, e.g. "lane: hold behind wave"), for your own
   // heroes and spectators only: an enemy's reason would leak what the fog hides.
   whyText(x) {
