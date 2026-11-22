@@ -182,6 +182,7 @@ export class Profile {
       ...(rival && RIVAL_BY_ID[rival] ? { rv: rival } : {}),
       ...(coop ? { coop: coop.info } : {}),
       emote: this.emote, sk: this.skinsFor(team.heroes.map((x) => x.heroId)), // share card: signature emote + skinned portraits
+      ...(game.beasts ? { kb: [game.teams[myTeam].dragons.length, game.events.filter((e) => e.type === 'objective' && e.obj === 'boss' && e.team === myTeam).length] } : {}), // share card: Kami blessings, Elders slain
     });
     const rv = rival ? this.recordRival(rival, won) : null;
     this.d.history.length = Math.min(this.d.history.length, 50);

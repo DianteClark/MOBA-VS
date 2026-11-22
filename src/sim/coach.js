@@ -128,7 +128,7 @@ export class Coach {
       if (!(o && o.alive) && !spawnSoon) return false;
       if (charges < 2 || !ready('objective')) return false;
       const pit = g.objPit(obj);
-      const enemiesNearPit = near(pit, LANE_NAMES.length === 1 || obj === 'boss' ? 650 : 1100, visibleEnemies); // (the Tengu sits on mid lane: only count those right on it)
+      const enemiesNearPit = near(pit, LANE_NAMES.length === 1 || obj === 'boss' ? 650 : 1100, visibleEnemies); // (the Elder Kami sits on mid lane: only count those right on it)
       if (alive.length < minAlive) return false;
       if (enemiesNearPit > 1 && deadEnemies === 0) return false;
       if (W.objWait && deadEnemies < 1) return false;

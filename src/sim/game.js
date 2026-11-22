@@ -641,7 +641,7 @@ export class Game {
     if (before < MOMENTUM.max && t.momentum >= MOMENTUM.max) this.emit({ type: 'momentumFull', team });
   }
   laneOf(u) { return this.world.closestLane(u); }
-  // Where an objective is fought (Living World: the Tengu's landing spot, the Yokai Parade's current spot).
+  // Where an objective is fought (the Elder Kami's arena, the Yokai Parade's current spot).
   objPit(o) { return o === 'dragon' ? this.world.pits.kami : o === 'herald' || o === 'baron' ? this.world.pits.kraken : this.living.objPit(o); }
   // An objective can be called if it is up or wakes within 25s.
   objAvailable(o) {

@@ -21,3 +21,6 @@
 /* mascots */
 .mascot { width: 22px; height: 22px; image-rendering: pixelated; vertical-align: middle; }
 .mascot.big { width: 34px; height: 34px; }
+.mapchip .mcl { display: inline-flex; align-items: center; gap: 2px; }
+.mapchip img.mkami { width: 12px; height: 12px; image-rendering: pixelated; flex: none; }
+.dturn .kamicard { margin-top: 2px; }

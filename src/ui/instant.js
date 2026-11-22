@@ -1,4 +1,4 @@
-// Instant Replay: after a big fight (3+ takedowns close together, an ace) or a big objective (Kraken, Tengu, a
+// Instant Replay: after a big fight (3+ takedowns close together, an ace) or a big objective (Kraken, Elder Kami, a
 // tamed parade), a "Replay" chip offers the last 15s again, in slow motion, in a small picture-in-picture panel
 // while the live match runs on.
 // How: every 10s of game time the live game is copied (src/ui/snapshot.js: a read-only deep copy). On a tap, a

@@ -12,6 +12,8 @@
 //
 // Keys are stable strings (analytics records store them): 'kami', 'kraken', 'base0', 'shrine1', 'top',
 // 'top.0.1' (top lane by Blue's outer tower; .2 inner, .3 base tower, .4 gate), 'river.top', 'jungle0.bot', 'jungle1.top.wolf'.
+import { elderName } from '../sim/beasts.js';
+import { campName } from '../data/beasts.js';
 import { S, T_RIVER } from '../sim/world.js';
 import { TICK_RATE } from '../sim/constants.js';
 
@@ -19,7 +21,7 @@ export const PLACE_R = {
   pit: 185,     // the pit floor is carved at 150: a hero standing on its rim still counts
   shrine: 130,  // shrine pad 96
   camp: 175,    // camp clearing 104
-  arena: 220,   // the World Boss (Tengu) landing spot in the map centre
+  arena: 220,   // the World Boss (the Elder Kami) landing spot in the map centre
   tower: 300,   // "by X tower": within this many units of it along the lane
   laneExtra: 60, // a hero this far beyond the lane's carved half-width is still "in lane"
   bank: 34,     // river banks count as river
@@ -84,7 +86,7 @@ export function placeAt(W, p, g) {
   const d = W.def;
   // 1) objective pits, only inside the pit itself
   for (const k of ['kami', 'kraken']) if (W.pits[k] && d2(W.pits[k], p) <= PLACE_R.pit ** 2) return { key: k, area: 'pit', pit: k };
-  // 2) the World Boss arena (Living World: the Tengu's landing spot), while the boss is up or due
+  // 2) the World Boss arena (the Elder Kami's landing spot), while the boss is up or due
   const ar = g && g.living && g.living.bossSpot, bo = g && g.objectives.boss, wake = g && g.objTimers.boss;
   if (ar && ((bo && bo.alive) || (wake && wake - g.tick < 30 * TICK_RATE)) && d2(ar, p) <= PLACE_R.arena ** 2) return { key: 'arena', area: 'arena' };
   // 3) bases (the carved base disc around the Crystal, plus the fountain)
@@ -160,7 +162,7 @@ export function placeText(pl, opts = {}) {
       const n = pl.pit === 'kami' ? 'Kami' : oni ? 'Oni' : 'Kraken';
       return mk(n, n, 'pit', `at the ${n} pit`);
     }
-    case 'arena': return mk('Tengu', 'Tengu', 'World Boss', 'at the Tengu');
+    case 'arena': { const n = g && g.beasts ? elderName(g.beasts.species) : 'Elder Kami'; return mk(n, 'Elder', 'World Boss', `at the ${n}`); }
     case 'base': return mk(`${own(pl.team)} base`, 'Base', '', `in ${the(pl.team, 'base')}`);
     case 'shrine': return mk(`${own(pl.team)} shrine`, 'Shrine', '', `at ${the(pl.team, 'shrine')}`);
     case 'lane': {
@@ -171,7 +173,7 @@ export function placeText(pl, opts = {}) {
     case 'river': return mk(pl.side ? `${pl.side} river` : 'river', 'River', '', pl.side ? `in the ${pl.side} river` : 'in the river');
     case 'jungle': {
       if (!(pl.team >= 0)) return mk('jungle', 'Jungle', '', 'in the jungle');
-      const camp = pl.camp ? CAMP_W[pl.camp] || pl.camp : '';
+      const camp = pl.camp ? (g && g.world ? campName(g.world.def.id, pl.camp) : CAMP_W[pl.camp] || pl.camp) : ''; // (each map's themed camps)
       const detail = camp ? `at ${poss(pl.team)} ${camp}` : pl.side ? `${pl.side} side` : '';
       const where = camp ? `at ${poss(pl.team)} ${camp} camp` : `in ${the(pl.team, (pl.side ? pl.side + ' ' : '') + 'jungle')}`;
       return mk(`${own(pl.team)} jungle`, 'Jungle', detail, where);

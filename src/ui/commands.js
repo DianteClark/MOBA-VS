@@ -466,10 +466,10 @@ export class Dock {
   // Scout pet: a ring option to send it to world point w (null while it is out or cooling down, or out of bounds).
   scoutOpt(w) {
     const g = this.g; if (!g.beasts || !this.hud.mayCommand({ type: 'scout' })) return null;
-    const t = this.team, ef = g.world.fountain[1 - this.my];
-    if (g.tick < t.scoutCd || g.beasts.pet(this.my) || (w.x - ef.x) ** 2 + (w.y - ef.y) ** 2 < 700 * 700) return null;
+    const cmd = { type: 'scout', x: Math.round(w.x), y: Math.round(w.y) };
+    if (!canIssue(g, this.my, cmd)) return null;
     const pet = this.hud.r.bf.petId(this.my);
-    return { img: petFace(pet), label: 'Scout', type: 'scout', cmd: { type: 'scout', x: Math.round(w.x), y: Math.round(w.y) }, sub: `${PETS[pet].name} · ${BEASTS.scoutLife}s` };
+    return { img: petFace(pet), label: 'Scout', type: 'scout', cmd, sub: `${PETS[pet].name} · ${BEASTS.scoutLife}s` };
   }
   closeRing() { if (!this.ring) return; this.ring = null; this.ringEl.classList.add('hidden'); mount(this.ringEl); }
 

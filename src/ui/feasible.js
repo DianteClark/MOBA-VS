@@ -129,6 +129,7 @@ export function accepted(g, my, cmd) {
     }
     case 'surge': return team.momentum >= MOMENTUM.max && !(team.surgeUntil > now) && alive.length > 0;
     case 'tactic': return !!TACTICS[cmd.card] && team.deck.some((d) => d.id === cmd.card && !d.used);
+    case 'scout': { if (!g.beasts || now < team.scoutCd || g.beasts.pet(my)) return false; const ef = g.world.fountain[1 - my]; return (cmd.x - ef.x) ** 2 + (cmd.y - ef.y) ** 2 >= 700 * 700; } // Bosses & Beasts (mirrors Beasts.scout)
     default: return true;
   }
 }

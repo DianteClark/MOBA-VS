@@ -2,6 +2,7 @@
 // objectives, aces, comebacks). One line at a time in the existing ticker, never a new panel.
 // Render-side only: reads sim events, never touches the sim (Math.random is fine here).
 import { TICK_RATE, DRAGON_INFO, OBJ_NAME, TEAM_NAME } from '../sim/constants.js';
+import { elderName } from '../sim/beasts.js';
 
 const MULTI = { 2: 'DOUBLE KILL', 3: 'TRIPLE KILL', 4: 'QUADRA KILL', 5: 'PENTAKILL' };
 const CHAIN = 10 * TICK_RATE; // kills within 10s of each other chain into a multi-kill
@@ -48,13 +49,14 @@ export class Caster {
     }
     if (e.type === 'objective' && (e.team === 0 || e.team === 1)) {
       const t = this.team(e.team), who = e.killer ? this.name(e.killer) : null;
-      const nm = e.obj === 'dragon' ? DRAGON_INFO[e.element].name : OBJ_NAME[e.obj];
+      const nm = e.obj === 'dragon' ? DRAGON_INFO[e.element].name : e.obj === 'boss' ? elderName(e.element) : (e.rare ? 'rare ' : '') + OBJ_NAME[e.obj];
       if (e.steal) return { text: `STOLEN! ${who || t} snatches the ${nm} right out of their hands!`, prio: 6 };
       const comeback = (e.obj === 'baron' || e.obj === 'dragon') && this.comeback(e.team, true);
       if (comeback) return { text: comeback, prio: 5 };
       if (e.obj === 'baron') return { text: pick([`${t} slay the Kraken: now they march!`, `The Kraken falls to ${t}. Here comes the push.`]), prio: 5 };
       if (e.obj === 'herald') return { text: `${t} tame the Oni. A tower is about to feel it.`, prio: 4 };
-      if (e.obj === 'boss') return { text: pick([`${t} bring down the Tengu! Its gale is at their backs.`, `The Tengu falls to ${t}: ninety seconds to break the base open.`]), prio: 6 };
+      if (e.obj === 'boss') return { text: pick([`${t} bring down the ${nm}! Its push is at their backs.`, `The ${nm} falls to ${t}: ninety seconds to break the base open.`]), prio: 6 };
+      if (e.rare) return { text: pick([`A shiny one! ${t} take the ${nm}, and the bonus gold with it.`, `${t} claim the ${nm}. Rare, and it pays.`]), prio: 5 };
       if (e.obj === 'yokai') return { text: `${t} tame the Yokai Parade. The lanterns march for them now.`, prio: 4 };
       return { text: pick([`${t} secure the ${nm}.`, `${nm} goes to ${t}${who ? ', last hit by ' + who : ''}.`]), prio: 3 };
     }

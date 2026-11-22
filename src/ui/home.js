@@ -1,4 +1,6 @@
 // Front end: home, season pass, profile (banners/titles/borders), Season Cup bracket, patch notes, and post-match progression.
+import { KAMI } from '../sim/beasts.js';
+import { kamiFace } from '../data/beasts.js';
 import { h, mount, face, emptyState, fmtTime, MODE_LABEL, toast } from './dom.js';
 import { HERO_BY_ID } from '../data/heroes.js';
 import { MAPS, MAP_BY_ID } from '../maps/defs.js';
@@ -76,6 +78,8 @@ function hostTap(app, duo) {
 // Home redraws when a party starts or ends (the side column becomes the party panel); one subscription only.
 let homeApp = null, hadParty = false;
 onParty((P) => { if (homeApp && !!P !== hadParty && document.querySelector('#screen .home2')) showHome(homeApp); });
+// Bosses & Beasts: a map's Kami in one line (map chip titles)
+const kamiLine = (k) => (KAMI[k] ? `Kami: ${KAMI[k].name} (${KAMI[k].blessing}), Elder at 12:00.` : '');
 export function showHome(app) {
   // a season just ended: its ceremony first (once), then home
   if (profile.newSeasonNote) { const n = profile.newSeasonNote; profile.newSeasonNote = null; showCeremony(n, () => showHome(app)); return; }
@@ -112,8 +116,8 @@ export function showHome(app) {
         h('div', { class: 'seg3', role: 'radiogroup', 'aria-label': 'AI difficulty' }, ...DIFF.map((l, i) => h('button', { class: 'chip' + (app.aiLevel === i ? ' on' : ''), role: 'radio', 'aria-checked': String(app.aiLevel === i),
           onclick: () => { app.aiLevel = i; if (app.rivalPick && RIVAL_BY_ID[app.rivalPick].tier !== i) app.rivalPick = null; showHome(app); } }, l))),
         h('div', { class: 'maprow' }, ...[['random', 'Random'], ...MAPS.map((m) => [m.id, m.id[0].toUpperCase() + m.id.slice(1)])].map(([id, l]) =>
-          h('button', { class: 'mapchip' + (mapPick === id ? ' on' : ''), title: id === 'random' ? `Random (${MAP_BY_ID[s.map].name} is featured)` : `${MAP_BY_ID[id].name}: ${MAP_BY_ID[id].blurb}`, onclick: () => { app.mapPref = id; showHome(app); } },
-            id === 'random' ? h('span', { class: 'q' }, '?') : mapThumb(id), h('span', {}, l)))),
+          h('button', { class: 'mapchip' + (mapPick === id ? ' on' : ''), title: id === 'random' ? `Random (${MAP_BY_ID[s.map].name} is featured)` : `${MAP_BY_ID[id].name}: ${MAP_BY_ID[id].blurb} ${kamiLine(MAP_BY_ID[id].kami)}`, onclick: () => { app.mapPref = id; showHome(app); } },
+            id === 'random' ? h('span', { class: 'q' }, '?') : mapThumb(id), h('span', { class: 'mcl' }, id === 'random' ? null : h('img', { class: 'mkami', src: kamiFace(MAP_BY_ID[id].kami), alt: '' }), l)))),
         h('div', { class: 'h2gorow' }, h('button', { class: 'btn big h2go', onclick: () => app.startVsAI('classic') }, 'Play'),
           h('button', { class: 'btn h2coop', title: 'Co-op vs AI: two coaches, one team (with your party)', onclick: () => coopTap(app) }, h('b', {}, 'Co-op'), h('small', {}, P && mate() ? `with ${mate().name}` : '2 coaches')))),
       h('div', { class: 'h2card h2online' },

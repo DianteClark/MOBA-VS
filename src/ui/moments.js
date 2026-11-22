@@ -2,7 +2,7 @@
 // place names, the Play of the Game and the post-match report card.
 // Nothing here mutates the game; everything only uses what the coach's team can see.
 import { TICK_RATE, OBJ_NAME, DRAGON_INFO, MOMENTUM } from '../sim/constants.js';
-import { fmtTime } from './dom.js';
+import { fmtTime, objLabel } from './dom.js';
 import { placeName } from '../world/places.js';
 import { costOf, affordable, readyIn, accepted, canIssue, seen, busy, eta, bestGanker, teamEta, objTimeLeft, SOON, WINDOW } from './feasible.js';
 
@@ -10,8 +10,10 @@ const LANE_L = { top: 'Top', mid: 'Mid', bot: 'Bot' };
 const ROLE_L = { top: 'top', mid: 'mid', bot: 'carry', support: 'support', jungle: 'jungler' };
 const d2 = (a, b) => (a.x - b.x) ** 2 + (a.y - b.y) ** 2;
 const CARRY = (h) => h.def.cls === 'marksman' || h.def.cls === 'mage';
-const objName = (g, k) => (k === 'dragon' ? DRAGON_INFO[g.objectives.dragon ? g.objectives.dragon.element : g.teams.some((t) => t.soul) ? 'elder' : g.nextDragon].short + ' Kami' : OBJ_NAME[k]);
-const pitOf = (g, k) => g.objPit(k); // (Living World: the Tengu's spot, the parade's current spot)
+const objName = (g, k) => (k === 'dragon' && !g.beasts ? DRAGON_INFO[g.objectives.dragon ? g.objectives.dragon.element : g.teams.some((t) => t.soul) ? 'elder' : g.nextDragon].short + ' Kami' : objLabel(g, k));
+const pitOf = (g, k) => g.objPit(k); // (Living World: the Elder Kami's arena, the parade's current spot)
+// Bosses & Beasts: a free scout to a spot we cannot see, while our scout is ready (else null).
+const scoutTo = (g, my, p) => (g.beasts && g.tick >= g.teams[my].scoutCd && !g.beasts.pet(my) && !g.visGrid[my][g.world.idx(p.x, p.y)] ? { type: 'scout', x: Math.round(p.x), y: Math.round(p.y) } : null);
 
 // "in top lane by your outer tower", "at the Kami pit"… for a world point, from `my` team's view (src/world/places.js).
 const where = (g, p, my) => placeName(g.world, p, { my, g }).where;
@@ -159,7 +161,7 @@ export function coachMoment(g, my, own) {
     const lane = weakestLane(g, my), pit = pitOf(g, k);
     const wake = () => (tm > g.tick ? `${objName(g, k)} wakes in ${Math.ceil((tm - g.tick) / TICK_RATE)}s` : `${objName(g, k)} is up!`);
     if ((m = finish(g, my, { key: 'wake' + k + tm, kind: 'wake', title: wake(), liveTitle: wake, text: 'Set up for it, or trade elsewhere?', at: pit,
-      opts: [opt(`Take ${OBJ_NAME[k]}`, { type: 'objective', obj: k }, null, () => teamEta(g, my, pit, 3) <= Math.max(0, (tm - g.tick) / TICK_RATE) + 15), wait('Wait & see'), opt(`Push ${LANE_L[lane]}`, { type: 'group', lane })] }))) return m;
+      opts: [opt(`Take ${OBJ_NAME[k]}`, { type: 'objective', obj: k }, null, () => teamEta(g, my, pit, 3) <= Math.max(0, (tm - g.tick) / TICK_RATE) + 15), scoutTo(g, my, pit) ? opt('Scout & wait', scoutTo(g, my, pit), 'free') : wait('Wait & see'), opt(`Push ${LANE_L[lane]}`, { type: 'group', lane })] }))) return m;
   }
   return null;
 }
