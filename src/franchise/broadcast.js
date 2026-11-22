@@ -10,7 +10,7 @@ import { PRO_TEAMS } from './data.js';
 import { proWeek } from './pro.js';
 import { hseed, clamp } from './model.js';
 
-export const BROADCAST_EDGE = 0.08; // extra edge for the side the league says won
+export const BROADCAST_EDGE = 0.1; // extra edge for the side the league says won
 export const MAX_TRIES = 8;
 export function broadcastCfg(w, day, idx, tries = 0) {
   const L = proWeek(w), m = L.days[day].matches[idx];
