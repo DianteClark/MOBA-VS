@@ -1,6 +1,19 @@
 // Patch notes, newest first. tools/season.mjs prepends an entry at each season rollover.
 export const PATCHES = [
   {
+    version: '25.4', season: 1, date: '2026-11-22', title: 'New Plays',
+    highlights: ['16 new tactic cards', '10 new build types', 'Build combos'],
+    notes: [
+      '16 new tactic cards (33 in total): Blackout, Owl Watch, Charge!, Fall Back, Escort, Echo Scroll, Pit Trap, Smite Snipe, Crash Wave, Slow Push, Lone Wolf, Jungle Raid, Ward Line, and three comeback cards (Underdog, Spirit Return, Bounty Hunt) you can only play when behind.',
+      'Every card now shows what counters it. A new Dojo Cards tab lists them all, and each game plan has recommended decks.',
+      '10 new build types (21 in total): Bloodline, Spellshield, Thorns, Swift, Executioner, Frostbite, Venom, Bulwark, Momentum and Nightstalker.',
+      'Every hero now has 2 to 4 builds chosen to fit its kit, so heroes feel more distinct.',
+      'Build combos: certain build types give both heroes a small bonus when on the same team (for example Frostbite + Executioner = Shatter).',
+      'New cards unlock with coach levels and achievements; five are free from the start.',
+    ],
+    heroes: [],
+  },
+  {
     version: '25.3', season: 1, date: '2026-11-22', title: 'Every Tap Counts',
     notes: [
       'Taps land where you aim: nothing invisible steals them any more, and small buttons have bigger tap areas without changing how they look.',
