@@ -125,7 +125,7 @@ export function showHome(app) {
           onclick: () => { app.aiLevel = i; if (app.rivalPick && RIVAL_BY_ID[app.rivalPick].tier !== i) app.rivalPick = null; showHome(app); } }, l))),
         h('div', { class: 'maprow' }, ...[['random', 'Random'], ...MAPS.map((m) => [m.id, m.id[0].toUpperCase() + m.id.slice(1)])].map(([id, l]) =>
           h('button', { class: 'mapchip' + (mapPick === id ? ' on' : ''), title: id === 'random' ? `Random (${MAP_BY_ID[s.map].name} is featured)` : `${MAP_BY_ID[id].name}: ${MAP_BY_ID[id].blurb} ${kamiLine(MAP_BY_ID[id].kami)}`, onclick: () => { app.mapPref = id; showHome(app); } },
-            id === 'random' ? h('span', { class: 'q' }, '?') : mapThumb(id), h('span', { class: 'mcl' }, id === 'random' ? null : h('img', { class: 'mkami', src: kamiFace(MAP_BY_ID[id].kami), alt: '' }), l)))),
+            id === 'random' ? h('span', { class: 'q' }, '?') : mapThumb(id), h('span', { class: 'mcl', ...(id === 'random' ? {} : { translate: 'no' }) }, id === 'random' ? null : h('img', { class: 'mkami', src: kamiFace(MAP_BY_ID[id].kami), alt: '' }), l)))), // map names stay as named ("Tide" is not the word tide)
         h('div', { class: 'h2gorow' }, h('button', { class: 'btn big h2go', onclick: () => app.startVsAI('classic') }, 'Play'),
           h('button', { class: 'btn h2coop', title: 'Co-op vs AI: two coaches, one team (with your party)', onclick: () => coopTap(app) }, h('b', {}, 'Co-op'), h('small', {}, P && mate() ? `with ${mate().name}` : '2 coaches')))),
       h('div', { class: 'h2card h2online' },
