@@ -1,6 +1,15 @@
 // Patch notes, newest first. tools/season.mjs prepends an entry at each season rollover.
 export const PATCHES = [
   {
+    version: '25.5', season: 1, date: '2026-11-23', title: 'Build Balance',
+    notes: [
+      'Bulwark toned down: its ally armor aura is now capped at 4% with a smaller radius, and its items are a little weaker.',
+      'Frostbite up: the slow lasts 2 seconds and its bonus damage caps at 30%. Executioner, Momentum, Sustain, Burst and Pierce got small buffs; Burn and Haste small nerfs.',
+      'Every build type now wins between about 44% and 56% in testing.',
+    ],
+    heroes: [],
+  },
+  {
     version: '25.4', season: 1, date: '2026-11-22', title: 'New Plays',
     highlights: ['16 new tactic cards', '10 new build types', 'Build combos'],
     notes: [

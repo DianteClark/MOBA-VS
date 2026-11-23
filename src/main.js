@@ -86,7 +86,7 @@ import { rankedReady, refreshKoban, trialOn, ownershipOn, usable } from './unloc
 import { rankedGate } from './ui/shop.js';
 import { resultAvatars } from './ui/avatar.js';
 
-const VERSION = 40; // bump whenever the sim or balance changes (peers must match)
+const VERSION = 41; // bump whenever the sim or balance changes (peers must match)
 const PREP_SECONDS = 60;
 installCrashReporter(VERSION); // window errors, unhandled rejections and lockstep desyncs → the owner dashboard (src/net/ops.js)
 
