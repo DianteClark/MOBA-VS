@@ -18,6 +18,7 @@ import { presetChoice, prepFromPreset } from './presets.js';
 import { heroPrefs } from './talentprefs.js';
 import { readyCheck } from './ui/readycheck.js';
 import { HERO_BY_ID } from './data/heroes.js';
+import { closeHeroInfo } from './ui/heroinfo.js';
 import { LocalRunner, LockstepRunner } from './net/runner.js';
 import { host, join, makeCode, warmNet } from './net/peer.js';
 import { showLobby, showPrep, showResults, startParade, stopParade } from './ui/screens.js';
@@ -510,7 +511,7 @@ class App {
 
   // ───────────── draft ─────────────
   startDraft() {
-    keepAwake(true);
+    keepAwake(true); closeDialogs();
     stopParade(); this.dropReel(); closeInvites(this);
     const s = this.session;
     s.draft = this.newDraft(); s.turnStart = performance.now(); s.turnLeft = TURN_SECONDS;
@@ -676,7 +677,7 @@ class App {
 
   // ───────────── match ─────────────
   startMatch() {
-    keepAwake(true);
+    keepAwake(true); closeDialogs();
     // the match art finishes loading in the background after first paint; on a slow link wait for it here
     if (!assetsDone) { const s0 = this.session; toast('Loading the battlefield…', 1500); assetsAll.then(() => { if (this.session === s0 && !this.match) this.startMatch(); }); return; }
     const s = this.session;
@@ -1024,6 +1025,10 @@ class App {
     this.menu();
   }
 }
+
+// A draft or a match taking the screen by itself (the prep timer, the host, the party leader) closes menu dialogs
+// left open (hero info, a lineup picker, settings): they would sit over the new screen and swallow its taps.
+function closeDialogs() { try { closeHeroInfo(); for (const m of document.querySelectorAll('body > .modal')) m.remove(); } catch { /* ignore */ } }
 
 // Installable app: the service worker (sw.js) serves repeat launches from cache and keeps it fresh.
 // A new build is only switched in when it is safe: on the menu, never mid-match (see App.safeUpdate).
