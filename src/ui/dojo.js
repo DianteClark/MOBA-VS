@@ -171,7 +171,7 @@ function lineups(app) {
       h('div', { class: 'lhead' },
         h('input', { class: 'lname', value: p.name, maxlength: 16, 'aria-label': 'Lineup name', onchange: (e) => { p.name = e.target.value.trim() || `Lineup ${state.slot + 1}`; save(app, p); } }),
         h('button', { class: 'btn' + (isActive ? ' on' : ''), onclick: () => { tap(); profile.setActivePreset(isActive ? -1 : state.slot); showDojo(app, { keepScroll: true }); } }, isActive ? '★ Active' : 'Use in draft'),
-        h('button', { class: 'btn small', onclick: () => { if (confirm('Clear this lineup?')) { save(app, newPreset(`Lineup ${state.slot + 1}`)); } } }, 'Clear')),
+        h('button', { class: 'btn small', onclick: () => { if (confirm('Clear this lineup?')) { save(app, newPreset(`Lineup ${state.slot + 1}`)); } } }, 'Clear lineup')),
       h('div', { class: 'muted small' }, isActive ? 'Your picks lock in automatically from this lineup (top to support). If a hero is banned or taken, the backup steps in.' : 'Make this lineup active to auto-pick it in the draft.'),
       h('div', { class: 'lgrid' }, h('div', { class: 'lrow2 lh' }, h('span'), h('small', {}, 'Main pick + build'), h('small', {}, 'Backup + build')), ...rows),
       h('div', { class: 'lbottom' },
