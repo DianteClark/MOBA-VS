@@ -17,7 +17,8 @@ function resetIfNeeded(ls = globalThis.localStorage) {
     const keys = []; for (let i = 0; i < ls.length; i++) { const k = ls.key(i); if (k && k.startsWith('mobavs_') && !KEEP.has(k)) keys.push(k); }
     for (const k of keys) ls.removeItem(k);
     ls.setItem(KEY, String(DATA_VERSION));
-    try { sessionStorage.setItem('mobavs_reset', '1'); } catch { /* a one-time welcome note (src/main.js) */ }
+    // a one-time welcome note (src/main.js), only for a coach who really had beta data (a brand-new player gets the Coach Academy card instead)
+    if (keys.length) try { sessionStorage.setItem('mobavs_reset', '1'); } catch { /* ignore */ }
     return true;
   } catch { return false; }
 }

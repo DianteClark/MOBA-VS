@@ -48,18 +48,21 @@ async function deliver(blob, name) {
 }
 
 // src: { cfg, log, skins }, potg: { start, end, x, y, title, team, at }
-export function saveClip(src, potg, names = ['Blue', 'Red'], mapCanvas = null) {
+// pre: { game, runner } already fast-forwarded to the highlight (the results' Play of the Game reel), so the clip starts
+// recording at once instead of rewinding the whole match again; onDone: the clip no longer needs it (done or cancelled).
+export function saveClip(src, potg, names = ['Blue', 'Red'], mapCanvas = null, pre = null, onDone = null) {
   const mode = clipSupport();
   if (!src || !potg || !mode) { toast('Clips are not supported in this browser.'); return; }
   const canvas = h('canvas', { width: W, height: H, class: 'clipcanvas' });
   const bar = h('i'), status = h('b', {}, 'Rewinding the tape…');
   let cancelled = false, rec = null;
+  const done = () => { const f = onDone; onDone = null; if (f) f(); };
   const wrap = h('div', { class: 'clipwrap' }, h('div', { class: 'clipbox' }, status, canvas, h('div', { class: 'barw' }, bar), h('small', { class: 'clipstat' }, mode === 'video' ? 'Recording in real time. Keep this tab open.' : 'Your browser cannot record video: saving a filmstrip image instead.'),
-    h('button', { class: 'btn', onclick: () => { cancelled = true; try { rec && rec.state !== 'inactive' && rec.stop(); } catch { /* ignore */ } wrap.remove(); } }, 'Cancel')));
+    h('button', { class: 'btn', onclick: () => { cancelled = true; try { rec && rec.state !== 'inactive' && rec.stop(); } catch { /* ignore */ } wrap.remove(); done(); } }, 'Cancel')));
   document.body.append(wrap);
 
-  const game = new Game(JSON.parse(JSON.stringify(src.cfg)));
-  const runner = new LocalRunner(game, -1, { noHalftime: true, script: src.log });
+  const game = pre ? pre.game : new Game(JSON.parse(JSON.stringify(src.cfg)));
+  const runner = pre ? pre.runner : new LocalRunner(game, -1, { noHalftime: true, script: src.log });
   const r = new Renderer(canvas);
   // an offscreen-sized renderer: fixed resolution, no DOM measuring
   r.resize = () => {}; r.dpr = 1; canvas.width = W; canvas.height = H; r.fog.width = W; r.fog.height = H; r.W = W; r.H = H;
@@ -103,6 +106,7 @@ export function saveClip(src, potg, names = ['Blue', 'Red'], mapCanvas = null) {
     requestAnimationFrame(loop);
   };
   const finish = async () => {
+    done();
     let blob, name;
     if (mode === 'video') {
       blob = new Blob(chunks, { type: mime.split(';')[0] });
@@ -119,7 +123,7 @@ export function saveClip(src, potg, names = ['Blue', 'Red'], mapCanvas = null) {
   const actions = (blob, name) => h('div', { class: 'row', style: { gap: '8px', justifyContent: 'center' } },
     h('button', { class: 'btn big', onclick: async () => { const r2 = await deliver(blob, name); if (r2 === 'downloaded') toast('Clip saved to your downloads'); } }, navigator.canShare ? 'Share' : 'Download'),
     h('button', { class: 'btn big', onclick: () => wrap.remove() }, 'Close'));
-  setTimeout(ff, 30);
+  setTimeout(pre ? () => { r.attach(game, -1, r.map); r.fogOn = false; start(); } : ff, 30);
 }
 function snapshotFrame(canvas) {
   const c = document.createElement('canvas'); c.width = 320; c.height = 180;

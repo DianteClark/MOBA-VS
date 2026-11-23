@@ -25,7 +25,7 @@ export function accessBadge(acc) {
   return h('span', { class: 'accb lock', title: 'Locked: unlock it in the Shop', 'aria-label': 'Locked' });
 }
 const tierChip = (t) => h('span', { class: 'tierc', style: { '--tc': TIERS[t].color } }, TIERS[t].name);
-const daysLeft = () => { const ms = rotationEnds() - Date.now(), d = Math.floor(ms / 86400000), hrs = Math.floor(ms / 3600000) % 24; return d ? `${d}d ${hrs}h` : `${hrs}h`; };
+const daysLeft = () => { const ms = Math.max(0, rotationEnds() - Date.now()), d = Math.floor(ms / 86400000), hrs = Math.floor(ms / 3600000) % 24; return d ? `${d}d ${hrs}h` : hrs ? `${hrs}h` : `${Math.max(1, Math.ceil(ms / 60000))}m`; }; // the last hour counts minutes (not "0h left")
 
 // ───────────── Home chip ─────────────
 export function kobanChip(onOpen) {

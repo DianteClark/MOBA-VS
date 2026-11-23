@@ -103,7 +103,7 @@ export class DraftView {
     };
     const left = Math.ceil(s.turnLeft ?? TURN_SECONDS);
     const turnBox = h('div', { class: 'dturn' + (t ? ' t' + t.team : '') + (myTurn ? ' mine' : '') + (ban ? ' isban' : '') },
-      h('div', { class: 'what' }, d.mirror ? `Mirror Match · ${d.mirror.name}` : d.done ? 'Draft complete!' : myTurn ? `YOUR ${ban ? 'BAN' : 'PICK'}` : `${mate ? mate.name : s.names[t.team]} ${ban ? 'bans' : 'picks'}`),
+      h('div', { class: 'what' }, d.mirror ? `Mirror Match · ${d.mirror.name}` : d.done ? 'Draft complete!' : myTurn ? `YOUR ${ban ? 'BAN' : 'PICK'}` : (ban ? `${mate ? mate.name : s.names[t.team]} bans` : `${mate ? mate.name : s.names[t.team]} picks`)),
       d.done ? null : h('div', { class: 'timer', id: 'dtimer' }, String(left)),
       d.done ? null : h('div', { class: 'tbar' }, h('i', { id: 'dtbar', style: { width: Math.max(0, left / TURN_SECONDS * 100) + '%' } })),
       h('div', { class: 'mapname' }, (MAP_BY_ID[s.mapId] || MAPS[0]).name),
@@ -202,7 +202,7 @@ export class DraftView {
       const who = s.mode === 'coop' && !d.done ? draftWho(s) : null, mateTurn = who && who.team === me && who.seat !== s.mySeat ? coachOf(s, me, who.seat) : null;
       return wrap('empty', [
         split ? h('div', { class: 'coopline' }, rolesLine(s)) : null,
-        h('div', { class: 'hint' }, d.done ? 'Locked in. Prep starts soon...' : mateTurn ? `${mateTurn.name} is ${t.act === 'ban' ? 'banning' : 'picking'}...` : !myTurn ? 'Waiting for the other side...'
+        h('div', { class: 'hint' }, d.done ? 'Locked in. Prep starts soon...' : mateTurn ? (t.act === 'ban' ? `${mateTurn.name} is banning...` : `${mateTurn.name} is picking...`) : !myTurn ? 'Waiting for the other side...'
           : t.act === 'ban' ? 'Your ban: remove a hero you fear.' : `Your pick. Still needed: ${need.join(', ')}`),
         h('div', { class: 'muted small' }, myTurn && t.act === 'ban' ? (recs.length ? 'Suggested bans counter your lineup.' : 'Tap a hero to ban it.')
           : recs.length && myTurn ? 'Heroes marked REC suit your draft.' : 'Tap a hero to see abilities and matchups.'),

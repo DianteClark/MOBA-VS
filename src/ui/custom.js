@@ -46,7 +46,7 @@ export function showCustom(app) {
       h('div', { class: 'panel col' }, h('b', {}, o.rules.single ? 'Map (Lane Rush maps)' : 'Map'),
         h('div', { class: 'maprow cmaps' }, ...[['random', 'Random'], ...maps.map((m) => [m.id, m.name])].map(([id, l]) =>
           h('button', { class: 'mapchip' + (o.map === id ? ' on' : ''), title: id === 'random' ? 'A random map' : `${MAP_BY_ID[id] ? MAP_BY_ID[id].name : l}`, onclick: () => { o.map = id; render(); } },
-            id === 'random' ? h('span', { class: 'q' }, '?') : mapThumb(id), h('span', {}, l.replace(/^(The |Lane Rush: )/, '').split(' ')[0]))))),
+            id === 'random' ? h('span', { class: 'q' }, '?') : mapThumb(id), h('span', id === 'random' ? {} : { translate: 'no' }, l.replace(/^(The |Lane Rush: )/, '').split(' ')[0]))))),
       o.rules.single ? null : h('div', { class: 'panel col' }, h('b', {}, 'Weekly event'),
         h('div', { class: 'cevents' }, h('button', { class: 'chip' + (!o.event ? ' on' : ''), onclick: () => { o.event = null; render(); } }, 'None'),
           ...EVENTS.map((e) => h('button', { class: 'chip' + (o.event === e.id ? ' on' : ''), title: e.blurb, style: { borderColor: o.event === e.id ? e.color : null }, onclick: () => { o.event = e.id; render(); } }, e.name)))),
