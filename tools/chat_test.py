@@ -33,7 +33,7 @@ async def main():
             await A.wait_for_timeout(150)
         ok(sa == 'done' and sb == 'done', 'online draft finished on both tabs')
         await A.wait_for_timeout(1500)
-        for pg in (A, B): await pg.evaluate("app.prepReady()")
+        for pg in (A, B): await pg.wait_for_function("!!(app.session && app.session.ready && app.session.myPrep)", timeout=20000); await pg.evaluate("app.prepReady()")
         await A.wait_for_timeout(2500)
         ok(await A.evaluate("!!(app.match && app.match.runner.online)") and await B.evaluate("!!(app.match && app.match.runner.online)"), 'both tabs are in an online match')
         ok(await A.evaluate("!!document.getElementById('qchatbtn')"), 'quick chat button is shown online')

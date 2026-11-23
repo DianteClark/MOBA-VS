@@ -18,6 +18,7 @@ import { presetChoice, prepFromPreset } from './presets.js';
 import { heroPrefs } from './talentprefs.js';
 import { readyCheck } from './ui/readycheck.js';
 import { HERO_BY_ID } from './data/heroes.js';
+import { closeHeroInfo } from './ui/heroinfo.js';
 import { LocalRunner, LockstepRunner } from './net/runner.js';
 import { host, join, makeCode, warmNet } from './net/peer.js';
 import { showLobby, showPrep, showResults, startParade, stopParade } from './ui/screens.js';
@@ -58,7 +59,7 @@ import { RIVAL_BY_ID } from './data/rivals.js';
 import { hostCoop, onCoopNet, enterAsGuest, myDraftTurn, applyDraft, draftAuto, aiDraftTurn, coopPrep, myHeroIds, sendPrep, seatReady, flushPendingPreps,
   coopCfg, runnerOpts, startedRunner, soloFallback, historyCoop } from './coop-room.js';
 import { coopResults } from './ui/coop.js';
-import { installCrashReporter, reportDesync, opsHello, track, modeKey } from './net/ops.js';
+import { installCrashReporter, reportDesync, reportError, opsHello, track, modeKey } from './net/ops.js';
 import { openFeedback } from './ui/feedback.js';
 import { pushPromptCard, onPushOpen } from './ui/notify.js';
 import { openAdminReplay } from './ui/adminreplay.js';
@@ -134,34 +135,54 @@ class App {
   setName(n) { this.name = n.slice(0, 12) || 'Coach'; try { localStorage.setItem('mobavs_name', this.name); } catch { /* ignore */ } }
 
   async boot() {
-    audio.init();
-    installPressSounds();
+    // Only the art and the first screen are needed to play: every other feature starts inside safe(), so one that
+    // throws (an old profile shape, a missing API in an old browser) is reported and skipped instead of leaving the
+    // coach on the loading screen.
+    const safe = (where, fn) => { try { const r = fn(); if (r && r.catch) r.catch((e) => reportError('boot:' + where, e)); return r; } catch (e) { reportError('boot:' + where, e); return undefined; } };
+    safe('audio', () => audio.init());
+    safe('press', () => installPressSounds());
     // Menu transitions: a new screen slides in; re-rendering the same screen (a toggle, a tab, a draft pick) does not.
     const scr = document.getElementById('screen'); let lastView = '';
-    new MutationObserver(() => {
+    safe('transitions', () => new MutationObserver(() => {
       const c = scr.firstElementChild; if (!c) return;
       const t = c.querySelector('h2'), view = c.dataset.view || (c.className.split(' ')[0] + '|' + (t ? t.textContent : ''));
       if (view === lastView) c.classList.add('same');
       lastView = view;
-    }).observe(scr, { childList: true });
-    installBuildTips();
-    await initI18n(); // the device's language pack (lazy: English loads nothing)
-    installA11y(); installKeys(); installGamepad(); // screen readers, keyboard menus + [?] help, controllers
-    installOffline(this, VERSION); // offline indicator, sync on reconnect, offline pack in the service worker
+    }).observe(scr, { childList: true }));
+    safe('buildtips', () => installBuildTips());
+    try { await initI18n(); } catch (e) { reportError('boot:i18n', e); } // the device's language pack (lazy: English loads nothing); English if it fails
+    safe('a11y', () => installA11y()); safe('keys', () => installKeys()); safe('gamepad', () => installGamepad()); // screen readers, keyboard menus + [?] help, controllers
+    safe('offline', () => installOffline(this, VERSION)); // offline indicator, sync on reconnect, offline pack in the service worker
     const bar = document.querySelector('#loading .barw i');
-    await loadAssets((p) => { bar.style.width = Math.round(p * 100) + '%'; }, true);
+    await loadAssets((p) => { if (bar) bar.style.width = Math.round(p * 100) + '%'; }, true);
     try { await document.fonts.load('12px PixelFont'); } catch { /* ignore */ }
-    this.map = this.mapCanvas(new World(MAPS[0], { walls: true })); // (painted as a Living World match will use it)
+    safe('bgmap', () => { this.map = this.mapCanvas(new World(MAPS[0], { walls: true })); }); // (painted as a Living World match will use it)
     document.getElementById('loading').remove(); window.__mobavsBooted = true;
-    this.startBg();
+    if (this.map) safe('bg', () => this.startBg());
     const q = new URLSearchParams(location.search), code = q.get('join'), shared = q.get('s'), invite = q.get('i');
-    if (code) this.joinScreen(code); else if (shared) showShared(this, shared); else if (invite) showInviteLink(this, invite); else if (q.get('ar')) openAdminReplay(this, q.get('ar'), VERSION);
-    else if (q.get('go') === 'cup') { try { history.replaceState(null, '', location.pathname); } catch { /* ignore */ } this.menu(); showWeekendCup(this); } else this.menu();
+    try {
+      if (code) this.joinScreen(code); else if (shared) showShared(this, shared); else if (invite) showInviteLink(this, invite); else if (q.get('ar')) openAdminReplay(this, q.get('ar'), VERSION);
+      else if (q.get('go') === 'cup') { try { history.replaceState(null, '', location.pathname); } catch { /* ignore */ } this.menu(); showWeekendCup(this); } else this.menu();
+    } catch (e) { reportError('boot:menu', e); this.bootFallback(e); }
     // a tapped notification while the game is open: follow its link from the menu, never mid-match
-    onPushOpen((u) => { if (this.match || this.session) return; const i = u.searchParams.get('i'); if (i) showInviteLink(this, i); else if (u.searchParams.get('go') === 'cup') showWeekendCup(this); });
-    this.connectOnline();
+    safe('pushopen', () => onPushOpen((u) => { if (this.match || this.session) return; const i = u.searchParams.get('i'); if (i) showInviteLink(this, i); else if (u.searchParams.get('go') === 'cup') showWeekendCup(this); }));
+    safe('online', () => this.connectOnline());
     try { if (sessionStorage.getItem('mobavs_reset')) { sessionStorage.removeItem('mobavs_reset'); setTimeout(() => toast('Welcome to the full launch! Every coach starts fresh with 15 champions. Earn Koban to unlock more.', 5200), 1200); } } catch { /* ignore */ } // src/datareset.js
-    setTimeout(warmNet, 3000); // PeerJS off the first-paint path, ready before anyone taps Host / Join
+    setTimeout(() => safe('warmnet', () => warmNet()), 3000); // PeerJS off the first-paint path, ready before anyone taps Host / Join
+  }
+  // The home screen itself failed (a profile shape no migration expected): say so, and offer a retry or a reset of
+  // the game data (settings, language and the coach name are kept, like the launch reset).
+  bootFallback(e) {
+    const reset = () => {
+      try { for (const k of Object.keys(localStorage)) if (k.startsWith('mobavs_') && !['mobavs_settings', 'mobavs_lang', 'mobavs_name', 'mobavs_muted', 'mobavs_dv'].includes(k)) localStorage.removeItem(k); } catch { /* ignore */ }
+      location.reload();
+    };
+    const el = document.getElementById('screen');
+    this.showScreen(true);
+    el.replaceChildren(h('div', { class: 'subscreen bootfallback', style: { justifyContent: 'center', alignItems: 'center', gap: '12px', textAlign: 'center' } },
+      h('h2', {}, 'Something went wrong'), h('p', { class: 'muted' }, `The menu could not open: ${(e && e.message) || e}. It has been reported.`),
+      h('div', { class: 'row', style: { gap: '8px', justifyContent: 'center' } }, h('button', { class: 'btn big', onclick: () => location.reload() }, 'Try again'),
+        h('button', { class: 'btn', onclick: () => { if (confirm('Reset your game data on this device? Settings, language and your name are kept.')) reset(); } }, 'Reset game data'))));
   }
   // Online services: create/restore the account, then sync the profile (newest copy wins).
   async connectOnline() {
@@ -212,7 +233,7 @@ class App {
     setFaceSkins(null);
     this.showScreen(true);
     audio.music('menu');
-    showHome(this);
+    try { showHome(this); } catch (e) { reportError('home', e); this.bootFallback(e); return; } // never a blank menu
     startParade();
     if (this.update) setTimeout(() => this.safeUpdate(), 600);
   }
@@ -490,7 +511,7 @@ class App {
 
   // ───────────── draft ─────────────
   startDraft() {
-    keepAwake(true);
+    keepAwake(true); closeDialogs();
     stopParade(); this.dropReel(); closeInvites(this);
     const s = this.session;
     s.draft = this.newDraft(); s.turnStart = performance.now(); s.turnLeft = TURN_SECONDS;
@@ -635,7 +656,8 @@ class App {
     }, 250);
   }
   prepReady() {
-    const s = this.session, me = s.myTeam;
+    const s = this.session, me = s && s.myTeam;
+    if (!s || !s.ready || !s.myPrep) return; // prep has not opened yet (a key press or a late tap between draft and prep)
     if (s.mode === 'coop' ? seatReady(s, me, s.mySeat) : s.ready[me]) return;
     const deck = s.myPrep.deck || (s.myPrep.deck = []);
     for (const id of DEFAULT_DECK) if (deck.length < 3 && !deck.includes(id)) deck.push(id);
@@ -655,7 +677,7 @@ class App {
 
   // ───────────── match ─────────────
   startMatch() {
-    keepAwake(true);
+    keepAwake(true); closeDialogs();
     // the match art finishes loading in the background after first paint; on a slow link wait for it here
     if (!assetsDone) { const s0 = this.session; toast('Loading the battlefield…', 1500); assetsAll.then(() => { if (this.session === s0 && !this.match) this.startMatch(); }); return; }
     const s = this.session;
@@ -843,7 +865,7 @@ class App {
       const args = [this, m.game, s.myTeam,
         cr ? cr.again : s.customOpts && s.mode !== 'join' ? () => this.playCustom(s.customOpts, s.pnp ? 'pnp' : s.mode === 'host' ? 'host' : 'ai') : s.wcup ? () => showWeekendCup(this) : s.cup ? () => showCup(this) : s.franchise ? () => { this.session = null; audio.music('menu'); showFranchise(this, 'team'); } : s.mode === 'ai' ? () => { if (s.rival) this.rivalRoll = { tier: s.aiLevel, id: s.rival }; this.startVsAI(s.gameMode === 'rush' ? 'rush' : 'classic', true); } : s.mode === 'watch' ? (s.spectate ? null : () => this.watch()) : pa ? pa.fn : null,
         () => this.menu(), { progress: progressPanel(sum, cupOut), rival: cr ? cr.panel : s.franchise ? franchiseResults(this, frOut) : s.myTeam >= 0 && !s.wasOnline ? rivalPanel(sum, s, won) : null, ladder, social: s.wcup ? null : s.mode === 'coop' ? coopResults(this, s, m.game) : socialPanel(this, s), againLabel: cr ? cr.label : pa ? pa.label : s.cup || s.wcup ? 'Back to bracket' : s.franchise ? 'Back to franchise' : s.rival && RIVAL_BY_ID[s.rival] && !s.wasOnline ? `Rematch ${RIVAL_BY_ID[s.rival].name}` : null, potg: this.potgReel ? potg : null, report,
-          onPOTG: () => this.playPOTG(), onClip: potg && src && clipSupport() ? () => saveClip(src, potg, s.names, this.mapCanvas(m.game.world, m.game.event)) : null,
+          onPOTG: () => this.playPOTG(), onClip: potg && src && clipSupport() ? () => this.clipPOTG(src, potg, s.names, this.mapCanvas(m.game.world, m.game.event)) : null,
           analytics, onAnalysis: analytics ? () => showAnalysis(analytics, { title: 'Match analysis', onTheater: this.lastReplay() ? () => this.watchReplay(null, { back: () => this.backToResults() }) : null }) : null,
           emotes: resultEmotes(s), avatars: resultAvatars(s), foot: this.resultsFoot(s, m, potg), onReplay: () => this.watchReplay(null, { back: () => this.backToResults() }), share: sum ? () => shareMatch(profile.d.history[0], { name: this.name, rank: profile.rank.label, border: profile.border }, this.lastReplay()) : null }];
       this.lastResults = { args, session: s, src, potg };
@@ -877,11 +899,21 @@ class App {
     reel.slice = slice;
     return reel;
   }
+  // Save clip: borrows the Play of the Game reel when it is already at the highlight (no second rewind of the whole
+  // match); a fresh reel is prerolled for Watch once the clip is done with it.
+  clipPOTG(src, potg, names, map) {
+    const reel = this.potgReel, s0 = this.session;
+    const pre = reel && reel.ready && !reel.used && reel.potg === potg ? { game: reel.game, runner: reel.runner } : null;
+    if (pre) { reel.used = true; reel.stop = true; }
+    saveClip(src, potg, names, map, pre, pre ? () => { if (this.potgReel === reel && this.session === s0 && !this.match) this.potgReel = this.prerollPOTG(src, potg); } : null);
+  }
   playPOTG() {
     const reel = this.potgReel; if (!reel || reel.used) return;
     reel.used = true; reel.stop = true;
+    const s0 = this.session;
     const go = () => {
       const prev = this.session;
+      if (!prev || prev !== s0 || this.match) return; // left the results while it was rewinding (Main menu, Play again)
       this.session = { mode: 'watch', potg: reel.potg, replay: { cfg: reel.game.cfg, skins: reel.skins }, myTeam: -1, seed: prev.seed, mapId: prev.mapId, names: prev.names, rng: new Rng(1),
         prebuilt: { game: reel.game, runner: reel.runner } };
       this.fade(() => this.startMatch());
@@ -892,6 +924,7 @@ class App {
     document.body.append(box);
     const bar = box.querySelector('i');
     const step = () => {
+      if (this.potgReel !== reel || this.session !== s0) { box.remove(); return; } // dropReel() / a new screen: stop rewinding
       if (reel.slice(40)) { box.remove(); go(); return; }
       bar.style.width = Math.round(reel.game.tick / Math.max(1, reel.potg.start) * 100) + '%';
       requestAnimationFrame(step);
@@ -992,6 +1025,10 @@ class App {
     this.menu();
   }
 }
+
+// A draft or a match taking the screen by itself (the prep timer, the host, the party leader) closes menu dialogs
+// left open (hero info, a lineup picker, settings): they would sit over the new screen and swallow its taps.
+function closeDialogs() { try { closeHeroInfo(); for (const m of document.querySelectorAll('body > .modal')) m.remove(); } catch { /* ignore */ } }
 
 // Installable app: the service worker (sw.js) serves repeat launches from cache and keeps it fresh.
 // A new build is only switched in when it is safe: on the menu, never mid-match (see App.safeUpdate).

@@ -258,7 +258,8 @@ export function achievementsTab() {
 }
 
 // ───────────── unlock toasts ─────────────
-// One small card at a time at the top: icon, name, reward. Reduced effects: no slide or shine, just appears.
+// One small card at a time above the bottom buttons: icon, name, reward; taps go through it to the screen below.
+// Reduced effects: no slide or shine, just appears.
 let queue = [], busy = false;
 export function achToasts(list, delay = 0) {
   queue.push(...list.map((x) => ACH_BY_ID[x.id]).filter(Boolean));
@@ -267,7 +268,7 @@ export function achToasts(list, delay = 0) {
 function nextToast() {
   const a = queue.shift();
   if (!a) { busy = false; return; }
-  const el = h('div', { class: 'achtoast' + (reduced() ? ' still' : ''), role: 'status', 'aria-live': 'polite', onclick: () => done() },
+  const el = h('div', { class: 'achtoast' + (reduced() ? ' still' : ''), role: 'status', 'aria-live': 'polite' }, // taps pass through (css)
     h('img', { class: 'achi', src: achIcon(a), alt: '' }),
     h('div', { class: 'col' }, h('small', { class: 'kick' }, 'ACHIEVEMENT UNLOCKED'), h('b', {}, a.name), h('span', { class: 'achrwline' }, rewardIcon(a.reward), h('small', {}, rewardName(a.reward)))));
   document.body.append(el);

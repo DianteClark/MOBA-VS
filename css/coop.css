@@ -19,7 +19,7 @@
 .cseat .sn { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cseat small { font-size: 9px; padding: 0 4px; border: 1px solid currentColor; } .cseat .you { color: var(--sc); } .cseat .lead { color: var(--gold); }
 .cseat.ai { color: var(--muted); justify-content: center; min-height: 78px; }
-.sl { display: inline-grid; place-items: center; width: 18px; height: 18px; flex: 0 0 18px; background: var(--sc, #888); color: #1a1208; font-style: normal; font-size: 11px; }
+i.sl { display: inline-grid; place-items: center; width: 18px; height: 18px; flex: 0 0 18px; background: var(--sc, #888); color: #1a1208; font-style: normal; font-size: 11px; }
 .cseat .sl, .crow .sl { background: var(--sc); }
 .csplit { display: flex; flex-direction: column; gap: 4px; }
 .csplit.solo { opacity: 0.6; }

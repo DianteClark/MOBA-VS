@@ -52,12 +52,11 @@ async def main():
         ok(await pg.evaluate("!!document.querySelector('#screen .home2')"), 'offline relaunch shows the menu')
         await ctx.set_offline(False)
 
-        # 2) a deploy without a VERSION bump: stale first, then refreshed and reloaded on the menu
-        p_dom = os.path.join(site, 'src/ui/dom.js')
+        # 2) a deploy without a VERSION bump: code is network-first (sw.js r3), so the very next launch runs it
+        p_dom = os.path.join(site, 'src/ui/dom.js'); p_pn = os.path.join(site, 'src/data/patchnotes.js')
         with open(p_dom, 'a') as f: f.write('\n// deploy marker 1\n')
-        await pg.reload(); await pg.wait_for_timeout(500)
-        await pg.evaluate("window.__mark = 1")
-        ok(await until(pg, "window.__mark !== 1 && !!window.app && !!document.querySelector('#screen .home2')"), 'page reloaded itself after the deploy (on the menu)')
+        await pg.reload(); await pg.wait_for_timeout(1500)
+        ok(await until(pg, "!!window.app && !!document.querySelector('#screen .home2')") and 'deploy marker 1' in (await pg.evaluate("fetch('src/ui/dom.js').then((r) => r.text())")), 'the next launch runs the deploy (no stale first launch)')
         txt = await pg.evaluate("caches.match('src/ui/dom.js').then((r) => r && r.text())")
         ok(bool(txt) and 'deploy marker 1' in txt, 'cache now holds the new build')
 
@@ -66,9 +65,11 @@ async def main():
         await until(pg, "!!window.app && !!document.querySelector('#screen .home2')")
         await pg.evaluate("app.watch()"); await pg.wait_for_timeout(2500)
         await pg.evaluate("window.__mark = 2")
+        await pg.wait_for_timeout(1100)  # (Last-Modified has 1 s resolution on the test server)
         with open(p_dom, 'a') as f: f.write('\n// deploy marker 2\n')
-        # simulate the next background check (the worker revalidates what it serves)
-        await pg.evaluate("fetch('src/ui/dom.js')")
+        with open(p_pn, 'a') as f: f.write('\n// release marker 2\n')  # a release always edits the patch notes
+        # simulate the next background check (the page re-fetches main.js and the patch notes through the worker)
+        await pg.evaluate("fetch('src/data/patchnotes.js')")
         await pg.wait_for_timeout(4000)
         ok(await pg.evaluate("window.__mark === 2 && !!app.match"), 'no reload while the match is running')
         await pg.evaluate("app.match.game.over = true; app.match = null; app.menu()")
@@ -97,8 +98,9 @@ async def main():
         #    must still arrive on the menu, and on another menu screen as an "Update ready" chip.
         await pg.evaluate("window.__mark = 5")
         # (a release always edits src/data/patchnotes.js, one of the files a resume re-checks; dom.js changes too)
+        await pg.wait_for_timeout(1100)
         with open(p_dom, 'a') as f: f.write('\n// deploy marker 5\n')
-        with open(os.path.join(site, 'src/data/patchnotes.js'), 'a') as f: f.write('\n// release marker 5\n')
+        with open(p_pn, 'a') as f: f.write('\n// release marker 5\n')
         await pg.evaluate("Object.defineProperty(document, 'hidden', { configurable: true, get: () => false }); document.dispatchEvent(new Event('visibilitychange'))")
         ok(await until(pg, "window.__mark !== 5 && !!window.app && !!document.querySelector('#screen .home2')", 20000), 'resume only (visibilitychange) picks up a deploy and reloads on the menu')
         await pg.wait_for_timeout(1000)

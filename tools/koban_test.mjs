@@ -6,7 +6,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import assert from 'node:assert/strict';
 import { ECON, STARTERS, priceOf, tierOf, ALL_IDS, rotation, weekOf, RANKED_OWNED, DATA_VERSION } from '../src/data/unlocks.js';
-import { WIPE_TABLES, WIPE_STEP } from '../worker/koban.js';
+import { WIPE_TABLES, WIPE_STEP, autoWipeStep } from '../worker/koban.js';
 
 function d1() {
   const db = new DatabaseSync(':memory:');
@@ -41,6 +41,7 @@ const acct = async (name) => (await api('/api/account', { method: 'POST', body: 
 
 let r = await api('/api/health'); assert.equal(r.data.tables, true, 'tables: ' + r.data.missing); assert.equal(r.data.dv, 1); ok('health: koban + kv tables, data version 1');
 const A = await acct('Ann'), B = await acct('Ben'), C = await acct('Cat');
+r = await api('/api/health'); assert.equal(r.data.dv, DATA_VERSION); ok('auto wipe: a fresh database (empty tables) is current on its first request, no 503s');
 
 // ── ledger: fresh, claims and their bounds ──
 r = await api('/api/koban', { who: A }); assert.equal(r.data.state, null); assert.equal(r.data.dv, DATA_VERSION);
@@ -121,6 +122,8 @@ r = await rep([STARTERS[0], STARTERS[3], STARTERS[6], STARTERS[9], rotation(week
 ok('Ranked: queue needs 25 owned (server-side), reports must use owned or free-rotation picks');
 
 // ── launch wipe ──
+// (the first request above moved the fresh database to DATA_VERSION; roll it back to 1 so the admin wipe runs on real data)
+env.DB.raw.prepare("DELETE FROM kv WHERE k = 'dv' OR k LIKE 'wipe:%'").run();
 r = await api('/api/admin/wipe', { method: 'POST', body: { dv: 2, confirm: 'ARCHIVE-AND-WIPE' } }); assert.equal(r.status, 404, 'hidden without the token');
 r = await api('/api/admin/wipe', { method: 'POST', token: 'wrong-token-0123456789', body: { dv: 2, confirm: 'ARCHIVE-AND-WIPE' } }); assert.equal(r.status, 404);
 r = await api('/api/admin/wipe', { method: 'POST', token: TOKEN, body: { dv: 2 } }); assert.equal(r.status, 400, 'needs the confirm phrase');
@@ -140,5 +143,15 @@ assert.equal(cnt('players_beta'), countsBefore.players, 'a re-run keeps the arch
 const D = await acct('Dee'); r = await api('/api/koban/sync', { method: 'POST', who: D, body: {} }); assert.equal(r.status, 200); assert.equal(cnt('players'), 1);
 r = await api('/api/koban', { who: A }); assert.equal(r.status, 401, 'old accounts are gone');
 assert.equal(cnt('flags'), 1, 'A/B flags (config) are kept');
+r = await api('/api/admin/wipe', { method: 'POST', token: TOKEN, body: { dv: DATA_VERSION + 1, confirm: 'ARCHIVE-AND-WIPE' } }); assert.equal(r.status, 400, 'never past the shipped DATA_VERSION');
 ok(`wipe: token + confirm, ${calls} calls, tables archived to *_beta and emptied, idempotent, fresh accounts work after`);
+// the automatic wipe (worker/index.js runs it on API requests until the database is current): only tables with rows
+// are archived, a few per request; empty ones are marked in one go
+env.DB.raw.prepare("DELETE FROM kv WHERE k = 'dv' OR k LIKE 'wipe:%'").run();
+const nonEmpty = WIPE_TABLES.filter((t) => cnt(t) > 0), players = cnt('players');
+let steps = 0; while (!(await autoWipeStep(env.DB, clock)) && steps < 30) steps++;
+assert.equal(steps + 1, Math.max(1, Math.ceil(nonEmpty.length / 2)), 'two non-empty tables per request');
+assert.ok(players >= 1 && cnt('players') === 0 && cnt('players_beta') === players, 'archived and emptied');
+r = await api('/api/health'); assert.equal(r.data.dv, DATA_VERSION);
+ok(`auto wipe: ${nonEmpty.length} non-empty tables archived in ${steps + 1} requests`);
 console.log('koban worker tests passed');

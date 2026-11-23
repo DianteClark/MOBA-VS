@@ -6,7 +6,7 @@
 #   * A's owned emotes are in A's quick chat, and B sees A's signature emote for the results,
 #   * achievements stay bounded and the profile survives a JSON round trip (cloud save).
 #   python3 tools/looks_test.py http://127.0.0.1:8834/
-import sys, asyncio
+import sys, asyncio, json
 from playwright.async_api import async_playwright
 URL = (sys.argv[1] if len(sys.argv) > 1 else 'http://127.0.0.1:8834/').rstrip('/') + '/index.html?local=1'
 DRAFT = """async () => { const m = await import('./src/sim/draft.js'); const s = app.session;
@@ -38,7 +38,7 @@ async def main():
         ok(sa == 'done' and sb == 'done', 'online draft finished on both tabs')
         ok(await B.evaluate("!!(app.session.oppLooks && app.session.oppLooks.emote === 'smug' && app.session.oppLooks.border === 'phoenix')"), 'B got A\'s looks in the hello/start metadata')
         await A.wait_for_timeout(1500)
-        for pg in (A, B): await pg.evaluate("app.prepReady()")
+        for pg in (A, B): await pg.wait_for_function("!!(app.session && app.session.ready && app.session.myPrep)", timeout=20000); await pg.evaluate("app.prepReady()")
         await A.wait_for_timeout(2500)
         ok(await A.evaluate("!!(app.match && app.match.runner.online)") and await B.evaluate("!!(app.match && app.match.runner.online)"), 'both tabs are in an online match')
         mine = await A.evaluate("JSON.stringify(app.renderer.skins[app.session.myTeam])")
@@ -53,7 +53,10 @@ async def main():
         res = await B.evaluate("""async () => { const L = await import('./src/looks.js');
           const x = L.cleanLooks({ skins: { kaze: 'leg_bastion', bastion: 'leg_bastion', nobody: 'sig_kaze', yuki: 'nope', kenshi: 'shadow', __proto__: 'x' }, emote: '<img src=x>', banner: 'toString', border: 'kami' });
           return JSON.stringify(x); }""")
-        ok(res == '{"skins":{"bastion":"leg_bastion","kenshi":"shadow"},"emote":null,"banner":null,"border":"kami"}', f'forged looks cleaned: {res}')
+        # (later looks fields, pfp / pet / troop, come back empty for a forged blob without them)
+        rj = json.loads(res)
+        ok({k: rj.get(k) for k in ('skins', 'emote', 'banner', 'border')} == {'skins': {'bastion': 'leg_bastion', 'kenshi': 'shadow'}, 'emote': None, 'banner': None, 'border': 'kami'}
+           and all(v is None for k, v in rj.items() if k not in ('skins', 'emote', 'banner', 'border')), f'forged looks cleaned: {res}')
         # quick chat: owned emotes only; the opponent sees a new emote
         n = await A.evaluate("() => { app.match.hud.chat.open(); const n = document.querySelectorAll('#qchat .qemo').length; app.match.hud.chat.close(); return n; }")
         ok(n == 9, f'A\'s quick chat offers the 9 owned emotes ({n})')
