@@ -93,6 +93,7 @@ const looksText = (s) => {
   if (/^[\w$]+$/.test(s) && !/^[A-Z][a-z]+$/.test(s) && !/^[A-Z]{2,}$/.test(s)) return false; // ids, camelCase, snake_case
   if (/^[A-Z][a-z]+[A-Z]\w*$/.test(s)) return false; // PascalCase ids (icons, key names: ArrowUp)
   if (/^[a-z0-9_ .#:>\[\]=*()"'-]+$/.test(s) && (/[#.:>\[\]=*_]|-[a-z]|\d/.test(s) || !/ /.test(s))) return false; // class lists, selectors
+  if (s.includes('[') && s.split(/,\s*/).every((x) => /^[a-z]*(\[[^\]]+\]|:[a-z-]+(\([^)]*\))?)*$/.test(x))) return false; // selector lists
   if (/^[.#[]/.test(s) || /^[a-z-]+:\s?[^ ]+;?$/.test(s)) return false; // selectors, css
   if (/^(rgba?|hsla?|var|url|translate|scale|rotate|linear-gradient|cubic-bezier|calc)\(/.test(s) || /^#[0-9a-f]{3,8}$/i.test(s)) return false;
   if (/^\d+(px|ms|s|%|em|rem|vh|vw)?( \d+(px|%)?)*$/.test(s)) return false;
