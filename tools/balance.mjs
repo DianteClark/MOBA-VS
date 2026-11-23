@@ -16,7 +16,8 @@
 //   --nudge K   also move each hero's TUNE multiplier toward 50% (delta = (0.5 - shrunk win rate) * K,
 //               max ±6% per pass, clamp 0.8-1.2) and rewrite src/data/tuning.js (same format as tune.mjs)
 // Each game draws heroes from shuffled per-role decks so every hero gets the same number of games.
-// Builds are random from each hero's list (so every build gets played); --smart uses aiPrep
+// Builds are random from each hero's list (so every build gets played; --even: each hero takes its least-played
+// build type so far, so every type gets about the same number of games); --smart uses aiPrep
 // (situational builds) instead.
 // Reports: per-hero win rate, pick impact, KDA, damage share, basic hits, ability casts and hit
 // rates; per-build and per hero-build win rates; static range sanity (heroes vs towers).
@@ -103,7 +104,7 @@ if (!isMainThread) {
     }
     return draw(r, used);
   };
-  const jobs = [];
+  const jobs = [], bcount = {};
   for (let i = 0; i < N; i++) {
     const used = new Set();
     let a, b;
@@ -114,7 +115,11 @@ if (!isMainThread) {
       const d = crossDuos[rng.int(crossDuos.length)], [mine, other] = rng.next() < 0.5 ? [a, b] : [b, a];
       if (!other.includes(d.a) && !other.includes(d.b)) for (const id of [d.a, d.b]) mine[ROLES.indexOf(HERO_BY_ID[id].role)] = id;
     }
-    const pb = (ids) => ids.map((id) => { const bl = HERO_BY_ID[id].builds; return bl[rng.int(bl.length)]; });
+    const pb = (ids) => ids.map((id) => { const bl = HERO_BY_ID[id].builds;
+      if (!flag('even')) return bl[rng.int(bl.length)];
+      // --even: the hero's least-played build so far (ties at random), so rare build types get as many games as common ones
+      const lo = Math.min(...bl.map((b) => bcount[b] || 0)), c = bl.filter((b) => (bcount[b] || 0) === lo), b = c[rng.int(c.length)];
+      bcount[b] = (bcount[b] || 0) + 1; return b; });
     const job = { seed: seed0 + i, teams: [a, b], builds: [pb(a), pb(b)] };
     if (flag('plans')) { const P = ['aggro', 'scale', 'objective', 'split', 'protect'], pairs = []; for (const x of P) for (const y of P) if (x !== y) pairs.push([x, y]); job.plans = pairs[i % pairs.length]; }
     if (flag('cards')) { const ids = TIDS.slice(), pick = () => { const d = []; while (d.length < 3) { const c = ids[rng.int(ids.length)]; if (!d.includes(c)) d.push(c); } return d; }; job.decks = [pick(), pick()]; }
