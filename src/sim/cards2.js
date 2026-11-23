@@ -157,14 +157,14 @@ export function onHeroHit(g, src, tgt, flags) {
     src.escortCd = now + sec(1.5); src.slows.push({ pct: 0.45, until: now + sec(1.5) });
     g.fx.push({ kind: 'cc', id: src.id, cc: 'slow' });
   }
-  if (flags.basic && A && A.chargeUntil > now && !A.charged.includes(tgt.id)) { A.charged.push(tgt.id); tgt.slows.push({ pct: 0.4, until: now + sec(1.5) }); g.fx.push({ kind: 'cc', id: tgt.id, cc: 'slow' }); }
+  if (flags.basic && A && A.chargeUntil > now && !A.charged.includes(tgt.id)) { A.charged.push(tgt.id); tgt.slows.push({ pct: 0.3, until: now + sec(1.5) }); g.fx.push({ kind: 'cc', id: tgt.id, cc: 'slow' }); }
 }
 // Game.spawnWaves: the minions just spawned for (team, lane) are units[from..].
 export function onWave(g, t, lane, from) {
   const S = g.teams[t].c2, w = S && S.waves[lane]; if (!w) return;
   for (let i = from; i < g.units.length; i++) {
     const m = g.units[i]; if (m.type !== 'minion') continue;
-    if (w.slow) { m.stats.ms *= 0.65; m.maxHp *= 1.3; m.hp = m.maxHp; m.stacked = true; } else if (w.fast) { m.stats.ms *= 1.4; m.crash = true; }
+    if (w.slow) { m.stats.ms *= 0.65; m.maxHp *= 1.3; m.hp = m.maxHp; m.stacked = true; } else if (w.fast) { m.stats.ms *= 1.3; m.crash = true; }
   }
   if (w.slow) w.slow--; else if (w.fast) w.fast--;
   if (!w.slow && !w.fast) delete S.waves[lane];

@@ -37,7 +37,7 @@ export function stats(g, h, s) {
   if (h.alive) {
     let aura = 0;
     for (const a of g.teams[h.team].heroes) if (a !== h && a.alive && a.stats && a.stats.bulwark && dist2(a, h) < AURA_R * AURA_R) aura += a.stats.bulwark;
-    if (aura) s.drPct += Math.min(0.15, aura);
+    if (aura) s.drPct += Math.min(0.12, aura);
   }
 }
 
