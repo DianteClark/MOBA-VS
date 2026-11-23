@@ -68,7 +68,7 @@ export function playCard2(g, c, team, alive) {
       break;
     case 'escort': case 'lone': {
       const h = team.heroes.find((x) => x.id === c.hero && x.alive); if (!h) return false;
-      if (c.card === 'escort') { S.escort = { id: h.id, until: now + sec(10) }; g.addBuff(h, { drPct: 0.2 }, 10, 'escort'); }
+      if (c.card === 'escort') { S.escort = { id: h.id, until: now + sec(10) }; g.addBuff(h, { drPct: 0.25 }, 10, 'escort'); }
       else { S.lone = { id: h.id, until: now + sec(45) }; g.recalc(h); }
       ping({ id: h.id });
       break;
@@ -143,12 +143,12 @@ export const seesStealth = (g, t) => { const me = g.teams[t].c2; return !!(me &&
 // Game.dealDamage, hero source: Jungle Raid on enemy camps.
 export function outMods(g, src, tgt, amt) {
   const S = g.teams[src.team].c2;
-  if (S && S.raidUntil > g.tick && tgt.type === 'mob' && tgt.camp && !tgt.camp.startsWith(String(src.team) + ':')) amt *= 1.4;
+  if (S && S.raidUntil > g.tick && tgt.type === 'mob' && tgt.camp && !tgt.camp.startsWith(String(src.team) + ':')) amt *= 1.3;
   return amt;
 }
 export function campGold(g, h, u) {
   const S = g.teams[h.team].c2;
-  return S && S.raidUntil > g.tick && u.camp && !u.camp.startsWith(String(h.team) + ':') ? 1.5 : 1;
+  return S && S.raidUntil > g.tick && u.camp && !u.camp.startsWith(String(h.team) + ':') ? 1.35 : 1;
 }
 // A hero hit a hero (after the damage): Escort slows the attacker, Charge! slows on the first basic hit.
 export function onHeroHit(g, src, tgt, flags) {
@@ -200,7 +200,7 @@ export function aiCard2(co, has, play, x) {
   if (ok('charge') && fighting >= 2 && vis.length >= 3 && alive.length >= vis.length && avgHp > 0.6) return play({ card: 'charge' });
   if (ok('escort') && fighting >= 2) {
     const carry = alive.filter((h) => h.def.cls === 'marksman' || h.def.cls === 'mage').sort((a, b) => b.goldEarned - a.goldEarned)[0];
-    if (carry && now - carry.lastHurtByHero < sec(1) && carry.hp / carry.maxHp < 0.7) return play({ card: 'escort', hero: carry.id });
+    if (carry && now - carry.lastHurtByHero < sec(1) && carry.hp / carry.maxHp < 0.8 && carry.hp / carry.maxHp > 0.3 && vis.some((e) => (e.def.cls === 'assassin' || e.def.cls === 'bruiser') && dist2(e, carry) < 450 * 450)) return play({ card: 'escort', hero: carry.id });
   }
   if (ok('revive') && me.heroes.filter((h) => !h.alive && h.respawnAt - now > sec(12)).length >= 2) return play({ card: 'revive' });
   if (ok('echo') && !fighting && me.heroes.filter((h) => { const i = ultIdx(h); return i >= 0 && h.cds[i] - now > sec(20); }).length >= 3) return play({ card: 'echo' });
