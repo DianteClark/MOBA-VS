@@ -11,7 +11,7 @@
 // v26 stats (src/sim/builds2.js): rage (up to x more damage at 0 HP, scales with missing HP), kheal (heal x max HP
 //        on takedown), spellShield (block x of the first enemy ability hit every 10s), reflect (x of hero ability
 //        damage taken is reflected), roam (move speed out of combat), reset (takedown: x of current cooldowns
-//        refunded), chill (abilities slow heroes hit by x for 1.5s), frostbite (+x damage to slowed heroes), venom
+//        refunded), chill (abilities slow heroes hit by x for 2s), frostbite (+x damage to slowed heroes), venom
 //        (poison dps per stack, 5 stacks), bulwark (allies near take x less damage), glory (power per Glory stack
 //        from takedowns, max 6), stalk (first hit from out of enemy sight deals +x; faster while unseen)
 // Guide text per build: desc, goodAt, weakTo, bestOn (shown in the Build Guide).
@@ -60,7 +60,7 @@ export const BUILDS = {
     items: [
       { name: 'Vampiric Fang', cost: 1100, icon: 'BookDeath', stats: { power: 24, omnivamp: 0.1 } },
       { name: 'Bloodthirster', cost: 3000, icon: 'Necromancy', stats: { power: 55, omnivamp: 0.12 } },
-      { name: "Sterak's Gage", cost: 3000, icon: 'DefenseUpgrade', stats: { hp: 400, lowHpShield: 0.3 } },
+      { name: "Sterak's Gage", cost: 3000, icon: 'DefenseUpgrade', stats: { hp: 450, lowHpShield: 0.3 } },
       { name: 'Spirit Visage', cost: 2800, icon: 'Heal', stats: { hp: 300, mr: 50, healPower: 0.25, haste: 10 } },
       { name: "Death's Dance", cost: 3100, icon: 'Counter', stats: { power: 45, armor: 40, haste: 15 } },
     ],
@@ -239,11 +239,11 @@ export const BUILDS = {
     desc: 'A protective aura: nearby allies take less damage. Makes the whole grouped team tougher.',
     goodAt: 'Grouped teamfights and sieges', weakTo: 'Poke, split-push and pick-offs (needs allies close)', bestOn: 'Tanks and frontline supports',
     items: [
-      { name: 'Iron Buckler', cost: 900, icon: 'Guard', stats: { power: 8, hp: 120, armor: 12, bulwark: 0.015 } },
-      { name: 'Tower Shield', cost: 2800, icon: 'DefenseUpgrade', stats: { hp: 300, armor: 35, bulwark: 0.02 } },
-      { name: 'Rampart Mail', cost: 2800, icon: 'Armor', stats: { hp: 300, mr: 40, bulwark: 0.02 } },
+      { name: 'Iron Buckler', cost: 900, icon: 'Guard', stats: { power: 8, hp: 120, armor: 12, bulwark: 0.01 } },
+      { name: 'Tower Shield', cost: 2800, icon: 'DefenseUpgrade', stats: { hp: 300, armor: 35, bulwark: 0.015 } },
+      { name: 'Rampart Mail', cost: 2800, icon: 'Armor', stats: { hp: 300, mr: 40, bulwark: 0.015 } },
       { name: 'Banner of Iron', cost: 2600, icon: 'Upgrade', stats: { power: 20, hp: 200, armor: 20, mr: 20, haste: 10 } },
-      { name: 'Stalwart Plate', cost: 3000, icon: 'Helmet', stats: { hp: 380, armor: 20, hpPct: 0.04 } },
+      { name: 'Stalwart Plate', cost: 3000, icon: 'Helmet', stats: { hp: 350, armor: 20, hpPct: 0.04 } },
     ],
   },
   momentum: {

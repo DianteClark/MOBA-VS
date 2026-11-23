@@ -37,7 +37,7 @@ export function stats(g, h, s) {
   if (h.alive) {
     let aura = 0;
     for (const a of g.teams[h.team].heroes) if (a !== h && a.alive && a.stats && a.stats.bulwark && dist2(a, h) < AURA_R * AURA_R) aura += a.stats.bulwark;
-    if (aura) s.drPct += Math.min(0.05, aura);
+    if (aura) s.drPct += Math.min(0.04, aura);
   }
 }
 
@@ -77,7 +77,7 @@ export function afterHit(g, src, tgt, amt, flags) {
 export function onAbilityHit(g, h, e) {
   if (e.type !== 'hero' || !e.alive) return;
   const s = h.stats;
-  if (s.chill) e.slows.push({ pct: Math.min(0.4, s.chill), until: g.tick + sec(1.5) });
+  if (s.chill) e.slows.push({ pct: Math.min(0.4, s.chill), until: g.tick + sec(2) });
   if (s.venom) addVenom(g, h, e);
 }
 export function onBasicHit(g, h, e) { if (e.type === 'hero' && e.alive && h.stats.venom) addVenom(g, h, e); }
