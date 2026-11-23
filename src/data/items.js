@@ -58,7 +58,7 @@ export const BUILDS = {
     desc: 'Lifesteal and survivability. Wins long fights and lanes; weak to burn/anti-heal.',
     goodAt: 'Long lanes, poke, extended fights', weakTo: 'Burn and anti-heal', bestOn: 'Bruisers and drain mages',
     items: [
-      { name: 'Vampiric Fang', cost: 1100, icon: 'BookDeath', stats: { power: 24, omnivamp: 0.1 } },
+      { name: 'Vampiric Fang', cost: 1100, icon: 'BookDeath', stats: { power: 24, omnivamp: 0.12 } },
       { name: 'Bloodthirster', cost: 3000, icon: 'Necromancy', stats: { power: 60, omnivamp: 0.12 } },
       { name: "Sterak's Gage", cost: 3000, icon: 'DefenseUpgrade', stats: { hp: 450, lowHpShield: 0.3 } },
       { name: 'Spirit Visage', cost: 2800, icon: 'Heal', stats: { hp: 300, mr: 50, healPower: 0.25, haste: 10 } },
@@ -217,7 +217,7 @@ export const BUILDS = {
     items: [
       { name: 'Frost Shard', cost: 900, icon: 'BookIce', stats: { power: 20, hp: 100, chill: 0.15 } },
       { name: 'Glacial Scepter', cost: 2800, icon: 'Snow', stats: { power: 48, hp: 200, chill: 0.1, frostbite: 0.12 } },
-      { name: "Winter's Bite", cost: 2700, icon: 'OrbWater', stats: { power: 50, haste: 15, frostbite: 0.08 } },
+      { name: "Winter's Bite", cost: 2700, icon: 'OrbWater', stats: { power: 53, haste: 15, frostbite: 0.08 } },
       { name: 'Iceheart Mail', cost: 2800, icon: 'Armor', stats: { power: 25, hp: 300, armor: 30, mr: 20, chill: 0.05 } },
       { name: 'Permafrost Orb', cost: 3000, icon: 'OrbLight', stats: { power: 60, haste: 10, frostbite: 0.08 } },
     ],
@@ -242,7 +242,7 @@ export const BUILDS = {
       { name: 'Iron Buckler', cost: 900, icon: 'Guard', stats: { power: 8, hp: 120, armor: 12, bulwark: 0.01 } },
       { name: 'Tower Shield', cost: 2800, icon: 'DefenseUpgrade', stats: { hp: 300, armor: 35, bulwark: 0.015 } },
       { name: 'Rampart Mail', cost: 2800, icon: 'Armor', stats: { hp: 300, mr: 40, bulwark: 0.015 } },
-      { name: 'Banner of Iron', cost: 2600, icon: 'Upgrade', stats: { power: 12, hp: 200, armor: 20, mr: 20, haste: 10 } },
+      { name: 'Banner of Iron', cost: 2600, icon: 'Upgrade', stats: { power: 16, hp: 200, armor: 20, mr: 20, haste: 10 } },
       { name: 'Stalwart Plate', cost: 3000, icon: 'Helmet', stats: { hp: 350, armor: 15, hpPct: 0.04 } },
     ],
   },

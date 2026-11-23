@@ -5,7 +5,7 @@ import { sec } from './constants.js';
 import { dist2 } from './geom.js';
 import { BUILD_COMBOS } from '../data/items.js';
 
-const GLORY_MAX = 6, VENOM_MAX = 5, VENOM_DUR = 4, SHIELD_CD = 10, AURA_R = 380;
+const GLORY_MAX = 6, VENOM_MAX = 5, VENOM_DUR = 4, SHIELD_CD = 10, AURA_R = 450;
 
 // ── build combos: two heroes of one team on the two build types of a combo ──
 export function refreshCombos(g, team) {
