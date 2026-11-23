@@ -34,11 +34,11 @@ export const BUILDS = {
     desc: 'Damage over time that scales with HP and cuts healing. Melts tanks and sustain.',
     goodAt: 'Tanks, healers and lifesteal', weakTo: 'Burst that kills before the burn ticks', bestOn: 'Mages and bruisers with spammable spells',
     items: [
-      { name: 'Ember Charm', cost: 1000, icon: 'Fireball', stats: { power: 20, burn: { b: 10, l: 3, hp: 0.008, dur: 3 } } },
+      { name: 'Ember Charm', cost: 1000, icon: 'Fireball', stats: { power: 20, burn: { b: 10, l: 3, hp: 0.007, dur: 3 } } },
       { name: 'Torment Veil', cost: 2900, icon: 'BookFire', stats: { power: 40, hp: 200, burn: { b: 10, l: 3, hp: 0.01, dur: 3 } } },
       { name: 'Rift Brand', cost: 2800, icon: 'OrbFire', stats: { power: 35, hp: 250, antiheal: 0.4 } },
       { name: 'Blackfire Torch', cost: 2800, icon: 'Alchemy', stats: { power: 45, haste: 15, burn: { b: 10, l: 2, hp: 0.008, dur: 3 } } },
-      { name: 'Cinder Plate', cost: 2900, icon: 'DefenseUpgrade', stats: { hp: 350, armor: 35, mr: 25, burnAura: 0.01 } },
+      { name: 'Cinder Plate', cost: 2900, icon: 'DefenseUpgrade', stats: { hp: 350, armor: 35, mr: 25, burnAura: 0.008 } },
     ],
   },
   tank: {
@@ -240,7 +240,7 @@ export const BUILDS = {
     goodAt: 'Grouped teamfights and sieges', weakTo: 'Poke, split-push and pick-offs (needs allies close)', bestOn: 'Tanks and frontline supports',
     items: [
       { name: 'Iron Buckler', cost: 900, icon: 'Guard', stats: { power: 8, hp: 150, armor: 15, bulwark: 0.02 } },
-      { name: 'Tower Shield', cost: 2800, icon: 'DefenseUpgrade', stats: { hp: 350, armor: 40, bulwark: 0.035 } },
+      { name: 'Tower Shield', cost: 2800, icon: 'DefenseUpgrade', stats: { hp: 300, armor: 40, bulwark: 0.035 } },
       { name: 'Rampart Mail', cost: 2800, icon: 'Armor', stats: { hp: 300, mr: 45, bulwark: 0.03 } },
       { name: 'Banner of Iron', cost: 2600, icon: 'Upgrade', stats: { power: 20, hp: 250, armor: 20, mr: 20, haste: 15 } },
       { name: 'Stalwart Plate', cost: 3000, icon: 'Helmet', stats: { hp: 450, armor: 20, hpPct: 0.05 } },

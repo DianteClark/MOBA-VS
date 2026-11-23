@@ -136,7 +136,7 @@ export function stats(g, h, s) {
 // Game.updateVision: sight radius of team t's heroes, whether their wards see, whether they spot stealth.
 export function sightMult(g, t) {
   const me = g.teams[t].c2, foe = g.teams[1 - t].c2, now = g.tick;
-  return (foe && foe.blackoutUntil > now ? 0.65 : 1) * (me && me.owlUntil > now ? 1.3 : 1);
+  return (foe && foe.blackoutUntil > now ? 0.7 : 1) * (me && me.owlUntil > now ? 1.3 : 1);
 }
 export const wardsDark = (g, t) => { const foe = g.teams[1 - t].c2; return !!(foe && foe.blackoutUntil > g.tick); };
 export const seesStealth = (g, t) => { const me = g.teams[t].c2; return !!(me && me.owlUntil > g.tick); };
