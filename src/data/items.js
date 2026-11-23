@@ -22,10 +22,10 @@ export const BUILDS = {
     desc: 'High damage + penetration. Deletes squishy targets, falls off vs tanks.',
     goodAt: 'Picking off squishy mages and marksmen', weakTo: 'Tanks, shields and long fights', bestOn: 'Assassins and burst mages',
     items: [
-      { name: 'Ambush Dirk', cost: 1100, icon: 'Cut', stats: { power: 28, pen: 0.1 } },
+      { name: 'Ambush Dirk', cost: 1100, icon: 'Cut', stats: { power: 30, pen: 0.1 } },
       { name: "Executioner's Edge", cost: 2800, icon: 'Death', stats: { power: 50, pen: 0.1, execute: 0.15 } },
       { name: 'Shadowfang', cost: 2900, icon: 'BookDarkness', stats: { power: 55, haste: 20 } },
-      { name: 'Void Lens', cost: 3000, icon: 'OrbDarkness', stats: { power: 60, pen: 0.15 } },
+      { name: 'Void Lens', cost: 3000, icon: 'OrbDarkness', stats: { power: 63, pen: 0.15 } },
       { name: 'Deathcap', cost: 3400, icon: 'OrbFire', stats: { power: 45, powerMult: 0.22 } },
     ],
   },
@@ -59,10 +59,10 @@ export const BUILDS = {
     goodAt: 'Long lanes, poke, extended fights', weakTo: 'Burn and anti-heal', bestOn: 'Bruisers and drain mages',
     items: [
       { name: 'Vampiric Fang', cost: 1100, icon: 'BookDeath', stats: { power: 24, omnivamp: 0.1 } },
-      { name: 'Bloodthirster', cost: 3000, icon: 'Necromancy', stats: { power: 55, omnivamp: 0.12 } },
+      { name: 'Bloodthirster', cost: 3000, icon: 'Necromancy', stats: { power: 60, omnivamp: 0.12 } },
       { name: "Sterak's Gage", cost: 3000, icon: 'DefenseUpgrade', stats: { hp: 450, lowHpShield: 0.3 } },
       { name: 'Spirit Visage', cost: 2800, icon: 'Heal', stats: { hp: 300, mr: 50, healPower: 0.25, haste: 10 } },
-      { name: "Death's Dance", cost: 3100, icon: 'Counter', stats: { power: 45, armor: 40, haste: 15 } },
+      { name: "Death's Dance", cost: 3100, icon: 'Counter', stats: { power: 50, armor: 40, haste: 15 } },
     ],
   },
   crit: {
@@ -242,8 +242,8 @@ export const BUILDS = {
       { name: 'Iron Buckler', cost: 900, icon: 'Guard', stats: { power: 8, hp: 120, armor: 12, bulwark: 0.01 } },
       { name: 'Tower Shield', cost: 2800, icon: 'DefenseUpgrade', stats: { hp: 300, armor: 35, bulwark: 0.015 } },
       { name: 'Rampart Mail', cost: 2800, icon: 'Armor', stats: { hp: 300, mr: 40, bulwark: 0.015 } },
-      { name: 'Banner of Iron', cost: 2600, icon: 'Upgrade', stats: { power: 20, hp: 200, armor: 20, mr: 20, haste: 10 } },
-      { name: 'Stalwart Plate', cost: 3000, icon: 'Helmet', stats: { hp: 350, armor: 20, hpPct: 0.04 } },
+      { name: 'Banner of Iron', cost: 2600, icon: 'Upgrade', stats: { power: 12, hp: 200, armor: 20, mr: 20, haste: 10 } },
+      { name: 'Stalwart Plate', cost: 3000, icon: 'Helmet', stats: { hp: 350, armor: 15, hpPct: 0.04 } },
     ],
   },
   momentum: {
