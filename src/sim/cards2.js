@@ -47,7 +47,7 @@ export function playCard2(g, c, team, alive) {
   const now = g.tick, S = st(team), lanes = g.world.laneNames, t = team.id;
   const ping = (o) => g.fx.push({ kind: 'card', card: c.card, team: t, ...o });
   switch (c.card) {
-    case 'blackout': S.blackoutUntil = now + sec(g.living && g.living.night ? 16 : 12); ping({ until: S.blackoutUntil }); break;
+    case 'blackout': S.blackoutUntil = now + sec(g.living && g.living.night ? 14 : 10); ping({ until: S.blackoutUntil }); break;
     case 'owl':
       S.owlUntil = now + sec(20);
       if (g.beasts && team.scoutCd > now) team.scoutCd = now;

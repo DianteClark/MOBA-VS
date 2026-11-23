@@ -21,8 +21,8 @@ export const TACTICS = {
   foxfire: { short: 'Reveal enemies 9s', name: 'Foxfire', icon: 'Vision', target: 'none', counter: 'Fighting inside your wards', alt: 'sweep', desc: 'Foxfire marks every enemy hero for 9s (wards stay). Ward Sweep\'s twin: longer sight, no ward clear.' },
   // v26 cards (effects in src/sim/cards2.js). cond: only playable when your team is behind ('behind': fewer towers or
   // 1,500+ gold down; 'behindKills': fewer kills). unlock: { lv } coach level or { ach } achievement (src/meta.js).
-  blackout: { short: 'Enemy sight -35% 12s', name: 'Blackout', icon: 'BookDarkness', target: 'none', counter: 'Owl Watch, Ward Sweep, Foxfire',
-    desc: 'Enemy heroes see 35% less far and their wards go dark for 12s (16s at night). Move unseen, flank, start a fight from the fog.' },
+  blackout: { short: 'Enemy sight -35% 10s', name: 'Blackout', icon: 'BookDarkness', target: 'none', counter: 'Owl Watch, Ward Sweep, Foxfire',
+    desc: 'Enemy heroes see 35% less far and their wards go dark for 10s (14s at night). Move unseen, flank, start a fight from the fog.' },
   owl: { short: 'Sight +30%, see stealth 20s', name: 'Owl Watch', icon: 'OrbLight', target: 'none', counter: 'Fighting where your heroes are not',
     desc: 'For 20s your heroes see 30% farther and spot stealthed enemies (Smoke Bomb, Ambush, Nightstalker) in their sight. Readies your scout pet.' },
   charge: { short: '+30% speed, slowing hits', name: 'Charge!', icon: 'Punch', target: 'none', counter: 'Fall Back, Second Wind',

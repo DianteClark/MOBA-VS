@@ -32,7 +32,7 @@ export function stats(g, h, s) {
   if (s.stalk && h.unseen && now - h.unseen >= sec(1)) s.msPct += g.living && g.living.night ? 0.2 : 0.1;
   if (s.glory && h.glory) s.power += s.glory * h.glory;
   if (h.combos) for (const c of h.combos) {
-    if (c === 'ironwall') { s.armor += 15; s.mr += 15; } else if (c === 'bloodpact') s.omnivamp += 0.05; else if (c === 'packhunt') s.msPct += 0.06;
+    if (c === 'ironwall') { s.armor += 15; s.mr += 15; } else if (c === 'bloodpact') s.omnivamp += 0.04; else if (c === 'packhunt') s.msPct += 0.06;
   }
   if (h.alive) {
     let aura = 0;
