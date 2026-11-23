@@ -69,3 +69,16 @@ input[type=range] { height: 44px; margin-block: -7px; }
 .titem .ttl { pointer-events: none; }
 /* the Instant Replay chip is its own .hud panel (pointer-events: none): the chip itself takes the tap */
 .irchip, .irpip { pointer-events: auto; }
+
+/* The target / hero sheet scrolls inside the command column on phones, and a scroller clips its controls' grown
+   areas at its padding box: its 2px frame is drawn as an inset outline over 2px more padding instead (same box,
+   same look), so the close button and the last row (talent chips) get 2px more finger room at the edges. */
+@media (max-width: 999px), (max-height: 599px) {
+  #cmdbar > .sheet { border-width: 0; padding: 7px; outline: 2px solid var(--gold); outline-offset: -2px; }
+  .hc #cmdbar > .sheet { outline-color: #fff; }
+}
+/* quick-chat emotes: the 6-wide grid scrolls, so it clips the outer columns' grown areas: 6px more room each side */
+#qchat .qemotes { padding-inline: 6px; margin-inline: -6px; }
+/* with the Menu open, the Chat button sits in a 27px band between Menu and the speed row: its grown area takes the
+   1px hairline under Menu (drawn above it) and stays out of the speed row */
+#ctrl.open > #qchatbtn::after { z-index: 0; top: -11px; bottom: 0; } /* 7px border + the 3px gap + 1px */
