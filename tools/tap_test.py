@@ -1,7 +1,8 @@
 # Tap behaviour test with real touch emulation (hasTouch, isMobile, DPR 2; CDP touch events, Playwright tap()).
 # Every case drives the page the way a finger does and checks what happened, so it runs against any build:
 #   map: tap a hero of yours (follows it), tap open map (call ring), a tap with finger jitter, a drag (pans, no
-#        ring), a pinch (zooms, no ring), taps right after a pan, a tap away closes the ring, the minimap jump/drag,
+#        ring), a pinch (zooms, no ring), taps right after a pan, a tap away closes the ring, a touch whose up never
+#        came does not kill the next tap, the minimap jump/drag,
 #        taps during hit-stop / punch zoom and slow motion, taps right after a rotation / resize
 #   picking: a finger-sized radius at any zoom; heroes beat objectives beat structures
 #   buttons: rapid taps fire exactly once each (no touch + mouse double fire), taps through a banner / toast,
@@ -116,6 +117,11 @@ async def map_cases(t):
     pre = await t.ev(f"() => {{ const e = document.elementFromPoint({q['x']}, {q['y']}); return 'open=' + __tt.ring() + ' start=' + (e && (e.id || e.className)); }}")
     await t.stroke([(q['x'], q['y'])] + [(q['x'] + 6 * k, q['y'] + 2 * k) for k in range(1, 8)])
     t.ok('a pan closes the ring', not await t.ev("() => __tt.ring()"), pre)
+    await t.reset()
+    # 7b. a touch whose up never came (a system gesture took it) must not leave the map dead
+    await t.ev(f"() => app.renderer.canvas.dispatchEvent(new PointerEvent('pointerdown', {{ pointerId: 77, isPrimary: true, pointerType: 'touch', clientX: {o['x']}, clientY: {o['y']}, bubbles: true }}))")
+    await t.tap(o['x'], o['y'])
+    t.ok('a lost touch-up does not kill the next tap', await t.ev("() => __tt.ring()"))
     await t.reset()
     # 8. pinch: zooms, never opens a ring, even when one finger lifts first
     o = await t.ev("() => __tt.open()")

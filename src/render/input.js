@@ -28,6 +28,9 @@ export function bindCamera(r, canvas, minimap, mmCanvas, hooks = {}) {
 
   canvas.addEventListener('pointerdown', (e) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
+    // a primary pointer starts a new touch sequence: anything still held is stale (an up or cancel that never came,
+    // e.g. a system gesture took the touch), and would otherwise turn every later tap into a dead "pinch"
+    if (e.isPrimary) { pts.clear(); g = null; }
     if (pts.size >= 2) return; // a third finger changes nothing
     try { canvas.setPointerCapture(e.pointerId); } catch { /* synthetic pointer */ }
     pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -89,6 +92,7 @@ export function bindCamera(r, canvas, minimap, mmCanvas, hooks = {}) {
   const mmGo = (cx, cy) => { const w = minimap.toWorld(cx, cy); r.cam.x = w.x; r.cam.y = w.y; stopFollow(); };
   let mmId = null;
   mmCanvas.addEventListener('pointerdown', (e) => {
+    if (e.isPrimary) mmId = null; // a new touch sequence: a press whose up never came is over
     if ((e.pointerType === 'mouse' && e.button !== 0) || mmId !== null) return;
     mmId = e.pointerId; try { mmCanvas.setPointerCapture(e.pointerId); } catch { /* synthetic pointer */ }
     if (e.pointerType !== 'mouse') e.preventDefault();
