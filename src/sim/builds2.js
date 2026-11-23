@@ -48,7 +48,7 @@ export function outMods(g, src, tgt, amt, flags) {
   if (tgt.type === 'hero') {
     if (s.frostbite || src.combos) {
       const slowed = tgt.slows.some((x) => x.until > g.tick);
-      if (slowed && s.frostbite) amt *= 1 + Math.min(0.25, s.frostbite);
+      if (slowed && s.frostbite) amt *= 1 + Math.min(0.3, s.frostbite);
       if (slowed && src.build === 'executioner' && hasCombo(src, 'shatter')) amt *= 1.1;
     }
     if (s.stalk && !flags.dot && src.unseen && g.tick - src.unseen >= sec(1)) {

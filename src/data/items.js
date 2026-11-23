@@ -36,7 +36,7 @@ export const BUILDS = {
     items: [
       { name: 'Ember Charm', cost: 1000, icon: 'Fireball', stats: { power: 18, burn: { b: 10, l: 3, hp: 0.007, dur: 3 } } },
       { name: 'Torment Veil', cost: 2900, icon: 'BookFire', stats: { power: 34, hp: 200, burn: { b: 10, l: 3, hp: 0.009, dur: 3 } } },
-      { name: 'Rift Brand', cost: 2800, icon: 'OrbFire', stats: { power: 35, hp: 250, antiheal: 0.4 } },
+      { name: 'Rift Brand', cost: 2800, icon: 'OrbFire', stats: { power: 32, hp: 250, antiheal: 0.4 } },
       { name: 'Blackfire Torch', cost: 2800, icon: 'Alchemy', stats: { power: 40, haste: 15, burn: { b: 10, l: 2, hp: 0.008, dur: 3 } } },
       { name: 'Cinder Plate', cost: 2900, icon: 'DefenseUpgrade', stats: { hp: 350, armor: 35, mr: 25, burnAura: 0.008 } },
     ],
@@ -218,8 +218,8 @@ export const BUILDS = {
       { name: 'Frost Shard', cost: 900, icon: 'BookIce', stats: { power: 20, hp: 100, chill: 0.15 } },
       { name: 'Glacial Scepter', cost: 2800, icon: 'Snow', stats: { power: 48, hp: 200, chill: 0.1, frostbite: 0.12 } },
       { name: "Winter's Bite", cost: 2700, icon: 'OrbWater', stats: { power: 50, haste: 15, frostbite: 0.08 } },
-      { name: 'Iceheart Mail', cost: 2800, icon: 'Armor', stats: { hp: 300, armor: 40, mr: 20, chill: 0.05 } },
-      { name: 'Permafrost Orb', cost: 3000, icon: 'OrbLight', stats: { power: 60, haste: 10, frostbite: 0.05 } },
+      { name: 'Iceheart Mail', cost: 2800, icon: 'Armor', stats: { power: 25, hp: 300, armor: 30, mr: 20, chill: 0.05 } },
+      { name: 'Permafrost Orb', cost: 3000, icon: 'OrbLight', stats: { power: 60, haste: 10, frostbite: 0.08 } },
     ],
   },
   venom: {
