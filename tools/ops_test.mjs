@@ -30,7 +30,7 @@ const simFiles = walk('src/sim').filter((f) => f.endsWith('.js'));
 ok(simFiles.length > 10 && simFiles.every((f) => !/net\/ops\.js|ui\/notify\.js|ui\/feedback\.js|\bflag\(/.test(read(f))), `src/sim (${simFiles.length} files) never imports live-ops or reads a flag`);
 const sw = read('sw.js');
 ok(/const PRIVATE = \/.*admin/.test(sw) && /!PRIVATE\.test\(url\.pathname\)/.test(sw), 'sw.js never caches admin.html / admin.js / admin.css');
-ok(!/index\.html/.test(sw.split('const SHELL')[1].split(']')[0]) && /const REV = 'r2'/.test(sw) && /async function clean\(res\)/.test(sw) && /hit\.redirected/.test(sw) && /skipWaiting/.test(sw), 'sw.js keeps the r2 redirect fixes (no ./index.html precache, clean(), skip-waiting)');
+ok(!/index\.html/.test(sw.split('const SHELL')[1].split(']')[0]) && +(/const REV = 'r(\d+)'/.exec(sw) || [0, 0])[1] >= 2 && /async function clean\(res\)/.test(sw) && /res\.redirected/.test(sw) && /skipWaiting/.test(sw), 'sw.js keeps the r2+ redirect fixes (no ./index.html precache, clean(), skip-waiting)');
 const PRIV = new RegExp(/const PRIVATE = \/(.*)\/;/.exec(sw)[1]);
 ok(['/admin.html', '/admin', '/moba-vs/admin.html', '/src/ui/admin.js', '/css/admin.css'].every((x) => PRIV.test(x)) && !['/', '/index.html', '/src/ui/adminreplay.js', '/src/main.js'].some((x) => PRIV.test(x)), 'admin paths (incl. the /admin pretty URL) bypass the service worker');
 ok(/notificationclick/.test(sw) && /push-open/.test(sw), 'sw.js handles push + notification taps');

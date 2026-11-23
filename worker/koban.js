@@ -112,12 +112,18 @@ export async function autoWipeStep(db, now, step = 2) {
   const have = new Set(((await db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all()).results || []).map((r) => r.name));
   const marks = new Set(((await db.prepare('SELECT k FROM kv WHERE k LIKE ?').bind(`wipe:${dv}:%`).all()).results || []).map((r) => r.k));
   const todo = WIPE_TABLES.filter((t) => have.has(t) && !marks.has(`wipe:${dv}:${t}`));
-  for (const t of todo.slice(0, step)) {
+  // empty tables have nothing to archive: mark them all at once (2 queries), so a fresh database (a new deploy,
+  // the test Workers) is current on its first request instead of refusing writes for a dozen requests
+  const full = todo.length ? new Set(((await db.prepare(todo.map((t) => `SELECT '${t}' AS t WHERE EXISTS (SELECT 1 FROM ${t})`).join(' UNION ALL ')).all()).results || []).map((r) => r.t)) : new Set();
+  const empty = todo.filter((t) => !full.has(t));
+  if (empty.length) await db.prepare(`INSERT OR REPLACE INTO kv (k, v, updated) VALUES ${empty.map(() => '(?, ?, ?)').join(', ')}`).bind(...empty.flatMap((t) => [`wipe:${dv}:${t}`, '', now])).run();
+  const busy = todo.filter((t) => full.has(t));
+  for (const t of busy.slice(0, step)) {
     const a = archiveName(t, dv);
     await db.batch([db.prepare(`DROP TABLE IF EXISTS ${a}`), db.prepare(`CREATE TABLE ${a} AS SELECT * FROM ${t}`), db.prepare(`DELETE FROM ${t}`),
       db.prepare('INSERT OR REPLACE INTO kv (k, v, updated) VALUES (?, ?, ?)').bind(`wipe:${dv}:${t}`, a, now)]);
   }
-  if (todo.length > step) return false;
+  if (busy.length > step) return false;
   await db.prepare("INSERT OR REPLACE INTO kv (k, v, updated) VALUES ('dv', ?, ?)").bind(String(dv), now).run();
   return dv >= DATA_VERSION;
 }
@@ -139,6 +145,7 @@ export function wipeApi(H) {
     if (dv < 2) return bad('dv must be 2 or more (the new data version)');
     if (dv <= cur) return json({ done: true, dv: cur, note: 'already at this data version: nothing changed' });
     if (dv !== cur + 1) return bad(`dv must be ${cur + 1} (one step from ${cur})`);
+    if (dv > DATA_VERSION) return bad(`dv ${dv} is past the shipped DATA_VERSION ${DATA_VERSION} (clients would not reset)`);
     // D1 allows ~50 queries per request on the free plan: a few tables per call, repeat until done: true
     const marks = new Set(((await db.prepare('SELECT k FROM kv WHERE k LIKE ?').bind(`wipe:${dv}:%`).all()).results || []).map((r) => r.k));
     const todo = WIPE_TABLES.filter((t) => have.has(t) && !marks.has(`wipe:${dv}:${t}`)), now6 = todo.slice(0, WIPE_STEP), done = [];

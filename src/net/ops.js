@@ -68,6 +68,9 @@ export function installCrashReporter(v) {
 // Lockstep checksums disagreed: grouped by mode, map and event (the tick number is kept in the message).
 export function reportDesync({ tick, mode, map, event }) { report('desync', `Desync at tick ${tick}`, `desync ${mode || 'online'} ${map || '?'} ${event || 'classic'} v${version}`); }
 export const lastError = () => lastErr;
+// A caught error that did not stop the game (a feature that failed to start, a screen that fell back): still reported,
+// with where it happened in front of the message so the dashboard groups it.
+export function reportError(where, e) { try { console.warn(where, e); report('error', `[${where}] ${(e && e.message) || String(e)}`, (e && e.stack) || ''); } catch { /* never throw from the reporter */ } }
 
 // ── launch hello: activity + flags ──
 let flags = (() => { try { return JSON.parse(localStorage.getItem(LS_FLAGS) || '{}') || {}; } catch { return {}; } })();

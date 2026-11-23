@@ -79,7 +79,7 @@ export function installPack(pack) {
       const lits = c.k.split('{}');
       const need = lits.reduce((a, b) => (b.length > a.length ? b : a), '');
       if ((lits.join('').match(/\p{L}/gu) || []).length < 4) continue; // "{0} {1}", "{0} the {1}": too generic to be a pattern
-      pats.push({ re: new RegExp('^' + lits.map(esc).join('(.+?)') + '$', 's'), need, c, score: lits.join('').length });
+      pats.push({ re: new RegExp('^' + lits.map(esc).join('(.*?)') + '$', 's'), need, c, score: lits.join('').length }); // (a capture may be empty: "match{1}" is "match" for one)
     }
   }
   pats.sort((a, b) => b.score - a.score);
@@ -106,6 +106,7 @@ function look(core, depth) {
   const { k, args } = skel(core);
   const e = dict.get(k);
   if (e) return fill(e.out, args);
+  if (/^[a-z]/.test(k)) { const u = dict.get(k[0].toUpperCase() + k.slice(1)); if (u) { const r = fill(u.out, args); return lang === 'de' ? r : r[0].toLocaleLowerCase(lang) + r.slice(1); } } // "Looks good, play": the catalog has "Play" (German keeps its capitals: nouns)
   if (k.length > 2 && k === k.toUpperCase() && /[A-Z]{2}/.test(k)) { const u = lower.get(k.toLowerCase()); if (u) return fill(u.out, args).toLocaleUpperCase(lang); } // "ALL-OUT PUSH"
   if (depth > 2) return null;
   for (const p of pats) {
@@ -115,8 +116,9 @@ function look(core, depth) {
     // a capture that reads like an untranslated English phrase means the pattern was the wrong fit
     let ai = 0, bad = false; const vals = [];
     for (let i = 1; i < m.length && !bad; i++) {
-      const real = m[i].replace(/\{\}/g, () => args[ai++]);
-      const x = /[A-Za-z]/.test(real) ? look(real, depth + 1) : real;
+      const real = m[i].replace(/\{\}/g, () => args[ai++]), rt = real.trim();
+      let x = /[A-Za-z]/.test(rt) ? look(rt, depth + 1) : real; // a capture like " · play 2 more…" is looked up without its spaces, then gets them back
+      if (x != null && rt !== real && x !== real) x = real.slice(0, real.indexOf(rt)) + x + real.slice(real.indexOf(rt) + rt.length);
       if (x == null && /\b[a-z]{2,}\b.*\b[a-z]{2,}\b/.test(real)) bad = true;
       vals.push(x ?? real);
     }

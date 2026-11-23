@@ -290,7 +290,7 @@ h1, h2, h3 { margin: 0; font-weight: normal; }
 .howto { font-size: 12px; line-height: 1.45; } .howto p { margin: 4px 0; }
 .howto h3 { color: var(--gold); margin: 10px 0 2px; font-size: 14px; }
 .updchip { position: fixed; left: 50%; top: calc(6px + var(--safe-t)); transform: translateX(-50%); z-index: 45; cursor: pointer; font-family: inherit; font-size: 11px; color: #2a1608; background: var(--gold); border: 2px solid #000; box-shadow: 0 2px 0 #000a; padding: 4px 10px; animation: rise 0.2s; }
-.toast { position: fixed; left: 50%; bottom: 30%; transform: translateX(-50%); background: rgba(0,0,0,0.88); padding: 8px 14px; border: 2px solid var(--gold); z-index: 60; font-size: 13px; animation: rise 0.2s; }
+.toast { position: fixed; left: 50%; bottom: 30%; transform: translateX(-50%); background: rgba(0,0,0,0.88); padding: 8px 14px; border: 2px solid var(--gold); z-index: 60; font-size: 13px; animation: rise 0.2s; pointer-events: none; } /* a note, never a tap target: taps reach the button under it */
 
 /* ───────────────────────── match HUD ───────────────────────── */
 /* The match fills the live app height (--appH, measured in viewport.js), not the fixed-position viewport,

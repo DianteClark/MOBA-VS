@@ -120,7 +120,7 @@ async def main():
             if da == 'done' and db == 'done': break
             await A.wait_for_timeout(120)
         await A.wait_for_timeout(1500)
-        for pg in (A, B): await pg.evaluate("app.prepReady()")
+        for pg in (A, B): await pg.wait_for_function("!!(app.session && app.session.ready && app.session.myPrep)", timeout=20000); await pg.evaluate("app.prepReady()")
         await A.wait_for_timeout(2000)
         for i in range(900):
             fa = await A.evaluate(FAST); fb = await B.evaluate(FAST)

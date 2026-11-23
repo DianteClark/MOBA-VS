@@ -75,7 +75,7 @@ export function coachMoment(g, my, own) {
   const sees = (e) => () => seen(g, my, e);
   let m;
 
-  // 1) an objective under enemy attack
+  // 1) an objective under enemy attack (Contest only while two of ours get there with a margin: the take speeds up as more enemies join)
   for (const k of g.living ? ['boss', 'baron', 'dragon', 'herald', 'yokai'] : ['baron', 'dragon', 'herald']) {
     const o = g.objectives[k];
     if (!o || !o.alive || !vis.has(o.id) || o.hp > o.maxHp * 0.95 || callOn(k)) continue;
@@ -84,7 +84,7 @@ export function coachMoment(g, my, own) {
     if (!on) continue;
     const lane = weakestLane(g, my);
     if ((m = finish(g, my, { key: 'contest' + k + o.id, kind: 'contest', title: `${objName(g, k)} contested`, text: `${on} enemy on ${OBJ_NAME[k]}. Fight for it?`, at: o, danger: true, still: () => o.alive,
-      opts: [opt(`Contest ${OBJ_NAME[k]}`, { type: 'objective', obj: k }, null, () => teamEta(g, my, o, 2) <= objTimeLeft(g, o)), opt(`Trade: push ${LANE_L[lane]}`, { type: 'group', lane }), opt('Let it go', null, 'no call')] }))) return m;
+      opts: [opt(`Contest ${OBJ_NAME[k]}`, { type: 'objective', obj: k }, null, () => teamEta(g, my, o, 2) <= objTimeLeft(g, o) * 0.85), opt(`Trade: push ${LANE_L[lane]}`, { type: 'group', lane }), opt('Let it go', null, 'no call')] }))) return m;
   }
   // 2) an enemy carry caught alone near our heroes
   for (const e of foes) {

@@ -104,8 +104,8 @@ async def main():
           return JSON.stringify({ a, c, mine: mine.id, theirs: theirs.id, b1, b2 }); }""")
         import json; rr = json.loads(r)
         ok(rr['a'] and not rr['c'], 'UI: own hero build sent, partner hero build refused')
-        await A.wait_for_timeout(1500)
-        ok(await A.evaluate(f"app.match.game.byId({rr['mine']}).build === '{rr['b1']}' && app.match.game.byId({rr['theirs']}).build !== '{rr['b2']}'"), 'sim: only the owner can change a build (same on the lead\'s tab)')
+        # (waits for the lead's sim to reach the commands' tick: a loaded machine can lag the 1.5 s it used to allow)
+        ok(await until(A, f"app.match.game.byId({rr['mine']}).build === '{rr['b1']}'", 8000) and await A.evaluate(f"app.match.game.byId({rr['theirs']}).build !== '{rr['b2']}'"), 'sim: only the owner can change a build (same on the lead\'s tab)')
         # quick chat between partners
         await B.evaluate("app.match.hud.chat.say({ i: 1 })")
         ok(await until(A, "(document.getElementById('qfeed') || {}).textContent?.includes('Mia')", 3000), 'quick chat reaches the partner with their name')

@@ -5,7 +5,7 @@
 //   is safe (on the menu, never mid-match), then takes over and the page reloads once.
 // * Code (html/js/css/json) is network-first with a 4s timeout, cache as the offline fallback, so a launch
 //   always runs one consistent build. Art and sound are cache-first, refreshed per file in the background.
-//   When src/main.js changes the page is told an update is ready (it reloads on the menu).
+//   When src/main.js or the patch notes change the page is told an update is ready (it reloads on the menu).
 // * Music (range requests), the online API and the owner dashboard (admin.html, src/ui/admin.js) are left to
 //   the network: the dashboard is never cached. Sound effects (plain fetches) are cached like any file.
 // * Offline: after the first full load the page asks for everything a vs-AI match needs (precache.json, written
@@ -91,6 +91,8 @@ const cacheable = (req, url) => req.method === 'GET' && !req.headers.has('range'
   ((url.origin === self.location.origin && !url.pathname.includes('/assets/audio/music/') && !PRIVATE.test(url.pathname)) || url.href.startsWith(PEERJS));
 
 const CODE = /\.(m?js|css|json|html|webmanifest)$/;
+const RELEASE = /\/src\/(main\.js|data\/patchnotes\.js)$/;
+const sig = (r) => (r && (r.headers.get('etag') || r.headers.get('last-modified'))) || '';
 const isCode = (req, url) => req.mode === 'navigate' || url.pathname.endsWith('/') || CODE.test(url.pathname);
 
 self.addEventListener('fetch', (e) => {
@@ -106,10 +108,14 @@ self.addEventListener('fetch', (e) => {
       try {
         const res = await clean(await Promise.race([fetch(nav ? req.url : req, { cache: 'no-cache' }), new Promise((_, rej) => setTimeout(() => rej(new Error('slow')), 4000))]));
         if (res && res.ok) {
-          const prev = url.pathname.endsWith('/src/main.js') ? await cache.match(req) : null;
+          // main.js or the patch notes changed (every release edits one of them): tell open pages a new build is
+          // live, so a resumed Home Screen app reloads on the menu. ETag, or Last-Modified where a host sends no ETag.
+          const prev = RELEASE.test(url.pathname) ? await cache.match(req) : null;
           e.waitUntil((async () => {
             await cache.put(key, res.clone());
-            if (prev && prev.headers.get('etag') && prev.headers.get('etag') !== res.headers.get('etag')) for (const c of await self.clients.matchAll({ type: 'window' })) c.postMessage({ t: 'sw-updated' });
+            const a = sig(prev), b = sig(res);
+            const self_ = req.destination === 'script' ? e.clientId : null; // the page importing it runs the new build already (no extra reload)
+            if (a && b && a !== b) for (const c of await self.clients.matchAll({ type: 'window' })) if (c.id !== self_) c.postMessage({ t: 'sw-updated' });
           })());
           return res;
         }
