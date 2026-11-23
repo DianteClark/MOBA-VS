@@ -39,8 +39,9 @@
 /* the dock's rows are layout, not targets: a tap in a gap reaches the nearest control's grown area (or the map) */
 #cmdbar .dock, #cmdbar .handrow, #cmdbar .callrow { pointer-events: none; }
 
-/* sideways-scrolling rows clip what grows out of them: 8px more room above and below, with no change to the layout */
-.rtabs, .sugbans, .clanf, .srotl { padding-block: 8px; margin-block: -8px; }
+/* sideways-scrolling rows clip what grows out of them: 10px more room above and below, with no change to the layout */
+.rtabs, .sugbans, .clanf, .srotl { padding-block: 10px; margin-block: -10px; pointer-events: none; } /* the extra room lets taps through */
+.rtabs > *, .sugbans > *, .clanf > *, .srotl > * { pointer-events: auto; }
 
 /* Fields: a label around a field takes a finger-sized tap for it (a checkbox toggles, a text field focuses); its
    grown area sits under the field itself, so a tap on the text still places the caret. */
@@ -53,6 +54,8 @@ input[type=range] { height: 44px; margin-block: -7px; }
 .h2coach .cname { padding-top: 10px; margin-top: -10px; }
 /* the lineup's talent line is clipped text (its own grown area would be clipped with it): taller instead */
 .ltal { min-height: 28px; }
+/* a rival's favourite heroes (20px faces): a finger-wide step between them */
+.rvfav { gap: 8px; } .rvfav > .hifacebtn { --slop-up: 12px; }
 /* stand-alone text fields and pickers: iOS-sized */
 .acin, .lname, .frfield input, .langsel { min-height: 44px; }
 
