@@ -34,10 +34,10 @@ export const BUILDS = {
     desc: 'Damage over time that scales with HP and cuts healing. Melts tanks and sustain.',
     goodAt: 'Tanks, healers and lifesteal', weakTo: 'Burst that kills before the burn ticks', bestOn: 'Mages and bruisers with spammable spells',
     items: [
-      { name: 'Ember Charm', cost: 1000, icon: 'Fireball', stats: { power: 20, burn: { b: 10, l: 3, hp: 0.007, dur: 3 } } },
+      { name: 'Ember Charm', cost: 1000, icon: 'Fireball', stats: { power: 18, burn: { b: 10, l: 3, hp: 0.007, dur: 3 } } },
       { name: 'Torment Veil', cost: 2900, icon: 'BookFire', stats: { power: 36, hp: 200, burn: { b: 10, l: 3, hp: 0.01, dur: 3 } } },
       { name: 'Rift Brand', cost: 2800, icon: 'OrbFire', stats: { power: 35, hp: 250, antiheal: 0.4 } },
-      { name: 'Blackfire Torch', cost: 2800, icon: 'Alchemy', stats: { power: 45, haste: 15, burn: { b: 10, l: 2, hp: 0.008, dur: 3 } } },
+      { name: 'Blackfire Torch', cost: 2800, icon: 'Alchemy', stats: { power: 40, haste: 15, burn: { b: 10, l: 2, hp: 0.008, dur: 3 } } },
       { name: 'Cinder Plate', cost: 2900, icon: 'DefenseUpgrade', stats: { hp: 350, armor: 35, mr: 25, burnAura: 0.008 } },
     ],
   },
@@ -216,10 +216,10 @@ export const BUILDS = {
     goodAt: 'Kiting, peel and setting up picks', weakTo: 'Tenacity, cleanse and fast burst', bestOn: 'Control mages, poke marksmen and supports',
     items: [
       { name: 'Frost Shard', cost: 900, icon: 'BookIce', stats: { power: 20, hp: 100, chill: 0.15 } },
-      { name: 'Glacial Scepter', cost: 2800, icon: 'Snow', stats: { power: 45, hp: 200, chill: 0.1, frostbite: 0.1 } },
-      { name: "Winter's Bite", cost: 2700, icon: 'OrbWater', stats: { power: 45, haste: 15, frostbite: 0.07 } },
+      { name: 'Glacial Scepter', cost: 2800, icon: 'Snow', stats: { power: 48, hp: 200, chill: 0.1, frostbite: 0.12 } },
+      { name: "Winter's Bite", cost: 2700, icon: 'OrbWater', stats: { power: 50, haste: 15, frostbite: 0.08 } },
       { name: 'Iceheart Mail', cost: 2800, icon: 'Armor', stats: { hp: 300, armor: 40, mr: 20, chill: 0.05 } },
-      { name: 'Permafrost Orb', cost: 3000, icon: 'OrbLight', stats: { power: 55, haste: 10, frostbite: 0.05 } },
+      { name: 'Permafrost Orb', cost: 3000, icon: 'OrbLight', stats: { power: 60, haste: 10, frostbite: 0.05 } },
     ],
   },
   venom: {
@@ -239,10 +239,10 @@ export const BUILDS = {
     desc: 'A protective aura: nearby allies take less damage. Makes the whole grouped team tougher.',
     goodAt: 'Grouped teamfights and sieges', weakTo: 'Poke, split-push and pick-offs (needs allies close)', bestOn: 'Tanks and frontline supports',
     items: [
-      { name: 'Iron Buckler', cost: 900, icon: 'Guard', stats: { power: 8, hp: 150, armor: 15, bulwark: 0.015 } },
+      { name: 'Iron Buckler', cost: 900, icon: 'Guard', stats: { power: 8, hp: 120, armor: 12, bulwark: 0.015 } },
       { name: 'Tower Shield', cost: 2800, icon: 'DefenseUpgrade', stats: { hp: 300, armor: 40, bulwark: 0.02 } },
       { name: 'Rampart Mail', cost: 2800, icon: 'Armor', stats: { hp: 300, mr: 45, bulwark: 0.02 } },
-      { name: 'Banner of Iron', cost: 2600, icon: 'Upgrade', stats: { power: 20, hp: 250, armor: 20, mr: 20, haste: 15 } },
+      { name: 'Banner of Iron', cost: 2600, icon: 'Upgrade', stats: { power: 20, hp: 200, armor: 20, mr: 20, haste: 10 } },
       { name: 'Stalwart Plate', cost: 3000, icon: 'Helmet', stats: { hp: 380, armor: 20, hpPct: 0.04 } },
     ],
   },
@@ -255,7 +255,7 @@ export const BUILDS = {
       { name: "Mejai's Tome", cost: 2700, icon: 'BookLight', stats: { power: 35, haste: 10, glory: 6 } },
       { name: "Conqueror's Edge", cost: 2900, icon: 'MagicWeapon', stats: { power: 48, asPct: 0.15, glory: 4 } },
       { name: "Victor's Mantle", cost: 2800, icon: 'Armor', stats: { power: 25, hp: 300, armor: 20, glory: 3 } },
-      { name: 'Crown of Ascension', cost: 3000, icon: 'OrbLight', stats: { power: 50, powerMult: 0.08 } },
+      { name: 'Crown of Ascension', cost: 3000, icon: 'OrbLight', stats: { power: 50, powerMult: 0.1 } },
     ],
   },
   stalker: {
