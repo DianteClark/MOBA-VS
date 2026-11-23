@@ -18,7 +18,8 @@
 // Each game draws heroes from shuffled per-role decks so every hero gets the same number of games.
 // Builds are random from each hero's list (so every build gets played; --even: each hero takes its least-played
 // build type so far, so every type gets about the same number of games); --smart uses aiPrep
-// (situational builds) instead.
+// (situational builds) instead. Build win rates count the build each hero STARTED with (logged as b0): mid-game
+// coach pivots (to Warden, Thorns, Burn...) mostly happen when losing and would otherwise skew them.
 // Reports: per-hero win rate, pick impact, KDA, damage share, basic hits, ability casts and hit
 // rates; per-build and per hero-build win rates; static range sanity (heroes vs towers).
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
@@ -55,7 +56,7 @@ if (!isMainThread) {
     while (!g.over) { g.step([]); g.fx.length = 0; }
     const ev = {}; for (const e of g.events) if (e.type === 'duo' || e.type === 'comp' || e.type === 'reset' || e.type === 'ultUp' || e.type === 'revenge' || e.type === 'duoUlt' || e.type === 'talent') ev[e.type] = (ev[e.type] || 0) + 1;
     const out = { seed: job.seed, winner: g.winner, plans: g.teams.map((t) => g.cfg.teams[t.id].plan || 'balanced'), half: g.events.filter((e) => e.type === 'plan').map((e) => [e.team, e.plan]), min: g.time / 60, timeout: g.events.some((e) => e.type === 'victory' && e.timeout), ev,
-      teams: g.teams.map((t) => ({ comp: t.comp && t.comp.active ? t.comp.id : null, deck: t.deck.map((d) => d.id), played: t.deck.filter((d) => d.used).map((d) => d.id), combos: t.combos || [], heroes: t.heroes.map((h) => ({ id: h.heroId, role: h.role, build: h.build, k: h.kills, d: h.deaths, a: h.assists, dmg: h.dmgHeroes, taken: h.dmgTaken, healed: h.healed, gold: h.goldEarned, bh: h._bh || 0, ab: h._ab || [[0, 0], [0, 0], [0, 0]], ...(h.tal ? { tal: h.tal } : {}) })) })) };
+      teams: g.teams.map((t) => ({ comp: t.comp && t.comp.active ? t.comp.id : null, deck: t.deck.map((d) => d.id), played: t.deck.filter((d) => d.used).map((d) => d.id), combos: t.combos || [], heroes: t.heroes.map((h) => ({ id: h.heroId, role: h.role, build: h.build, b0: teams[t.id].heroes.find((p) => p.id === h.heroId).build, k: h.kills, d: h.deaths, a: h.assists, dmg: h.dmgHeroes, taken: h.dmgTaken, healed: h.healed, gold: h.goldEarned, bh: h._bh || 0, ab: h._ab || [[0, 0], [0, 0], [0, 0]], ...(h.tal ? { tal: h.tal } : {}) })) })) };
     parentPort.postMessage(out);
   }
   parentPort.postMessage({ done: true });
@@ -154,10 +155,13 @@ if (!isMainThread) {
         const s = H[x.id] || (H[x.id] = { g: 0, w: 0, k: 0, d: 0, a: 0, dmg: 0, share: 0, taken: 0, healed: 0, gold: 0, bh: 0, min: 0, ab: [[0, 0], [0, 0], [0, 0]] });
         s.g++; s.w += win; s.k += x.k; s.d += x.d; s.a += x.a; s.dmg += x.dmg; s.share += x.dmg / teamDmg; s.taken += x.taken; s.healed += x.healed; s.gold += x.gold; s.bh += x.bh; s.min += r.min;
         x.ab.forEach((v, i) => { s.ab[i][0] += v[0]; s.ab[i][1] += v[1]; });
-        const b = B[x.build] || (B[x.build] = { g: 0, w: 0, heroes: new Set() }); b.g++; b.w += win; b.heroes.add(x.id);
+        // per build: the build the hero STARTED with (b0; older logs only have the final one). Coaches pivot losing
+        // tanks/supports into Warden/Thorns, so the final build credits those losses to the wrong build.
+        const xb = x.b0 || x.build;
+        const b = B[xb] || (B[xb] = { g: 0, w: 0, heroes: new Set() }); b.g++; b.w += win; b.heroes.add(x.id);
         if (x.tal) x.tal.forEach((p, i) => { if (p < 0) return; const key = HERO_TALENTS[x.id][i][p], tk = key.split('.').pop(), k2 = x.id + ':' + i + ':' + p;
           const a = TAL[tk] || (TAL[tk] = { g: 0, w: 0 }); a.g++; a.w += win; const b2 = HT[k2] || (HT[k2] = { g: 0, w: 0 }); b2.g++; b2.w += win; });
-        const hb = HB[x.id + ':' + x.build] || (HB[x.id + ':' + x.build] = { g: 0, w: 0 }); hb.g++; hb.w += win;
+        const hb = HB[x.id + ':' + xb] || (HB[x.id + ':' + xb] = { g: 0, w: 0 }); hb.g++; hb.w += win;
       }
     });
   }
