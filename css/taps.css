@@ -1,0 +1,71 @@
+/* ── Tap registration (tools/tap_audit.py checks all of this in every HUD state and menu screen) ── */
+
+/* No double-tap-to-zoom wait anywhere: touch-action only applies up to the nearest scroller, so the html/body
+   value never reached anything inside #screen, a modal or a sheet. Elements that need none / pan-y set their own. */
+:where(*) { touch-action: manipulation; }
+
+/* Finger-sized hit areas without changing the look: an invisible ::after grows any control smaller than
+   44 x 44 CSS px towards 44 on that axis, at most --slop-x / --slop-y per side past its border (--bw: the border
+   width, as the ::after is placed from the padding box; top/bottom percentages are of that box's height,
+   left/right of its width). Skipped: controls that draw their own ::after, and controls that hold
+   other controls (the grown box would sit on top of them). Zero specificity (:where): any position a control's own
+   rules set wins. */
+:where(button, summary, [role=button], #objtimers .ot):where(:not(.rvcard.picked, .h2today.fresh, .colskin.locked, .svthumb.locked, .slot.ban.filled, :has(button, input, select, a[href], [role=button]))) { position: relative; }
+:where(button, summary, [role=button], #objtimers .ot):where(:not(.rvcard.picked, .h2today.fresh, .colskin.locked, .svthumb.locked, .slot.ban.filled, :has(button, input, select, a[href], [role=button])))::after {
+  content: ''; position: absolute; pointer-events: auto;
+  top: max(calc(-1 * (var(--slop-up, var(--slop-y, 12px)) + var(--bw, 2px))), min(0px, calc(50% - 22px))); bottom: max(calc(-1 * (var(--slop-y, 12px) + var(--bw, 2px))), min(0px, calc(50% - 22px)));
+  left: max(calc(-1 * (var(--slop-x, 12px) + var(--bw, 2px))), min(0px, calc(50% - 22px))); right: max(calc(-1 * (var(--slop-x, 12px) + var(--bw, 2px))), min(0px, calc(50% - 22px)));
+}
+:where(button:disabled)::after { pointer-events: none; }
+:where(.btn) { --bw: 9px; }
+/* Rows and grids of controls: inside one row the grown area only fills the gaps, never a neighbour (the row is its
+   own stacking context and every ::after sits under the controls' real boxes, z-index -1). Rows are drawn in
+   order, so a row's area can grow down under the next row but must not grow up over the row before it: a row of
+   controls that follows something with controls in it (it, its parent or grandparent) grows up by 7px only (about
+   the gap: at most a sliver of the row above). */
+:where(:has(> button ~ button), :has(> [role=button] ~ [role=button]), #objtimers) { isolation: isolate; }
+:where(:has(> button ~ button), :has(> [role=button] ~ [role=button]), #objtimers) > :where(button, [role=button], .ot)::after { z-index: -1; }
+:where(:has(button, [role=button])) + :where(:has(> button ~ button), :has(> [role=button] ~ [role=button])) > :where(button, [role=button]),
+:where(:has(button, [role=button])) + * > :where(:has(> button ~ button), :has(> [role=button] ~ [role=button])) > :where(button, [role=button]),
+:where(:has(button, [role=button])) + * > * > :where(:has(> button ~ button), :has(> [role=button] ~ [role=button])) > :where(button, [role=button]) { --slop-up: 7px; }
+/* Pickers made of stacked rows (talents: Auto | A | B per level; halftime builds per hero): the whole column is the
+   stacking context and its rows let taps through, so every grown area sits under every control and also fills the
+   gaps between the rows: full size, no stealing. */
+.tal-pick, .ht-builds { isolation: isolate; }
+.tal-pick > .tal-seg, .ht-builds > .ht-hero, .ht-hero > .ht-row { isolation: auto; pointer-events: none; }
+.tal-seg > .tal-b, .ht-row > .chip { pointer-events: auto; --slop-up: 12px; }
+/* the objective timers (16px tall) and the decision tray's choices have nothing tappable above or below them */
+#objtimers > .ot, .titem .tch { --slop-y: 14px; --slop-up: 14px; }
+/* the dock's rows are layout, not targets: a tap in a gap reaches the nearest control's grown area (or the map) */
+#cmdbar .dock, #cmdbar .handrow, #cmdbar .callrow { pointer-events: none; }
+
+/* sideways-scrolling rows clip what grows out of them: 10px more room above and below, with no change to the layout */
+.rtabs, .sugbans, .clanf, .srotl { padding-block: 10px; margin-block: -10px; pointer-events: none; } /* the extra room lets taps through */
+.rtabs > *, .sugbans > *, .clanf > *, .srotl > * { pointer-events: auto; }
+
+/* Fields: a label around a field takes a finger-sized tap for it (a checkbox toggles, a text field focuses); its
+   grown area sits under the field itself, so a tap on the text still places the caret. */
+:where(label:has(> input:not([type=hidden]), > select)) { position: relative; isolation: isolate; }
+:where(label:has(> input:not([type=hidden]), > select))::after { content: ''; position: absolute; z-index: -1; pointer-events: auto;
+  top: min(0px, calc(50% - 22px)); bottom: min(0px, calc(50% - 22px)); left: max(-12px, min(0px, calc(50% - 22px))); right: max(-12px, min(0px, calc(50% - 22px))); }
+/* sliders: a 44px tall hit area in the same 30px of layout (transparent, the track stays centred) */
+input[type=range] { height: 44px; margin-block: -7px; }
+/* the coach name on Home is plain text in the coach card: 10px more of it answers above the name (its underline stays put) */
+.h2coach .cname { padding-top: 10px; margin-top: -10px; }
+/* the lineup's talent line is clipped text (its own grown area would be clipped with it): taller instead */
+.ltal { min-height: 28px; }
+/* a rival's favourite heroes (20px faces): a finger-wide step between them */
+.rvfav { gap: 8px; } .rvfav > .hifacebtn { --slop-up: 12px; }
+/* stand-alone text fields and pickers: iOS-sized */
+.acin, .lname, .frfield input, .langsel { min-height: 44px; }
+
+/* instant pressed feedback for any control that has no :active look of its own (iOS shows :active at once now,
+   src/ui/taps.js) */
+:where(button, [role=button]):where(:active:not(:disabled)) { filter: brightness(1.18); }
+
+/* banners (FIRST BLOOD, Coach Moment cards) and hero sprite previews are read, not tapped (toasts: style.css / looks.css) */
+#banner, #banner *, .hsprite { pointer-events: none !important; }
+/* the decision card's countdown bar is drawn over the bottom of its buttons */
+.titem .ttl { pointer-events: none; }
+/* the Instant Replay chip is its own .hud panel (pointer-events: none): the chip itself takes the tap */
+.irchip, .irpip { pointer-events: auto; }

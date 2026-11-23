@@ -90,11 +90,15 @@ export class Depth {
     const tchips = h('span', { class: 'dp-chips' }); talRow.append(tchips);
     let tkey = '';
     const drawTal = () => {
-      const tiers = heroTalents(x.heroId), k = x.tal.join() + x.talPref.join() + x.level + (g.tick >> 4);
-      if (k === tkey) return; tkey = k;
-      tchips.replaceChildren(...tiers.map((opts, i) => {
+      // re-drawn only when what the chips show changes (a re-draw under a finger would cost the tap)
+      const st = heroTalents(x.heroId).map((opts, i) => {
         const taken = x.tal[i] >= 0, open = taken && g.tick <= x.talAt[i] + (TALENT_WINDOW - 0.5) * TICK_RATE;
         const cur = taken ? x.tal[i] : x.talPref[i], shown = cur >= 0 ? opts[cur] : opts[aiTalent(g, x, i)];
+        return { taken, open, cur, shown };
+      });
+      const k = st.map((t) => [t.taken, t.open, t.cur, t.shown.name].join()).join('|');
+      if (k === tkey) return; tkey = k;
+      tchips.replaceChildren(...st.map(({ taken, open, cur, shown }, i) => {
         const next = taken ? 1 - x.tal[i] : x.talPref[i] < 0 ? 0 : x.talPref[i] === 0 ? 1 : -1;
         const lab = taken ? shown.name : cur < 0 ? 'Auto' : shown.name;
         return h('button', { class: 'chip dp-t' + (taken ? ' taken' : '') + (open ? ' open' : ''), disabled: theirs || (taken && !open),
