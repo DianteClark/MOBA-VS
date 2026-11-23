@@ -125,7 +125,7 @@
 .clhead b { color: #ffe3a3; font-size: 12px; } .clhead small { color: var(--muted); font-size: 9px; margin-left: auto; } .clcard .ccond { font-size: 9px; color: #ffb04a; }
 .cldesc { font-size: 10px; line-height: 1.35; }
 .bgfaces { display: flex; flex-wrap: wrap; gap: 3px; }
-.bgfaces button { cursor: pointer; padding: 0; background: none; border: 1px solid var(--line); position: relative; }
+.bgfaces button { cursor: pointer; padding: 1px; background: none; border: 1px solid var(--line); position: relative; }
 .bgfaces button.best { border-color: var(--bc); box-shadow: 0 0 4px var(--bc); }
 .bgfaces img { width: 24px; height: 24px; display: block; image-rendering: pixelated; }
 
