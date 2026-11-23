@@ -1,6 +1,30 @@
 // Patch notes, newest first. tools/season.mjs prepends an entry at each season rollover.
 export const PATCHES = [
   {
+    version: '25.3', season: 1, date: '2026-11-22', title: 'Every Tap Counts',
+    notes: [
+      'Taps land where you aim: nothing invisible steals them any more, and small buttons have bigger tap areas without changing how they look.',
+      'Map taps forgive a little finger wobble, pick heroes first, then objectives, then towers, and work the same at every zoom.',
+      'Pinch zooms around your fingers, drags pan smoothly, and a lost touch can no longer leave the map unresponsive.',
+      'Buttons show the pressed look instantly, and a tap that closes a pop-up no longer presses what is underneath.',
+    ],
+    heroes: [],
+  },
+  {
+    version: '25.2', season: 1, date: '2026-11-22', title: 'Bug Sweep',
+    notes: [
+      'Fixed: taps on Host, Join and Custom being swallowed by toasts and achievement cards after a match.',
+      'Fixed: windows (hero info, lineups, settings) staying on top when a draft or match started by itself.',
+      'Fixed: a crash when leaving results while the Play of the Game was loading.',
+      'A damaged or old save can no longer stop the game from starting; you get Try again or Reset instead.',
+      'Updates are picked up more reliably when you reopen the Home Screen app.',
+      'Save clip now starts almost instantly.',
+      'Fixed: grey boxes over hero rating labels in the Shop and hero info.',
+      'All text is translated again in every language.',
+    ],
+    heroes: [],
+  },
+  {
     version: '25.1', season: 1, date: '2026-11-22', title: 'Any Lane',
     notes: [
       'Play any champion in any lane: lineups accept off-role picks (marked OFF), and every draft step has an "All champions" list.',

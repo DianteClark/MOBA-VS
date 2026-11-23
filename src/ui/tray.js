@@ -50,6 +50,7 @@ export class Tray {
       this.cur = top;
       if (top) {
         top.el = h('div', { class: 'titem ' + (top.cls || '') }, top.build(top), h('i', { class: 'ttl', style: { animationDuration: Math.max(0.2, (top.until - now) / 1000) + 's' } }));
+        top.el._born = now; // src/ui/taps.js: a tap that started before this card showed can't choose it
         mount(this.el, top.el, this.badge = h('b', { class: 'tq' }));
         if (!top.shown) { top.shown = true; if (top.onShow) top.onShow(top); }
       } else mount(this.el);

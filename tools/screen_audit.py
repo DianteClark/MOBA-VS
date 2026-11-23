@@ -198,4 +198,4 @@ async def main():
             await ctx.close()
         await b.close()
     sys.exit(1 if bad else 0)
-asyncio.run(main())
+if __name__ == "__main__": asyncio.run(main())  # importable (tools/tap_audit.py reuses the states)

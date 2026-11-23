@@ -4,6 +4,8 @@ import { loadAssets, assetsAll, assetsDone } from './render/assets.js';
 import { Renderer } from './render/renderer.js';
 import { Minimap } from './render/minimap.js';
 import { bindCamera } from './render/input.js';
+import { pickAt } from './ui/tappick.js';
+import './ui/taps.js';
 import { onViewport, refit } from './render/viewport.js';
 import { paintMap } from './render/mapgen.js';
 import { paintEventMap, eventPaintKey } from './render/eventfx.js';
@@ -709,8 +711,8 @@ class App {
       this.minimap = new Minimap(mmc, this.renderer);
       this.camCtl = bindCamera(this.renderer, canvas, this.minimap, mmc, {
         onKey: (e) => this.match && this.match.hud.onKey(e),
-        onClick: (w, sx, sy) => this.clickWorld(w, sx, sy),
-        onManual: () => this.match && this.match.hud.manualCam(),
+        onClick: (w, sx, sy, kind) => this.clickWorld(w, sx, sy, kind),
+        onManual: () => { if (this.match) { this.match.hud.manualCam(); if (this.match.hud.dock) this.match.hud.dock.closeRing(); } }, // a pan / zoom closes the call ring (it points at a spot)
       });
       onViewport(() => { if (this.match) { this.renderer.resize(); this.minimap.resize(); } });
     }
@@ -761,21 +763,18 @@ class App {
       m.runner.update(dt, () => this.renderer.snapshot(), () => { this.renderer.game.fx.length = 0; if (m.rec) m.rec.step(); if (m.instant) m.instant.step(); });
     }, 100);
   }
-  clickWorld(w, sx, sy) {
-    // Tap your own hero to follow it; tap anything else for the call ring.
+  clickWorld(w, sx, sy, kind) {
+    // Tap a hero of yours to follow it (any hero when spectating); an enemy hero, an objective, a tower or the
+    // open map gets the call ring. src/ui/tappick.js picks what the finger meant (finger-sized, heroes first).
     if (!this.match) return;
-    const m = this.match, g = m.game, dock = m.hud.dock;
-    if (dock && dock.ring) { dock.closeRing(); return; }
-    // finger-sized hit area: ~38 screen px whatever the zoom
-    const R = 38 / this.renderer.cam.zoom;
-    let best = null, bd = R * R;
-    for (const t of g.teams) for (const x of t.heroes) {
-      if (!x.alive || !this.renderer.visible(x) || (this.session.myTeam >= 0 && x.team !== this.session.myTeam)) continue;
-      const d = (x.x - w.x) ** 2 + (x.y - 14 - w.y) ** 2; if (d < bd) { bd = d; best = x; }
-    }
-    if (best) { m.hud.selectHero(best); return; }
-    if (dock) dock.ringAt(w, sx, sy);
+    const m = this.match, dock = m.hud.dock, me = this.session.myTeam;
+    const p = pickAt(m.game, this.renderer, w, kind), u = p && p.unit;
+    const mine = p && p.kind === 'hero' && (me < 0 || u.team === me);
+    if (dock && dock.ring) { dock.closeRing(); if (!mine) return; } // a tap away closes the ring
+    if (mine) { m.hud.selectHero(u); return; }
+    if (dock) dock.ringAt(u ? { x: u.x, y: p.kind === 'hero' ? u.y - 14 : u.y } : w, sx, sy);
   }
+
   frame(now) {
     const m = this.match; if (!m) return;
     // Battery mode: draw at most 30 fps (the sim keeps its own fixed rate either way).

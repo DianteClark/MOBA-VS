@@ -121,7 +121,7 @@ export class Hud {
         this.selectHero(hero); if (this.my >= 0) { if (this.r.follow === hero.id) this.dock.open('hero:' + hero.id); else this.dock.close(); }
       });
       row.addEventListener('contextmenu', (e) => { e.preventDefault(); this.openPop(hero, row); });
-      row.addEventListener('pointerdown', (e) => { if (e.button) return; sx = e.clientX; sy = e.clientY; clearTimeout(lpT); lpT = setTimeout(() => { row._lp = true; this.openPop(hero, row); audio.sfx('move', 0.4); }, 430); });
+      row.addEventListener('pointerdown', (e) => { if (e.button) return; row._lp = false; sx = e.clientX; sy = e.clientY; clearTimeout(lpT); lpT = setTimeout(() => { row._lp = true; this.openPop(hero, row); audio.sfx('move', 0.4); }, 430); });
       row.addEventListener('pointermove', (e) => { if (Math.abs(e.clientX - sx) + Math.abs(e.clientY - sy) > 10) clearTimeout(lpT); });
       for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) row.addEventListener(ev, () => clearTimeout(lpT));
       return row;
@@ -492,6 +492,7 @@ export class Hud {
       h('div', { class: 'pbarrow' }, h('span', {}, 'HP'), h('div', { class: 'pbar hp' }, els.hp)),
       mine ? h('div', { class: 'pbarrow' }, h('span', {}, 'Trust'), h('div', { class: 'pbar tr' }, els.trust), els.trustL) : null,
       h('div', { class: 'ablrow' }, ...abl, els.items), x.tal ? els.tal : null, els.stats, els.task, els.why);
+    el._born = performance.now(); // a long-press opens it under the finger: that press can't tap it (src/ui/taps.js)
     document.body.append(el);
     const upd = () => {
       const vis = mine || this.my < 0 || !this.r.fogOn || g.vision[this.view].has(x.id);

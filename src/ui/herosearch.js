@@ -36,7 +36,7 @@ export function searchBox(value, onInput, placeholder = 'Search heroes') {
   const inp = h('input', { class: 'hsearch', type: 'search', value: value || '', placeholder, 'aria-label': placeholder, autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', enterkeyhint: 'done',
     oninput: (e) => { wrap.classList.toggle('has', !!e.target.value); onInput(e.target.value); },
     onkeydown: (e) => { e.stopPropagation(); if (e.key === 'Enter' || e.key === 'Escape') e.target.blur(); } });
-  const wrap = h('div', { class: 'hsearchw' + (value ? ' has' : '') }, inp,
+  const wrap = h('label', { class: 'hsearchw' + (value ? ' has' : '') }, inp, // a label: a tap anywhere on it (and its grown hit area) focuses the field
     h('button', { class: 'hsx', title: 'Clear search', 'aria-label': 'Clear search', onclick: () => { inp.value = ''; wrap.classList.remove('has'); onInput(''); } }, '✕'));
   wrap.input = inp;
   return wrap;

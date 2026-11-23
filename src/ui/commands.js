@@ -232,7 +232,7 @@ export class Dock {
     const body = this.sheetBody(id);
     if (!body) { this.close(); return; }
     mount(this.sheetEl, h('div', { class: 'sh-head' }, h('span', {}, body.title), h('button', { class: 'x', title: 'Close [Esc]', onclick: () => this.close() }, '✕')), body.els);
-    this.sheetEl.classList.remove('hidden'); document.getElementById('hud').classList.add('sheeting');
+    this.sheetEl.classList.remove('hidden'); this.sheetEl._born = performance.now(); document.getElementById('hud').classList.add('sheeting');
     this.sheetEl.classList.remove('pop'); void this.sheetEl.offsetWidth; this.sheetEl.classList.add('pop');
     for (const f of this.live) f();
   }
@@ -415,7 +415,8 @@ export class Dock {
     const g = this.g, W = g.world, me = this.my, r = this.hud.r;
     const d2 = (a, b) => (a.x - b.x) ** 2 + (a.y - b.y) ** 2;
     const opts = []; let title = '';
-    const foe = g.teams[1 - me].heroes.find((x) => x.alive && r.visible(x) && d2(x, { x: w.x, y: w.y + 14 }) < (44 / r.cam.zoom) ** 2);
+    let foe = null, fd = (44 / r.cam.zoom) ** 2; // the nearest one under the finger
+    for (const x of g.teams[1 - me].heroes) { const d = x.alive && r.visible(x) ? d2(x, { x: w.x, y: w.y + 14 }) : Infinity; if (d < fd) { fd = d; foe = x; } }
     if (foe) { title = foe.def.name; opts.push({ ico: 'Death', label: 'Focus', type: 'focus', cmd: { type: 'focus', target: foe.id } }); }
     else {
       for (const [k, pit] of [['dragon', W.pits.kami], ['baron', W.pits.kraken]]) {
@@ -460,7 +461,7 @@ export class Dock {
     const vw = window.innerWidth, vh = window.innerHeight;
     const x = Math.max(80, Math.min(vw - 80, sx)), y = Math.max(110, Math.min(vh - 90, sy));
     mount(this.ringEl, h('div', { class: 'ringc', style: { left: x + 'px', top: y + 'px' } }, h('div', { class: 'rtitle' }, title), h('div', { class: 'rdot' }), items));
-    this.ringEl.classList.remove('hidden');
+    this.ringEl.classList.remove('hidden'); this.ringEl._born = performance.now(); // the tap that opened it can't also pick (src/ui/taps.js)
     this.ring = { until: performance.now() + 5000 };
     audio.sfx('move', 0.5);
     return true;
