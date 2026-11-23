@@ -80,7 +80,7 @@
 /* unlock toast: one at a time, top centre, under the safe area */
 /* unlock toast: one at a time, compact, bottom centre just above the results footer (clear of the verdict and the buttons) */
 .achtoast { position: fixed; left: 50%; bottom: calc(76px + var(--safe-b)); transform: translateX(-50%); z-index: 70; display: flex; align-items: center; gap: 8px; padding: 6px 10px 6px 8px;
-  background: rgba(20, 15, 28, 0.96); border: 2px solid var(--gold); box-shadow: 0 3px 0 #000a, 0 0 14px #ffd84a33; max-width: min(300px, calc(100vw - 24px)); cursor: pointer;
+  background: rgba(20, 15, 28, 0.96); border: 2px solid var(--gold); box-shadow: 0 3px 0 #000a, 0 0 14px #ffd84a33; max-width: min(300px, calc(100vw - 24px)); pointer-events: none; /* never swallows a tap: it sits over Home / results buttons for ~3 s each */
   animation: achIn 0.34s cubic-bezier(.2,1.3,.4,1); }
 .achtoast .kick { font-size: 7px; letter-spacing: 1px; color: var(--gold); } .achtoast b { font-weight: normal; font-size: 12px; line-height: 1.15; }
 .achtoast .achrwline { display: flex; align-items: center; gap: 4px; } .achtoast .achrwline small { font-size: 9px; color: #cfc6d8; line-height: 1.15; }
