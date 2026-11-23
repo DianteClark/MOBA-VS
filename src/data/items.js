@@ -106,9 +106,9 @@ export const BUILDS = {
     desc: 'Armor shred and % max HP hits. Cracks open tanks and bruisers.',
     goodAt: 'Killing tanks and stacked armor', weakTo: 'Kiting and poke (needs repeated hits)', bestOn: 'Bruisers and marksmen who hit often',
     items: [
-      { name: 'Rending Hook', cost: 1100, icon: 'Cut', stats: { power: 25, sunder: 0.04 } },
+      { name: 'Rending Hook', cost: 1100, icon: 'Cut', stats: { power: 28, sunder: 0.04 } },
       { name: 'Black Cleaver', cost: 3000, icon: 'Downgrade', stats: { power: 40, hp: 250, sunder: 0.04, haste: 10 } },
-      { name: 'Giant Slayer', cost: 2900, icon: 'Death', stats: { power: 40, tankBuster: 0.03 } },
+      { name: 'Giant Slayer', cost: 2900, icon: 'Death', stats: { power: 45, tankBuster: 0.03 } },
       { name: "Sunder's Edge", cost: 3000, icon: 'MagicWeapon', stats: { power: 40, pen: 0.15, crit: 0.15 } },
       { name: 'Titan Breaker', cost: 3100, icon: 'RockSpike', stats: { power: 45, hp: 200, tankBuster: 0.015, slowOnHit: 0.12 } },
     ],
@@ -203,11 +203,11 @@ export const BUILDS = {
     desc: 'Huge damage to low-HP heroes, and every takedown refunds a third of its cooldowns. Chains kills.',
     goodAt: 'Cleaning up fights and chaining kills', weakTo: 'Tanks, shields and peel', bestOn: 'Assassins and fighters with resets',
     items: [
-      { name: "Reaper's Sickle", cost: 1100, icon: 'Cut', stats: { power: 25, execute: 0.1 } },
-      { name: 'Guillotine', cost: 3000, icon: 'Death', stats: { power: 55, execute: 0.12, reset: 0.3 } },
-      { name: "Headsman's Axe", cost: 2900, icon: 'Downgrade', stats: { power: 45, pen: 0.12, execute: 0.08 } },
+      { name: "Reaper's Sickle", cost: 1100, icon: 'Cut', stats: { power: 28, execute: 0.12 } },
+      { name: 'Guillotine', cost: 3000, icon: 'Death', stats: { power: 60, execute: 0.15, reset: 0.3 } },
+      { name: "Headsman's Axe", cost: 2900, icon: 'Downgrade', stats: { power: 48, pen: 0.15, execute: 0.08 } },
       { name: 'Final Verdict', cost: 3000, icon: 'BookLight', stats: { power: 58, haste: 15, reset: 0.3 } },
-      { name: 'Death Knell', cost: 2800, icon: 'Explosion', stats: { power: 45, hp: 200, execute: 0.05, msPct: 0.04 } },
+      { name: 'Death Knell', cost: 2800, icon: 'Explosion', stats: { power: 45, hp: 250, execute: 0.08, msPct: 0.04 } },
     ],
   },
   frostbite: {
@@ -215,7 +215,7 @@ export const BUILDS = {
     desc: 'Abilities chill (slow) every hero they hit, and chilled enemies take more damage from this hero.',
     goodAt: 'Kiting, peel and setting up picks', weakTo: 'Tenacity, cleanse and fast burst', bestOn: 'Control mages, poke marksmen and supports',
     items: [
-      { name: 'Frost Shard', cost: 900, icon: 'BookIce', stats: { power: 15, hp: 100, chill: 0.15 } },
+      { name: 'Frost Shard', cost: 900, icon: 'BookIce', stats: { power: 20, hp: 100, chill: 0.15 } },
       { name: 'Glacial Scepter', cost: 2800, icon: 'Snow', stats: { power: 45, hp: 200, chill: 0.1, frostbite: 0.1 } },
       { name: "Winter's Bite", cost: 2700, icon: 'OrbWater', stats: { power: 45, haste: 15, frostbite: 0.07 } },
       { name: 'Iceheart Mail', cost: 2800, icon: 'Armor', stats: { hp: 300, armor: 40, mr: 20, chill: 0.05 } },
@@ -240,10 +240,10 @@ export const BUILDS = {
     goodAt: 'Grouped teamfights and sieges', weakTo: 'Poke, split-push and pick-offs (needs allies close)', bestOn: 'Tanks and frontline supports',
     items: [
       { name: 'Iron Buckler', cost: 900, icon: 'Guard', stats: { power: 8, hp: 150, armor: 15, bulwark: 0.015 } },
-      { name: 'Tower Shield', cost: 2800, icon: 'DefenseUpgrade', stats: { hp: 300, armor: 40, bulwark: 0.025 } },
-      { name: 'Rampart Mail', cost: 2800, icon: 'Armor', stats: { hp: 300, mr: 45, bulwark: 0.025 } },
+      { name: 'Tower Shield', cost: 2800, icon: 'DefenseUpgrade', stats: { hp: 300, armor: 40, bulwark: 0.02 } },
+      { name: 'Rampart Mail', cost: 2800, icon: 'Armor', stats: { hp: 300, mr: 45, bulwark: 0.02 } },
       { name: 'Banner of Iron', cost: 2600, icon: 'Upgrade', stats: { power: 20, hp: 250, armor: 20, mr: 20, haste: 15 } },
-      { name: 'Stalwart Plate', cost: 3000, icon: 'Helmet', stats: { hp: 450, armor: 20, hpPct: 0.05 } },
+      { name: 'Stalwart Plate', cost: 3000, icon: 'Helmet', stats: { hp: 380, armor: 20, hpPct: 0.04 } },
     ],
   },
   momentum: {
@@ -251,9 +251,9 @@ export const BUILDS = {
     desc: 'Every takedown adds a Glory stack (power, up to 6). Dying loses half. Snowballs a lead.',
     goodAt: 'Snowballing a lead with a hero who stays alive', weakTo: 'Being caught early (dying halves the stacks)', bestOn: 'Carries who rarely die',
     items: [
-      { name: 'Glory Charm', cost: 900, icon: 'Ring', stats: { power: 15, glory: 4 } },
+      { name: 'Glory Charm', cost: 900, icon: 'Ring', stats: { power: 20, glory: 5 } },
       { name: "Mejai's Tome", cost: 2700, icon: 'BookLight', stats: { power: 35, haste: 10, glory: 6 } },
-      { name: "Conqueror's Edge", cost: 2900, icon: 'MagicWeapon', stats: { power: 45, asPct: 0.15, glory: 3 } },
+      { name: "Conqueror's Edge", cost: 2900, icon: 'MagicWeapon', stats: { power: 48, asPct: 0.15, glory: 4 } },
       { name: "Victor's Mantle", cost: 2800, icon: 'Armor', stats: { power: 25, hp: 300, armor: 20, glory: 3 } },
       { name: 'Crown of Ascension', cost: 3000, icon: 'OrbLight', stats: { power: 50, powerMult: 0.08 } },
     ],
