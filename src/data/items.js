@@ -11,7 +11,7 @@
 // v26 stats (src/sim/builds2.js): rage (up to x more damage at 0 HP, scales with missing HP), kheal (heal x max HP
 //        on takedown), spellShield (block x of the first enemy ability hit every 10s), reflect (x of hero ability
 //        damage taken is reflected), roam (move speed out of combat), reset (takedown: x of current cooldowns
-//        refunded), chill (abilities slow heroes hit by x for 1.5s), frostbite (+x damage to slowed heroes), venom
+//        refunded), chill (abilities slow heroes hit by x for 2s), frostbite (+x damage to slowed heroes), venom
 //        (poison dps per stack, 5 stacks), bulwark (allies near take x less damage), glory (power per Glory stack
 //        from takedowns, max 6), stalk (first hit from out of enemy sight deals +x; faster while unseen)
 // Guide text per build: desc, goodAt, weakTo, bestOn (shown in the Build Guide).
@@ -22,10 +22,10 @@ export const BUILDS = {
     desc: 'High damage + penetration. Deletes squishy targets, falls off vs tanks.',
     goodAt: 'Picking off squishy mages and marksmen', weakTo: 'Tanks, shields and long fights', bestOn: 'Assassins and burst mages',
     items: [
-      { name: 'Ambush Dirk', cost: 1100, icon: 'Cut', stats: { power: 28, pen: 0.1 } },
+      { name: 'Ambush Dirk', cost: 1100, icon: 'Cut', stats: { power: 30, pen: 0.1 } },
       { name: "Executioner's Edge", cost: 2800, icon: 'Death', stats: { power: 50, pen: 0.1, execute: 0.15 } },
       { name: 'Shadowfang', cost: 2900, icon: 'BookDarkness', stats: { power: 55, haste: 20 } },
-      { name: 'Void Lens', cost: 3000, icon: 'OrbDarkness', stats: { power: 60, pen: 0.15 } },
+      { name: 'Void Lens', cost: 3000, icon: 'OrbDarkness', stats: { power: 63, pen: 0.15 } },
       { name: 'Deathcap', cost: 3400, icon: 'OrbFire', stats: { power: 45, powerMult: 0.22 } },
     ],
   },
@@ -34,10 +34,10 @@ export const BUILDS = {
     desc: 'Damage over time that scales with HP and cuts healing. Melts tanks and sustain.',
     goodAt: 'Tanks, healers and lifesteal', weakTo: 'Burst that kills before the burn ticks', bestOn: 'Mages and bruisers with spammable spells',
     items: [
-      { name: 'Ember Charm', cost: 1000, icon: 'Fireball', stats: { power: 20, burn: { b: 10, l: 3, hp: 0.007, dur: 3 } } },
-      { name: 'Torment Veil', cost: 2900, icon: 'BookFire', stats: { power: 36, hp: 200, burn: { b: 10, l: 3, hp: 0.01, dur: 3 } } },
-      { name: 'Rift Brand', cost: 2800, icon: 'OrbFire', stats: { power: 35, hp: 250, antiheal: 0.4 } },
-      { name: 'Blackfire Torch', cost: 2800, icon: 'Alchemy', stats: { power: 45, haste: 15, burn: { b: 10, l: 2, hp: 0.008, dur: 3 } } },
+      { name: 'Ember Charm', cost: 1000, icon: 'Fireball', stats: { power: 18, burn: { b: 10, l: 3, hp: 0.007, dur: 3 } } },
+      { name: 'Torment Veil', cost: 2900, icon: 'BookFire', stats: { power: 34, hp: 200, burn: { b: 10, l: 3, hp: 0.009, dur: 3 } } },
+      { name: 'Rift Brand', cost: 2800, icon: 'OrbFire', stats: { power: 32, hp: 250, antiheal: 0.4 } },
+      { name: 'Blackfire Torch', cost: 2800, icon: 'Alchemy', stats: { power: 40, haste: 15, burn: { b: 10, l: 2, hp: 0.008, dur: 3 } } },
       { name: 'Cinder Plate', cost: 2900, icon: 'DefenseUpgrade', stats: { hp: 350, armor: 35, mr: 25, burnAura: 0.008 } },
     ],
   },
@@ -58,11 +58,11 @@ export const BUILDS = {
     desc: 'Lifesteal and survivability. Wins long fights and lanes; weak to burn/anti-heal.',
     goodAt: 'Long lanes, poke, extended fights', weakTo: 'Burn and anti-heal', bestOn: 'Bruisers and drain mages',
     items: [
-      { name: 'Vampiric Fang', cost: 1100, icon: 'BookDeath', stats: { power: 20, omnivamp: 0.1 } },
-      { name: 'Bloodthirster', cost: 3000, icon: 'Necromancy', stats: { power: 55, omnivamp: 0.1 } },
-      { name: "Sterak's Gage", cost: 3000, icon: 'DefenseUpgrade', stats: { hp: 400, lowHpShield: 0.3 } },
+      { name: 'Vampiric Fang', cost: 1100, icon: 'BookDeath', stats: { power: 24, omnivamp: 0.12 } },
+      { name: 'Bloodthirster', cost: 3000, icon: 'Necromancy', stats: { power: 60, omnivamp: 0.12 } },
+      { name: "Sterak's Gage", cost: 3000, icon: 'DefenseUpgrade', stats: { hp: 450, lowHpShield: 0.3 } },
       { name: 'Spirit Visage', cost: 2800, icon: 'Heal', stats: { hp: 300, mr: 50, healPower: 0.25, haste: 10 } },
-      { name: "Death's Dance", cost: 3100, icon: 'Counter', stats: { power: 45, armor: 40, haste: 15 } },
+      { name: "Death's Dance", cost: 3100, icon: 'Counter', stats: { power: 50, armor: 40, haste: 15 } },
     ],
   },
   crit: {
@@ -73,7 +73,7 @@ export const BUILDS = {
       { name: 'Swift Dagger', cost: 1000, icon: 'Cut', stats: { asPct: 0.35 } },
       { name: 'Infinity Edge', cost: 3400, icon: 'MagicWeapon', stats: { power: 65, crit: 0.25, critDmg: 0.45 } },
       { name: 'Phantom Dancer', cost: 2700, icon: 'BookWind', stats: { asPct: 0.45, crit: 0.25, msPct: 0.07 } },
-      { name: "Lord's Reminder", cost: 3000, icon: 'Death', stats: { power: 40, crit: 0.25, pen: 0.3 } },
+      { name: "Lord's Reminder", cost: 3000, icon: 'Death', stats: { power: 44, crit: 0.25, pen: 0.3 } },
       { name: 'Rapid Cannon', cost: 2700, icon: 'Explosion', stats: { asPct: 0.4, crit: 0.25, range: 30 } },
     ],
   },
@@ -86,7 +86,7 @@ export const BUILDS = {
       { name: 'Lucid Crown', cost: 2800, icon: 'BookLight', stats: { power: 42, haste: 25 } },
       { name: 'Frozen Heart', cost: 2700, icon: 'BookIce', stats: { armor: 60, haste: 20, shredAura: 0.15 } },
       { name: "Rylai's Scepter", cost: 2600, icon: 'BookIce', stats: { power: 40, hp: 300, slowOnHit: 0.2 } },
-      { name: 'Cosmic Edge', cost: 3000, icon: 'Permutation', stats: { power: 55, haste: 20, msPct: 0.05 } },
+      { name: 'Cosmic Edge', cost: 3000, icon: 'Permutation', stats: { power: 50, haste: 20, msPct: 0.05 } },
     ],
   },
   guardian: {
@@ -106,9 +106,9 @@ export const BUILDS = {
     desc: 'Armor shred and % max HP hits. Cracks open tanks and bruisers.',
     goodAt: 'Killing tanks and stacked armor', weakTo: 'Kiting and poke (needs repeated hits)', bestOn: 'Bruisers and marksmen who hit often',
     items: [
-      { name: 'Rending Hook', cost: 1100, icon: 'Cut', stats: { power: 25, sunder: 0.04 } },
+      { name: 'Rending Hook', cost: 1100, icon: 'Cut', stats: { power: 28, sunder: 0.04 } },
       { name: 'Black Cleaver', cost: 3000, icon: 'Downgrade', stats: { power: 40, hp: 250, sunder: 0.04, haste: 10 } },
-      { name: 'Giant Slayer', cost: 2900, icon: 'Death', stats: { power: 40, tankBuster: 0.03 } },
+      { name: 'Giant Slayer', cost: 2900, icon: 'Death', stats: { power: 45, tankBuster: 0.03 } },
       { name: "Sunder's Edge", cost: 3000, icon: 'MagicWeapon', stats: { power: 40, pen: 0.15, crit: 0.15 } },
       { name: 'Titan Breaker', cost: 3100, icon: 'RockSpike', stats: { power: 45, hp: 200, tankBuster: 0.015, slowOnHit: 0.12 } },
     ],
@@ -145,7 +145,7 @@ export const BUILDS = {
       { name: 'Watch Lantern', cost: 700, icon: 'Vision', stats: { power: 12, hp: 300, armor: 8, mr: 8, regen: 3, sight: 0.15 } },
       { name: 'Bodyguard Charm', cost: 2500, icon: 'DefenseUpgrade', stats: { power: 20, hp: 300, armor: 30, mr: 20, guard: 0.16 } },
       { name: "Knight's Vow", cost: 2600, icon: 'Counter', stats: { power: 20, hp: 300, armor: 20, mr: 40, haste: 10, peelSlow: 0.35 } },
-      { name: 'Seer Stone', cost: 2400, icon: 'OrbLight', stats: { power: 35, hp: 300, haste: 15, sight: 0.1, tenacity: 0.15, healPower: 0.1 } },
+      { name: 'Seer Stone', cost: 2400, icon: 'OrbLight', stats: { power: 38, hp: 300, haste: 15, sight: 0.1, tenacity: 0.15, healPower: 0.1 } },
       { name: 'Gargoyle Plate', cost: 2900, icon: 'Upgrade', stats: { power: 20, hp: 450, armor: 35, mr: 35, guard: 0.1 } },
     ],
   },
@@ -203,11 +203,11 @@ export const BUILDS = {
     desc: 'Huge damage to low-HP heroes, and every takedown refunds a third of its cooldowns. Chains kills.',
     goodAt: 'Cleaning up fights and chaining kills', weakTo: 'Tanks, shields and peel', bestOn: 'Assassins and fighters with resets',
     items: [
-      { name: "Reaper's Sickle", cost: 1100, icon: 'Cut', stats: { power: 25, execute: 0.1 } },
-      { name: 'Guillotine', cost: 3000, icon: 'Death', stats: { power: 55, execute: 0.12, reset: 0.3 } },
-      { name: "Headsman's Axe", cost: 2900, icon: 'Downgrade', stats: { power: 45, pen: 0.12, execute: 0.08 } },
+      { name: "Reaper's Sickle", cost: 1100, icon: 'Cut', stats: { power: 28, execute: 0.12 } },
+      { name: 'Guillotine', cost: 3000, icon: 'Death', stats: { power: 60, execute: 0.15, reset: 0.3 } },
+      { name: "Headsman's Axe", cost: 2900, icon: 'Downgrade', stats: { power: 48, pen: 0.15, execute: 0.08 } },
       { name: 'Final Verdict', cost: 3000, icon: 'BookLight', stats: { power: 58, haste: 15, reset: 0.3 } },
-      { name: 'Death Knell', cost: 2800, icon: 'Explosion', stats: { power: 45, hp: 200, execute: 0.05, msPct: 0.04 } },
+      { name: 'Death Knell', cost: 2800, icon: 'Explosion', stats: { power: 45, hp: 250, execute: 0.08, msPct: 0.04 } },
     ],
   },
   frostbite: {
@@ -215,11 +215,11 @@ export const BUILDS = {
     desc: 'Abilities chill (slow) every hero they hit, and chilled enemies take more damage from this hero.',
     goodAt: 'Kiting, peel and setting up picks', weakTo: 'Tenacity, cleanse and fast burst', bestOn: 'Control mages, poke marksmen and supports',
     items: [
-      { name: 'Frost Shard', cost: 900, icon: 'BookIce', stats: { power: 15, hp: 100, chill: 0.15 } },
-      { name: 'Glacial Scepter', cost: 2800, icon: 'Snow', stats: { power: 45, hp: 200, chill: 0.1, frostbite: 0.1 } },
-      { name: "Winter's Bite", cost: 2700, icon: 'OrbWater', stats: { power: 45, haste: 15, frostbite: 0.07 } },
-      { name: 'Iceheart Mail', cost: 2800, icon: 'Armor', stats: { hp: 300, armor: 40, mr: 20, chill: 0.05 } },
-      { name: 'Permafrost Orb', cost: 3000, icon: 'OrbLight', stats: { power: 55, haste: 10, frostbite: 0.05 } },
+      { name: 'Frost Shard', cost: 900, icon: 'BookIce', stats: { power: 20, hp: 100, chill: 0.15 } },
+      { name: 'Glacial Scepter', cost: 2800, icon: 'Snow', stats: { power: 48, hp: 200, chill: 0.1, frostbite: 0.12 } },
+      { name: "Winter's Bite", cost: 2700, icon: 'OrbWater', stats: { power: 53, haste: 15, frostbite: 0.08 } },
+      { name: 'Iceheart Mail', cost: 2800, icon: 'Armor', stats: { power: 25, hp: 300, armor: 30, mr: 20, chill: 0.05 } },
+      { name: 'Permafrost Orb', cost: 3000, icon: 'OrbLight', stats: { power: 60, haste: 10, frostbite: 0.08 } },
     ],
   },
   venom: {
@@ -239,11 +239,11 @@ export const BUILDS = {
     desc: 'A protective aura: nearby allies take less damage. Makes the whole grouped team tougher.',
     goodAt: 'Grouped teamfights and sieges', weakTo: 'Poke, split-push and pick-offs (needs allies close)', bestOn: 'Tanks and frontline supports',
     items: [
-      { name: 'Iron Buckler', cost: 900, icon: 'Guard', stats: { power: 8, hp: 150, armor: 15, bulwark: 0.015 } },
-      { name: 'Tower Shield', cost: 2800, icon: 'DefenseUpgrade', stats: { hp: 300, armor: 40, bulwark: 0.025 } },
-      { name: 'Rampart Mail', cost: 2800, icon: 'Armor', stats: { hp: 300, mr: 45, bulwark: 0.025 } },
-      { name: 'Banner of Iron', cost: 2600, icon: 'Upgrade', stats: { power: 20, hp: 250, armor: 20, mr: 20, haste: 15 } },
-      { name: 'Stalwart Plate', cost: 3000, icon: 'Helmet', stats: { hp: 450, armor: 20, hpPct: 0.05 } },
+      { name: 'Iron Buckler', cost: 900, icon: 'Guard', stats: { power: 8, hp: 120, armor: 12, bulwark: 0.01 } },
+      { name: 'Tower Shield', cost: 2800, icon: 'DefenseUpgrade', stats: { hp: 300, armor: 35, bulwark: 0.015 } },
+      { name: 'Rampart Mail', cost: 2800, icon: 'Armor', stats: { hp: 300, mr: 40, bulwark: 0.015 } },
+      { name: 'Banner of Iron', cost: 2600, icon: 'Upgrade', stats: { power: 16, hp: 200, armor: 20, mr: 20, haste: 10 } },
+      { name: 'Stalwart Plate', cost: 3000, icon: 'Helmet', stats: { hp: 350, armor: 15, hpPct: 0.04 } },
     ],
   },
   momentum: {
@@ -251,11 +251,11 @@ export const BUILDS = {
     desc: 'Every takedown adds a Glory stack (power, up to 6). Dying loses half. Snowballs a lead.',
     goodAt: 'Snowballing a lead with a hero who stays alive', weakTo: 'Being caught early (dying halves the stacks)', bestOn: 'Carries who rarely die',
     items: [
-      { name: 'Glory Charm', cost: 900, icon: 'Ring', stats: { power: 15, glory: 4 } },
+      { name: 'Glory Charm', cost: 900, icon: 'Ring', stats: { power: 20, glory: 5 } },
       { name: "Mejai's Tome", cost: 2700, icon: 'BookLight', stats: { power: 35, haste: 10, glory: 6 } },
-      { name: "Conqueror's Edge", cost: 2900, icon: 'MagicWeapon', stats: { power: 45, asPct: 0.15, glory: 3 } },
+      { name: "Conqueror's Edge", cost: 2900, icon: 'MagicWeapon', stats: { power: 48, asPct: 0.15, glory: 4 } },
       { name: "Victor's Mantle", cost: 2800, icon: 'Armor', stats: { power: 25, hp: 300, armor: 20, glory: 3 } },
-      { name: 'Crown of Ascension', cost: 3000, icon: 'OrbLight', stats: { power: 50, powerMult: 0.08 } },
+      { name: 'Crown of Ascension', cost: 3000, icon: 'OrbLight', stats: { power: 50, powerMult: 0.1 } },
     ],
   },
   stalker: {
