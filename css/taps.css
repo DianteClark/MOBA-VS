@@ -59,6 +59,10 @@ input[type=range] { height: 44px; margin-block: -7px; }
 /* stand-alone text fields and pickers: iOS-sized */
 .acin, .lname, .frfield input, .langsel { min-height: 44px; }
 
+/* instant pressed feedback for any control that has no :active look of its own (iOS shows :active at once now,
+   src/ui/taps.js) */
+:where(button, [role=button]):where(:active:not(:disabled)) { filter: brightness(1.18); }
+
 /* toasts are read, not tapped: taps go through them to the button underneath */
 .toast, .achtoast { pointer-events: none; }
 /* the decision card's countdown bar is drawn over the bottom of its buttons */

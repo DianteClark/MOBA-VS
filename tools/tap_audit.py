@@ -89,7 +89,8 @@ AUDIT = r"""([cover, scope]) => {
     const ax = [[reach(-1, 0), reach(1, 0)], [reach(0, -1), reach(0, 1)]];
     const msg = [];
     for (const [i, [a, b]] of ax.entries()) {
-      const span = a[0] + b[0] + 1, dense = [a[1], b[1]].includes('next');
+      // a target that runs to the screen edge is as big as a finger can make use of on that side
+      const span = (a[1] === 'edge' ? 22 : a[0]) + (b[1] === 'edge' ? 22 : b[0]) + 1, dense = [a[1], b[1]].includes('next');
       if (span >= 43 || (dense && span >= 28)) continue; // 43: the probe steps whole pixels from a fractional centre
       msg.push(`${i ? 'tall' : 'wide'} ${span}px (${a[1]}/${b[1]})`);
     }
