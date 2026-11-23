@@ -18,6 +18,7 @@ import { feudLine } from '../data/feuds.js';
 import { LivingFx } from './livingfx.js';
 import { BeastsFx } from './beastsfx.js';
 import { TerrainFx } from './terrainfx.js';
+import { CardFx } from './cardfx.js';
 import { settings, textScale, renderDpr } from '../ui/settings.js';
 
 export { TEAM_COL, TEAM_DARK };
@@ -26,7 +27,7 @@ const OBJ_COL = { dragon: '#ff9a3c', herald: '#9fd0ff', baron: '#b56cff', boss: 
 const sp_ = (s) => String(s).replace(/ /g, '\u2002');
 
 // Status-effect colours (pips, cc pop text).
-const STATUS_COL = { silence: '#b48cff', fear: '#d070ff', root: '#6fdc8c', shred: '#ff9a3c', grievous: '#ff4a4a', slow: '#7fb4ff', mark: '#ff5a5a', parry: '#ffe066', stun: '#ffe066', knock: '#ffe066' };
+const STATUS_COL = { silence: '#b48cff', fear: '#d070ff', root: '#6fdc8c', shred: '#ff9a3c', grievous: '#ff4a4a', slow: '#7fb4ff', mark: '#ff5a5a', parry: '#ffe066', stun: '#ffe066', knock: '#ffe066', weakened: '#c6ff5a', blocked: '#62c6ff' };
 
 export class Renderer {
   constructor(canvas, map) {
@@ -63,6 +64,7 @@ export class Renderer {
     this.evfx = new EventFx(this); // weekly map event veil / motes
     this.lw = new LivingFx(this); // Living World: night, walls, Yokai Parade
     this.tf = new TerrainFx(this); // v25 maps: the tide, wind bridges, jump pads
+    this.cf = new CardFx(this); // v26 tactic cards and build marks
     this.bf = new BeastsFx(this); // Bosses & Beasts: Kami, rare bosses, minion families, themed camps, scout pets
     this.detail = 2; // 2 high, 1 medium (Auto, after a slow spell), 0 low
     this.castT = new Map(); this.corpses = []; this.wasAlive = new Map(); this.spawnT = new Map(); this.knock = new Map(); this.bossSeen = new Map();
@@ -234,6 +236,7 @@ export class Renderer {
         case 'recall': break;
         case 'wallHit': this.lw.fxHit(f); break;
         case 'pad': case 'padLand': this.tf.fx(f); break;
+        case 'card': this.cf.fx(f); break; // v26 cards
         case 'emote': if (u && (u.team === this.viewTeam || this.viewTeam < 0)) emotes.push({ u, e: f.e }); break;
       }
     }
@@ -471,6 +474,7 @@ export class Renderer {
     this.effects = this.effects.filter((e) => this.time - e.born < e.dur);
     this.drawParticles(vdt);
     this.amb.drawAir(ctx, x0, y0, vw, vh, vdt);
+    this.cf.draw(ctx, list); // v26: bounty, escort, lone wolf, venom
     // bars on top
     for (const d of list) this.drawBars(d);
     if (this.frame % 300 === 0) this.pruneHp();

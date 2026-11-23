@@ -6,6 +6,7 @@ import { COACH_XP, coachLevelOf, coachPoints, TREE, TREE_BY_ID, nodeReq, PERKS, 
 import { GOALS, GOAL_REWARD, REROLLS, dayOf, dailyGoals, rerollGoal, STORY, STORY_XP, storyAt } from './data/goals.js';
 import { LEAGUES, weekOf, matchPts, finalPlace, moveOf, LEAGUE_REWARDS, TOP5_XP, GROUP } from './data/divisions.js';
 import { TACTICS, SKILL_TACTICS } from './data/tactics.js';
+import { ACH_BY_ID } from './data/achievements.js';
 import { MOMENT_VARIANTS } from './sim/sidegrades.js';
 import { prestigeOf } from './data/ranks.js';
 import { HERO_BY_ID } from './data/heroes.js';
@@ -54,11 +55,17 @@ export function buyNode(P, id) {
   M.tree.push(id); const got = []; if (n.reward) P.unlock(n.reward, got);
   P.save(); return got;
 }
-// Classic cards are owned from the start; skill-tree cards once their node is bought.
-export function ownsTactic(M, id) {
-  if (!TACTICS[id]) return false;
-  if (!SKILL_TACTICS.includes(id)) return true;
-  return TREE.some((n) => n.tactic === id && M.tree.includes(n.id));
+// Classic cards are owned from the start; skill-tree cards once their node is bought; v26 cards with an `unlock`
+// at a coach level or with an achievement (d: the whole profile data, for d.ach).
+export function ownsTactic(M, id, d) { return !!TACTICS[id] && !tacticLock(M, id, d); }
+// Why a card is still locked (null: owned).
+export function tacticLock(M, id, d) {
+  const t = TACTICS[id]; if (!t) return 'Unknown card';
+  if (SKILL_TACTICS.includes(id)) return TREE.some((n) => n.tactic === id && M.tree.includes(n.id)) ? null : 'Coach skill tree';
+  const u = t.unlock; if (!u) return null;
+  if (u.lv) return coachLevelOf(M.cxp).lv >= u.lv ? null : `Coach level ${u.lv}`;
+  if (u.ach) { const a = ACH_BY_ID[u.ach]; return d && d.ach && d.ach.got && d.ach.got[u.ach] ? null : `Achievement: ${a ? a.name : u.ach}`; }
+  return null;
 }
 export const ownsVariant = (M, v) => TREE.some((n) => n.moment === v && M.tree.includes(n.id));
 // Equip a variant in its slot (or v = null for the classic moment).

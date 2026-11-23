@@ -2,6 +2,7 @@
 import { HEROES, HERO_BY_ID, ROLES, matchupScore } from '../data/heroes.js';
 import { BLUE, RED } from './constants.js';
 import { DUOS, compOf } from '../data/synergy.js';
+import { DEFAULT_DECK } from '../data/tactics.js';
 
 // Tournament draft order.
 export const DRAFT_ORDER = [
@@ -123,7 +124,7 @@ export function fitMirror(prep, lineup) {
 // Default prep for a team (roles + recommended builds).
 export function defaultPrep(ids) {
   const roles = assignRolesLoose(ids);
-  return { plan: 'balanced', deck: ['rally', 'smoke', 'wind'], heroes: ids.map((id, i) => ({ id, role: roles[i], build: HERO_BY_ID[id].rec })) };
+  return { plan: 'balanced', deck: DEFAULT_DECK.slice(), heroes: ids.map((id, i) => ({ id, role: roles[i], build: HERO_BY_ID[id].rec })) };
 }
 // AI prep: counter-build vs the enemy picks. mode 'rush' (one lane) never picks Split Push.
 export function aiPrep(ids, enemyIds, mode) {
@@ -135,7 +136,16 @@ export function aiPrep(ids, enemyIds, mode) {
   return p;
 }
 // A tactic deck that fits each game plan.
-export const PLAN_DECK = { aggro: ['rally', 'ambush', 'smoke'], scale: ['fortify', 'wind', 'pact'], objective: ['eyes', 'pact', 'smoke'], split: ['siege', 'fortify', 'rally'], protect: ['barrier', 'wind', 'rally'] };
+// PLAN_DECKS: the recommended decks per plan (prep and the Dojo offer them; the first one you fully own is shown).
+// The AI coach brings the first deck of its plan.
+export const PLAN_DECKS = {
+  aggro: [['rally', 'ambush', 'charge'], ['smoke', 'blackout', 'raid'], ['rally', 'ambush', 'smoke']],
+  scale: [['fortify', 'wind', 'echo'], ['slowpush', 'escort', 'gate'], ['fortify', 'wind', 'pact']],
+  objective: [['pit', 'pact', 'eyes'], ['snipe', 'owl', 'smoke'], ['eyes', 'pact', 'smoke']],
+  split: [['siege', 'lone', 'crash'], ['wardline', 'fortify', 'fallback'], ['siege', 'fortify', 'rally']],
+  protect: [['barrier', 'wind', 'escort'], ['fallback', 'stone', 'rally'], ['barrier', 'wind', 'rally']],
+};
+export const PLAN_DECK = Object.fromEntries(Object.entries(PLAN_DECKS).map(([k, v]) => [k, v[0]]));
 
 // Recommended game plan for a comp vs the enemy comp: { id, why, scores }. Pure + deterministic.
 // Reads hero curves (early/late), tags and classes on both sides; the reason names what drove the pick.
@@ -190,6 +200,17 @@ export function chooseBuild(def, enemy) {
     siege: [(enemy.length ? 0.6 - n(tag('split')) * 0.2 - dive * 0.15 : 0), 'Pressures their towers'],
     spellblade: [0.5 - n(tag('cc')) * 0.1, 'Spell-and-hit skirmishing'],
     warden: [(dive * 0.6 + burst * 0.2) * (front ? 1 : 0.4), 'Guards the backline from divers'],
+    // v26 build types
+    bloodline: [0.3 + n(tag('dive')) * 0.2 - n(tag('antiheal')) * 0.5 - burst * 0.2, 'Wins the brawls they want'],
+    spellshield: [burst * 0.6 + n(tag('cc')) * 0.25 + n(tag('pick')) * 0.2 - n((e) => e.cls === 'marksman') * 0.3, 'Blocks their burst and CC'],
+    thorns: [dive * 0.5 + n((e) => e.cls === 'marksman' || e.tags.includes('dps')) * 0.35 - poke * 0.2, 'Punishes their divers'],
+    swift: [0.35 + poke * 0.15 - tanks * 0.15, 'Out-rotates them'],
+    executioner: [squish * 0.4 - tanks * 0.6 - n(tag('shield')) * 0.3, 'Cleans up their squishies'],
+    frostbite: [dive * 0.4 + n((e) => e.cls === 'assassin' || e.cls === 'bruiser') * 0.2, 'Kites their divers'],
+    venom: [n(tag('sustain')) * 0.4 + n((e) => e.cls === 'bruiser' || e.cls === 'tank') * 0.3 - burst * 0.1, 'Wears down their duelists'],
+    bulwark: [(n(tag('teamfight')) * 0.4 + burst * 0.2) * (front ? 1 : 0.3), 'Toughens your grouped team'],
+    momentum: [0.35 - dive * 0.15 - n(tag('pick')) * 0.1, 'Snowballs a lead'],
+    stalker: [squish * 0.25 - n(tag('vision')) * 0.6 + 0.1, 'Picks them off from the fog'],
   };
   let best = def.rec, bs = -Infinity, why = 'Recommended';
   for (const b of def.builds) {

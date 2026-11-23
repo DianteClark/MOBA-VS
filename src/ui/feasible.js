@@ -4,6 +4,7 @@
 // runs it headless). Only uses what team `my` can see: enemy heroes count only while in its vision.
 import { CMD, TICK_RATE, PERMIT, MOMENTUM } from '../sim/constants.js';
 import { TACTICS } from '../data/tactics.js';
+import { cardBlock } from '../sim/cards2.js';
 import { N, C } from '../sim/world.js';
 
 // How long a moment stays worth acting on (seconds): a gank on an overextended laner, a carry caught out,
@@ -128,7 +129,7 @@ export function accepted(g, my, cmd) {
       const t = g.byId(cmd.target); return seen(g, my, t) && d2(t, hero) <= PERMIT.range * PERMIT.range;
     }
     case 'surge': return team.momentum >= MOMENTUM.max && !(team.surgeUntil > now) && alive.length > 0;
-    case 'tactic': return !!TACTICS[cmd.card] && team.deck.some((d) => d.id === cmd.card && !d.used);
+    case 'tactic': return !!TACTICS[cmd.card] && team.deck.some((d) => d.id === cmd.card && !d.used) && !cardBlock(g, my, cmd.card);
     case 'scout': { if (!g.beasts || now < team.scoutCd || g.beasts.pet(my)) return false; const ef = g.world.fountain[1 - my]; return (cmd.x - ef.x) ** 2 + (cmd.y - ef.y) ** 2 >= 700 * 700; } // Bosses & Beasts (mirrors Beasts.scout)
     default: return true;
   }

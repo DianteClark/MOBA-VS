@@ -232,6 +232,13 @@ h1, h2, h3 { margin: 0; font-weight: normal; }
 .card .cd { font-size: 9px; color: var(--muted); grid-column: 2; line-height: 1.3; }
 .card.sel { border-color: var(--purple); background: #2e2240; box-shadow: 0 0 8px #b48cff55; }
 .card .tick { position: absolute; top: -5px; right: -5px; width: 12px; height: 12px; background: var(--purple); border: 2px solid #000; transform: rotate(45deg); }
+.card .cs { display: none; font-size: 9px; color: var(--muted); grid-column: 2; line-height: 1.25; }
+.card .cc { font-size: 8px; color: #9a8fb0; grid-column: 1 / -1; line-height: 1.25; }
+.card .ccond { margin-left: 4px; font-size: 8px; color: #ffb04a; vertical-align: 1px; }
+.card.lock { cursor: default; opacity: 0.55; filter: grayscale(0.7); } .card.lock .cs { display: block; color: #ffb04a; } .card.lock .cd { display: none; }
+.drec { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 2px 0 6px; } .drec .drc { font-size: 11px; padding: 3px 8px; border-color: var(--pc); }
+.drec .drc.mine { box-shadow: inset 0 -2px 0 var(--pc); } .drec .drc.on { background: color-mix(in srgb, var(--pc) 30%, #1e1928); }
+.dlock { margin: 8px 0 4px; } .deck.locked .card { min-height: 40px; }
 .prep button:disabled { cursor: default; }
 .adjbtn { min-width: 96px; }
 /* prep summary (quick confirm) */
@@ -445,6 +452,7 @@ h1, h2, h3 { margin: 0; font-weight: normal; }
 .tcard.on { border-color: var(--gold); box-shadow: 0 0 10px #ffd84a66; }
 .tcard.used { opacity: 0.32; border-color: #555; cursor: default; transform: none; filter: grayscale(1); }
 .tcard.used b { text-decoration: line-through; }
+.tcard.wait { opacity: 0.6; filter: saturate(0.4); } .tcard.wait small { color: #ffb04a; }
 /* an open target picker is the one thing to read: the cancel pill steps aside (every screen size) */
 #hud.sheeting .cancelpill { display: none; }
 .cancelpill { align-self: center; cursor: pointer; background: #3a1616; border: 2px solid var(--red); color: #ffd0d0; font-size: 11px; padding: 4px 12px; animation: rise 0.15s; }
@@ -775,7 +783,7 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 20px; border-radius: 
   #screen { padding-left: calc(8px + var(--safe-l)); padding-right: calc(8px + var(--safe-r)); }
   .prep-cards { grid-template-columns: 1fr; }
   .plans { grid-template-columns: 1fr; } .plan { min-height: 44px; }
-  .deck { grid-template-columns: 1fr 1fr; } .card .cd { display: none; } .card { min-height: 44px; }
+  .deck { grid-template-columns: 1fr 1fr; } .card .cd, .card .cc { display: none; } .card .cs { display: block; } .card { min-height: 44px; }
   .mvp { gap: 10px; } .mvpname { font-size: 17px; } .mvpstats { gap: 10px; }
   .tbl .c-gold, .tbl .c-build, .tbl .c-items, .tbl .c-role { display: none; }
   .tbl td, .tbl th { padding: 4px 4px; }

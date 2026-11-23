@@ -101,8 +101,11 @@ SCREENS = [
     ('dojo-lineups', "document.querySelector('.svmodal')?.remove(); D.showDojo(app, { tab: 'lineups' })"),
     ('dojo-lineup-talents', "document.querySelector('.ltal').click(); await new Promise((r) => setTimeout(r, 300))"),
     ('dojo-builds', "for (const e of document.querySelectorAll('.modal')) e.remove(); D.showDojo(app, { tab: 'builds' })"),
+    ('dojo-cards', "D.showDojo(app, { tab: 'cards' })"),
+    ('dojo-deck', "D.showDojo(app, { tab: 'lineups' }); await new Promise((r) => setTimeout(r, 200)); document.querySelector('.ldeckbtn').click(); await new Promise((r) => setTimeout(r, 300))"),
+    ('dojo-deck-locked', "document.querySelector('.mpanel .dlock')?.scrollIntoView({ block: 'start' })"),
     # champion unlocks (src/ui/shop.js, src/ui/avatar.js): the shop, a hero sheet, the buy confirm, the Ranked gate, the picture picker
-    ('dojo-shop', "D.showDojo(app, { tab: 'shop' })"),
+    ('dojo-shop', "for (const e of document.querySelectorAll('.modal')) e.remove(); D.showDojo(app, { tab: 'shop' })"),
     ('shop-sheet', "document.querySelector('.scard:not(.owned)').click(); await new Promise((r) => setTimeout(r, 200))"),
     ('ranked-gate', "for (const e of document.querySelectorAll('.modal')) e.remove(); app.menu(); (await import('./src/ui/shop.js')).rankedGate(app)"),
     ('pfp-picker', "for (const e of document.querySelectorAll('.modal')) e.remove(); (await import('./src/ui/avatar.js')).pickPortrait()"),

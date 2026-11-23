@@ -117,8 +117,15 @@
 .bgrow { display: grid; grid-template-columns: 74px 1fr; gap: 6px; font-size: 10px; align-items: start; }
 .bgrow > span:first-child { color: var(--muted); }
 .bgrow.good > span:first-child { color: var(--green); } .bgrow.bad > span:first-child { color: #ff8a8a; }
+.bcombos { display: grid; gap: 4px; padding: 8px 10px; background: #1e1928; border: 2px solid var(--line); margin-bottom: 8px; } .bcombos > b { color: #ffe3a3; font-size: 12px; } .bcombos i { font-style: normal; }
+.bgrow.combo > span:first-child { color: #ffb0f0; }
+.clist { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px; }
+.clcard { display: grid; gap: 4px; padding: 7px 9px; background: #1e1928; border: 2px solid var(--line); border-bottom-width: 4px; }
+.clcard.lock { opacity: 0.7; } .clhead { display: flex; align-items: center; gap: 6px; } .clhead img { width: 24px; height: 24px; }
+.clhead b { color: #ffe3a3; font-size: 12px; } .clhead small { color: var(--muted); font-size: 9px; margin-left: auto; } .clcard .ccond { font-size: 9px; color: #ffb04a; }
+.cldesc { font-size: 10px; line-height: 1.35; }
 .bgfaces { display: flex; flex-wrap: wrap; gap: 3px; }
-.bgfaces button { cursor: pointer; padding: 0; background: none; border: 1px solid var(--line); position: relative; }
+.bgfaces button { cursor: pointer; padding: 1px; background: none; border: 1px solid var(--line); position: relative; }
 .bgfaces button.best { border-color: var(--bc); box-shadow: 0 0 4px var(--bc); }
 .bgfaces img { width: 24px; height: 24px; display: block; image-rendering: pixelated; }
 
